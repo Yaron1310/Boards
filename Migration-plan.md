@@ -86,7 +86,7 @@ Tasks:
 5. Global Find \& Replace for organizationId -> workspaceId.
 6. Update DB collection names in collections.ts (academies -> organizations).
 
-🧩 PHASE 4 — New Data Model Implementation
+✅ 🧩 PHASE 4 — New Data Model Implementation (DONE)
 📦 Firestore Structure
 Items (The core of the system)
 /organizations/{organizationId}/items/{itemId}
@@ -107,7 +107,7 @@ Column Definitions (Global to Organization)
 * Items are NOT nested under boards (enables Dashboards).
 * Real-time: UI uses onSnapshot to listen for changes on items.
 
-🧩 PHASE 4.1 — COLUMN TYPES (FINAL MVP SPEC)
+✅ 🧩 PHASE 4.1 — COLUMN TYPES (FINAL MVP SPEC) (DONE)
 🎯 Goals
 Support real business use cases (tasks, budgets, CRM)
 Keep backend simple (no computation engine)
@@ -300,7 +300,7 @@ Enforce limits:
 maxLength
 precision
 
-🔐 PHASE 5 — Security Rules
+✅ 🔐 PHASE 5 — Security Rules (DONE)
 
 ### 5.0 — Foundation
 All authorization is enforced at the Express backend layer. Firestore rules stay deny-all — the backend is the sole trust boundary.
