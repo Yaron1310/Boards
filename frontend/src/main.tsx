@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App'; // Assuming App.tsx is in the same src/ directory
 import { AuthProvider } from './contexts/AuthContext'; // Assuming contexts are in src/contexts/
 import { DataProvider } from './contexts/DataContext';
-import { ChatSessionProvider } from './contexts/ChatSessionContext';
 import './index.css'; // Import the global stylesheet
 import './i18n'; // Initialize i18next before the app renders
 
@@ -35,9 +34,7 @@ root.render(
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <DataProvider>
-          <ChatSessionProvider>
             <App />
-          </ChatSessionProvider>
         </DataProvider>
       </AuthProvider>
     </QueryClientProvider>

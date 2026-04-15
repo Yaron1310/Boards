@@ -1,14 +1,12 @@
 
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import ReactDOM from 'react-dom';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import type { User } from '../../types'; 
-import { UserRole } from '../../types'; 
-import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiBookOpen, FiCpu, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiMessageSquare } from 'react-icons/fi';
-import QuestionnaireIcon from '../common/QuestionnaireIcon';
+import type { User } from '../../types';
+import { UserRole } from '../../types';
+import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
 import TutorialSection from '../common/TutorialSection';
 import AcademyAdminsModal from './AcademyAdminsModal';
@@ -31,66 +29,25 @@ const exportToCSV = (rows: Record<string, unknown>[], filename: string) => {
     URL.revokeObjectURL(url);
 };
 
-const TokenUsageBar: React.FC<{ used: number; limit: number | null }> = ({ used, limit }) => {
-    const formatTokens = (tokens: number) => {
-        if (tokens < 1000) {
-            return tokens.toLocaleString();
-        }
-        return `${(tokens / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })}k`;
-    };
-
-    if (limit === null) {
-        return <>{formatTokens(used)}</>;
-    }
-
-    const percentage = limit > 0 ? (used / limit) * 100 : 0;
-    const isOverLimit = percentage > 100;
-
-    return (
-        <div className="w-full">
-            <div className="flex justify-between text-xs mb-1">
-                <span>{formatTokens(used)}</span>
-                <span className="text-gray-500">/ {formatTokens(limit)}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                    className={`h-2 rounded-full ${isOverLimit ? 'bg-red-500' : 'bg-purple-500'}`}
-                    style={{ width: `${Math.min(percentage, 100)}%` }}
-                ></div>
-            </div>
-        </div>
-    );
-};
-
 
 const UserManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const { user: authUser, selectedOrganization } = useAuth();
-  const { 
+  const {
     organizations,
-    plans,
     preApprovedUsers,
-    conversations: allConversations, 
-    courses, 
-    questionnaires,
-    organizationProgress,
-    userTokenUsage,
-    fetchUserTokenUsage,
-    isAnalyticsLoading,
     tutorialSettings
-  } = useData(); 
+  } = useData();
   const navigate = useNavigate();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [filterOrg, setFilterOrg] = useState<string>(''); 
+  const [filterOrg, setFilterOrg] = useState<string>('');
   const [filterRole, setFilterRole] = useState<string>('');
-  const [filterYear, setFilterYear] = useState<string>('');
-  const [filterMonth, setFilterMonth] = useState<string>('');
-  
+
   const [showPreApproveModal, setShowPreApproveModal] = useState(false);
   const [showAcademyAdminsModal, setShowAcademyAdminsModal] = useState(false);
-  
+
   const [feedback, setFeedback] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   // Debounce search
@@ -137,29 +94,13 @@ const UserManagementPage: React.FC = () => {
   const handleOpenPreApproveModal = () => {
     if (orgForPreApproval) setShowPreApproveModal(true);
   };
-  
-  const months = useMemo(() => Array.from({length: 12}, (_, i) => ({ value: i + 1, name: new Date(0, i).toLocaleString('default', { month: 'long' }) })), []);
-  const years = useMemo(() => {
-      const currentYear = new Date().getFullYear();
-      return Array.from({length: 5}, (_, i) => currentYear - i);
-  }, []);
 
-  useEffect(() => {
-    const yearNum = filterYear ? parseInt(filterYear, 10) : undefined;
-    const monthNum = filterMonth ? parseInt(filterMonth, 10) : undefined;
-    fetchUserTokenUsage(monthNum, yearNum);
-  }, [filterYear, filterMonth, fetchUserTokenUsage]);
-  
-  const { maxUsers, currentRegularUsersCount, pendingInvitesCount } = useMemo(() => {
-    if (authUser?.role !== UserRole.ORGANIZATION_ADMIN || !selectedOrganization || !plans || !allUsers || !preApprovedUsers) {
-        return { maxUsers: null, currentRegularUsersCount: 0, pendingInvitesCount: 0 };
-    }
-    const plan = plans.find(p => p.id === selectedOrganization.planId);
-    if (!plan || !plan.maxUsers || plan.maxUsers === 0) {
-        return { maxUsers: null, currentRegularUsersCount: allUsers.length, pendingInvitesCount: preApprovedUsers.length }; // Unlimited
+  const { currentRegularUsersCount, pendingInvitesCount } = useMemo(() => {
+    if (authUser?.role !== UserRole.ORGANIZATION_ADMIN || !selectedOrganization || !allUsers || !preApprovedUsers) {
+        return { currentRegularUsersCount: 0, pendingInvitesCount: 0 };
     }
 
-    const regularUsers = allUsers.filter(u => {
+    const regularUsers = allUsers.filter((u: User) => {
         if (u.dbRoles?.organizationAdmin?.includes(selectedOrganization.id)) return false;
         if (u.dbRoles?.academyAdmin?.includes(selectedOrganization.academyId)) return false;
         if (u.dbRoles?.systemAdmin) return false;
@@ -167,52 +108,28 @@ const UserManagementPage: React.FC = () => {
     });
 
     const pendingCount = preApprovedUsers.filter(p => p.organizationId === selectedOrganization.id).length;
-    
-    return { 
-        maxUsers: plan.maxUsers, 
+
+    return {
         currentRegularUsersCount: regularUsers.length,
         pendingInvitesCount: pendingCount
     };
-  }, [authUser, selectedOrganization, plans, allUsers, preApprovedUsers]);
+  }, [authUser, selectedOrganization, allUsers, preApprovedUsers]);
 
-  
+
   if (!authUser || (authUser.role !== UserRole.ACADEMY_ADMIN && authUser.role !== UserRole.ORGANIZATION_ADMIN && authUser.role !== UserRole.SYSTEM_ADMIN)) {
-    navigate('/chat'); 
+    navigate('/chat');
     return null;
   }
-
-  const getUserCourseProgress = (u: User) => {
-    if (u.completedCourseCount !== undefined) {
-        return `${u.completedCourseCount} / ${courses.length}`;
-    }
-    const userProgress = organizationProgress.filter(p => p.userId === u.id && p.status === 'completed');
-    return `${userProgress.length} / ${courses.length}`;
-  };
 
   const handleExportToExcel = () => {
     // Note: For very large datasets, we should fetch all pages or use a server-side export.
     // For now, we export the loaded pages.
-    const dataForExport = allUsers.map(u => {
-        const usage = userTokenUsage?.[u.id];
-        const courseProgress = getUserCourseProgress(u).split(' / ');
-        const completedQuestionnaires = u.completedQuestionnairesCount || 0;
-        const totalQuestionnaires = questionnaires.length;
-        const userConversationCount = u.conversationCount !== undefined ? u.conversationCount : allConversations.filter(conv => conv.userId === u.id).length;
-        
-        return {
-            'Name': u.name,
-            'Email': u.email,
-            'Role': u.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            'Organization(s)': u.organizations.filter(o => !o.isPersonal).map(o => o.name).join(', '),
-            'Conversations': userConversationCount,
-            'Completed Courses': courseProgress[0] ? parseInt(courseProgress[0], 10) : 0,
-            'Total Courses': courseProgress[1] ? parseInt(courseProgress[1], 10) : courses.length,
-            'Completed Questionnaires': completedQuestionnaires,
-            'Total Questionnaires': totalQuestionnaires,
-            'Tokens Used': usage ? usage.used : 0,
-            'Token Limit': usage?.limit === null ? 'Unlimited' : (usage?.limit ?? 0)
-        };
-    });
+    const dataForExport = allUsers.map((u: User) => ({
+        'Name': u.name,
+        'Email': u.email,
+        'Role': u.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        'Organization(s)': u.organizations.filter(o => !o.isPersonal).map(o => o.name).join(', '),
+    }));
 
     exportToCSV(dataForExport, "Gymind_Users_Export.csv");
   };
@@ -232,25 +149,20 @@ const UserManagementPage: React.FC = () => {
     const u = allUsers[index];
     if (!u) return null;
 
-    const userConversationCount = u.conversationCount !== undefined ? u.conversationCount : allConversations.filter(conv => conv.userId === u.id).length;
-    const courseProgress = getUserCourseProgress(u);
-    const usage = userTokenUsage?.[u.id];
-    const completedQuestionnaires = u.completedQuestionnairesCount || 0;
-    const totalQuestionnaires = questionnaires.length;
-    const questionnaireProgress = `${completedQuestionnaires} / ${totalQuestionnaires}`;
-
     return (
-        <div 
+        <div
             style={style}
             className="flex hover:bg-gray-50 transition-colors cursor-pointer border-b border-gray-200 bg-white"
             onClick={() => navigate(`/admin/users/${u.id}`)}
             onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/admin/users/${u.id}`)}
             tabIndex={0}
             title="View profile page"
+            role="row"
+            aria-label={`User ${u.name}`}
         >
             <div className="flex-[2] px-6 py-4 flex items-center min-w-0">
                 <div className="flex-shrink-0 h-10 w-10">
-                    <img className="h-10 w-10 rounded-full object-cover" src={u.profileImageUrl || `/default_user.webp`} 
+                    <img className="h-10 w-10 rounded-full object-cover" src={u.profileImageUrl || `/default_user.webp`}
                     onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)}
                     alt={`${u.name}'s profile picture`} />
                 </div>
@@ -264,25 +176,13 @@ const UserManagementPage: React.FC = () => {
             <div className="flex-[1.5] px-6 py-4 text-sm text-gray-700 flex items-center truncate">
                 {u.organizationName || 'N/A'}
             </div>
-            <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center justify-center">
-                <div className="flex items-center" title="Total Conversations">
-                    <FiMessageSquare className="mr-2 text-blue-500" size="1em"/> {userConversationCount}
-                </div>
+            <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center truncate">
+                {u.email}
             </div>
-            <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center justify-center">
-                <div className="flex items-center" title="Completed Courses">
-                    <FiBookOpen className="mr-2 text-blue-500" size="1em"/> {courseProgress}
-                </div>
-            </div>
-            <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center justify-center">
-                <div className="flex items-center" title="Completed Questionnaires">
-                    <QuestionnaireIcon className="mr-2 text-blue-500" size="1em" /> {questionnaireProgress}
-                </div>
-            </div>
-            <div className="flex-[1.5] px-6 py-4 text-sm text-gray-700 flex items-center justify-center min-w-[150px]">
-                {isAnalyticsLoading ? <FiLoader className="animate-spin h-4 w-4 mx-auto"/> : 
-                    usage ? <TokenUsageBar used={usage.used} limit={usage.limit} /> : '0'
-                }
+            <div className="flex-[0.75] px-6 py-4 text-sm text-gray-700 flex items-center justify-center">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${u.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                    {u.status === 'active' ? t('common.active') : u.status}
+                </span>
             </div>
         </div>
     );
@@ -302,6 +202,7 @@ const UserManagementPage: React.FC = () => {
                         <button
                         onClick={handleOpenPreApproveModal}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
+                        aria-label="Pre-approve new users for your organization"
                         title="Pre-approve new users for your organization"
                         >
                         <FiUserPlus className="mr-2" /> {t('admin.preApproveUsers')}
@@ -311,6 +212,7 @@ const UserManagementPage: React.FC = () => {
                         <button
                         onClick={() => setShowAcademyAdminsModal(true)}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
+                        aria-label="Manage admins for your academy"
                         title="Manage admins for your academy"
                         >
                         <FiShield className="mr-2" /> {t('admin.manageAcademyAdmins')}
@@ -319,7 +221,8 @@ const UserManagementPage: React.FC = () => {
                     <button
                       onClick={handleExportToExcel}
                       className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
-                      title="Export current user list to an Excel file"
+                      aria-label="Export current user list to a CSV file"
+                      title="Export current user list to a CSV file"
                     >
                       <FiShare className="mr-2" /> {t('common.export')}
                     </button>
@@ -333,7 +236,7 @@ const UserManagementPage: React.FC = () => {
       <div className="px-4 md:px-8 pb-4 flex-grow flex flex-col min-h-0 overflow-hidden">
         <div className="max-w-6xl mx-auto w-full flex-grow flex flex-col overflow-hidden">
             {feedback && (
-                <div className={`p-3 mb-4 rounded-md flex items-center text-sm shrink-0 ${feedback.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                <div className={`p-3 mb-4 rounded-md flex items-center text-sm shrink-0 ${feedback.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`} role="alert">
                     {feedback.type === 'success' ? <FiCheckCircle className="mr-2"/> : <FiAlertCircle className="mr-2"/>}
                     {feedback.text}
                     <button onClick={() => setFeedback(null)} className="ml-auto text-lg font-semibold" aria-label="Dismiss">&times;</button>
@@ -344,7 +247,7 @@ const UserManagementPage: React.FC = () => {
                 <div className="flex items-center gap-6">
                     <h2 className="text-xl font-semibold text-gray-700">{t('common.filters')}</h2>
                     <button
-                        onClick={() => { setSearchTerm(''); setFilterOrg(''); setFilterRole(''); setFilterYear(''); setFilterMonth(''); }}
+                        onClick={() => { setSearchTerm(''); setFilterOrg(''); setFilterRole(''); }}
                         className="text-sm text-blue-600 border border-blue-600 hover:bg-blue-50 font-medium px-3 py-1 rounded-md transition-colors"
                         aria-label={t('common.resetFilters')}
                     >
@@ -367,15 +270,15 @@ const UserManagementPage: React.FC = () => {
                             aria-label="Search users"
                         />
                     </div>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {(authUser.role === UserRole.ACADEMY_ADMIN || authUser.role === UserRole.SYSTEM_ADMIN) && ( 
+                        {(authUser.role === UserRole.ACADEMY_ADMIN || authUser.role === UserRole.SYSTEM_ADMIN) && (
                             <div className="relative">
                                 <label htmlFor="org-filter-users" className="sr-only">Filter by organization</label>
                                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <FiFilter className="h-5 w-5 text-gray-400" />
                                 </span>
-                                <select 
+                                <select
                                     id="org-filter-users"
                                     value={filterOrg}
                                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterOrg(e.target.value)}
@@ -392,7 +295,7 @@ const UserManagementPage: React.FC = () => {
                                 </span>
                             </div>
                         )}
-                        
+
                         <div className="relative">
                             <label htmlFor="role-filter" className="sr-only">Filter by role</label>
                             <select
@@ -413,48 +316,28 @@ const UserManagementPage: React.FC = () => {
                         </div>
                     </div>
                 </div>
-                
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('admin.tokenUsagePeriodFilter')}</label>
-                    <div className="grid grid-cols-2 gap-4">
-                        <select value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md bg-white" aria-label="Filter by month">
-                            <option value="">{t('common.allMonths')}</option>
-                            {months.map(m => <option key={m.value} value={m.value}>{m.name}</option>)}
-                        </select>
-                        <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md bg-white" aria-label="Filter by year">
-                            <option value="">{t('common.allYears')}</option>
-                            {years.map(y => <option key={y} value={y}>{y}</option>)}
-                        </select>
-                    </div>
-                </div>
             </div>
 
             <div className="flex-grow flex flex-col bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
-                <div className="flex bg-gray-50 border-b border-gray-200 shrink-0 font-medium text-xs text-gray-500 uppercase tracking-wider">
-                    <div className="flex-[2] px-6 py-3 text-left">{t('common.name')}</div>
-                    <div className="flex-[1.5] px-6 py-3 text-left">{t('common.organization')}</div>
-                    <div className="flex-1 px-6 py-3 text-center">{t('admin.conv')}</div>
-                    <div className="flex-1 px-6 py-3 text-center">{t('admin.courses')}</div>
-                    <div className="flex-1 px-6 py-3 text-center">{t('questionnaire.title')}</div>
-                    <div className="flex-[1.5] px-6 py-3 text-center min-w-[150px]">
-                        <div className="flex items-center justify-center">
-                            <FiCpu className="mr-1.5" /> {t('admin.tokensK')}
-                        </div>
-                    </div>
+                <div className="flex bg-gray-50 border-b border-gray-200 shrink-0 font-medium text-xs text-gray-500 uppercase tracking-wider" role="rowgroup">
+                    <div className="flex-[2] px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
+                    <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.organization')}</div>
+                    <div className="flex-1 px-6 py-3 text-left" role="columnheader">{t('common.email')}</div>
+                    <div className="flex-[0.75] px-6 py-3 text-center" role="columnheader">{t('common.status')}</div>
                 </div>
 
                 <div className="flex-grow min-h-0">
                     {isUsersLoading && !infiniteData ? (
                         <div className="flex items-center justify-center h-full">
-                            <FiLoader className="animate-spin text-blue-500" size={48} />
+                            <FiLoader className="animate-spin text-blue-500" size={48} aria-label="Loading users" />
                         </div>
                     ) : isUsersError ? (
-                        <div className="flex items-center justify-center h-full text-red-500">
+                        <div className="flex items-center justify-center h-full text-red-500" role="alert">
                             <FiAlertTriangle className="mr-2" /> {t('admin.errorLoadingUsers')}
                         </div>
                     ) : allUsers.length === 0 ? (
                         <div className="text-center py-10 text-gray-500">
-                            <FiUsers size={48} className="mx-auto mb-4 opacity-50" />
+                            <FiUsers size={48} className="mx-auto mb-4 opacity-50" aria-hidden="true" />
                             <p className="text-lg">{t('admin.noUsersFound')}</p>
                         </div>
                     ) : (
@@ -486,26 +369,26 @@ const UserManagementPage: React.FC = () => {
             </div>
         </div>
       </div>
-      
+
       {showPreApproveModal && orgForPreApproval && (
-        <PreApproveUsersModal 
-            isOpen={showPreApproveModal} 
-            onClose={() => setShowPreApproveModal(false)} 
-            organization={orgForPreApproval} 
-            maxUsers={maxUsers}
+        <PreApproveUsersModal
+            isOpen={showPreApproveModal}
+            onClose={() => setShowPreApproveModal(false)}
+            organization={orgForPreApproval}
+            maxUsers={null}
             currentRegularUsersCount={currentRegularUsersCount}
             pendingInvitesCount={pendingInvitesCount}
         />
       )}
-      
+
       {showAcademyAdminsModal && (
-        <AcademyAdminsModal 
+        <AcademyAdminsModal
             isOpen={showAcademyAdminsModal}
             onClose={() => setShowAcademyAdminsModal(false)}
-            onActionSuccess={() => {}} 
+            onActionSuccess={() => {}}
         />
       )}
-      
+
     </div>
   );
 };

@@ -10,25 +10,19 @@ import { db } from '../services/firestore.service.js';
 import { Buffer } from 'node:buffer';
 import { OAuth2Client } from 'google-auth-library';
 import { URL } from 'url';
-import { 
-    usersCollection, 
+import {
+    usersCollection,
     organizationsCollection,
     preapprovedUsersCollection,
     academiesCollection,
-    userQuestionnaireResultsCollection,
-    plansCollection,
     membershipsCollection,
-    pendingCheckoutsCollection,
-    paymentSessionsCollection,
-    academyBillingCyclesCollection
 } from '../db/collections.js';
 import { snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
 import { env } from '../config/env.js';
-import { DBUser, DBOrganization, JwtUserPayload, DBPreapprovedUser, JwtVerificationPayload, JwtMultiOrgPayload, UserRole, DBAcademy, JwtPasswordResetPayload, DBPlan, DBMembership, DBPendingCheckout, DBAcademyBillingCycle } from '../types/index.js';
+import { DBUser, DBOrganization, JwtUserPayload, DBPreapprovedUser, JwtVerificationPayload, JwtMultiOrgPayload, UserRole, DBAcademy, JwtPasswordResetPayload, DBMembership } from '../types/index.js';
 import { sendAccountVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail } from '../services/email.service.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { validatePasswordComplexity } from '../utils/password.js';
-import { enrollUserInTriggerCampaigns } from '../services/trigger.service.js';
 
 const isProduction = process.env.NODE_ENV === 'production' || env.FRONTEND_URL.startsWith('https');
 
@@ -63,32 +57,6 @@ const clearAuthCookies = (res: import('express').Response) => {
     res.clearCookie('partialAuthToken', { path: '/' });
 };
 
-async function checkOrganizationUserLimit(organizationId: string): Promise<{ limitExceeded: boolean; message: string }> {
-    const orgDoc = await organizationsCollection.doc(organizationId).get();
-    if (!orgDoc.exists) {
-        return { limitExceeded: false, message: '' }; // Let other logic handle "org not found"
-    }
-    const orgData = orgDoc.data() as DBOrganization;
-    if (orgData.planId) {
-        const planDoc = await plansCollection.doc(orgData.planId).get();
-        if (planDoc.exists) {
-            const plan = snapshotToData<DBPlan>(planDoc)!;
-            // A plan with maxUsers=0 or null/undefined is considered unlimited
-            if (plan.maxUsers && plan.maxUsers > 0) {
-                const currentUsersSnapshot = await membershipsCollection
-                    .where('entityId', '==', organizationId)
-                    .where('entityType', '==', 'organization')
-                    .where('role', '==', UserRole.REGULAR_USER)
-                    .get();
-                
-                if (currentUsersSnapshot.size >= plan.maxUsers) {
-                    return { limitExceeded: true, message: 'This organization has reached its maximum user limit. Please contact your administrator.' };
-                }
-            }
-        }
-    }
-    return { limitExceeded: false, message: '' };
-}
 
 // Derives the user's highest possible role from their memberships.
 export const deriveHighestRole = (memberships: DBMembership[]): UserRole => {
@@ -211,9 +179,6 @@ export const formatUserForFrontend = async (
         }
     }
     userForFrontend.organizations = userOrgs;
-    
-    const resultsSnapshot = await userQuestionnaireResultsCollection.where('userId', '==', user.id).get();
-    userForFrontend.completedQuestionnairesCount = resultsSnapshot.empty ? 0 : new Set(resultsSnapshot.docs.map(doc => doc.data().questionnaireId)).size;
 
     const academyAdminAcademyIds = new Set(memberships.filter(m => m.entityType === 'academy' && m.role === UserRole.ACADEMY_ADMIN).map(m => m.entityId));
     const visibleOrgs = userOrgs.filter(o => !(o.isPersonal && academyAdminAcademyIds.has(o.academyId)));
@@ -245,68 +210,15 @@ export const generateFullLoginResponse = async (user: DBUser, selectedOrganizati
         throw new Error(`Could not determine a valid role for user ${user.id}.`);
     }
 
-    const tokenPayload: JwtUserPayload = { 
-        id: user.id, 
-        role: effectiveRole, 
-        selectedOrganizationId: selectedOrganization.id, 
+    const tokenPayload: JwtUserPayload = {
+        id: user.id,
+        role: effectiveRole,
+        selectedOrganizationId: selectedOrganization.id,
         academyId: academyId
     };
     const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
 
     const userForFrontend = await formatUserForFrontend(user, { role: effectiveRole });
-
-    let planAccess = {
-        hasChatAccess: false,
-        hasMindPatternsAccess: false,
-    };
-
-    // --- BILLING LIMIT CHECK ---
-    // We check the overall Academy billing cycle. If the limit is reached, we disable AI features for EVERYONE including admins.
-    const now = new Date();
-    const cycleId = `${academyId}_${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-    const cycleDoc = await academyBillingCyclesCollection.doc(cycleId).get();
-    let isBillingLimitReached = false;
-
-    if (cycleDoc.exists) {
-        const cycle = snapshotToData<DBAcademyBillingCycle>(cycleDoc)!;
-        if (cycle.currentTokenUsage >= cycle.calculatedTokenLimit) {
-            logger.warn(`Academy ${academyId} has reached its token limit. Disabling AI features for login context.`);
-            isBillingLimitReached = true;
-        }
-    }
-
-    // Admins have feature access by default, but still gated by the overall Academy billing limit.
-    if (effectiveRole === UserRole.ACADEMY_ADMIN || effectiveRole === UserRole.SYSTEM_ADMIN) {
-        planAccess = {
-            hasChatAccess: !isBillingLimitReached,
-            hasMindPatternsAccess: !isBillingLimitReached,
-        };
-    } else if (selectedOrganization.planId && !isBillingLimitReached) {
-        const planDoc = await plansCollection.doc(selectedOrganization.planId).get();
-        if (planDoc.exists) {
-            const plan = snapshotToData<DBPlan>(planDoc)!;
-            const hasAnyChatAccess = (plan.hasAllChatAccess !== false) || ((plan.accessibleChatPersonaIds || []).length > 0);
-            const hasAnyQuestionnaireAccess = (plan.hasAllQuestionnairesAccess !== false) || ((plan.accessibleQuestionnaireIds || []).length > 0);
-            planAccess = {
-                hasChatAccess: hasAnyChatAccess,
-                hasMindPatternsAccess: hasAnyQuestionnaireAccess,
-            };
-        }
-    }
-
-
-    // Gate AI features on org subscription status for non-admin roles.
-    // If the org's subscription is not active/trialing, override plan access to false.
-    const orgSubStatus = selectedOrganization.subscriptionStatus || 'active';
-    const isOrgSubscriptionActive = orgSubStatus === 'active' || orgSubStatus === 'trialing';
-    if (!isOrgSubscriptionActive && effectiveRole !== UserRole.ACADEMY_ADMIN && effectiveRole !== UserRole.SYSTEM_ADMIN) {
-        planAccess = { hasChatAccess: false, hasMindPatternsAccess: false };
-    }
-
-    // If billing limit reached, ensure everything is false regardless of individual org plan
-    if (isBillingLimitReached) {
-        planAccess = { hasChatAccess: false, hasMindPatternsAccess: false };
-    }
 
     return {
         accessToken,
@@ -315,10 +227,6 @@ export const generateFullLoginResponse = async (user: DBUser, selectedOrganizati
             id: selectedOrganization.id,
             name: selectedOrganization.name,
             academyId: selectedOrganization.academyId,
-            subscriptionProvider: selectedOrganization.subscriptionProvider,
-            subscriptionStatus: selectedOrganization.subscriptionStatus,
-            isPersonal: selectedOrganization.isPersonal,
-            ...planAccess,
         },
     };
 };
@@ -446,7 +354,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
 };
 
 export const register = async (req: Request, res: Response) => {
-    const { password, planId } = req.body;
+    const { password } = req.body;
     const email = sanitizeText(req.body.email);
     const name = sanitizeText(req.body.name);
 
@@ -478,56 +386,32 @@ export const register = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'User with this email already exists.' });
         }
 
-        let organizationId = '';
-        let academyId = '';
-
-        if (planId) {
-            // --- Checkout Flow: Validate Plan ---
-            const planDoc = await plansCollection.doc(planId).get();
-            if (!planDoc.exists) {
-                return res.status(404).json({ message: 'Invalid plan selected.' });
-            }
-            const plan = snapshotToData<DBPlan>(planDoc)!;
-            academyId = plan.academyId;
-            // Note: We do not set organizationId here as it's created after payment
-        } else {
-            // --- Standard Organization Pre-approved Flow ---
-            const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
-            if (preapprovedQuery.empty) {
-                logger.warn(`Registration attempt by non-pre-approved email: ${email}`);
-                return res.status(403).json({ message: 'You are not authorized to register. Please contact your organization manager.' });
-            }
-            
-            const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedQuery.docs[0])!;
-            organizationId = preapprovedData.organizationId;
-            
-            // Check user limit
-            const limitCheck = await checkOrganizationUserLimit(organizationId);
-            if (limitCheck.limitExceeded) {
-                return res.status(403).json({ message: limitCheck.message });
-            }
+        // Standard Organization Pre-approved Flow
+        const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
+        if (preapprovedQuery.empty) {
+            logger.warn(`Registration attempt by non-pre-approved email: ${email}`);
+            return res.status(403).json({ message: 'You are not authorized to register. Please contact your organization manager.' });
         }
+
+        const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedQuery.docs[0])!;
+        const organizationId = preapprovedData.organizationId;
 
         const passwordHash = await bcrypt.hash(password, 10);
         const newUserRef = usersCollection.doc();
         const newUser: Omit<DBUser, 'createdAt' | 'googleId'> = {
-            id: newUserRef.id, email, name, passwordHash, 
+            id: newUserRef.id, email, name, passwordHash,
             status: 'pending',
-            profileImageUrl: '/default_user.webp', 
-            hasSeenChatPrivacyNotice: false,
-            registrationType: planId ? 'payment' : 'standard'
+            profileImageUrl: '/default_user.webp',
+            registrationType: 'standard'
         };
 
         const batch = db.batch();
         batch.set(newUserRef, { ...newUser, createdAt: new Date() });
 
-        // Only create membership immediately if NOT a checkout flow
-        if (!planId && organizationId) {
-            // Look up academyId from the org if not already set
-            if (!academyId) {
-                const orgDoc = await organizationsCollection.doc(organizationId).get();
-                if (orgDoc.exists) academyId = orgDoc.data()?.academyId || '';
-            }
+        let academyId = '';
+        if (organizationId) {
+            const orgDoc = await organizationsCollection.doc(organizationId).get();
+            if (orgDoc.exists) academyId = orgDoc.data()?.academyId || '';
             const newMembershipRef = membershipsCollection.doc();
             const newMembership: Omit<DBMembership, 'createdAt'> = {
                 id: newMembershipRef.id,
@@ -542,20 +426,14 @@ export const register = async (req: Request, res: Response) => {
 
         await batch.commit();
 
-        const verificationTokenPayload: JwtVerificationPayload = { 
-            userId: newUser.id, 
+        const verificationTokenPayload: JwtVerificationPayload = {
+            userId: newUser.id,
             action: 'verify_email',
-            planId: planId // Optional planId for checkout redirect
         };
         const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
         const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
-        
+
         let academyName = 'Gymind';
-        if (organizationId && !academyId) {
-            const orgDoc = await organizationsCollection.doc(organizationId).get();
-            academyId = orgDoc.exists ? orgDoc.data()?.academyId : '';
-        }
-        
         if (academyId) {
             const academyDoc = await academiesCollection.doc(academyId).get();
             academyName = academyDoc.exists ? (academyDoc.data()?.name || 'Gymind') : 'Gymind';
@@ -563,8 +441,8 @@ export const register = async (req: Request, res: Response) => {
 
         await sendAccountVerificationEmail(email, name, verificationLink, academyName);
 
-        return res.status(201).json({ 
-            success: true, 
+        return res.status(201).json({
+            success: true,
             message: `Registration successful! An email has been sent to ${email}. Please click the link inside to verify your account.`
         });
 
@@ -574,77 +452,11 @@ export const register = async (req: Request, res: Response) => {
     }
 };
 
-export const initiateCheckoutRegistration = async (req: Request, res: Response) => {
-    const { name, email, password, planId, academyId, company, address, city, zip, country } = req.body;
-    if (!name || !email || !password || !planId || !academyId || !company || !address || !city || !zip || !country) {
-        return res.status(400).json({ message: 'All form fields are required.' });
-    }
-
-    try {
-        const userQuery = await usersCollection.where('email', '==', email).limit(1).get();
-        if (!userQuery.empty) {
-            return res.status(400).json({ message: 'A user with this email address already exists. Please log in first.' });
-        }
-        
-        const planDoc = await plansCollection.doc(planId).get();
-        if (!planDoc.exists || planDoc.data()?.academyId !== academyId) {
-            return res.status(404).json({ message: 'Plan not found or not available in this academy.' });
-        }
-        
-        const passwordHash = await bcrypt.hash(password, 10);
-        const newUserRef = usersCollection.doc();
-        const newUser: Omit<DBUser, 'createdAt' | 'googleId'> = {
-            id: newUserRef.id, email: sanitizeText(email), name: sanitizeText(name), passwordHash,
-            status: 'pending', profileImageUrl: '/default_user.webp',
-            registrationType: 'payment'
-        };
-        
-        // Store form data temporarily for retrieval after verification
-        const checkoutSessionRef = pendingCheckoutsCollection.doc();
-        const checkoutData: DBPendingCheckout = {
-            id: checkoutSessionRef.id, name, email, password, company, address, city, zip, country, planId, academyId
-        };
-
-        const batch = db.batch();
-        batch.set(newUserRef, { ...newUser, createdAt: new Date() });
-        batch.set(checkoutSessionRef, checkoutData);
-        await batch.commit();
-
-        const verificationTokenPayload: JwtVerificationPayload = { 
-            userId: newUser.id, 
-            action: 'verify_email',
-            planId: planId,
-            checkoutSessionId: checkoutSessionRef.id // Include session ID in token
-        };
-        const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
-        const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
-        
-        const academyDoc = await academiesCollection.doc(academyId).get();
-        const academyName = academyDoc.exists ? (academyDoc.data()?.name || 'Gymind') : 'Gymind';
-
-        await sendAccountVerificationEmail(email, name, verificationLink, academyName);
-        
-        res.status(201).json({ 
-            success: true, 
-            message: `Account created. Please check your email to verify your address and continue to payment.` 
-        });
-        
-    } catch (error) {
-        logger.error("Error during initiateCheckoutRegistration:", error);
-        res.status(500).json({ message: 'An internal server error occurred.' });
-    }
-};
-
-
 export const registerAcademyAdmin = async (req: Request, res: Response) => {
-    const { email, password, name, planId } = req.body;
+    const { email, password, name } = req.body;
 
-    if (!email || !password || !name || !planId) {
-        return res.status(400).json({ message: 'Email, password, name, and planId are required.' });
-    }
-
-    if (planId !== 'academy_pay_as_you_go') {
-        return res.status(400).json({ message: 'Invalid planId.' });
+    if (!email || !password || !name) {
+        return res.status(400).json({ message: 'Email, password, and name are required.' });
     }
 
     try {
@@ -709,11 +521,8 @@ export const login = async (req: Request, res: Response) => {
             return res.status(403).json({ message: `Your account is locked due to too many failed attempts. Please try again in ${timeLeft} minute${timeLeft > 1 ? 's' : ''}.` });
         }
 
-        // Allow login if user is active OR if they are pending AND have verified email in payment flow
-        const isPaymentPending = user.status === 'pending' && user.emailVerified && user.registrationType === 'payment';
-        
-        if (user.status === 'pending' && !isPaymentPending) {
-             return res.status(403).json({ message: 'Your account is pending verification.' });
+        if (user.status === 'pending') {
+            return res.status(403).json({ message: 'Your account is pending verification.' });
         }
         
         if (user.status === 'disabled') return res.status(403).json({ message: 'Your account has been disabled.' });
@@ -747,10 +556,6 @@ export const login = async (req: Request, res: Response) => {
         
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', user.id).get();
         if (membershipsSnapshot.empty) {
-            if (user.registrationType === 'payment') {
-                // Allow login for payment flow users who don't have memberships yet (pending checkout)
-                return handleMultiOrgOrContextLogin(user, res);
-            }
             return res.status(403).json({ message: "Your account is not assigned to any organization. Please contact an administrator." });
         }
         const memberships = querySnapshotToArray<DBMembership>(membershipsSnapshot);
@@ -987,47 +792,10 @@ export const verifyAccount = async (req: Request, res: Response) => {
         }
 
         if (decoded.action === 'verify_email') {
-            // Check if user is in a payment registration flow.
-            if (user.registrationType === 'payment') {
-                logger.info(`User ${user.id} has registrationType='payment'.`);
-                
-                // Flow A: User filled full checkout form (has session data)
-                if (decoded.checkoutSessionId) {
-                    // Do NOT set status to active here. User must pay first.
-                    // Just update emailVerified flag to allow future login attempts if they drop off.
-                    await userRef.update({ emailVerified: true });
-
-                    return res.redirect(`${env.FRONTEND_URL}/checkout?planId=${decoded.planId}&checkout_session=${decoded.checkoutSessionId}`);
-                } 
-                
-                // Flow B: User registered via simple form with planId (no session data)
-                if (decoded.planId) {
-                    const batch = db.batch();
-                    // Do NOT set status to active here. User must pay first.
-                    // Mark email as verified.
-                    batch.update(userRef, { emailVerified: true });
-                    
-                    const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', user.email.toLowerCase()).get();
-                    if (!preapprovedQuery.empty) {
-                        preapprovedQuery.docs.forEach(doc => batch.delete(doc.ref));
-                    }
-                    await batch.commit();
-
-                    // Auto-login by generating a partial token (since they have no orgs yet)
-                    const partialTokenPayload: JwtMultiOrgPayload = { id: user.id, action: 'select-organization' };
-                    const partialToken = jwt.sign(partialTokenPayload, env.JWT_SECRET, { expiresIn: '5m' });
-                    
-                    // Redirect to the frontend callback handler which processes the token and redirects to checkout
-                    setPartialAuthCookie(res, partialToken);
-                    return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?token=${partialToken}&planId=${decoded.planId}`);
-                }
-            }
-
-            // Standard registration flow (non-payment)
+            // Standard registration flow
             const batch = db.batch();
-            // Standard users become active immediately upon verification
             batch.update(userRef, { status: 'active', emailVerified: true });
-            
+
             const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', user.email.toLowerCase()).get();
             if (!preapprovedQuery.empty) {
                 preapprovedQuery.docs.forEach(doc => batch.delete(doc.ref));
@@ -1036,10 +804,6 @@ export const verifyAccount = async (req: Request, res: Response) => {
 
             // Send Welcome Email (Fire and forget)
             sendWelcomeEmail(user.email, user.name).catch(err => logger.error("Failed to send welcome email:", err));
-
-            // Enroll in trigger campaigns (fire and forget)
-            enrollUserInTriggerCampaigns(user.primaryAcademyId ?? '', user.id, user.email, 'registration')
-                .catch(err => logger.error('Failed to enroll user in trigger campaigns:', err));
 
             if (!user.passwordHash) {
                 return res.redirect(`${env.FRONTEND_URL}/register?account_verified=true&email=${encodeURIComponent(user.email)}`);
@@ -1062,46 +826,6 @@ export const googleCallback = async (req: Request, res: Response) => {
     }
 
     try {
-        // --- CHECKOUT FLOW BYPASS START ---
-        // Check state for planId, indicating a checkout registration flow
-        let isCheckoutFlow = false;
-        let planId = '';
-        
-        if (req.query.state) {
-             try {
-                const stateStr = Buffer.from(req.query.state as string, 'base64').toString();
-                const state = JSON.parse(stateStr);
-                if (state.planId) {
-                    isCheckoutFlow = true;
-                    planId = state.planId;
-                }
-            } catch (e) {}
-        }
-        
-        // Fallback: Check if user document has 'payment' registration type
-        if (!isCheckoutFlow && dbUser.registrationType === 'payment') {
-             isCheckoutFlow = true;
-             // We won't have planId here if it wasn't in state, but frontend localStorage handles redirection
-        }
-
-        if (isCheckoutFlow) {
-            // For checkout flow, we allow the user to proceed without membership.
-            // The frontend handles the redirection to checkout page based on localStorage.
-            // We just need to give them a valid session token.
-            const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-organization' };
-            const partialToken = jwt.sign(partialTokenPayload, env.JWT_SECRET, { expiresIn: '5m' });
-            
-            const redirectUrl = new URL(`${env.FRONTEND_URL}/auth/google/callback`);
-            redirectUrl.searchParams.append('token', partialToken);
-            if (planId) {
-                redirectUrl.searchParams.append('planId', planId);
-            }
-            setPartialAuthCookie(res, partialToken);
-            return res.redirect(redirectUrl.toString());
-        }
-        // --- CHECKOUT FLOW BYPASS END ---
-
-
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', dbUser.id).get();
         if (dbUser.status === 'active' && !membershipsSnapshot.empty) {
              const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-organization' };
@@ -1153,10 +877,6 @@ export const googleCallback = async (req: Request, res: Response) => {
         batch.delete(preapprovedQuery.docs[0].ref);
         await batch.commit();
 
-        // Enroll in trigger campaigns (fire and forget)
-        enrollUserInTriggerCampaigns(orgAcademyId, dbUser.id, dbUser.email, 'registration')
-            .catch(err => logger.error('Failed to enroll user in trigger campaigns:', err));
-
         const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-organization' };
         const partialToken = jwt.sign(partialTokenPayload, env.JWT_SECRET, { expiresIn: '5m' });
         setPartialAuthCookie(res, partialToken);
@@ -1179,14 +899,11 @@ export const getGoogleLoginFinalization = async (req: Request, res: Response) =>
 
         const tokenFromHeader = req.headers['authorization']?.split(' ')[1];
         const userForFrontend = await formatUserForFrontend(user);
-        
-        // --- CHECKOUT FLOW HANDLING ---
-        // If the user has no memberships (new checkout user), return just the user object.
-        // The frontend uses this to recognize the user is logged in but pending checkout.
+
         if (memberships.length === 0) {
-             return handleMultiOrgOrContextLogin(user, res, tokenFromHeader, userForFrontend);
+            logger.warn(`User ${user.id} logged in via Google but has no memberships.`);
+            return res.status(403).json({ message: "Your account is not assigned to any organization. Please contact an administrator." });
         }
-        // -----------------------------
 
         const availableContexts = await calculateAvailableContexts(userForFrontend);
         
@@ -1269,11 +986,6 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
 
             const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedSnap.docs[0])!;
             const organizationId = preapprovedData.organizationId;
-            
-            const limitCheck = await checkOrganizationUserLimit(organizationId);
-            if (limitCheck.limitExceeded) {
-                return res.status(403).json({ message: limitCheck.message });
-            }
 
             const newUserRef = usersCollection.doc();
             const newUserData: Omit<DBUser, 'createdAt' | 'passwordHash'> = {
@@ -1284,7 +996,6 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                 profileImageUrl: picture,
                 status: 'active',
                 emailVerified: true,
-                hasSeenChatPrivacyNotice: false,
                 registrationType: 'standard',
             };
             
@@ -1315,10 +1026,6 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
 
             await batch.commit();
 
-            // Enroll in trigger campaigns (fire and forget)
-            enrollUserInTriggerCampaigns(orgAcademyId, newUserRef.id, email, 'registration')
-                .catch(err => logger.error('Failed to enroll user in trigger campaigns:', err));
-
             const userDoc = await newUserRef.get();
             user = snapshotToData<DBUser>(userDoc)!;
         } else {
@@ -1326,7 +1033,6 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
             user = snapshotToData<DBUser>(userSnap.docs[0])!;
             if (user.status === 'disabled') return res.status(403).json({ message: 'Your account has been disabled.' });
 
-            // Activate provisioned users (e.g. via WooCommerce) on Google OAuth login
             if (user.status === 'pending') {
                 await usersCollection.doc(user.id).update({ status: 'active', emailVerified: true, registrationType: 'standard' });
                 user.status = 'active';
@@ -1336,7 +1042,6 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
         // Process login (similar to standard login flow)
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', user.id).get();
         if (membershipsSnapshot.empty) {
-            // NATIVE: If user has no memberships (e.g. created via checkout flow on web but logged in here), we can't really support checkout on native easily yet.
             return res.status(403).json({ message: "Your account is not assigned to any organization. Please contact an administrator." });
         }
         const memberships = querySnapshotToArray<DBMembership>(membershipsSnapshot);
@@ -1443,11 +1148,6 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
             const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedSnap.docs[0])!;
             const organizationId = preapprovedData.organizationId;
 
-            const limitCheck = await checkOrganizationUserLimit(organizationId);
-            if (limitCheck.limitExceeded) {
-                return res.status(403).json({ message: limitCheck.message });
-            }
-
             const newUserRef = usersCollection.doc();
             const newUserData: Omit<DBUser, 'createdAt' | 'passwordHash' | 'googleId'> = {
                 id: newUserRef.id,
@@ -1456,7 +1156,6 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                 email: email,
                 status: 'active',
                 emailVerified: true,
-                hasSeenChatPrivacyNotice: false,
                 registrationType: 'standard'
             };
             
@@ -1482,17 +1181,12 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
 
             await batch.commit();
 
-            // Enroll in trigger campaigns (fire and forget)
-            enrollUserInTriggerCampaigns(msOrgAcademyId, newUserRef.id, email, 'registration')
-                .catch(err => logger.error('Failed to enroll user in trigger campaigns:', err));
-
             const userDoc = await newUserRef.get();
             user = snapshotToData<DBUser>(userDoc)!;
         } else {
             user = snapshotToData<DBUser>(userSnap.docs[0])!;
             if (user.status === 'disabled') return res.status(403).json({ message: 'Your account has been disabled.' });
 
-            // Activate provisioned users (e.g. via WooCommerce) on Microsoft OAuth login
             if (user.status === 'pending') {
                 await usersCollection.doc(user.id).update({ status: 'active', emailVerified: true, registrationType: 'standard' });
                 user.status = 'active';
@@ -1567,39 +1261,6 @@ export const finalizeAcademySetup = async (req: Request, res: Response) => {
     } catch (error: any) {
         logger.error("Academy setup finalization error:", error);
         res.status(500).json({ message: "Failed to finalize academy setup." });
-    }
-};
-
-export const finalizePaymentSession = async (req: Request, res: Response) => {
-    const { session_id } = req.query;
-
-    if (!session_id || typeof session_id !== 'string') {
-        return res.status(400).json({ message: "Session ID is required." });
-    }
-
-    try {
-        const sessionRef = paymentSessionsCollection.doc(session_id);
-        const sessionDoc = await sessionRef.get();
-
-        if (!sessionDoc.exists) {
-            return res.status(404).json({ message: "Session not found or expired." });
-        }
-
-        const sessionData = sessionDoc.data() as any;
-
-        // Delete the session to prevent replay attacks (single-use token)
-        await sessionRef.delete();
-
-        // Set auth cookie if session contains an accessToken
-        if (sessionData?.accessToken) {
-            setAuthCookie(res, sessionData.accessToken);
-        }
-
-        // sessionData contains { accessToken, user, selectedOrganization }
-        res.json(sessionData);
-    } catch (error) {
-        logger.error("Error finalizing payment session:", error);
-        res.status(500).json({ message: "Failed to finalize session." });
     }
 };
 

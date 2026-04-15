@@ -3,11 +3,9 @@ import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User } from '../../types';
-import { FiMenu, FiX, FiMessageSquare, FiSettings, FiUsers, FiBriefcase, FiZap, FiEdit, FiBookOpen, FiTrello, FiGrid, FiCheck, FiShield, FiChevronsRight, FiLoader, FiCreditCard, FiCpu, FiVideo, FiDollarSign, FiLock, FiPieChart, FiMail } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiPieChart, FiMail } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 
-import MarketingIcon from '../common/MarketingIcon';
-import QuestionnaireIcon from '../common/QuestionnaireIcon';
 import AcademyHubIcon from '../common/AcademyHubIcon';
 import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
@@ -55,7 +53,6 @@ interface SidebarContentProps {
   userImageSidebar: string;
   user: User | null;
   selectedOrganizationIsPersonal: boolean;
-  isOrgSubscriptionActive: boolean;
   onOpenLegal: () => void;
   onOpenAccessibility: () => void;
 }
@@ -71,8 +68,6 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
     const systemAdminNavItems = [
       { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} /> },
       { name: t('layout.academies'), path: '/admin/academies', icon: <FiShield className={iconClassName} /> },
-      { name: t('layout.academyPayouts'), path: '/admin/payments', icon: <FiDollarSign className={iconClassName} /> },
-      { name: t('layout.tokenLimits'), path: '/admin/token-limits', icon: <FiCpu className={iconClassName} /> },
       { name: t('layout.tutorialsSettings'), path: '/admin/tutorials', icon: <FiVideo className={iconClassName} /> },
       { name: t('layout.emailTemplates'), path: '/admin/email-templates', icon: <FiMail className={iconClassName} /> },
     ];
@@ -171,7 +166,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     userImageSidebar,
     user,
     selectedOrganizationIsPersonal,
-    isOrgSubscriptionActive,
     onOpenLegal,
     onOpenAccessibility
 }) => {
@@ -180,7 +174,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const sidebarNavigate = useNavigate();
     const isAcademyAdmin = user?.role === UserRole.ACADEMY_ADMIN;
-    const lockedPaths = !isOrgSubscriptionActive ? new Set(['/chat', '/questionnaires']) : new Set<string>();
     // We use a semi-transparent white overlay (rgba 255,255,255, 0.15) instead of a solid color
     // to ensure the gradient behind the link shows through while being "brightened".
     const hoverEffectStyle = `
@@ -308,9 +301,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     
           <div className="flex-1 px-6 overflow-y-auto custom-scrollbar relative z-10 flex flex-col">
             <nav className="space-y-3 flex-grow">
-              {availableNavItems.map(item => {
-                const isLocked = lockedPaths.has(item.path);
-                return (
+              {availableNavItems.map(item => (
                 <NavLink
                   key={item.name}
                   to={item.path}
@@ -323,10 +314,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       }
                       setIsSidebarOpen(false);
                   }}
-                  style={({ isActive }) => ({
-                      color: sidebarLinkColor,
-                      opacity: isLocked ? 0.6 : 1,
-                  })}
+                  style={() => ({ color: sidebarLinkColor })}
                   className={({ isActive }) =>
                       `sidebar-nav-item flex items-center px-4 py-3 rounded-lg text-base transition-colors duration-150 ${
                       isActive
@@ -335,9 +323,9 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       }`
                   }
                 >
-                  {item.icon} {item.name} {isLocked && <FiLock className="ml-auto flex-shrink-0" size={14} />}
+                  {item.icon} {item.name}
                 </NavLink>
-              );})}
+              ))}
               <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
                 <NavLink
                   to='/admin/academy-hub'
@@ -460,7 +448,7 @@ const ContentLoader: React.FC = () => (
 
 const MainLayout: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { user, logout, selectedOrganization, loading: authLoading, isOrgSubscriptionActive } = useAuth();
+  const { user, logout, selectedOrganization, loading: authLoading } = useAuth();
   const { academySettings } = useData();
   const navigate = useNavigate();
   const location = useLocation();
@@ -580,9 +568,6 @@ const MainLayout: React.FC = () => {
   }
 
   // --- REGULAR, ORG_ADMIN, ACADEMY_ADMIN LAYOUT ---
-  const canAccessMindPatterns = selectedOrganization?.hasMindPatternsAccess !== false;
-  const hasChatFeatureAccess = selectedOrganization?.hasChatAccess !== false;
-  const showBilling = user.role === UserRole.ORGANIZATION_ADMIN && selectedOrganization?.subscriptionProvider === 'gymind';
 
   const appName = academySettings?.appName || 'Gymind';
   // Use /default_user.webp as fallback if logoUrl is missing or is the old hardcoded default
@@ -597,10 +582,6 @@ const MainLayout: React.FC = () => {
   const displayNameColor = isDarkContrast ? '#000000' : (academySettings?.displayNameColor || '#ffffff');
   const sidebarLinkColor = isDarkContrast ? '#111111' : (academySettings?.sidebarLinkColor || '#e5e7eb');
   
-  // When org subscription is inactive, still show AI nav items (so user can see the banner) but mark them
-  const showChatNav = hasChatFeatureAccess || !isOrgSubscriptionActive;
-  const showQuestionnairesNav = canAccessMindPatterns || !isOrgSubscriptionActive;
-
   // Add margin-top for Hebrew language to align icons properly
   const isHebrewLanguage = i18n.language.startsWith('he');
   const isRTL = isHebrewLanguage;
@@ -608,21 +589,12 @@ const MainLayout: React.FC = () => {
 
   const navItems: NavItem[] = [
     { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
-    { name: t('layout.courses'), path: '/courses', icon: <FiBookOpen className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
-    { name: t('layout.aiMentor'), path: '/chat', icon: <FiMessageSquare className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: showChatNav },
-    { name: t('layout.questionnaires'), path: '/questionnaires', icon: <QuestionnaireIcon className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: showQuestionnairesNav },
   ];
 
   const adminNavItems: AdminNavItem[] = [
      { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN] },
      { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN] },
      { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiBriefcase className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.courseManagement'), path: '/admin/courses', icon: <FiBookOpen className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.aiMentorSettings'), path: '/admin/chat-settings', icon: <FiMessageSquare className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.questionnaireSettings'), path: '/admin/questionnaire-settings', icon: <QuestionnaireIcon className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.clientPlansAndBilling'), path: '/admin/billing-settings', icon: <FiCreditCard className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.marketing'), path: '/admin/marketing', icon: <MarketingIcon className={`${iconClassName} text-white`} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.organizationBilling'), path: '/organization/billing', icon: <FiCreditCard className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN], show: showBilling },
   ];
 
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);
@@ -652,7 +624,6 @@ const MainLayout: React.FC = () => {
             userImageSidebar={userImageSidebar}
             user={user}
             selectedOrganizationIsPersonal={selectedOrganization.isPersonal || false}
-            isOrgSubscriptionActive={isOrgSubscriptionActive}
             onOpenLegal={() => setShowLegalModal(true)}
             onOpenAccessibility={() => setShowAccessibilityModal(true)}
           />

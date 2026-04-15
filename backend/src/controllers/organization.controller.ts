@@ -6,11 +6,9 @@ import {
     organizationsCollection,
     usersCollection,
     membershipsCollection,
-    plansCollection,
-    preapprovedUsersCollection,
     academiesCollection,
 } from '../db/collections.js';
-import { JwtUserPayload, DBOrganization, DBUser, UserRole, DBMembership, DBPlan, JwtVerificationPayload, DBAcademy } from '../types/index.js';
+import { JwtUserPayload, DBOrganization, DBUser, UserRole, DBMembership, JwtVerificationPayload, DBAcademy } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { sendAccountVerificationEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
@@ -18,7 +16,6 @@ import jwt from 'jsonwebtoken';
 
 export const getAllOrganizations = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
-    const { type } = req.query;
 
     try {
         let query: admin.firestore.Query = organizationsCollection;
@@ -27,40 +24,13 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
         } else if (user.role === UserRole.ORGANIZATION_ADMIN) {
             query = query.where(admin.firestore.FieldPath.documentId(), '==', user.selectedOrganizationId);
         }
-        
+
         // Filter out archived organizations from the main list
         query = query.where('status', '!=', 'archived');
-        
+
         const snapshot = await query.orderBy('name').get();
-        let orgs = querySnapshotToArray<DBOrganization>(snapshot);
+        const orgs = querySnapshotToArray<DBOrganization>(snapshot);
 
-        const planIds = [...new Set(orgs.map(o => o.planId).filter(Boolean))];
-        let plansMap = new Map<string, DBPlan>();
-        if (planIds.length > 0) {
-            const plansSnapshot = await plansCollection.where(admin.firestore.FieldPath.documentId(), 'in', planIds).get();
-            plansMap = new Map(querySnapshotToArray<DBPlan>(plansSnapshot).map(p => [p.id, p]));
-        }
-
-        // Filter by type using plan.maxUsers as the source of truth
-        if (type === 'individual') {
-            orgs = orgs.filter(o => {
-                const plan = o.planId ? plansMap.get(o.planId) : undefined;
-                return plan ? plan.maxUsers === 1 : false;
-            });
-        } else if (type === 'corporate') {
-            orgs = orgs.filter(o => {
-                const plan = o.planId ? plansMap.get(o.planId) : undefined;
-                return !plan || plan.maxUsers !== 1;
-            });
-        }
-
-        orgs.forEach((org: any) => {
-            if (org.planId) {
-                const plan = plansMap.get(org.planId);
-                org.planName = plan?.name || 'Unknown Plan';
-            }
-        });
-        
         res.json(orgs);
     } catch (error) {
         logger.error("Error fetching organizations:", error);
@@ -70,10 +40,10 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
 
 export const createOrganization = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
-    const { name, academyId, planId } = req.body;
+    const { name, academyId } = req.body;
 
     if (!name) return res.status(400).json({ message: 'Organization name is required.' });
-    
+
     const targetAcademyId = user.role === UserRole.SYSTEM_ADMIN ? academyId : user.academyId;
     if (!targetAcademyId) return res.status(400).json({ message: 'Academy ID is required.' });
 
@@ -83,21 +53,14 @@ export const createOrganization = async (req: Request, res: Response) => {
             id: newDocRef.id,
             name: sanitizeText(name),
             academyId: targetAcademyId,
-            planId: planId || undefined,
             subscriptionProvider: 'manual',
             subscriptionStatus: 'incomplete',
             status: 'active',
         };
         const timestamp = admin.firestore.FieldValue.serverTimestamp();
         await newDocRef.set({ ...newOrg, createdAt: timestamp, updatedAt: timestamp });
-        
-        const createdOrg = snapshotToData<DBOrganization>(await newDocRef.get()) as any;
-        if (createdOrg && createdOrg.planId) {
-            const planDoc = await plansCollection.doc(createdOrg.planId).get();
-            if (planDoc.exists) {
-                createdOrg.planName = planDoc.data()?.name || 'Unknown Plan';
-            }
-        }
+
+        const createdOrg = snapshotToData<DBOrganization>(await newDocRef.get());
         res.status(201).json(createdOrg);
     } catch (error) {
         logger.error("Error creating organization:", error);
@@ -107,7 +70,7 @@ export const createOrganization = async (req: Request, res: Response) => {
 
 export const updateOrganization = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name, planId, subscriptionProvider, subscriptionStatus } = req.body;
+    const { name, subscriptionProvider, subscriptionStatus } = req.body;
     const user = req.user as JwtUserPayload;
 
     try {
@@ -117,26 +80,15 @@ export const updateOrganization = async (req: Request, res: Response) => {
         if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.academyId !== user.academyId) {
             return res.status(403).json({ message: "Forbidden." });
         }
-        
+
         const updateData: any = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
         if (name) updateData.name = sanitizeText(name);
-        
-        if (planId !== undefined) {
-            updateData.planId = planId || null;
-        }
-
         if (subscriptionProvider) updateData.subscriptionProvider = subscriptionProvider;
         if (subscriptionStatus) updateData.subscriptionStatus = subscriptionStatus;
 
         await docRef.update(updateData);
-        
-        const updatedOrg = snapshotToData<DBOrganization>(await docRef.get()) as any;
-        if (updatedOrg && updatedOrg.planId) {
-            const planDoc = await plansCollection.doc(updatedOrg.planId).get();
-            if (planDoc.exists) {
-                updatedOrg.planName = planDoc.data()?.name || 'Unknown Plan';
-            }
-        }
+
+        const updatedOrg = snapshotToData<DBOrganization>(await docRef.get());
         res.json(updatedOrg);
     } catch (error) {
         logger.error(`Error updating organization ${id}:`, error);
@@ -156,9 +108,9 @@ export const deleteOrganization = async (req: Request, res: Response) => {
         if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.academyId !== user.academyId) {
             return res.status(403).json({ message: "Forbidden." });
         }
-        
+
         const membershipsSnapshot = await membershipsCollection.where('entityId', '==', id).get();
-        
+
         if (!membershipsSnapshot.empty) {
             if (force !== 'true') {
                 const userIds = [...new Set(membershipsSnapshot.docs.map(d => d.data().userId))];
@@ -169,20 +121,20 @@ export const deleteOrganization = async (req: Request, res: Response) => {
                 const userFetchSnapshots = await Promise.all(userFetchPromises);
                 const memberUsers = userFetchSnapshots.flatMap(snap => querySnapshotToArray<DBUser>(snap));
 
-                return res.status(409).json({ 
+                return res.status(409).json({
                     message: `This organization has ${memberUsers.length} assigned user(s).`,
                     dependencies: { users: memberUsers.map(u => ({ id: u.id, name: u.name })) }
                 });
             }
         }
-        
+
         // If force is true or no dependencies, archive it
         await docRef.update({
             status: 'archived',
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
         logger.info(`Successfully archived organization ${id}.`);
-        
+
         res.status(204).send();
     } catch (error) {
         logger.error(`Error archiving organization ${id}:`, error);
@@ -215,7 +167,7 @@ export const restoreOrganization = async (req: Request, res: Response) => {
         if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.academyId !== user.academyId) {
             return res.status(403).json({ message: "Forbidden." });
         }
-        
+
         await docRef.update({
             status: 'active',
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -243,28 +195,8 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
         }
         const orgData = orgDoc.data() as DBOrganization;
 
-        // NEW: Check manager quota
-        if (orgData.planId) {
-            const planDoc = await plansCollection.doc(orgData.planId).get();
-            if (planDoc.exists) {
-                const plan = snapshotToData<DBPlan>(planDoc)!;
-                if (plan.maxUsers && plan.maxUsers > 0) {
-                    const allowedManagers = Math.ceil(plan.maxUsers / 50);
-                    const currentManagersSnapshot = await membershipsCollection
-                        .where('entityId', '==', organizationId)
-                        .where('role', '==', UserRole.ORGANIZATION_ADMIN)
-                        .get();
-                    
-                    if (currentManagersSnapshot.size >= allowedManagers) {
-                        return res.status(403).json({ message: `The organization has reached its limit of ${allowedManagers} manager(s) for this plan.` });
-                    }
-                }
-            }
-        }
-        // END: Check manager quota
-
         const userSnapshot = await usersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
-        
+
         const addManagerRole = async (userId: string) => {
             const membershipSnapshot = await membershipsCollection.where('userId', '==', userId).get();
             const memberships = querySnapshotToArray<DBMembership>(membershipSnapshot);
@@ -275,7 +207,7 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
             if (memberships.some(m => m.entityId === organizationId && m.role === UserRole.ORGANIZATION_ADMIN)) {
                 return { alreadyAdmin: true };
             }
-            
+
             const newMembershipRef = membershipsCollection.doc();
             await newMembershipRef.set({
                 id: newMembershipRef.id,
@@ -306,7 +238,7 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
             };
             await newUserRef.set({ ...newAdminUser, createdAt: new Date() });
             await addManagerRole(newAdminUser.id);
-            
+
             const verificationTokenPayload: any = { userId: newAdminUser.id, action: 'verify_email' };
             const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
@@ -330,7 +262,6 @@ export const removeOrganizationManager = async (req: Request, res: Response) => 
         if (!orgDoc.exists || (requestingUser.role === UserRole.ACADEMY_ADMIN && orgDoc.data()?.academyId !== requestingUser.academyId)) {
             return res.status(403).json({ message: "Forbidden: You cannot manage this organization." });
         }
-        const organizationData = snapshotToData<DBOrganization>(orgDoc)!;
 
         const userDoc = await usersCollection.doc(userId).get();
         if (!userDoc.exists) return res.status(404).json({ message: "User not found." });
@@ -341,11 +272,11 @@ export const removeOrganizationManager = async (req: Request, res: Response) => 
             .where('entityId', '==', organizationId)
             .where('role', '==', UserRole.ORGANIZATION_ADMIN)
             .limit(1).get();
-        
+
         if(membershipSnapshot.empty) {
             return res.status(400).json({ message: "User is not a manager of this organization." });
         }
-        
+
         const membershipRef = membershipSnapshot.docs[0].ref;
         await membershipRef.delete();
 
@@ -375,18 +306,18 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
             .where('userId', '==', userId)
             .where('entityId', '==', organizationId)
             .get();
-            
+
         if(membershipsSnapshot.empty) {
             return res.status(404).json({ message: 'User is not a member of this organization.' });
         }
-        
+
         const batch = db.batch();
         membershipsSnapshot.forEach(doc => batch.delete(doc.ref));
-        
+
         // If user has no other memberships, move them to the Default Organization for the academy
         const allMembershipsSnapshot = await membershipsCollection.where('userId', '==', userId).get();
         const remainingMemberships = allMembershipsSnapshot.docs.filter(doc => !membershipsSnapshot.docs.some(d => d.id === doc.id));
-        
+
         if (remainingMemberships.length === 0) {
             const defaultOrgSnapshot = await organizationsCollection.where('academyId', '==', organizationData.academyId).where('name', '==', 'Default Organization').limit(1).get();
             if (!defaultOrgSnapshot.empty) {
@@ -406,7 +337,7 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
                  logger.warn(`Could not find Default Organization for academy ${organizationData.academyId} to reassign user ${userId}.`);
             }
         }
-        
+
         await batch.commit();
         res.status(204).send();
     } catch (error) {

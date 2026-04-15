@@ -28,15 +28,10 @@ export const createApp = async (): Promise<Application> => {
     app.set('trust proxy', 1);
 
     // 3. Middlewares
-    const allowedOrigins = [env.FRONTEND_URL, 'https://studio.gymind.app', 'http://localhost:5173'];
+    const allowedOrigins = [env.FRONTEND_URL, 'http://localhost:5173'];
     app.use(cors((req: Request, callback: any) => {
         const origin = req.header('Origin');
-        const path = req.url;
-        
-        // Disable CORS check for payment callback/notify routes (webhooks)
-        const isPaymentPath = path.includes('/payments/callback') || path.includes('/payments/notify');
-
-        if (isPaymentPath || !origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin)) {
             callback(null, { origin: true, credentials: true });
         } else {
             callback(new Error('Not allowed by CORS'));

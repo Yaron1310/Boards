@@ -6,31 +6,22 @@ import * as logger from 'firebase-functions/logger';
 import { Buffer } from 'node:buffer';
 import { db } from '../services/firestore.service.js';
 
-import { 
-    usersCollection, 
-    organizationsCollection, 
-    conversationsCollection, 
-    userQuestionnaireResultsCollection, 
-    preapprovedUsersCollection, 
-    userCourseProgressCollection, 
-    membershipsCollection, 
-    plansCollection, 
-    personalInsightsCollection, 
-    tokenUsageCollection, 
-    systemSettingsCollection, 
-    academySettingsCollection,
-    academiesCollection 
+import {
+    usersCollection,
+    organizationsCollection,
+    preapprovedUsersCollection,
+    membershipsCollection,
+    academiesCollection
 } from '../db/collections.js';
 import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { JwtUserPayload, DBUser, DBOrganization, DBPreapprovedUser, UserRole, DBMembership, DBSystemSettings, DBPlan, DBAcademySettings, PaginatedResponse } from '../types/index.js';
+import { JwtUserPayload, DBUser, DBOrganization, DBPreapprovedUser, UserRole, DBMembership, PaginatedResponse } from '../types/index.js';
 import { formatUserForFrontend } from './auth.controller.js';
 import { sanitizeText, sanitizeImageUrl } from '../utils/sanitizer.js';
 import { sendUserInvitationEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
 import { parsePaginationParams, buildPaginatedResult } from '../utils/pagination.js';
 import { validatePasswordComplexity } from '../utils/password.js';
-import { encryptValue, decryptValue } from '../services/crypto.service.js';
-import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
+import { logAudit } from '../services/audit.service.js';
 
 export const preApproveUsersInBulk = async (req: Request, res: Response) => {
     const { emails, organizationId } = req.body as { emails: string[], organizationId: string };
@@ -39,7 +30,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
     if (!Array.isArray(emails) || emails.length === 0) {
         return res.status(400).json({ message: 'A non-empty array of emails is required.' });
     }
-    
+
     const targetOrgId = (requestingUser.role === UserRole.SYSTEM_ADMIN || requestingUser.role === UserRole.ACADEMY_ADMIN) ? organizationId : requestingUser.selectedOrganizationId;
     if (!targetOrgId) return res.status(400).json({ message: 'An organization ID is required.' });
 
@@ -50,56 +41,11 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
         if (requestingUser.role === UserRole.ACADEMY_ADMIN && orgData.academyId !== requestingUser.academyId) {
             return res.status(403).json({ message: 'You do not have permission to approve users for this organization.' });
         }
-        
+
         const batch = db.batch();
         const lowercasedEmails = emails.map(e => sanitizeText(e).toLowerCase().trim()).filter(Boolean);
         const uniqueEmails = [...new Set(lowercasedEmails)];
 
-        // --- NEW: Pre-flight check for user limits ---
-        let maxUsers = Infinity;
-        if (orgData.planId) {
-            const planDoc = await plansCollection.doc(orgData.planId).get();
-            if (planDoc.exists) {
-                const plan = snapshotToData<DBPlan>(planDoc)!;
-                if (plan.maxUsers && plan.maxUsers > 0) maxUsers = plan.maxUsers;
-            }
-        }
-
-        if (maxUsers !== Infinity) {
-            const emailChunks: string[][] = [];
-            for (let i = 0; i < uniqueEmails.length; i += 30) {
-                emailChunks.push(uniqueEmails.slice(i, i + 30));
-            }
-
-            let existingUsersToAddCount = 0;
-
-            for (const chunk of emailChunks) {
-                const existingUsersSnapshot = await usersCollection.where('email', 'in', chunk).get();
-                if (existingUsersSnapshot.empty) continue;
-                
-                const existingUserIds = existingUsersSnapshot.docs.map(d => d.id);
-                const membershipsSnapshot = await membershipsCollection.where('entityId', '==', targetOrgId).where('userId', 'in', existingUserIds).get();
-                const userIdsAlreadyInOrg = new Set(membershipsSnapshot.docs.map(d => d.data().userId));
-                
-                existingUsersToAddCount += existingUserIds.filter(id => !userIdsAlreadyInOrg.has(id)).length;
-            }
-
-            if (existingUsersToAddCount > 0) {
-                const currentUsersSnapshot = await membershipsCollection
-                    .where('entityId', '==', targetOrgId)
-                    .where('role', '==', UserRole.REGULAR_USER)
-                    .get();
-                
-                const currentUsersCount = currentUsersSnapshot.size;
-
-                if (currentUsersCount + existingUsersToAddCount > maxUsers) {
-                    const availableSlots = maxUsers - currentUsersCount;
-                    return res.status(403).json({ message: `Cannot add ${existingUsersToAddCount} existing user(s). The organization's plan limit of ${maxUsers} users will be exceeded. Only ${Math.max(0, availableSlots)} slot(s) are available.` });
-                }
-            }
-        }
-        // --- END: Pre-flight check ---
-        
         let preApprovedCount = 0;
         let updatedUserCount = 0;
         const newlyPreApprovedEmails: string[] = [];
@@ -127,14 +73,14 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                     .where('userId', '==', user.id)
                     .where('entityId', '==', targetOrgId)
                     .limit(1).get();
-                
+
                 if (membershipSnapshot.empty) {
                     const defaultOrgSnapshot = await organizationsCollection
                         .where('academyId', '==', orgData.academyId)
                         .where('name', '==', 'Default Organization')
                         .limit(1)
                         .get();
-                    
+
                     if (!defaultOrgSnapshot.empty) {
                         const defaultOrgId = defaultOrgSnapshot.docs[0].id;
                         if (targetOrgId !== defaultOrgId) {
@@ -142,7 +88,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                                 .where('userId', '==', user.id)
                                 .where('entityId', '==', defaultOrgId)
                                 .get();
-                            
+
                             if (!defaultOrgMembershipSnapshot.empty) {
                                 defaultOrgMembershipSnapshot.forEach(doc => {
                                     batch.delete(doc.ref);
@@ -151,7 +97,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                             }
                         }
                     }
-                    
+
                     const newMembershipRef = membershipsCollection.doc();
                     batch.set(newMembershipRef, {
                         id: newMembershipRef.id,
@@ -179,7 +125,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                 preApprovedCount++;
             }
         }
-        
+
         if (preApprovedCount > 0 || updatedUserCount > 0) {
             await batch.commit();
         }
@@ -203,7 +149,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
         } else {
             message = 'No new users were pre-approved or added. They may already have access.';
         }
-        
+
         res.status(200).json({ message, successCount: preApprovedCount + updatedUserCount });
     } catch (error) {
         logger.error("Error pre-approving users in bulk:", error);
@@ -308,9 +254,6 @@ export const getAllUsers = async (req: Request, res: Response) => {
             membershipQuery = membershipQuery.where('role', '==', roleFilter);
         }
 
-        // For search, filter memberships by denormalized userName/userEmail
-        // Firestore doesn't support LIKE queries, so we use range queries for prefix search
-        // For contains search, we must fetch and filter in-memory (but scoped to the membership set)
         const snapshot = await membershipQuery.orderBy('userName').get();
         const memberships = querySnapshotToArray<DBMembership>(snapshot);
 
@@ -393,13 +336,10 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
     try {
         const userDoc = await usersCollection.doc(userPayload.id).get();
         if (!userDoc.exists) return res.status(404).json({ message: 'User not found' });
-        
+
         const dbUser = snapshotToData<DBUser>(userDoc)!;
         const formattedUser = await formatUserForFrontend(dbUser, { role: userPayload.role });
-        
-        // If the token is partial (e.g., just for context selection or checkout flow), 
-        // we might not have a selectedOrganizationId. In this case, return user info without org details.
-        // This is crucial for the checkout page flow after email verification.
+
         if (!userPayload.selectedOrganizationId) {
              return res.json({ user: formattedUser, selectedOrganization: null });
         }
@@ -409,10 +349,8 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
         if (orgDoc.exists) {
             orgData = snapshotToData<DBOrganization>(orgDoc)!;
         } else {
-            // Fallback: try to find any organization for the user if the token's org ID is stale
             const membershipsSnapshot = await membershipsCollection.where('userId', '==', dbUser.id).where('entityType', '==', 'organization').limit(1).get();
             if (membershipsSnapshot.empty) {
-                // Return basic user info if no orgs found (e.g. system admin without orgs, or new user in flux)
                  return res.json({ user: formattedUser, selectedOrganization: null });
             }
             const fallbackOrgId = membershipsSnapshot.docs[0].data().entityId;
@@ -422,85 +360,13 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
             }
             orgData = snapshotToData<DBOrganization>(fallbackOrgDoc)!;
         }
-        
-        // Add token usage for the current user
-        let used = 0;
-        let limit: number | null = null;
-        const now = new Date();
-        const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-        const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999));
-
-        const usageSnapshot = await tokenUsageCollection
-            .where('userId', '==', dbUser.id)
-            .where('createdAt', '>=', monthStart)
-            .where('createdAt', '<=', monthEnd)
-            .get();
-        
-        usageSnapshot.forEach(doc => { used += doc.data().totalTokens; });
-
-        let planType: 'subscription' | 'one-time' | undefined;
-        // Default to false for regular users unless they are admins or have a plan
-        let hasChatAccess = false;
-        let hasMindPatternsAccess = false;
-
-        // Admins always have access
-        if (userPayload.role === UserRole.ACADEMY_ADMIN || userPayload.role === UserRole.SYSTEM_ADMIN) {
-             hasChatAccess = true;
-             hasMindPatternsAccess = true;
-        }
-
-        if (orgData.planId) {
-            const planDoc = await plansCollection.doc(orgData.planId).get();
-            if (planDoc.exists) {
-                const plan = snapshotToData<DBPlan>(planDoc)!;
-                planType = plan.planType;
-
-                // Only override from plan if not an admin (admins already set to true)
-                if (userPayload.role !== UserRole.ACADEMY_ADMIN && userPayload.role !== UserRole.SYSTEM_ADMIN) {
-                    hasChatAccess = plan.hasAllChatAccess ?? true;
-                    hasMindPatternsAccess = plan.hasAllQuestionnairesAccess ?? true;
-                }
-
-                // Gate AI features on org subscription status for non-admin roles
-                const orgSubStatus = orgData.subscriptionStatus || 'active';
-                const isOrgActive = orgSubStatus === 'active' || orgSubStatus === 'trialing';
-                if (!isOrgActive && userPayload.role !== UserRole.ACADEMY_ADMIN && userPayload.role !== UserRole.SYSTEM_ADMIN) {
-                    hasChatAccess = false;
-                    hasMindPatternsAccess = false;
-                }
-
-                if (plan.planType === 'subscription') {
-                    const settingsDoc = await systemSettingsCollection.doc('tokenLimits').get();
-                    if (settingsDoc.exists) {
-                        const settings = snapshotToData<DBSystemSettings>(settingsDoc)!;
-                        limit = settings.subscriptionMonthlyLimit;
-                    }
-                }
-            }
-        }
-        formattedUser.tokenUsage = { used, limit };
 
         const selectedOrganizationForFrontend: any = {
             id: orgData.id,
             name: orgData.name,
             academyId: orgData.academyId,
-            planId: orgData.planId,
-            planType,
-            hasChatAccess,
-            hasMindPatternsAccess,
-            subscriptionProvider: orgData.subscriptionProvider,
-            subscriptionStatus: orgData.subscriptionStatus,
-            cancelAtPeriodEnd: orgData.cancelAtPeriodEnd,
-            subscriptionEndDate: orgData.subscriptionEndDate,
             isPersonal: orgData.isPersonal
         };
-
-        if (orgData.planId) {
-            const planDoc = await plansCollection.doc(orgData.planId).get();
-            if (planDoc.exists) {
-                selectedOrganizationForFrontend.planName = planDoc.data()?.name || 'Unknown Plan';
-            }
-        }
 
         // Fetch academy name to include in the response
         const academyDoc = await academiesCollection.doc(orgData.academyId).get();
@@ -520,7 +386,7 @@ const ALLOWED_LANGUAGE_CODES = ['en', 'es', 'he'];
 export const updateMyUserDetails = async (req: Request, res: Response) => {
     const userPayload = req.user as JwtUserPayload;
     const userId = userPayload.id;
-    const { name, email, conversationSavingEnabled, preferredLanguage } = req.body;
+    const { name, email, preferredLanguage } = req.body;
     try {
         const userRef = usersCollection.doc(userId);
         const updates: any = {};
@@ -532,9 +398,6 @@ export const updateMyUserDetails = async (req: Request, res: Response) => {
                 return res.status(400).json({ message: 'Email already in use.' });
             }
             updates.email = sanitizedEmail;
-        }
-        if (conversationSavingEnabled !== undefined) {
-            updates.conversationSavingEnabled = !!conversationSavingEnabled;
         }
         if (preferredLanguage !== undefined) {
             if (!ALLOWED_LANGUAGE_CODES.includes(preferredLanguage)) {
@@ -558,7 +421,6 @@ export const updateMyUserDetails = async (req: Request, res: Response) => {
 
         const updatedUserDoc = await userRef.get();
         const dbUser = snapshotToData<DBUser>(updatedUserDoc)!;
-        // Pass current role to preserve session state
         const formattedUser = await formatUserForFrontend(dbUser, { role: userPayload.role });
         res.json(formattedUser);
     } catch (error) {
@@ -613,29 +475,11 @@ export const updateMyProfileImage = async (req: Request, res: Response) => {
 
         const updatedUserDoc = await usersCollection.doc(userId).get();
         const dbUser = snapshotToData<DBUser>(updatedUserDoc)!;
-        // Pass current role to preserve session state
         const formattedUser = await formatUserForFrontend(dbUser, { role: userPayload.role });
         res.json(formattedUser);
     } catch (error) {
         logger.error("Error updating profile image:", error);
         res.status(500).json({ message: "Failed to update profile image." });
-    }
-};
-
-export const markChatNoticeAsSeen = async (req: Request, res: Response) => {
-    const userPayload = req.user as JwtUserPayload;
-    try {
-        const userRef = usersCollection.doc(userPayload.id);
-        await userRef.update({ hasSeenChatPrivacyNotice: true });
-        const updatedUserDoc = await userRef.get();
-        if (!updatedUserDoc.exists) return res.status(404).json({ message: "User not found after update." });
-        const user = snapshotToData<DBUser>(updatedUserDoc)!;
-        // Pass current role to preserve session state
-        const formattedUser = await formatUserForFrontend(user, { role: userPayload.role });
-        res.json(formattedUser);
-    } catch (error) {
-        logger.error("Error marking chat notice as seen:", error);
-        res.status(500).json({ message: "Failed to update privacy notice status." });
     }
 };
 
@@ -686,17 +530,12 @@ export const deleteUser = async (req: Request, res: Response) => {
             logger.info(`Successfully soft-deleted (disabled) user ${targetUserId}.`);
             res.status(204).send();
         } else { // 'hard' delete
-            const conversationsSnapshot = await conversationsCollection.where('userId', '==', targetUserId).get();
-            const questionnaireResultsSnapshot = await userQuestionnaireResultsCollection.where('userId', '==', targetUserId).get();
-            const courseProgressSnapshot = await userCourseProgressCollection.where('userId', '==', targetUserId).get();
             const membershipsSnapshot = await membershipsCollection.where('userId', '==', targetUserId).get();
-            
+
             const batch = db.batch();
-            conversationsSnapshot.forEach(doc => batch.delete(doc.ref));
-            questionnaireResultsSnapshot.forEach(doc => batch.delete(doc.ref));
-            courseProgressSnapshot.forEach(doc => batch.delete(doc.ref));
             membershipsSnapshot.forEach(doc => batch.delete(doc.ref));
             batch.delete(targetUserRef);
+
             await batch.commit();
 
             logger.info(`Successfully hard-deleted user ${targetUserId} and their data.`);
@@ -708,289 +547,5 @@ export const deleteUser = async (req: Request, res: Response) => {
     }
 };
 
-export const getMyPersonalInsights = async (req: Request, res: Response) => {
-    const user = req.user as JwtUserPayload;
-    try {
-        const snapshot = await personalInsightsCollection
-            .where('userId', '==', user.id)
-            .where('isArchived', '!=', true)
-            .orderBy('updatedAt', 'desc')
-            .get();
-        const insights = querySnapshotToArray<Record<string, any>>(snapshot).map(insight => ({
-            ...insight,
-            value: typeof insight.value === 'string' ? decryptValue(insight.value) : insight.value,
-        }));
-        void logAuditAndCheckAnomaly({
-            actorUserId: user.id,
-            actorRole: user.role,
-            action: 'READ',
-            resourceType: 'personalInsight',
-            resourceId: user.id,
-            organizationId: user.selectedOrganizationId,
-            academyId: user.academyId,
-            ipAddress: getClientIp(req),
-            userAgent: req.headers['user-agent'],
-        });
-        res.json(insights);
-    } catch (error) {
-        logger.error(`Error fetching personal insights for user ${user.id}:`, error);
-        res.status(500).json({ message: "Failed to fetch personal insights." });
-    }
-};
-
-export const archivePersonalInsight = async (req: Request, res: Response) => {
-    const user = req.user as JwtUserPayload;
-    const { id } = req.params;
-    try {
-        const docRef = personalInsightsCollection.doc(id);
-        const doc = await docRef.get();
-        if (!doc.exists || doc.data()?.userId !== user.id) {
-            return res.status(404).json({ message: "Insight not found." });
-        }
-        await docRef.update({ isArchived: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-        res.status(204).send();
-    } catch (error) {
-        logger.error(`Error archiving personal insight ${id}:`, error);
-        res.status(500).json({ message: "Failed to archive insight." });
-    }
-};
-
-export const getArchivedPersonalInsights = async (req: Request, res: Response) => {
-    const user = req.user as JwtUserPayload;
-    try {
-        const snapshot = await personalInsightsCollection
-            .where('userId', '==', user.id)
-            .where('isArchived', '==', true)
-            .orderBy('updatedAt', 'desc')
-            .get();
-        const insights = querySnapshotToArray<Record<string, any>>(snapshot).map(insight => ({
-            ...insight,
-            value: typeof insight.value === 'string' ? decryptValue(insight.value) : insight.value,
-        }));
-        void logAuditAndCheckAnomaly({
-            actorUserId: user.id,
-            actorRole: user.role,
-            action: 'READ',
-            resourceType: 'personalInsight',
-            resourceId: user.id,
-            organizationId: user.selectedOrganizationId,
-            academyId: user.academyId,
-            ipAddress: getClientIp(req),
-            userAgent: req.headers['user-agent'],
-        });
-        res.json(insights);
-    } catch (error) {
-        logger.error(`Error fetching archived insights for user ${user.id}:`, error);
-        res.status(500).json({ message: "Failed to fetch archived insights." });
-    }
-};
-
-export const restorePersonalInsight = async (req: Request, res: Response) => {
-    const user = req.user as JwtUserPayload;
-    const { id } = req.params;
-    try {
-        const docRef = personalInsightsCollection.doc(id);
-        const doc = await docRef.get();
-        if (!doc.exists || doc.data()?.userId !== user.id) {
-            return res.status(404).json({ message: "Insight not found." });
-        }
-        await docRef.update({ isArchived: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-        res.json(snapshotToData(await docRef.get()));
-    } catch (error) {
-        logger.error(`Error restoring personal insight ${id}:`, error);
-        res.status(500).json({ message: "Failed to restore insight." });
-    }
-};
-
-export const savePersonalInsight = async (req: Request, res: Response) => {
-    const user = req.user as JwtUserPayload;
-    const { key, label, value } = req.body;
-
-    if (!key || !label || value === undefined) {
-        return res.status(400).json({ message: 'Key, label, and value are required.' });
-    }
-
-    try {
-        const docId = `${user.id}_${key}`;
-        const docRef = personalInsightsCollection.doc(docId);
-
-        const sanitizedValue = typeof value === 'string' ? sanitizeText(value) : value;
-        const insightData = {
-            id: docId,
-            userId: user.id,
-            key: sanitizeText(key),
-            label: sanitizeText(label),
-            value: typeof sanitizedValue === 'string' ? encryptValue(sanitizedValue) : sanitizedValue,
-            source: 'custom_lesson',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        };
-
-        await docRef.set(insightData, { merge: true });
-
-        const newDoc = await docRef.get();
-        res.status(200).json(snapshotToData(newDoc));
-
-    } catch (error) {
-        logger.error(`Error saving personal insight for user ${user.id}:`, error);
-        res.status(500).json({ message: "Failed to save personal insight." });
-    }
-};
-
-export const cancelSubscription = async (req: Request, res: Response) => {
-    const user = req.user as JwtUserPayload;
-    
-    try {
-        const userDoc = await usersCollection.doc(user.id).get();
-        if (!userDoc.exists) {
-            return res.status(404).json({ message: "User not found." });
-        }
-        const dbUser = snapshotToData<DBUser>(userDoc)!;
-
-        // 1. Fetch the organization to check its subscription provider
-        const orgDocRef = organizationsCollection.doc(user.selectedOrganizationId);
-        const orgDoc = await orgDocRef.get();
-        if (!orgDoc.exists) return res.status(400).json({ message: "Organization not found." });
-        const org = snapshotToData<DBOrganization>(orgDoc)!;
-
-        // 2. Security check: ensure user has permission to cancel
-        const isOrgAdmin = user.role === UserRole.ORGANIZATION_ADMIN || user.role === UserRole.ACADEMY_ADMIN || user.role === UserRole.SYSTEM_ADMIN;
-        
-        if (!org.isPersonal && !isOrgAdmin) {
-            return res.status(403).json({ message: "This action is only available for personal subscriptions or organization administrators." });
-        }
-
-        const subscriptionProvider = org.subscriptionProvider || 'manual';
-
-        if (subscriptionProvider === 'manual') {
-            return res.status(400).json({ message: "This subscription is managed manually and cannot be cancelled from the app. Please contact your administrator." });
-        }
-
-        if (subscriptionProvider === 'gymind') {
-            await orgDocRef.update({ cancelAtPeriodEnd: true });
-            return res.status(200).json({ message: "Your subscription has been cancelled. Your access will continue until the end of your current billing period." });
-        }
-
-        if (subscriptionProvider === 'woocommerce') {
-            const academySettingsDoc = await academySettingsCollection.doc(user.academyId).get();
-            if (!academySettingsDoc.exists) {
-                return res.status(400).json({ message: "Academy settings not found." });
-            }
-            const academySettings = snapshotToData<DBAcademySettings>(academySettingsDoc)!;
-            const webhookUrl = academySettings.subscriptionCancellationWebhookUrl;
-            
-            if (!webhookUrl) {
-                return res.status(400).json({ message: "Cancellation is not configured for this academy. Please contact support." });
-            }
-            
-            logger.info(`Sending cancellation webhook for user ${dbUser.email} to ${webhookUrl}`);
-            
-            const response = await fetch(webhookUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${academySettings.apiKey}`
-                },
-                body: JSON.stringify({
-                    email: dbUser.email,
-                    planId: org.id 
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                logger.error(`Webhook failed: ${response.status} - ${errorText}`);
-                throw new Error("Failed to communicate with the billing system. Please try again or contact support.");
-            }
-
-            await orgDocRef.update({ cancelAtPeriodEnd: true });
-
-            logger.info(`Cancellation webhook successful for ${dbUser.email}`);
-            return res.status(200).json({ message: "Your subscription cancellation request has been sent. Your access will continue until the end of your billing period." });
-        }
-        
-        return res.status(400).json({ message: "This subscription cannot be cancelled through the app at this time." });
-
-    } catch (error: any) {
-        logger.error(`Error cancelling subscription for user ${user.id}:`, error);
-        res.status(500).json({ message: error.message || "An internal server error occurred." });
-    }
-};
-
-export const restoreSubscription = async (req: Request, res: Response) => {
-    const user = req.user as JwtUserPayload;
-    
-    try {
-        const orgDocRef = organizationsCollection.doc(user.selectedOrganizationId);
-        const orgDoc = await orgDocRef.get();
-        if (!orgDoc.exists) return res.status(400).json({ message: "Organization not found." });
-        const org = snapshotToData<DBOrganization>(orgDoc)!;
-
-        // Security check
-        const isOrgAdmin = user.role === UserRole.ORGANIZATION_ADMIN || user.role === UserRole.ACADEMY_ADMIN || user.role === UserRole.SYSTEM_ADMIN;
-        if (!org.isPersonal && !isOrgAdmin) {
-            return res.status(403).json({ message: "This action is only available for personal subscriptions or organization administrators." });
-        }
-
-        if (!org.cancelAtPeriodEnd) {
-            return res.status(400).json({ message: "This subscription is not pending cancellation." });
-        }
-
-        await orgDocRef.update({ cancelAtPeriodEnd: admin.firestore.FieldValue.delete() });
-        
-        return res.status(200).json({ message: "Your subscription has been restored successfully." });
-
-    } catch (error: any) {
-        logger.error(`Error restoring subscription for user ${user.id}:`, error);
-        res.status(500).json({ message: error.message || "An internal server error occurred." });
-    }
-};
-
-
-export const cancelUserSubscriptionByAdmin = async (req: Request, res: Response) => {
-    const { userId } = req.params;
-    const adminUser = req.user as JwtUserPayload;
-
-    try {
-        const userDoc = await usersCollection.doc(userId).get();
-        if (!userDoc.exists) {
-            return res.status(404).json({ message: "User not found." });
-        }
-        const userToCancel = snapshotToData<DBUser>(userDoc)!;
-
-        // Find the user's PERSONAL organization
-        const membershipSnapshot = await membershipsCollection.where('userId', '==', userId).get();
-        const userOrgsIds = querySnapshotToArray<DBMembership>(membershipSnapshot).map(m => m.entityId);
-        
-        if (userOrgsIds.length === 0) {
-            return res.status(404).json({ message: "User has no assigned organization." });
-        }
-
-        const orgsSnapshot = await organizationsCollection.where(admin.firestore.FieldPath.documentId(), 'in', userOrgsIds).where('isPersonal', '==', true).limit(1).get();
-
-        if (orgsSnapshot.empty) {
-            return res.status(400).json({ message: "This user does not have a personal subscription to cancel." });
-        }
-        const orgDoc = orgsSnapshot.docs[0];
-        const org = snapshotToData<DBOrganization>(orgDoc)!;
-
-        // Authorization check: Admin must belong to the same academy
-        if (adminUser.role === UserRole.ACADEMY_ADMIN && org.academyId !== adminUser.academyId) {
-            return res.status(403).json({ message: "You do not have permission to manage this user's subscription." });
-        }
-
-        const subscriptionProvider = org.subscriptionProvider || 'manual';
-        if (subscriptionProvider === 'manual') {
-            return res.status(400).json({ message: "This subscription is managed manually and cannot be cancelled from the app." });
-        }
-        
-        await orgDoc.ref.update({ subscriptionStatus: 'cancelled' });
-        
-        logger.info(`Admin ${adminUser.id} cancelled subscription for user ${userId} (org ${org.id})`);
-
-        return res.status(200).json({ message: `Subscription for ${userToCancel.name} has been marked as cancelled.` });
-
-    } catch (error: any) {
-        logger.error(`Admin error cancelling subscription for user ${userId}:`, error);
-        res.status(500).json({ message: error.message || "An internal server error occurred." });
-    }
-};
+// Suppress unused import warning — logAudit is available for future use
+void logAudit;

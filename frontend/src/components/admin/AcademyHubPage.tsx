@@ -4,11 +4,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UserRole } from '../../types';
-import AcademyBillingPage from './AcademyBillingPage';
 import ThemeSettingsPage from './ThemeSettingsPage';
 import AcademyProfileEditModal from './AcademyProfileEditModal';
 import AcademyAdminsModal from './AcademyAdminsModal';
-import { FiCreditCard, FiTrello, FiShield, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import { FiTrello, FiShield, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 import AcademyHubIcon from '../common/AcademyHubIcon';
 
 const AcademyHubPage: React.FC = () => {
@@ -19,7 +18,6 @@ const AcademyHubPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const themeSectionRef = useRef<HTMLDivElement>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isBillingOpen, setIsBillingOpen] = useState(false);
   const [isThemeOpen, setIsThemeOpen] = useState(false);
   const [showAcademyAdminsModal, setShowAcademyAdminsModal] = useState(false);
   const [feedback, setFeedback] = useState<{type: 'success' | 'error', text: string} | null>(null);
@@ -252,30 +250,6 @@ const AcademyHubPage: React.FC = () => {
       {/* Admin-Only Section */}
       {isAcademyAdmin && (
         <div className="space-y-8">
-          {/* Academy Billing Section */}
-          <div className="bg-white rounded-lg shadow-md">
-            <button
-              onClick={() => setIsBillingOpen(!isBillingOpen)}
-              className="w-full flex justify-between items-center p-6 text-left focus:outline-none"
-            >
-              <h2 className="text-2xl font-semibold text-gray-700 flex items-center"><FiCreditCard className="mr-3 text-purple-600" /> {t('admin.academyHub.academyBilling')}</h2>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className={`h-6 w-6 transform transition-transform duration-200 ${isBillingOpen ? 'rotate-180' : ''}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-            {isBillingOpen && (
-              <div className="p-6 pt-0">
-                <AcademyBillingPage />
-              </div>
-            )}
-          </div>
-
           {/* Theme Settings Section */}
           <div ref={themeSectionRef} className={`bg-white rounded-lg shadow-md ${isThemeDirty && isThemeOpen ? 'ring-2 ring-orange-400' : ''}`}>
             <button

@@ -3,17 +3,15 @@ import * as logger from 'firebase-functions/logger';
 import jwt from 'jsonwebtoken';
 import admin from 'firebase-admin';
 
-import { 
-    academiesCollection, 
-    organizationsCollection, 
-    usersCollection, 
+import {
+    academiesCollection,
+    organizationsCollection,
+    usersCollection,
     academySettingsCollection,
     membershipsCollection,
-    systemSettingsCollection,
-    academyBillingCyclesCollection,
 } from '../db/collections.js';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { DBOrganization, DBUser, JwtVerificationPayload, UserRole, DBAcademySettings, DBMembership, JwtMultiOrgPayload, DBAcademy, DBSystemSettings, DBAcademyBillingCycle, JwtUserPayload } from '../types/index.js';
+import { DBOrganization, DBUser, JwtVerificationPayload, UserRole, DBAcademySettings, DBMembership, JwtMultiOrgPayload, DBAcademy, JwtUserPayload } from '../types/index.js';
 import { env } from '../config/env.js';
 import { sendAccountVerificationEmail } from '../services/email.service.js';
 import { sanitizeText, sanitizeUrl } from '../utils/sanitizer.js';
@@ -148,11 +146,6 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
 
-                // Assign the plan to the academy if it doesn't have one
-                batch.update(academiesCollection.doc(academyId), {
-                    planId: 'academy_pay_as_you_go'
-                });
-
                 const personalMembershipRef = membershipsCollection.doc();
                 batch.set(personalMembershipRef, {
                     id: personalMembershipRef.id,
@@ -187,7 +180,7 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
             };
             await newUserRef.set({ ...newAdminUser, createdAt: new Date() });
             await addAdminRole(newAdminUser.id, newAdminUser.email, newAdminUser.name);
-            
+
             const verificationTokenPayload: JwtVerificationPayload = { userId: newAdminUser.id, action: 'verify_email' };
             const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
@@ -239,15 +232,15 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
         if (!adminMembership) {
             return res.status(400).json({ message: "This user is not an Admin for this academy." });
         }
-        
+
         // Remove the Admin membership
         await membershipsCollection.doc(adminMembership.id).delete();
-        
+
         const remainingMemberships = memberships.filter(m => m.id !== adminMembership.id);
 
         if (remainingMemberships.length === 0) {
             logger.info(`User ${userId} only had this admin role. Reassigning to Default Organization instead of deleting.`);
-            
+
             // Find the Default Organization for this Academy
             const defaultOrgSnapshot = await organizationsCollection
                 .where('academyId', '==', academyId)
@@ -298,13 +291,13 @@ export const updateAcademy = async (req: Request, res: Response) => {
 export const deleteAcademy = async (req: Request, res: Response) => {
     try {
         const academyId = req.params.id;
-        
+
         const batch = db.batch();
         batch.delete(academiesCollection.doc(academyId));
         // Delete academy settings to ensure public page is disabled
         batch.delete(academySettingsCollection.doc(academyId));
         await batch.commit();
-        
+
         logger.info(`Successfully deleted academy ${academyId} and its settings.`);
         res.status(204).send();
     } catch (error) {
@@ -356,26 +349,24 @@ export const setupAcademy = async (req: Request, res: Response) => {
             if (!academySnapshot.empty) {
                 throw new Error('Academy name is already taken.');
             }
-            
+
             const userDoc = await transaction.get(usersCollection.doc(userId));
             if (!userDoc.exists) {
                 throw new Error('User not found.');
             }
             const user = userDoc.data() as DBUser;
-            
+
             const existingAdminMemberships = await transaction.get(
                 membershipsCollection.where('userId', '==', userId).where('role', '==', UserRole.ACADEMY_ADMIN)
             );
             if (!existingAdminMemberships.empty) {
                 throw new Error('This user is already an administrator of an academy.');
             }
-            
+
             const newAcademyRef = academiesCollection.doc();
             transaction.set(newAcademyRef, {
                 id: newAcademyRef.id,
                 name: sanitizedName,
-                planId: 'academy_pay_as_you_go', // Assign plan to academy
-                subscriptionStatus: 'incomplete', // Set to incomplete initially
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
@@ -424,7 +415,7 @@ export const setupAcademy = async (req: Request, res: Response) => {
             };
             transaction.set(settingsRef, { ...defaultSettings, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         });
-        
+
         res.status(201).json({ message: 'Academy created successfully. Proceed to payment.' });
 
     } catch (error: any) {
@@ -458,7 +449,7 @@ export const activateSubscription = async (req: Request, res: Response) => {
                 throw new Error('User is not an academy admin.');
             }
             academyId = adminMembershipSnapshot.docs[0].data().entityId;
-            
+
             const personalOrgSnapshot = await transaction.get(
                 organizationsCollection.where('academyId', '==', academyId).where('isPersonal', '==', true)
             );
@@ -468,40 +459,19 @@ export const activateSubscription = async (req: Request, res: Response) => {
             const orgRef = personalOrgSnapshot.docs[0].ref;
             personalOrgId = orgRef.id;
 
-            const settingsDoc = await transaction.get(systemSettingsCollection.doc('tokenLimits'));
-            
             // --- WRITE PHASE ---
             const academyRef = academiesCollection.doc(academyId);
             transaction.update(academyRef, { subscriptionStatus: 'active' });
             transaction.update(orgRef, { subscriptionStatus: 'active' });
             transaction.update(userRef, { status: 'active' });
-
-            const settings = settingsDoc.data() as DBSystemSettings;
-            const now = new Date();
-            const cycleId = `${academyId}_${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
-            
-            const baselineUserCount = 1;
-            const tier = settings.growthAllowanceTiers?.find(t => baselineUserCount >= t.minUsers && (t.maxUsers === null || baselineUserCount <= t.maxUsers));
-            const growthAllowance = tier ? Math.max(baselineUserCount * tier.percentage, tier.absolute) : 0;
-            const calculatedTokenLimit = (baselineUserCount + growthAllowance) * settings.subscriptionMonthlyLimit;
-
-            const newBillingCycle: DBAcademyBillingCycle = {
-                id: cycleId, academyId,
-                billingCycleStart: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)),
-                billingCycleEnd: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0, 23, 59, 59, 999)),
-                baselineUserCount, growthAllowance, topUpUserCount: 0, calculatedTokenLimit,
-                currentTokenUsage: 0, notification70Sent: false, notification85Sent: false, notification95Sent: false,
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            };
-            transaction.set(academyBillingCyclesCollection.doc(cycleId), newBillingCycle);
         });
-        
+
         const finalUserDoc = await usersCollection.doc(userId).get();
         const finalUser = snapshotToData<DBUser>(finalUserDoc)!;
 
         const allMembershipsSnapshot = await membershipsCollection.where('userId', '==', userId).get();
         const allMemberships = querySnapshotToArray<DBMembership>(allMembershipsSnapshot);
-        
+
         const loginResponse = await generateFullLoginResponse(finalUser, personalOrgId!, allMemberships, UserRole.ACADEMY_ADMIN);
 
         res.status(200).json(loginResponse);

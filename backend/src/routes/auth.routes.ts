@@ -11,7 +11,6 @@ export const authRouter = Router();
 
 // Local Registration & Login — strict rate limiting + reCAPTCHA v3
 authRouter.post('/register', authStrictLimiter, verifyRecaptcha, authController.register);
-authRouter.post('/initiate-checkout-registration', authStrictLimiter, verifyRecaptcha, authController.initiateCheckoutRegistration);
 authRouter.post('/register-academy-admin', authStrictLimiter, verifyRecaptcha, authController.registerAcademyAdmin);
 authRouter.post('/login', authStrictLimiter, verifyRecaptcha, authController.login);
 authRouter.post('/logout', authModerateLimiter, authController.logout);
@@ -19,9 +18,6 @@ authRouter.post('/select-context', authModerateLimiter, authenticatePartialToken
 authRouter.put('/switch-context', authModerateLimiter, authenticateToken, authController.switchContext);
 authRouter.post('/forgot-password', authStrictLimiter, verifyRecaptcha, authController.forgotPassword);
 authRouter.post('/reset-password', authModerateLimiter, authController.resetPassword);
-
-// Unauthenticated endpoint to finalize session after payment
-authRouter.get('/finalize-payment-session', authModerateLimiter, authController.finalizePaymentSession);
 
 // Email Verification Route
 authRouter.get('/verify-account', authModerateLimiter, authController.verifyAccount);
