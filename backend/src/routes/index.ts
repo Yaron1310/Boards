@@ -14,6 +14,12 @@ import { systemRouter } from './system.routes.js';
 import { publicRouter } from './public.routes.js';
 import { emailTemplatesRouter } from './emailTemplates.routes.js';
 
+// Phase 6 — Work Management routes
+import { boardRouter } from './board.routes.js';
+import { groupRouter } from './group.routes.js';
+import { itemRouter } from './item.routes.js';
+import { columnRouter } from './column.routes.js';
+
 export const mainRouter = Router();
 
 // --- PUBLIC ROUTES ---
@@ -31,3 +37,9 @@ mainRouter.use('/workspaces', organizationRouter);
 mainRouter.use('/users', userRouter);
 mainRouter.use('/system-settings', systemRouter);
 mainRouter.use('/email-templates', emailTemplatesRouter);
+
+// Phase 6 — Work Management
+mainRouter.use('/boards', boardRouter);
+mainRouter.use('/boards/:boardId/groups', groupRouter);
+mainRouter.use('/items', itemRouter);
+mainRouter.use('/columns', columnRouter);

@@ -395,12 +395,203 @@ Validation on write:
 * Row-level column visibility permissions → post-MVP
 
 ⚙️ PHASE 6 — Backend APIs
-Build new endpoints:
 
-* Boards: POST /boards, GET /boards, PATCH /boards/:id
-* Groups: POST /boards/:boardId/groups, DELETE /groups/:id
-* Items: POST /items, GET /items (with board/workspace filters)
-* Columns: Management of columns (Definitions)
+New files to create:
+  backend/src/controllers/board.controller.ts
+  backend/src/controllers/group.controller.ts
+  backend/src/controllers/item.controller.ts
+  backend/src/controllers/column.controller.ts
+  backend/src/routes/board.routes.ts
+  backend/src/routes/group.routes.ts
+  backend/src/routes/item.routes.ts
+  backend/src/routes/column.routes.ts
+
+Wire all 4 routers into routes/index.ts under authenticateToken + authenticatedLimiter.
+
+Security on every endpoint: authenticateToken middleware (already applied in mainRouter),
+explicit req.body field picking (no object spread), assertXxxAccess() from workManagementAuth.ts.
+
+Audit logging: call logAudit() / logAuditAndCheckAnomaly() on every CREATE, UPDATE, DELETE,
+and list READ operation.
+
+Error format: { message: string } — consistent with existing controllers.
+
+--- BOARDS ---
+
+POST   /boards
+  Body: { name, description?, workspaceId, order? }
+  Validate: workspaceId must be an existing workspace whose orgId === user.orgId
+  Auth: assertBoardAccess(user, board, 'create')  — ORGANIZATION_ADMIN+ in their workspace
+  Returns: 201 + created board
+
+GET    /boards
+  Query: workspaceId? (scopes to a specific workspace),
+         includeArchived? (default false)
+  Tenant filter: always organizationId === user.orgId
+  Auth: results filtered via canAccessBoard(user, board, 'read')
+  Audit: logAuditAndCheckAnomaly (READ + anomaly detection)
+  Returns: 200 + array of boards ordered by `order`
+
+GET    /boards/:id
+  Auth: assertBoardAccess(user, board, 'read')
+  Audit: logAuditAndCheckAnomaly
+  Returns: 200 + board
+
+PATCH  /boards/:id
+  Body: { name?, description?, order? }
+  Auth: assertBoardAccess(user, board, 'update')
+    — board creator OR ORGANIZATION_ADMIN (own workspace) OR ACADEMY_ADMIN+
+  Returns: 200 + updated board
+
+PATCH  /boards/:id/archive
+  Auth: assertBoardAccess(user, board, 'archive')
+    — ORGANIZATION_ADMIN (own workspace) OR ACADEMY_ADMIN+
+  Sets isArchived: true
+  Returns: 200
+
+PATCH  /boards/:id/restore
+  Auth: assertBoardAccess(user, board, 'archive')  — same permission level
+  Sets isArchived: false
+  Returns: 200 + restored board
+
+DELETE /boards/:id              (hard-delete — ACADEMY_ADMIN+ only)
+  Auth: assertBoardAccess(user, board, 'delete')
+  Cascade: batch-delete all groups under the board
+  Note: items become orphaned (acceptable for MVP — addressed in Phase 9)
+  Returns: 204
+
+--- GROUPS ---
+
+GET    /boards/:boardId/groups
+  Auth: assertBoardAccess(user, board, 'read')  — inherit from parent board
+  Returns: 200 + array of groups ordered by `order`
+
+POST   /boards/:boardId/groups
+  Body: { name, color?, order? }
+  Validate: validateGroupOwnershipChain(orgId, boardId)
+  Auth: assertGroupAccess(user, group, 'create', board.createdBy)
+    — ORGANIZATION_ADMIN+ OR board creator
+  Returns: 201 + created group
+
+PATCH  /boards/:boardId/groups/reorder    ← defined BEFORE /:groupId to avoid route conflict
+  Body: { order: [{ id, order }] }
+  Auth: assertBoardAccess(user, board, 'update')
+  Batch-writes order field on all specified groups
+  Returns: 200
+
+PATCH  /boards/:boardId/groups/:groupId
+  Body: { name?, color?, isCollapsed?, order? }
+  Auth: assertGroupAccess(user, group, 'update', board.createdBy)
+  Returns: 200 + updated group
+
+DELETE /boards/:boardId/groups/:groupId
+  Auth: assertGroupAccess(user, group, 'delete', board.createdBy)
+    — ORGANIZATION_ADMIN+ (hard-delete acceptable per Phase 5.3)
+  Note: items in this group become orphaned (acceptable for MVP)
+  Returns: 204
+
+--- ITEMS ---
+
+POST   /items
+  Body: { name, workspaceId, boardId, groupId, order?, values?,
+          assignees?, status?, dueDate? }
+  Validate: validateItemOwnershipChain(orgId, workspaceId, boardId, groupId)
+  Validate: validateColumnValue() for each key in values (fetch column defs)
+  Mirror: scan values map — STATUS column → item.status, PERSON → item.assignees,
+          DATE → item.dueDate (first match of each type)
+  Auth: assertItemAccess(user, item, 'create')
+    — workspace member: selectedOrganizationId === item.workspaceId
+  Returns: 201 + created item
+
+GET    /items
+  Query params:
+    boardId?       — filter by board
+    groupId?       — filter by group (requires boardId)
+    workspaceId?   — filter by workspace
+    assignee?      — filter by userId in assignees array
+    status?        — filter by top-level status string
+    dueDateFrom?   — filter dueDate >= ISO string
+    dueDateTo?     — filter dueDate <= ISO string
+    includeArchived? (default false)
+    cursor?        — cursor-based pagination token (document ID)
+    limit?         — page size (default 50, max 200)
+  Tenant isolation: always filter by organizationId === user.orgId
+  Auth: results filtered via canAccessItem(user, item, 'read')
+  Audit: logAuditAndCheckAnomaly (anomaly detection for bulk reads)
+  Returns: 200 + PaginatedResult<DBItem>
+
+GET    /items/:id
+  Auth: assertItemAccess(user, item, 'read')
+  Audit: logAuditAndCheckAnomaly
+  Returns: 200 + item
+
+PATCH  /items/reorder             ← defined BEFORE /:id to avoid route conflict
+  Body: { updates: [{ id, groupId, order }] }
+  Auth: each item must pass assertItemAccess(user, item, 'update')
+  Batch-writes groupId + order (supports moving items between groups)
+  Returns: 200
+
+PATCH  /items/:id
+  Body: { name?, groupId?, order?, values?, assignees?, status?, dueDate? }
+  Validate: if groupId changes, re-run validateItemOwnershipChain
+  Validate: validateColumnValue() for each key in values
+  Mirror: update top-level status/assignees/dueDate if relevant columns change
+  Auth: assertItemAccess(user, item, 'update')
+    — item creator OR assignee OR ORGANIZATION_ADMIN+
+  Returns: 200 + updated item
+
+PATCH  /items/:id/archive
+  Auth: assertItemAccess(user, item, 'archive')
+  Sets isArchived: true
+  Returns: 200
+
+PATCH  /items/:id/restore
+  Auth: assertItemAccess(user, item, 'archive')
+  Sets isArchived: false
+  Returns: 200
+
+DELETE /items/:id              (hard-delete — ORGANIZATION_ADMIN+ only)
+  Auth: assertItemAccess(user, item, 'delete')
+  Returns: 204
+
+--- COLUMNS ---
+
+GET    /columns
+  Tenant filter: organizationId === user.orgId
+  Auth: any org member (canAccessColumn read)
+  Returns: 200 + array of columns
+
+GET    /columns/:id
+  Auth: assertColumnAccess(user, column, 'read')
+  Returns: 200 + column
+
+POST   /columns
+  Body: { name, type (valid ColumnType enum value), settings? }
+  Validate: type is a valid ColumnType value
+  Validate: settings shape matches type
+    — STATUS requires settings.options array with { id, label, color } entries
+    — DROPDOWN requires settings.options array + settings.multiple (boolean)
+    — SIMPLE_FORMULA requires settings.operation + settings.fields (2 columnIds)
+    — other types: settings optional
+  Auth: assertColumnAccess(user, column, 'create')  — ORGANIZATION_ADMIN+
+  Returns: 201 + created column
+
+PATCH  /columns/reorder           ← defined BEFORE /:id to avoid route conflict
+  Body: { order: [{ id, order }] }
+  Auth: assertColumnAccess (any column in org, 'update')  — ORGANIZATION_ADMIN+
+  Batch-writes order field
+  Returns: 200
+
+PATCH  /columns/:id
+  Body: { name?, settings? }
+  Validate: updated settings shape still matches the existing column type
+  Auth: assertColumnAccess(user, column, 'update')
+  Returns: 200 + updated column
+
+DELETE /columns/:id
+  Auth: assertColumnAccess(user, column, 'delete')
+  Note: existing item values keyed by this columnId become stale (acceptable for MVP)
+  Returns: 204
 
 🎨 PHASE 7 — Frontend Core Features (Logyx UI)
 Boards UI
