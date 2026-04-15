@@ -1,4 +1,4 @@
-MIGRATION PLAN — Learning App ➜ Work Management SaaS (Logyx)
+MIGRATION PLAN — From Learning App (Gymind) ➜ To "Monday.com" like Work Management App (Logyx) using the existing shell (auth, security, middleware).
 🎯 Goal
 
 Convert the existing system into a multi-tenant work management platform (Logyx) with a strict 6-level hierarchy:
