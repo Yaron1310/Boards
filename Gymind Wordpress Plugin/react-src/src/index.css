@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide WordPress admin notices and Elementor notices on plugin pages to prevent overlap. */
+.notice,
+.e-notice {
+    display: none !important;
+}

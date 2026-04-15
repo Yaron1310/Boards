@@ -1,0 +1,13 @@
+<!-- COPY THE CODE BELOW -->
+
+<key>CFBundleURLTypes</key>
+<array>
+    <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+            <string>REVERSED_CLIENT_ID_HERE</string>
+        </array>
+    </dict>
+</array>
+
+<!-- END OF CODE -->

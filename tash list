@@ -1,0 +1,68 @@
+[33m433e5e0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mclaude/self-hosted-video-support-NVzkM[m[33m, [m[1;31morigin/claude/self-hosted-video-support-NVzkM[m[33m)[m HEAD@{0}: pull: Fast-forward
+[33me71150a[m HEAD@{1}: checkout: moving from claude/self-hosted-video-support-NVzkM to claude/self-hosted-video-support-NVzkM
+[33me71150a[m HEAD@{2}: reset: moving to HEAD
+[33me71150a[m HEAD@{3}: checkout: moving from claude/recaptcha-fix to claude/self-hosted-video-support-NVzkM
+[33m3036a9a[m[33m ([m[1;31morigin/claude/recaptcha-fix[m[33m, [m[1;31morigin/claude/fix-edition-archive-issues-EUDQA[m[33m, [m[1;32mclaude/recaptcha-fix[m[33m, [m[1;32mclaude/fix-edition-archive-issues-EUDQA[m[33m)[m HEAD@{4}: reset: moving to HEAD
+[33m3036a9a[m[33m ([m[1;31morigin/claude/recaptcha-fix[m[33m, [m[1;31morigin/claude/fix-edition-archive-issues-EUDQA[m[33m, [m[1;32mclaude/recaptcha-fix[m[33m, [m[1;32mclaude/fix-edition-archive-issues-EUDQA[m[33m)[m HEAD@{5}: reset: moving to HEAD
+[33m3036a9a[m[33m ([m[1;31morigin/claude/recaptcha-fix[m[33m, [m[1;31morigin/claude/fix-edition-archive-issues-EUDQA[m[33m, [m[1;32mclaude/recaptcha-fix[m[33m, [m[1;32mclaude/fix-edition-archive-issues-EUDQA[m[33m)[m HEAD@{6}: reset: moving to HEAD
+[33m3036a9a[m[33m ([m[1;31morigin/claude/recaptcha-fix[m[33m, [m[1;31morigin/claude/fix-edition-archive-issues-EUDQA[m[33m, [m[1;32mclaude/recaptcha-fix[m[33m, [m[1;32mclaude/fix-edition-archive-issues-EUDQA[m[33m)[m HEAD@{7}: checkout: moving from claude/recaptcha-fix to claude/recaptcha-fix
+[33m3036a9a[m[33m ([m[1;31morigin/claude/recaptcha-fix[m[33m, [m[1;31morigin/claude/fix-edition-archive-issues-EUDQA[m[33m, [m[1;32mclaude/recaptcha-fix[m[33m, [m[1;32mclaude/fix-edition-archive-issues-EUDQA[m[33m)[m HEAD@{8}: checkout: moving from claude/fix-edition-archive-issues-EUDQA to claude/recaptcha-fix
+[33m3036a9a[m[33m ([m[1;31morigin/claude/recaptcha-fix[m[33m, [m[1;31morigin/claude/fix-edition-archive-issues-EUDQA[m[33m, [m[1;32mclaude/recaptcha-fix[m[33m, [m[1;32mclaude/fix-edition-archive-issues-EUDQA[m[33m)[m HEAD@{9}: pull: Fast-forward
+[33m0f91eb0[m HEAD@{10}: checkout: moving from claude/fix-edition-archive-issues-EUDQA to claude/fix-edition-archive-issues-EUDQA
+[33m0f91eb0[m HEAD@{11}: reset: moving to HEAD
+[33m0f91eb0[m HEAD@{12}: pull: Fast-forward
+[33ma78bff4[m HEAD@{13}: checkout: moving from claude/fix-edition-archive-issues-EUDQA to claude/fix-edition-archive-issues-EUDQA
+[33ma78bff4[m HEAD@{14}: reset: moving to HEAD
+[33ma78bff4[m HEAD@{15}: pull: Fast-forward
+[33md4b03f6[m HEAD@{16}: checkout: moving from claude/fix-edition-archive-issues-EUDQA to claude/fix-edition-archive-issues-EUDQA
+[33md4b03f6[m HEAD@{17}: reset: moving to HEAD
+[33md4b03f6[m HEAD@{18}: pull: Fast-forward
+[33m1c7f723[m HEAD@{19}: checkout: moving from claude/fix-edition-archive-issues-EUDQA to claude/fix-edition-archive-issues-EUDQA
+[33m1c7f723[m HEAD@{20}: reset: moving to HEAD
+[33m1c7f723[m HEAD@{21}: pull: Fast-forward
+[33m56d1f87[m HEAD@{22}: checkout: moving from claude/fix-edition-archive-issues-EUDQA to claude/fix-edition-archive-issues-EUDQA
+[33m56d1f87[m HEAD@{23}: reset: moving to HEAD
+[33m56d1f87[m HEAD@{24}: checkout: moving from claude/plan-marketing-admin-page-Ey3y2 to claude/fix-edition-archive-issues-EUDQA
+[33mcdb7332[m[33m ([m[1;31morigin/claude/plan-marketing-admin-page-Ey3y2[m[33m, [m[1;32mclaude/plan-marketing-admin-page-Ey3y2[m[33m)[m HEAD@{25}: reset: moving to HEAD
+[33mcdb7332[m[33m ([m[1;31morigin/claude/plan-marketing-admin-page-Ey3y2[m[33m, [m[1;32mclaude/plan-marketing-admin-page-Ey3y2[m[33m)[m HEAD@{26}: checkout: moving from claude/plan-marketing-admin-page-TJs8Q to claude/plan-marketing-admin-page-Ey3y2
+[33mf82c919[m[33m ([m[1;31morigin/claude/plan-marketing-admin-page-TJs8Q[m[33m, [m[1;32mclaude/plan-marketing-admin-page-TJs8Q[m[33m)[m HEAD@{27}: checkout: moving from issue-term-backup to claude/plan-marketing-admin-page-TJs8Q
+[33me56b07a[m[33m ([m[1;31morigin/issue-term-backup[m[33m, [m[1;32missue-term-backup[m[33m)[m HEAD@{28}: commit: Local dev edits
+[33m85022c1[m[33m ([m[1;32mclaude/fix-mobile-scroll-images-aRZpt[m[33m)[m HEAD@{29}: checkout: moving from claude/fix-mobile-scroll-images-aRZpt to issue-term-backup
+[33m85022c1[m[33m ([m[1;32mclaude/fix-mobile-scroll-images-aRZpt[m[33m)[m HEAD@{30}: commit: Local dev edits
+[33m8f1788b[m[33m ([m[1;31morigin/claude/fix-mobile-scroll-images-aRZpt[m[33m)[m HEAD@{31}: pull: Fast-forward
+[33m665b06b[m HEAD@{32}: pull: Fast-forward
+[33m31526bb[m HEAD@{33}: pull: Fast-forward
+[33meea8c9a[m HEAD@{34}: pull: Fast-forward
+[33m5fac918[m HEAD@{35}: checkout: moving from claude/fix-questionnaires-map-error-RUpTZ to claude/fix-mobile-scroll-images-aRZpt
+[33m7b0d1d0[m[33m ([m[1;31morigin/claude/fix-questionnaires-map-error-RUpTZ[m[33m, [m[1;32mclaude/fix-questionnaires-map-error-RUpTZ[m[33m)[m HEAD@{36}: pull: Fast-forward
+[33m2b2c842[m HEAD@{37}: pull: Fast-forward
+[33m2a8909e[m HEAD@{38}: pull: Fast-forward
+[33m953e571[m HEAD@{39}: pull: Fast-forward
+[33m5e1111f[m HEAD@{40}: checkout: moving from claude/fix-page-loading-delays-Gdubd to claude/fix-questionnaires-map-error-RUpTZ
+[33mddb5ec0[m[33m ([m[1;31morigin/claude/fix-page-loading-delays-Gdubd[m[33m, [m[1;32mclaude/fix-page-loading-delays-Gdubd[m[33m)[m HEAD@{41}: pull: Fast-forward
+[33mf49e726[m HEAD@{42}: checkout: moving from claude/fix-page-loading-delays-Gdubd to claude/fix-page-loading-delays-Gdubd
+[33mf49e726[m HEAD@{43}: reset: moving to HEAD
+[33mf49e726[m HEAD@{44}: checkout: moving from claude/fix-page-loading-delays-Gdubd to claude/fix-page-loading-delays-Gdubd
+[33mf49e726[m HEAD@{45}: reset: moving to HEAD
+[33mf49e726[m HEAD@{46}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-page-loading-delays-Gdubd
+[33m21718c7[m[33m ([m[1;31morigin/claude/fix-passingScore-undefined-cYeef[m[33m, [m[1;32mclaude/fix-passingScore-undefined-cYeef[m[33m)[m HEAD@{47}: reset: moving to HEAD
+[33m21718c7[m[33m ([m[1;31morigin/claude/fix-passingScore-undefined-cYeef[m[33m, [m[1;32mclaude/fix-passingScore-undefined-cYeef[m[33m)[m HEAD@{48}: commit: Local dev edits
+[33m0d16f9f[m HEAD@{49}: commit: Local dev edits
+[33m740443e[m HEAD@{50}: commit: Local dev edits
+[33m0a6e218[m HEAD@{51}: commit: Local dev edits
+[33m128019c[m HEAD@{52}: commit: Local dev edits
+[33mc5d919c[m HEAD@{53}: commit: Local dev edits
+[33mf77b0cc[m HEAD@{54}: pull: Fast-forward
+[33m203ff9a[m HEAD@{55}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-passingScore-undefined-cYeef
+[33m203ff9a[m HEAD@{56}: pull: Fast-forward
+[33m458f09a[m HEAD@{57}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-passingScore-undefined-cYeef
+[33m458f09a[m HEAD@{58}: pull: Fast-forward
+[33mae5d39a[m HEAD@{59}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-passingScore-undefined-cYeef
+[33mae5d39a[m HEAD@{60}: pull: Fast-forward
+[33m4e84df8[m HEAD@{61}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-passingScore-undefined-cYeef
+[33m4e84df8[m HEAD@{62}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-passingScore-undefined-cYeef
+[33m4e84df8[m HEAD@{63}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-passingScore-undefined-cYeef
+[33m4e84df8[m HEAD@{64}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-passingScore-undefined-cYeef
+[33m4e84df8[m HEAD@{65}: checkout: moving from claude/fix-passingScore-undefined-cYeef to claude/fix-passingScore-undefined-cYeef
+[33m4e84df8[m HEAD@{66}: checkout: moving from claude/limit-mentor-chat-llm-PJmKz to claude/fix-passingScore-undefined-cYeef
+[33m7ce4bf7[m[33m ([m[1;32mclaude/limit-mentor-chat-llm-PJmKz[m[33m, [m[1;32mclaude/keen-chatelet[m[33m)[m HEAD@{67}: commit: fix(deps): add picomat

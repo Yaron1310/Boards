@@ -1,0 +1,83 @@
+
+import { onRequest } from "firebase-functions/v2/https";
+import { onSchedule } from "firebase-functions/v2/scheduler";
+import { setGlobalOptions } from "firebase-functions/v2";
+import { createApp } from "./server.js";
+import * as logger from "firebase-functions/logger";
+import type { Application } from 'express';
+import { processScheduledEmailsHandler } from "./scheduled/processScheduledEmails.js";
+
+// Define secrets the function needs to run.
+// IMPORTANT: All secrets listed here MUST exist in your Google Cloud Secret Manager.
+// Firebase Functions v2 secrets configuration expects an array of strings.
+//
+// If the deployment fails with "Secret not found", ensure you have run:
+// firebase functions:secrets:set SECRET_NAME
+const secrets = [
+    "GEMINI_API_KEY",
+    "JWT_SECRET",
+    "GOOGLE_CLIENT_ID",
+    "GOOGLE_CLIENT_SECRET",
+    "GOOGLE_CALLBACK_URL",
+    "FRONTEND_URL",
+    // "BACKEND_API_URL_FOR_CALLBACKS", // This secret is optional and should not be required for deployment.
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USER",
+    "SMTP_PASS",
+    "SMTP_FROM_NAME",
+    "MICROSOFT_CLIENT_ID",
+    "MICROSOFT_CLIENT_SECRET",
+    "MICROSOFT_CALLBACK_URL",
+    // Stripe secrets removed to allow deployment without setting them in Secret Manager
+    // "STRIPE_PUBLIC_KEY",
+    // "STRIPE_SECRET_KEY",
+    // "STRIPE_WEBHOOK_SECRET",
+    // Uncomment these if using native mobile apps:
+    // "GOOGLE_IOS_CLIENT_ID",
+    // "GOOGLE_ANDROID_CLIENT_ID",
+    // reCAPTCHA Enterprise — uncomment after running:
+    //   firebase functions:secrets:set RECAPTCHA_API_KEY
+    //   firebase functions:secrets:set RECAPTCHA_PROJECT_ID
+    //   firebase functions:secrets:set RECAPTCHA_SITE_KEY
+    "RECAPTCHA_API_KEY",
+    "RECAPTCHA_PROJECT_ID",
+    "RECAPTCHA_SITE_KEY",
+];
+
+// Set global options for the function.
+setGlobalOptions({
+  secrets: secrets,
+  region: 'us-central1' // Or your preferred region
+});
+
+// A promise to ensure the app is initialized only once. This prevents race conditions.
+let appInitializationPromise: Promise<Application> | null = null;
+
+// Scheduled function — runs every hour to process scheduled newsletter sends and reminders.
+export const processScheduledEmails = onSchedule(
+    { schedule: '0 * * * *', timeZone: 'UTC', secrets },
+    processScheduledEmailsHandler
+);
+
+// This is the main Cloud Function entry point.
+// It will lazily initialize the Express app on the first request to a new instance.
+export const api = onRequest({ invoker: 'public', timeoutSeconds: 300 }, async (request, response) => {
+  if (!appInitializationPromise) {
+    logger.info("Initializing Express app instance for the first time...");
+    appInitializationPromise = createApp();
+  }
+
+  try {
+    // Cast to Promise<Application> to ensure TypeScript knows it's not null here
+    const appInstance = await (appInitializationPromise as Promise<Application>);
+    logger.info("Express app instance is ready. Handling request.");
+    return appInstance(request as any, response as any);
+  } catch (error) {
+    logger.error("Fatal error during Express app initialization:", error);
+    // Reset the promise on failure so the next request to this instance can retry initialization.
+    appInitializationPromise = null;
+    (response as any).status(500).send("Internal Server Error: Could not initialize server.");
+    return;
+  }
+});

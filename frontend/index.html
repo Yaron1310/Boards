@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/webp" href="/Gymind icon.webp" /> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <title>Gymind - Learn, Grow, Transform.</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Assistant:wght@200..800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      /* Custom scrollbar for chat */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+      @keyframes fade-in-out {
+        0% { background-color: #dcfce7; } /* green-100 */
+        70% { background-color: #dcfce7; }
+        100% { background-color: transparent; }
+      }
+      .animate-fade-in-out {
+        animation: fade-in-out 4s ease-out forwards;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100">
+    <div id="root"></div>
+    <div id="modal-root"></div>
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://esm.sh/@google/genai@^0.15.0",
+        "react/": "https://esm.sh/react@^18.2.0/",
+        "react": "https://esm.sh/react@^18.2.0",
+        "react-dom/": "https://esm.sh/react-dom@^18.2.0/",
+        "express": "https://esm.sh/express@^4.18.2",
+        "cors": "https://esm.sh/cors@^2.8.5",
+        "react-router-dom": "https://esm.sh/react-router-dom@^6.22.3",
+        "firebase-admin": "https://esm.sh/firebase-admin@^12.3.0",
+        "path": "https://esm.sh/path@^0.12.7",
+        "firebase-functions": "https://esm.sh/firebase-functions@^5.1.1",
+        "url": "https://esm.sh/url@^0.11.4",
+        "vite": "https://esm.sh/vite@^5.1.4",
+        "react-icons/": "https://esm.sh/react-icons@^5.0.1/",
+        "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.2.1",
+        "jsonwebtoken": "https://esm.sh/jsonwebtoken@^9.0.2",
+        "passport": "https://esm.sh/passport@^0.7.0",
+        "bcryptjs": "https://esm.sh/bcryptjs@^2.4.3",
+        "passport-google-oauth20": "https://esm.sh/passport-google-oauth20@^2.0.0",
+        "firebase-functions/": "https://esm.sh/firebase-functions@^5.1.1/",
+        "firebase-admin/": "https://esm.sh/firebase-admin@^13.4.0/",
+        "xlsx": "https://esm.sh/xlsx@^0.18.5",
+        "nodemailer": "https://esm.sh/nodemailer@^7.0.4",
+        "read-excel-file": "https://esm.sh/read-excel-file@^5.8.8",
+        "react-dom": "https://esm.sh/react-dom@^19.1.0",
+        "crypto": "https://esm.sh/crypto@^1.0.1",
+        "sanitize-html": "https://esm.sh/sanitize-html@^2.17.0",
+        "@capacitor/cli": "https://aistudiocdn.com/@capacitor/cli@^7.4.4",
+        "@capacitor/core": "https://esm.sh/@capacitor/core@^8.0.0",
+        "google-auth-library": "https://esm.sh/google-auth-library@^10.5.0",
+        "passport-microsoft": "https://esm.sh/passport-microsoft@^2.1.0",
+        "jwks-rsa": "https://esm.sh/jwks-rsa@^3.2.0",
+        "mammoth": "https://esm.sh/mammoth@1.7.2",
+        "pdfjs-dist": "https://esm.sh/pdfjs-dist@4.4.168"
+      }
+    }
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="https://player.vimeo.com/api/player.js"></script>
+  </body>
+</html>

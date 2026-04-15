@@ -1,0 +1,9 @@
+{
+  "language": "Idioma",
+  "languageModal": {
+    "title": "Elige tu idioma",
+    "subtitle": "Selecciona tu idioma de visualización preferido para comenzar.",
+    "confirm": "Confirmar",
+    "skip": "Omitir"
+  }
+}

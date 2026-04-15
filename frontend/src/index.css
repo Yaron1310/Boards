@@ -1,0 +1,205 @@
+/* my-ai-therapist-frontend/src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Add any global custom styles here */
+body {
+  font-family: 'Inter', sans-serif; /* Example: Setting a default font */
+}
+
+/* Ensure root element takes full height if needed by layout */
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  /* This is the key fix: prevent the main document from scrolling AT ALL.
+     Scrolling is now delegated to specific components inside the layout.
+     This eliminates the "double scrollbar" issue on all devices. */
+  overflow: hidden;
+}
+
+/* Use a CSS variable for dynamic height to solve mobile browser vh issues */
+.h-dynamic-screen {
+  height: 100vh; /* Fallback for older browsers */
+  height: calc(var(--vh, 1vh) * 100);
+}
+
+
+/* Custom utility for vertical text on mobile for the results graph */
+@media (max-width: 639px) { /* Below sm breakpoint */
+  .vertical-text-mobile {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+}
+
+/* Custom styles for Gymind logo */
+.text-gym {
+  background: linear-gradient(to right, #6e8a2e, #82a638, #85b136, #a3c644);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 700;
+}
+
+.text-ind {
+  color: #586979;
+  font-weight: 300;
+}
+
+/* Animations for Landing Page */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 1.2s ease-out 0.2s forwards;
+  opacity: 0;
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 1s ease-out forwards;
+}
+
+@keyframes fade-in-down {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-down {
+  animation: fade-in-down 0.5s ease-out forwards;
+}
+
+/* Bounce animation for AI "Coding..." indicator */
+@keyframes wave-char {
+  0%, 15%, 100% { transform: translateY(0px); }
+  7% { transform: translateY(-6px); }
+}
+
+/* NEW: Animation for tooltips */
+@keyframes tooltip-fade-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-tooltip-fade-in {
+  animation: tooltip-fade-in 0.15s ease-out forwards;
+}
+
+/* Smaller page titles on mobile screens */
+@media (max-width: 639px) {
+  .text-3xl {
+    font-size: 1.6rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  html {
+    font-size: 90%;
+  }
+}
+
+/* Dark contrast accessibility mode */
+html.dark-contrast {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Re-invert media elements so images/videos retain natural colors */
+html.dark-contrast img,
+html.dark-contrast video,
+html.dark-contrast iframe,
+html.dark-contrast canvas {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Exclude auth pages (login, register) from dark contrast mode.
+   Double-inversion cancels the html-level filter for these standalone pages. */
+html.dark-contrast .auth-page-no-contrast {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Within excluded auth pages, reset media elements back to normal
+   (the wrapper double-inversion already restores them). */
+html.dark-contrast .auth-page-no-contrast img,
+html.dark-contrast .auth-page-no-contrast video,
+html.dark-contrast .auth-page-no-contrast iframe,
+html.dark-contrast .auth-page-no-contrast canvas {
+  filter: none;
+}
+
+/* Hide the reCAPTCHA badge — legal disclaimer is shown on login/register forms instead */
+.grecaptcha-badge {
+  display: none !important;
+}
+
+/* RTL: flip back-arrow icons horizontally so they point in the correct direction */
+[dir="rtl"] .rtl-flip {
+  transform: scaleX(-1);
+}
+
+/* RTL: reverse Tailwind's space-x-* utilities so spacing appears between elements.
+   Tailwind sets --tw-space-x-reverse on the sibling combinator children, not the parent,
+   so we must override it there with higher specificity. */
+[dir="rtl"] [class*="space-x-"] > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-x-reverse: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RTL: Global visual-consistency rules for Hebrew UI mode
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* FIX 1a — Absolute-positioned close buttons in overlays / modals.
+   Physical `right-*` classes don't flip with document direction.
+   We target only <button> elements with those classes to avoid affecting other
+   absolutely-positioned UI like badges, lock icons, or image overlays. */
+[dir="rtl"] button.absolute.right-2 { right: auto; left: 0.5rem;  }
+[dir="rtl"] button.absolute.right-3 { right: auto; left: 0.75rem; }
+[dir="rtl"] button.absolute.right-4 { right: auto; left: 1rem;    }
+[dir="rtl"] button.absolute.right-6 { right: auto; left: 1.5rem;  }
+
+/* FIX 1b — Inline icon-to-text gap in flex rows.
+   React Icons render as <svg> and use mr-* / ml-* classes to create a gap
+   between the icon and adjacent text in LTR flex rows.
+   In RTL, flexbox (via the inherited `direction:rtl`) reverses visual order so
+   the icon appears to the RIGHT of the text — the gap must move to the LEFT. */
+[dir="rtl"] svg.mr-1 { margin-right: 0; margin-left: 0.25rem; }
+[dir="rtl"] svg.mr-2 { margin-right: 0; margin-left: 0.5rem;  }
+[dir="rtl"] svg.mr-3 { margin-right: 0; margin-left: 0.75rem; }
+[dir="rtl"] svg.mr-4 { margin-right: 0; margin-left: 1rem;    }
+[dir="rtl"] svg.mr-5 { margin-right: 0; margin-left: 1.25rem; }
+[dir="rtl"] svg.ml-1 { margin-left: 0;  margin-right: 0.25rem; }
+[dir="rtl"] svg.ml-2 { margin-left: 0;  margin-right: 0.5rem;  }
+[dir="rtl"] svg.ml-3 { margin-left: 0;  margin-right: 0.75rem; }
+[dir="rtl"] svg.ml-4 { margin-left: 0;  margin-right: 1rem;    }
+[dir="rtl"] svg.ml-5 { margin-left: 0;  margin-right: 1.25rem; }
+
+/* FIX 2 — Auto-align English-only (untranslated) strings to the left in RTL.
+   When the UI is Hebrew, text elements inherit `direction:rtl` and
+   `text-align:start` (≡ right-aligned), so intentionally-English strings look
+   jarring right-aligned. `unicode-bidi:plaintext` makes each element detect its
+   own base direction from its first strong Unicode character:
+     • English-only text  → LTR detected → text-align:start = left-aligned  ✓
+     • Hebrew text        → RTL detected → text-align:start = right-aligned  ✓
+     • Mixed (he + en)    → Hebrew wins (first char) → right-aligned          ✓  */
+[dir="rtl"] p,
+[dir="rtl"] h1,
+[dir="rtl"] h2,
+[dir="rtl"] h3,
+[dir="rtl"] h4,
+[dir="rtl"] h5,
+[dir="rtl"] h6,
+[dir="rtl"] span,
+[dir="rtl"] label,
+[dir="rtl"] li,
+[dir="rtl"] td,
+[dir="rtl"] th {
+  unicode-bidi: plaintext;
+}

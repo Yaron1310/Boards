@@ -1,0 +1,53 @@
+{
+  "name": "ai-therapist-backend-functions",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('./dist', { recursive: true, force: true });\"",
+    "build": "npm run clean && tsc",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log",
+    "dev": "npm run build -- --watch & firebase emulators:start --only functions"
+  },
+  "dependencies": {
+    "@google/genai": "^1.10.0",
+    "@types/sanitize-html": "^2.11.0",
+    "archiver": "^7.0.1",
+    "bcryptjs": "^3.0.2",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.2.1",
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.4.0",
+    "google-auth-library": "^9.7.0",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.1.0",
+    "nodemailer": "^7.0.5",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-microsoft": "^1.0.0",
+    "sanitize-html": "^2.13.0"
+  },
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.2",
+    "@types/nodemailer": "^6.4.15",
+    "@types/passport": "^1.0.16",
+    "@types/passport-google-oauth20": "^2.0.16",
+    "@types/passport-microsoft": "^1.0.2",
+    "firebase-functions-test": "^3.3.0",
+    "firebase-tools": "^15.0.0",
+    "picomatch": "^4.0.3",
+    "typescript": "^5.4.5"
+  }
+}
