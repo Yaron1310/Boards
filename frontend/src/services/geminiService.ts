@@ -47,8 +47,8 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
       if (errorData.code) {
           error.code = errorData.code;
       }
-      if (errorData.academyId) {
-          error.academyId = errorData.academyId;
+      if (errorData.orgId) {
+          error.orgId = errorData.orgId;
       }
       throw error;
   }
@@ -91,7 +91,7 @@ export const initiateCheckoutRegistration = async (formData: any): Promise<{ suc
 };
 
 export const registerAcademyAdmin = async (userData: any, planId: string, recaptchaToken?: string | null): Promise<{ success: boolean; message: string; }> => {
-    const response = await fetch(`${BACKEND_API_URL}/api/auth/register-organization-admin`, {
+    const response = await fetch(`${BACKEND_API_URL}/api/auth/register-workspace-admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...userData, planId, ...(recaptchaToken ? { recaptchaToken } : {}) }),
@@ -135,7 +135,7 @@ export const getGoogleLoginFinalization = async (partialToken: string) => {
 
 export const finalizeAcademySetup = async (partialToken: string) => {
     const authHeader = partialToken ? { 'Authorization': `Bearer ${partialToken}` } : {};
-    return fetchWithAuth('/api/auth/organization/finalize', { headers: authHeader });
+    return fetchWithAuth('/api/auth/workspace/finalize', { headers: authHeader });
 };
 
 export const verifyNativeGoogleToken = async (idToken: string) => {
@@ -171,30 +171,30 @@ export const logoutFromBackend = async (): Promise<void> => {
 
 // --- Workspace Setup ---
 export const setupAcademy = async (academyName: string): Promise<{ message: string }> => {
-    return fetchWithAuth('/api/organizations/setup', {
+    return fetchWithAuth('/api/workspaces/setup', {
         method: 'POST',
         body: JSON.stringify({ academyName }),
     });
 };
 
 export const activateAcademySubscription = async (): Promise<{ user: User, selectedOrganization: Workspace, accessToken: string }> => {
-    return fetchWithAuth('/api/organizations/activate-subscription', {
+    return fetchWithAuth('/api/workspaces/activate-subscription', {
         method: 'POST',
     });
 };
 
 export const checkAcademyNameUniqueness = async (name: string): Promise<{ isUnique: boolean }> => {
-    return fetchWithAuth(`/api/organizations/check-name?name=${encodeURIComponent(name)}`);
+    return fetchWithAuth(`/api/workspaces/check-name?name=${encodeURIComponent(name)}`);
 };
 
 
-// --- Organizations ---
-export const getAcademies = async (): Promise<Workspace[]> => fetchWithAuth('/api/organizations');
-export const createAcademy = async (name: string): Promise<Workspace> => fetchWithAuth('/api/organizations', { method: 'POST', body: JSON.stringify({ name }) });
-export const updateAcademy = async (id: string, name: string): Promise<Workspace> => fetchWithAuth(`/api/organizations/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
-export const deleteAcademy = async (id: string): Promise<null> => fetchWithAuth(`/api/organizations/${id}`, { method: 'DELETE' });
-export const addAcademyAdmin = async (academyId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${academyId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
-export const removeAcademyAdmin = async (academyId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${academyId}/admins/${userId}`, { method: 'DELETE' });
+// --- Workspaces ---
+export const getAcademies = async (): Promise<Workspace[]> => fetchWithAuth('/api/workspaces');
+export const createAcademy = async (name: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name }) });
+export const updateAcademy = async (id: string, name: string): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+export const deleteAcademy = async (id: string): Promise<null> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'DELETE' });
+export const addAcademyAdmin = async (orgId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${orgId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
+export const removeAcademyAdmin = async (orgId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${orgId}/admins/${userId}`, { method: 'DELETE' });
 
 
 // --- Workspaces ---
@@ -207,7 +207,7 @@ export const getOrganizations = async (filterType?: 'corporate' | 'individual' |
 };
 export const getArchivedOrganizations = async (): Promise<Workspace[]> => fetchWithAuth('/api/workspaces/archived');
 export const restoreOrganization = async (id: string): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}/restore`, { method: 'PUT' });
-export const addOrganizationToBackend = async (name: string, academyId: string, planId?: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name, academyId, planId }) });
+export const addOrganizationToBackend = async (name: string, orgId: string, planId?: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name, orgId, planId }) });
 export const updateOrganizationOnBackend = async (id: string, data: { name?: string, planId?: string, subscriptionProvider?: string }): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteOrganizationFromBackend = async (id: string, force = false): Promise<null> => {
     return fetchWithAuth(`/api/workspaces/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' });
@@ -264,7 +264,7 @@ export const updateTutorialSettings = async (settings: TutorialSettings): Promis
 
 // --- Public Access ---
 export const getPublicAcademyDetails = async (academyName: string): Promise<any> => {
-    const response = await fetch(`${BACKEND_API_URL}/api/public/organization/${encodeURIComponent(academyName)}`);
+    const response = await fetch(`${BACKEND_API_URL}/api/public/workspace/${encodeURIComponent(academyName)}`);
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Failed to fetch public details' }));
         throw new Error(errorData.message || 'Failed to fetch public details');

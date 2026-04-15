@@ -6,7 +6,7 @@ import { authenticatedLimiter } from '../middleware/rateLimit.middleware.js';
 
 import { authRouter } from './auth.routes.js';
 import { organizationRouter } from './workspace.routes.js';
-import { academyRouter } from './organization.routes.js';
+import { academyRouter } from './workspace.routes.js';
 import { userRouter } from './user.routes.js';
 import { appConfigRouter } from './appConfig.routes.js';
 import { provisionRouter } from './provision.routes.js';
@@ -26,7 +26,7 @@ mainRouter.use(authenticateToken);
 mainRouter.use(authenticatedLimiter);
 
 mainRouter.use('/app-config', appConfigRouter);
-mainRouter.use('/organizations', academyRouter);
+mainRouter.use('/workspaces', academyRouter);
 mainRouter.use('/workspaces', organizationRouter);
 mainRouter.use('/users', userRouter);
 mainRouter.use('/system-settings', systemRouter);

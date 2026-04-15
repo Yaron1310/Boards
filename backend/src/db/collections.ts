@@ -3,7 +3,7 @@ import { db } from '../services/firestore.service.js';
 
 export const usersCollection = db.collection('users');
 export const organizationsCollection = db.collection('workspaces');
-export const academiesCollection = db.collection('organizations');
+export const academiesCollection = db.collection('workspaces');
 export const academySettingsCollection = db.collection('academySettings');
 export const preapprovedUsersCollection = db.collection('preapprovedUsers');
 export const systemSettingsCollection = db.collection('systemSettings');

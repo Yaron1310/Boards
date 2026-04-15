@@ -67,7 +67,7 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const systemAdminNavItems = [
       { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} /> },
-      { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiShield className={iconClassName} /> },
+      { name: t('layout.workspaces'), path: '/admin/workspaces', icon: <FiShield className={iconClassName} /> },
       { name: t('layout.tutorialsSettings'), path: '/admin/tutorials', icon: <FiVideo className={iconClassName} /> },
       { name: t('layout.emailTemplates'), path: '/admin/email-templates', icon: <FiMail className={iconClassName} /> },
     ];
@@ -246,11 +246,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   onClick={() => {
                     const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                     if (guard?.isDirty) {
-                        guard.onAttempt('/admin/organization-hub?openTheme=true');
+                        guard.onAttempt('/admin/workspace-hub?openTheme=true');
                         return;
                     }
                     setIsSidebarOpen(false);
-                    sidebarNavigate('/admin/organization-hub?openTheme=true');
+                    sidebarNavigate('/admin/workspace-hub?openTheme=true');
                   }}
                   aria-label={t('layout.clickToEdit')}
                 >
@@ -273,11 +273,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   onClick={() => {
                     const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                     if (guard?.isDirty) {
-                        guard.onAttempt('/admin/organization-hub');
+                        guard.onAttempt('/admin/workspace-hub');
                         return;
                     }
                     setIsSidebarOpen(false);
-                    sidebarNavigate('/admin/organization-hub');
+                    sidebarNavigate('/admin/workspace-hub');
                   }}
                   aria-label={t('layout.clickToEdit')}
                 >
@@ -328,12 +328,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               ))}
               <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
                 <NavLink
-                  to='/admin/organization-hub'
+                  to='/admin/workspace-hub'
                   onClick={(e) => {
                       const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                       if (guard?.isDirty) {
                           e.preventDefault();
-                          guard.onAttempt('/admin/organization-hub');
+                          guard.onAttempt('/admin/workspace-hub');
                           return;
                       }
                       setIsSidebarOpen(false);
@@ -503,7 +503,7 @@ const MainLayout: React.FC = () => {
   }, [location.pathname]);
   
   const isThemeMissing = user && user.role !== UserRole.SYSTEM_ADMIN && !academySettings;
-  const isThemeMismatched = user && user.role !== UserRole.SYSTEM_ADMIN && selectedOrganization && academySettings && academySettings.id !== selectedOrganization.academyId;
+  const isThemeMismatched = user && user.role !== UserRole.SYSTEM_ADMIN && selectedOrganization && academySettings && academySettings.id !== selectedOrganization.orgId;
 
   // isThemeMissing (academySettings not yet loaded) is intentionally excluded here.
   // The layout renders fine with default theme fallbacks while academySettings loads

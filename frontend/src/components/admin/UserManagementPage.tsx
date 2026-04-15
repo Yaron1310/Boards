@@ -102,7 +102,7 @@ const UserManagementPage: React.FC = () => {
 
     const regularUsers = allUsers.filter((u: User) => {
         if (u.dbRoles?.organizationAdmin?.includes(selectedOrganization.id)) return false;
-        if (u.dbRoles?.academyAdmin?.includes(selectedOrganization.academyId)) return false;
+        if (u.dbRoles?.academyAdmin?.includes(selectedOrganization.orgId)) return false;
         if (u.dbRoles?.systemAdmin) return false;
         return true;
     });
@@ -212,8 +212,8 @@ const UserManagementPage: React.FC = () => {
                         <button
                         onClick={() => setShowAcademyAdminsModal(true)}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
-                        aria-label="Manage admins for your organization"
-                        title="Manage admins for your organization"
+                        aria-label="Manage admins for your workspace"
+                        title="Manage admins for your workspace"
                         >
                         <FiShield className="mr-2" /> {t('admin.manageAcademyAdmins')}
                         </button>

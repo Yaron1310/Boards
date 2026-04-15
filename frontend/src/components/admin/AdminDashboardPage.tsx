@@ -14,7 +14,7 @@ const AdminDashboardPage: React.FC = () => {
     users, 
     workspaces, 
     conversations, 
-    organizations, 
+    workspaces, 
     academySettings, 
     academyTokenUsage, 
     orgTokenUsage, 
@@ -25,10 +25,10 @@ const AdminDashboardPage: React.FC = () => {
   } = useData();
 
   const academyUsage = useMemo(() => {
-    if (user?.role !== UserRole.ACADEMY_ADMIN || !selectedOrganization?.academyId || !academyTokenUsage) {
+    if (user?.role !== UserRole.ACADEMY_ADMIN || !selectedOrganization?.orgId || !academyTokenUsage) {
         return null;
     }
-    return academyTokenUsage[selectedOrganization.academyId];
+    return academyTokenUsage[selectedOrganization.orgId];
   }, [user, selectedOrganization, academyTokenUsage]);
 
   const orgUsage = useMemo(() => {
@@ -281,7 +281,7 @@ const AdminDashboardPage: React.FC = () => {
         <div className="max-w-6xl mx-auto">
 
         {user.role === UserRole.ACADEMY_ADMIN && (!academySettings?.description || (!academySettings?.contactEmail && !academySettings?.contactPhone)) && (
-            <Link to="/admin/organization-hub">
+            <Link to="/admin/workspace-hub">
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 cursor-pointer rounded-r-lg shadow-sm">
                 <p className="text-yellow-700">{t('admin.completeAcademyDetails')}</p>
               </div>
@@ -323,7 +323,7 @@ const AdminDashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
           {user.role === UserRole.SYSTEM_ADMIN ? (
               <>
-                <StatCard title={t('admin.totalAcademies')} value={organizations.length} icon={<FiShield size={24}/>} color="border-purple-500" />
+                <StatCard title={t('admin.totalAcademies')} value={workspaces.length} icon={<FiShield size={24}/>} color="border-purple-500" />
                 <StatCard title={t('admin.totalUsers')} value={totalUsers} icon={<FiUsers size={24}/>} color="border-blue-500" />
                 <StatCard title={t('admin.totalOrganizations')} value={totalOrganizations} icon={<FiBriefcase size={24}/>} color="border-green-500" />
                 <StatCard title={t('admin.totalConversations')} value={totalConversations} icon={<FiBarChart2 size={24}/>} color="border-indigo-500" />

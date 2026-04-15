@@ -38,7 +38,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
         const orgDoc = await organizationsCollection.doc(targetOrgId).get();
         if (!orgDoc.exists) return res.status(404).json({ message: 'Target workspace not found.' });
         const orgData = orgDoc.data() as DBOrganization;
-        if (requestingUser.role === UserRole.ACADEMY_ADMIN && orgData.academyId !== requestingUser.academyId) {
+        if (requestingUser.role === UserRole.ACADEMY_ADMIN && orgData.orgId !== requestingUser.orgId) {
             return res.status(403).json({ message: 'You do not have permission to approve users for this workspace.' });
         }
 
@@ -76,7 +76,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
 
                 if (membershipSnapshot.empty) {
                     const defaultOrgSnapshot = await organizationsCollection
-                        .where('academyId', '==', orgData.academyId)
+                        .where('orgId', '==', orgData.orgId)
                         .where('name', '==', 'Default Workspace')
                         .limit(1)
                         .get();
@@ -105,7 +105,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                         entityId: targetOrgId,
                         entityType: 'workspace',
                         role: UserRole.REGULAR_USER,
-                        academyId: orgData.academyId,
+                        orgId: orgData.orgId,
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                     updatedUserCount++;
@@ -116,7 +116,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                 const preapprovedUserEntry: Omit<DBPreapprovedUser, 'id'> = {
                     email: email,
                     organizationId: targetOrgId,
-                    academyId: orgData.academyId,
+                    orgId: orgData.orgId,
                     addedBy: requestingUser.id,
                     createdAt: admin.firestore.FieldValue.serverTimestamp() as admin.firestore.Timestamp,
                 };
@@ -131,7 +131,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
         }
 
         if (newlyPreApprovedEmails.length > 0) {
-            const academyDoc = await academiesCollection.doc(orgData.academyId).get();
+            const academyDoc = await academiesCollection.doc(orgData.orgId).get();
             const academyName = academyDoc.exists ? (academyDoc.data()?.name || 'Gymind') : 'Gymind';
             const registrationLink = `${env.FRONTEND_URL}/register`;
             await Promise.allSettled(
@@ -172,7 +172,7 @@ export const getPreApprovedUsers = async (req: Request, res: Response) => {
         if (user.role === UserRole.ORGANIZATION_ADMIN) {
             query = query.where('organizationId', '==', user.selectedOrganizationId);
         } else if (user.role === UserRole.ACADEMY_ADMIN) {
-            query = query.where('academyId', '==', user.academyId);
+            query = query.where('orgId', '==', user.orgId);
         }
 
         query = query.orderBy('email');
@@ -240,7 +240,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
                 membershipQuery = membershipQuery.where('entityId', '==', organizationId);
             }
         } else if (user.role === UserRole.ACADEMY_ADMIN) {
-            membershipQuery = membershipQuery.where('academyId', '==', user.academyId);
+            membershipQuery = membershipQuery.where('orgId', '==', user.orgId);
             if (organizationId) {
                 membershipQuery = membershipQuery.where('entityId', '==', organizationId);
             }
@@ -301,7 +301,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         const dbUsers = userDocSnapshots.flatMap(snap => querySnapshotToArray<DBUser>(snap));
 
         const formattedUsersPromises = dbUsers.map(u => formatUserForFrontend(u, {
-            academyId: user.role === UserRole.ACADEMY_ADMIN ? user.academyId : undefined,
+            orgId: user.role === UserRole.ACADEMY_ADMIN ? user.orgId : undefined,
             organizationId: user.role === UserRole.ORGANIZATION_ADMIN ? user.selectedOrganizationId : undefined,
         }));
 
@@ -364,12 +364,12 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
         const selectedOrganizationForFrontend: any = {
             id: orgData.id,
             name: orgData.name,
-            academyId: orgData.academyId,
+            orgId: orgData.orgId,
             isPersonal: orgData.isPersonal
         };
 
-        // Fetch organization name to include in the response
-        const academyDoc = await academiesCollection.doc(orgData.academyId).get();
+        // Fetch workspace name to include in the response
+        const academyDoc = await academiesCollection.doc(orgData.orgId).get();
         if (academyDoc.exists) {
             selectedOrganizationForFrontend.academyName = academyDoc.data()?.name;
         }
@@ -495,7 +495,7 @@ export const getUserById = async (req: Request, res: Response) => {
         if (requestingUser.role === UserRole.SYSTEM_ADMIN) {
             isAuthorized = true;
         } else if (requestingUser.role === UserRole.ACADEMY_ADMIN) {
-            const orgsSnapshot = await organizationsCollection.where('academyId', '==', requestingUser.academyId).get();
+            const orgsSnapshot = await organizationsCollection.where('orgId', '==', requestingUser.orgId).get();
             const academyOrgIds = orgsSnapshot.docs.map(doc => doc.id);
             isAuthorized = targetMemberships.some(m => m.entityType === 'workspace' && academyOrgIds.includes(m.entityId));
         } else if (requestingUser.role === UserRole.ORGANIZATION_ADMIN) {

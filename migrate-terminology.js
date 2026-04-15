@@ -15,19 +15,19 @@ const EXCLUDE_PATTERNS = [
 
 const MIGRATIONS = [
   // Specific role and ID mappings (must run first to avoid conflicts)
-  { name: 'organization_admin → workspace_admin', pattern: /\borganization_admin\b/g, replacement: 'workspace_admin' },
-  { name: 'academy_admin → org_admin', pattern: /\bacademy_admin\b/g, replacement: 'org_admin' },
-  { name: 'academyId → orgId', pattern: /\bacademyId\b/g, replacement: 'orgId' },
+  { name: 'workspace_admin → workspace_admin', pattern: /\borganization_admin\b/g, replacement: 'workspace_admin' },
+  { name: 'org_admin → org_admin', pattern: /\bacademy_admin\b/g, replacement: 'org_admin' },
+  { name: 'orgId → orgId', pattern: /\bacademyId\b/g, replacement: 'orgId' },
   // Plurals (must run before singulars)
-  { name: 'Organizations → Workspaces', pattern: /\bOrganizations\b/g, replacement: 'Workspaces' },
-  { name: 'organizations → workspaces', pattern: /\borganizations\b/g, replacement: 'workspaces' },
-  { name: 'Academies → Organizations',  pattern: /\bAcademies\b/g,     replacement: 'Organizations' },
-  { name: 'academies → organizations',  pattern: /\bacademies\b/g,      replacement: 'organizations' },
+  { name: 'Workspaces → Workspaces', pattern: /\bOrganizations\b/g, replacement: 'Workspaces' },
+  { name: 'workspaces → workspaces', pattern: /\borganizations\b/g, replacement: 'workspaces' },
+  { name: 'Organizations → Workspaces',  pattern: /\bAcademies\b/g,     replacement: 'Workspaces' },
+  { name: 'organizations → workspaces',  pattern: /\bacademies\b/g,      replacement: 'workspaces' },
   // Singulars
-  { name: 'Organization → Workspace',   pattern: /\bOrganization\b/g,   replacement: 'Workspace' },
-  { name: 'organization → workspace',   pattern: /\borganization\b/g,   replacement: 'workspace' },
-  { name: 'Academy → Organization',     pattern: /\bAcademy\b/g,        replacement: 'Organization' },
-  { name: 'academy → organization',     pattern: /\bacademy\b/g,        replacement: 'organization' },
+  { name: 'Workspace → Workspace',   pattern: /\bOrganization\b/g,   replacement: 'Workspace' },
+  { name: 'workspace → workspace',   pattern: /\borganization\b/g,   replacement: 'workspace' },
+  { name: 'Organization → Workspace',     pattern: /\bAcademy\b/g,        replacement: 'Workspace' },
+  { name: 'organization → workspace',     pattern: /\bacademy\b/g,        replacement: 'workspace' },
 ];
 
 const DRY_RUN = process.argv.includes('--apply') === false;

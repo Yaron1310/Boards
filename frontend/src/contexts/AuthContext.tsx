@@ -616,19 +616,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 2. Workspace Admin roles
     const academiesForAdminRole = systemAdmin
         ? (userForContexts.allAcademies || [])
-        : assignedAcademyAdmins.map(academyId => {
-            const orgForName = userForContexts.workspaces.find(o => o.academyId === academyId);
-            return { id: academyId, name: orgForName?.academyName || 'Unknown Workspace' };
+        : assignedAcademyAdmins.map(orgId => {
+            const orgForName = userForContexts.workspaces.find(o => o.orgId === orgId);
+            return { id: orgId, name: orgForName?.academyName || 'Unknown Workspace' };
         });
 
     const academyAdminAcademyIds = new Set(academiesForAdminRole.map(a => a.id));
 
-    academiesForAdminRole.forEach(organization => {
-        const orgInAcademy = userForContexts.workspaces.find(o => o.academyId === organization.id);
+    academiesForAdminRole.forEach(workspace => {
+        const orgInAcademy = userForContexts.workspaces.find(o => o.orgId === workspace.id);
         if (orgInAcademy) {
-            const contextValue = JSON.stringify({ role: 'academy_admin', organizationId: orgInAcademy.id });
+            const contextValue = JSON.stringify({ role: 'org_admin', organizationId: orgInAcademy.id });
             if (!addedContexts.has(contextValue)) {
-                contexts.push({ label: `${organization.name} Admin`, value: contextValue, role: 'academy_admin', academyName: organization.name });
+                contexts.push({ label: `${workspace.name} Admin`, value: contextValue, role: 'org_admin', academyName: workspace.name });
                 addedContexts.add(contextValue);
             }
         }
@@ -637,12 +637,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // 3. Workspace Admin roles
     assignedOrgAdmins.forEach(orgId => {
       const org = userForContexts.workspaces.find(o => o.id === orgId);
-      // Only hide if it's a personal workspace in an organization they manage
-      const isManagedPersonalOrg = org?.isPersonal && academyAdminAcademyIds.has(org.academyId);
-      if (org && !isManagedPersonalOrg && !academyAdminAcademyIds.has(org.academyId)) {
-        const contextValue = JSON.stringify({ role: 'organization_admin', organizationId: org.id });
+      // Only hide if it's a personal workspace in an workspace they manage
+      const isManagedPersonalOrg = org?.isPersonal && academyAdminAcademyIds.has(org.orgId);
+      if (org && !isManagedPersonalOrg && !academyAdminAcademyIds.has(org.orgId)) {
+        const contextValue = JSON.stringify({ role: 'workspace_admin', organizationId: org.id });
         if (!addedContexts.has(contextValue)) {
-            contexts.push({ label: `${org.name} Manager`, value: contextValue, role: 'organization_admin', academyName: org.academyName || 'Unknown Workspace' });
+            contexts.push({ label: `${org.name} Manager`, value: contextValue, role: 'workspace_admin', academyName: org.academyName || 'Unknown Workspace' });
             addedContexts.add(contextValue);
         }
       }
@@ -650,11 +650,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 4. Regular User roles
     userForContexts.workspaces.forEach(org => {
-      // Only hide if it's a personal workspace in an organization they manage
-      const isManagedPersonalOrg = org.isPersonal && academyAdminAcademyIds.has(org.academyId);
+      // Only hide if it's a personal workspace in an workspace they manage
+      const isManagedPersonalOrg = org.isPersonal && academyAdminAcademyIds.has(org.orgId);
       if (org.name === 'Default Workspace' || isManagedPersonalOrg || systemAdmin) return;
 
-      if (!academyAdminAcademyIds.has(org.academyId) && !assignedOrgAdmins.includes(org.id)) {
+      if (!academyAdminAcademyIds.has(org.orgId) && !assignedOrgAdmins.includes(org.id)) {
         const contextValue = JSON.stringify({ role: 'regular_user', organizationId: org.id });
         if (!addedContexts.has(contextValue)) {
             contexts.push({ label: `${org.name} User`, value: contextValue, role: 'regular_user', academyName: org.academyName || 'Unknown Workspace' });
@@ -671,7 +671,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, {} as Record<string, typeof contexts>);
 
     Object.values(grouped).forEach(group => group.sort((a, b) => {
-        const roleOrder = { 'system_admin': -1, 'academy_admin': 0, 'organization_admin': 1, 'regular_user': 2 } as Record<UserRole, number>;
+        const roleOrder = { 'system_admin': -1, 'org_admin': 0, 'workspace_admin': 1, 'regular_user': 2 } as Record<UserRole, number>;
         return roleOrder[a.role] - roleOrder[b.role];
     }));
 

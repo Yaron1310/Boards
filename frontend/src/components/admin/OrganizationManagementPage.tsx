@@ -405,7 +405,7 @@ const OrganizationManagementPage: React.FC = () => {
     if (newOrgName.trim()) {
       setIsSaving(true);
       // New orgs default to manual, admin can change it in edit
-      const newOrg = await addOrganization(newOrgName.trim(), user!.academyId, newOrgPlanId);
+      const newOrg = await addOrganization(newOrgName.trim(), user!.orgId, newOrgPlanId);
       setIsSaving(true); // Keep spinner until modal closes or error shows
       if (newOrg) {
         setNewOrgName('');

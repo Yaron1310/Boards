@@ -4,7 +4,7 @@ import * as apiService from '@/services/geminiService';
 
 export const useAcademiesQuery = (enabled = true) => {
   return useQuery({
-    queryKey: queryKeys.organizations.all,
+    queryKey: queryKeys.workspaces.all,
     queryFn: () => apiService.getAcademies(),
     enabled,
     staleTime: 5 * 60 * 1000,
@@ -13,7 +13,7 @@ export const useAcademiesQuery = (enabled = true) => {
 
 export const useAcademySettingsQuery = (enabled = true) => {
   return useQuery({
-    queryKey: queryKeys.settings.organization,
+    queryKey: queryKeys.settings.workspace,
     queryFn: () => apiService.getThemeSettingsFromBackend(),
     enabled,
     staleTime: 5 * 60 * 1000,

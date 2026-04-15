@@ -1,6 +1,6 @@
 export const queryKeys = {
-  organizations: {
-    all: ['organizations'] as const,
+  workspaces: {
+    all: ['workspaces'] as const,
   },
   workspaces: {
     all: ['workspaces'] as const,
@@ -12,7 +12,7 @@ export const queryKeys = {
     preApproved: ['users', 'preApproved'] as const,
   },
   settings: {
-    organization: ['settings', 'organization'] as const,
+    workspace: ['settings', 'workspace'] as const,
     system: ['settings', 'system'] as const,
     tutorial: ['settings', 'tutorial'] as const,
   },

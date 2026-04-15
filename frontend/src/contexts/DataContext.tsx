@@ -38,19 +38,19 @@ export const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 const api = () => import('../services/geminiService');
 
 interface DataContextType {
-  organizations: Workspace[];
+  workspaces: Workspace[];
   fetchAcademies: () => Promise<void>;
   addAcademy: (name: string) => Promise<Workspace | null>;
   updateAcademy: (id: string, name: string) => Promise<boolean>;
   deleteAcademy: (id: string) => Promise<boolean>;
-  addAcademyAdmin: (academyId: string, email: string) => Promise<{message: string} | null>;
-  removeAcademyAdmin: (academyId: string, userId: string) => Promise<{message: string} | null>;
+  addAcademyAdmin: (orgId: string, email: string) => Promise<{message: string} | null>;
+  removeAcademyAdmin: (orgId: string, userId: string) => Promise<{message: string} | null>;
 
   workspaces: Workspace[];
   archivedOrganizations: Workspace[];
   fetchOrganizations: (filterType?: 'corporate' | 'individual' | 'all') => Promise<void>;
   fetchArchivedOrganizations: () => Promise<void>;
-  addOrganization: (name: string, academyId: string, planId?: string) => Promise<Workspace | null>;
+  addOrganization: (name: string, orgId: string, planId?: string) => Promise<Workspace | null>;
   updateOrganization: (id: string, data: { name?: string; planId?: string }) => Promise<boolean>;
   deleteOrganization: (id: string, force?: boolean) => Promise<{ isConflict: boolean; dependencies?: any }>;
   confirmArchiveOrganization: (id: string) => Promise<boolean>;
@@ -112,7 +112,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const tutorialSettingsQuery = useTutorialSettingsQuery(isLoggedIn && (isSystemAdmin || isAcademyAdmin));
 
   // --- Derived state from React Query ---
-  const organizations = academiesQuery.data ?? [];
+  const workspaces = academiesQuery.data ?? [];
   const workspaces = organizationsQuery.data ?? [];
   const archivedOrganizations = archivedOrganizationsQuery.data ?? [];
   const users = usersQuery.data ?? [];
@@ -170,7 +170,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Invalidation-based fetch functions (backward compat) ---
   const fetchAcademies = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.organizations.all });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all });
   }, [queryClient]);
 
   const fetchOrganizations = useCallback(async (filterType?: 'corporate' | 'individual' | 'all') => {
@@ -196,7 +196,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, [queryClient]);
 
   const fetchAcademySettings = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.settings.organization });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.settings.workspace });
   }, [queryClient]);
 
   const fetchSystemSettings = useCallback(async () => {
@@ -216,34 +216,34 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Create/Update/Delete Logic (mutations) ---
 
-  // Organizations
+  // Workspaces
   const addAcademy = async (name: string) => {
     const { createAcademy } = await api();
-    return handleApiCall(() => createAcademy(name), () => fetchAcademies(), 'Failed to add organization.');
+    return handleApiCall(() => createAcademy(name), () => fetchAcademies(), 'Failed to add workspace.');
   };
   const updateAcademy = async (id: string, name: string) => {
     const { updateAcademy: updateAcademyApi } = await api();
-    const updated = await handleApiCall(() => updateAcademyApi(id, name), () => fetchAcademies(), 'Failed to update organization.');
+    const updated = await handleApiCall(() => updateAcademyApi(id, name), () => fetchAcademies(), 'Failed to update workspace.');
     return !!updated;
   };
   const deleteAcademy = async (id: string) => {
     const { deleteAcademy: deleteAcademyApi } = await api();
-    const success = await handleApiCall(() => deleteAcademyApi(id), () => fetchAcademies(), 'Failed to delete organization.');
+    const success = await handleApiCall(() => deleteAcademyApi(id), () => fetchAcademies(), 'Failed to delete workspace.');
     return success === null;
   };
-  const addAcademyAdmin = async (academyId: string, email: string) => {
+  const addAcademyAdmin = async (orgId: string, email: string) => {
     const { addAcademyAdmin: addAcademyAdminApi } = await api();
-    return handleApiCall(() => addAcademyAdminApi(academyId, email), () => fetchUsers(), 'Failed to add organization admin.');
+    return handleApiCall(() => addAcademyAdminApi(orgId, email), () => fetchUsers(), 'Failed to add workspace admin.');
   };
-  const removeAcademyAdmin = async (academyId: string, userId: string) => {
+  const removeAcademyAdmin = async (orgId: string, userId: string) => {
     const { removeAcademyAdmin: removeAcademyAdminApi } = await api();
-    return handleApiCall(() => removeAcademyAdminApi(academyId, userId), () => fetchUsers(), 'Failed to remove admin.');
+    return handleApiCall(() => removeAcademyAdminApi(orgId, userId), () => fetchUsers(), 'Failed to remove admin.');
   };
 
   // Workspaces
-  const addOrganization = async (name: string, academyId: string, planId?: string) => {
+  const addOrganization = async (name: string, orgId: string, planId?: string) => {
     const { addOrganizationToBackend } = await api();
-    return handleApiCall(() => addOrganizationToBackend(name, academyId, planId), () => fetchOrganizations(), 'Failed to add workspace.');
+    return handleApiCall(() => addOrganizationToBackend(name, orgId, planId), () => fetchOrganizations(), 'Failed to add workspace.');
   };
   const updateOrganization = async (id: string, data: { name?: string; planId?: string; subscriptionProvider?: string; isPersonal?: boolean }) => {
     const { updateOrganizationOnBackend } = await api();
@@ -327,7 +327,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Workspace Settings
   const updateAcademySettings = async (settings: Partial<AcademySettings> & { logoUpload?: string }) => {
     const { updateThemeSettingsOnBackend } = await api();
-    const result = await handleApiCall(() => updateThemeSettingsOnBackend(settings), undefined, 'Failed to update organization settings.');
+    const result = await handleApiCall(() => updateThemeSettingsOnBackend(settings), undefined, 'Failed to update workspace settings.');
     if (result) {
       await fetchAcademySettings();
     }
@@ -335,13 +335,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const setAcademySettingsLocal = (settings: AcademySettings | null) => {
-    queryClient.setQueryData(queryKeys.settings.organization, settings);
+    queryClient.setQueryData(queryKeys.settings.workspace, settings);
   };
 
   const regenerateApiKey = async () => {
     const { regenerateApiKey: regenerateApiKeyApi } = await api();
     return handleApiCall(() => regenerateApiKeyApi(), (updatedSettings) => {
-      queryClient.setQueryData(queryKeys.settings.organization, (prev: AcademySettings | null | undefined) =>
+      queryClient.setQueryData(queryKeys.settings.workspace, (prev: AcademySettings | null | undefined) =>
         ({ ...(prev as AcademySettings), ...updatedSettings })
       );
     }, 'Failed to regenerate API key.');
@@ -366,7 +366,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <DataContext.Provider value={{
-      organizations, fetchAcademies, addAcademy, updateAcademy, deleteAcademy, addAcademyAdmin, removeAcademyAdmin,
+      workspaces, fetchAcademies, addAcademy, updateAcademy, deleteAcademy, addAcademyAdmin, removeAcademyAdmin,
       workspaces, archivedOrganizations, fetchOrganizations, fetchArchivedOrganizations, addOrganization, updateOrganization, deleteOrganization, confirmArchiveOrganization, restoreOrganization, addOrganizationManager, removeOrganizationManager, removeUserFromOrganization,
       users, fetchUsers, deleteUser,
       preApprovedUsers, preApproveUsersInBulk, revokePreApprovedUser,

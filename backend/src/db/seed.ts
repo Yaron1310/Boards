@@ -17,7 +17,7 @@ export const seedDefaultData = async () => {
   const batch = db.batch();
 
   // --- 1. Seed Default Workspace ---
-  let academyId: string;
+  let orgId: string;
   const academyDocRef = academiesCollection.doc('default_academy');
   const academyDoc = await academyDocRef.get();
 
@@ -29,9 +29,9 @@ export const seedDefaultData = async () => {
       createdAt: new Date(),
     };
     batch.set(academyDocRef, defaultAcademy);
-    academyId = defaultAcademy.id;
+    orgId = defaultAcademy.id;
   } else {
-    academyId = academyDoc.id;
+    orgId = academyDoc.id;
   }
 
   // --- 2. Seed Default System Settings ---
@@ -43,12 +43,12 @@ export const seedDefaultData = async () => {
   }
 
   // --- 3. Seed Default Workspace Settings (Theme) ---
-  const settingsDocRef = academySettingsCollection.doc(academyId);
+  const settingsDocRef = academySettingsCollection.doc(orgId);
   const academySettingsDoc = await settingsDocRef.get();
   if (!academySettingsDoc.exists) {
-    logger.info(`Seeding initial settings for Workspace ID: ${academyId}`);
+    logger.info(`Seeding initial settings for Workspace ID: ${orgId}`);
     const defaultSettings: Omit<DBAcademySettings, 'updatedAt'> = {
-      id: academyId,
+      id: orgId,
       sidebarColor: '#004e89',
       enableSidebarGradient: true,
       appName: 'Logyx',
@@ -67,11 +67,11 @@ export const seedDefaultData = async () => {
   const orgDoc = await orgDocRef.get();
 
   if (!orgDoc.exists) {
-    logger.info(`Seeding initial default workspace for Workspace ID: ${academyId}`);
+    logger.info(`Seeding initial default workspace for Workspace ID: ${orgId}`);
     const defaultOrganization: DBOrganization = {
       id: orgDocRef.id,
       name: 'Default Workspace',
-      academyId: academyId,
+      orgId: orgId,
       createdAt: new Date(),
       status: 'active',
     };
@@ -93,7 +93,7 @@ export const seedDefaultData = async () => {
       passwordHash: await bcrypt.hash('password', 10),
       status: 'active',
       profileImageUrl: '/default_user.webp',
-      primaryAcademyId: academyId,
+      primaryAcademyId: orgId,
       defaultOrganizationId: defaultOrganizationId,
     };
     const adminDocData = { ...systemAdmin, createdAt: admin.firestore.Timestamp.now() };
@@ -106,7 +106,7 @@ export const seedDefaultData = async () => {
       entityId: defaultOrganizationId,
       entityType: 'workspace',
       role: UserRole.SYSTEM_ADMIN,
-      academyId,
+      orgId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       userName: systemAdmin.name,
       userEmail: systemAdmin.email,

@@ -124,7 +124,7 @@ export const sendAccountVerificationEmail = async (
     userName: string,
     verificationLink: string,
     academyName: string,
-    inviteRole?: 'academy_admin' | 'org_manager',
+    inviteRole?: 'org_admin' | 'org_manager',
     orgName?: string
 ) => {
     await ensureTransporter();
@@ -139,7 +139,7 @@ export const sendAccountVerificationEmail = async (
     let templateId: string;
     let vars: Record<string, string>;
 
-    if (inviteRole === 'academy_admin') {
+    if (inviteRole === 'org_admin') {
         templateId = 'invite_academy_admin';
         vars = { userName, academyName, verificationLink };
     } else if (inviteRole === 'org_manager') {
@@ -171,7 +171,7 @@ export const sendAccountVerificationEmail = async (
 };
 
 const buildFallbackVerificationSubject = (inviteRole?: string, academyName?: string, orgName?: string): string => {
-    if (inviteRole === 'academy_admin') return `You've been invited as an Workspace Admin for ${academyName}`;
+    if (inviteRole === 'org_admin') return `You've been invited as an Workspace Admin for ${academyName}`;
     if (inviteRole === 'org_manager') return `You've been invited as an Workspace Manager for ${orgName || academyName}`;
     return `Verify Your Email for ${academyName}`;
 };
@@ -181,7 +181,7 @@ const buildFallbackVerificationHtml = (
 ): string => {
     let introLine: string;
     let ignoreNote: string;
-    if (inviteRole === 'academy_admin') {
+    if (inviteRole === 'org_admin') {
         introLine = `You've been invited to join <strong>${academyName}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else if (inviteRole === 'org_manager') {
@@ -334,7 +334,7 @@ export const sendUsageNotificationEmail = async (
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `Usage Alert for ${academyName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>This is a notification that your organization, <strong>${academyName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>This is a notification that your workspace, <strong>${academyName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Gymind Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -342,7 +342,7 @@ export const sendUsageNotificationEmail = async (
             to: adminEmails.join(','),
             subject,
             html,
-            text: `Your organization, ${academyName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
+            text: `Your workspace, ${academyName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
         });
         logger.info(`Usage notification email sent successfully to admins of ${academyName}`);
         return { success: true };

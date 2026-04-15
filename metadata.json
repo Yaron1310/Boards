@@ -1,5 +1,5 @@
 {
-  "name": "Gymind 4.6 (organization card 3)",
+  "name": "Gymind 4.6 (workspace card 3)",
   "description": "A React application of AI-driven platform for learning and applying knowledge in workspaces with the help of AI and user interactivity. user insights are extracted and saved to their profile. Features role-based access for users, managers, and admins.\n\nThe app will be deployed to Firebase.",
   "requestFramePermissions": [],
   "prompt": ""

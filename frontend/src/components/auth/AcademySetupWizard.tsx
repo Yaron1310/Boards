@@ -169,7 +169,7 @@ const AcademySetupWizard: React.FC = () => {
               <p className="text-xs text-gray-500">{t('common.mandatoryFields')}</p>
               <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700">
                 <h3 className="font-semibold text-gray-800 mb-2">Plan: Pay As You Go</h3>
-                <p>Add a payment method to activate your organization. You will only be billed for what you use. There are no upfront subscription costs.</p>
+                <p>Add a payment method to activate your workspace. You will only be billed for what you use. There are no upfront subscription costs.</p>
               </div>
               <div>
                 <label htmlFor="cardName" className="block text-sm font-medium text-gray-700">{t('auth.cardholderName')} <span aria-hidden="true">*</span></label>

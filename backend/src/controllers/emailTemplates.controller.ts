@@ -88,11 +88,11 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'usage_alert',
         name: 'Token Usage Alert',
-        description: 'Sent to organization admins when AI token usage reaches a high threshold (75% or 95%).',
+        description: 'Sent to workspace admins when AI token usage reaches a high threshold (75% or 95%).',
         subject: 'Usage Alert for {{academyName}}',
         variables: ['academyName', 'usagePercentage', 'warningLevel'],
         html: `<p>Hello,</p>
-<p>This is a <strong>{{warningLevel}}</strong> notification that your organization, <strong>{{academyName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
+<p>This is a <strong>{{warningLevel}}</strong> notification that your workspace, <strong>{{academyName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
 <p>If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p>
 <p>To prevent service interruption, you can increase your limit by visiting the Billing Settings page in your admin dashboard.</p>
 <p>Thanks,<br/>The Gymind Team</p>`,
@@ -230,7 +230,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'newsletter_reminder_3day',
         name: 'Newsletter Reminder (3 Days)',
-        description: "Sent to an organization admin when a scheduled newsletter edition is due in 3 days but its content is still empty.",
+        description: "Sent to an workspace admin when a scheduled newsletter edition is due in 3 days but its content is still empty.",
         subject: 'Reminder: Your newsletter "{{campaignName}}" is due in 3 days',
         variables: ['campaignName', 'academyName'],
         html: `<p>Hi,</p>
@@ -241,7 +241,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'newsletter_reminder_1day',
         name: 'Newsletter Reminder (1 Day — Urgent)',
-        description: "Sent to an organization admin as an urgent warning when a scheduled newsletter edition is due tomorrow but its content is still empty.",
+        description: "Sent to an workspace admin as an urgent warning when a scheduled newsletter edition is due tomorrow but its content is still empty.",
         subject: 'Urgent: Your newsletter "{{campaignName}}" is due tomorrow',
         variables: ['campaignName', 'academyName'],
         html: `<p>Hi,</p>

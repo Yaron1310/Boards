@@ -12,13 +12,13 @@ import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../u
 /**
  * Upload a base64 data-URI image to Firebase Storage and return the public URL.
  */
-async function uploadLogoToStorage(dataUri: string, academyId: string): Promise<string> {
+async function uploadLogoToStorage(dataUri: string, orgId: string): Promise<string> {
     const match = dataUri.match(/^data:(image\/\w+);base64,(.+)$/);
     if (!match) throw new Error('Invalid data URI format');
 
     const buffer = Buffer.from(match[2], 'base64');
     const bucket = storage.bucket();
-    const filePath = `academyLogos/${academyId}/logo.png`;
+    const filePath = `academyLogos/${orgId}/logo.png`;
     const file = bucket.file(filePath);
 
     await file.save(buffer, {
@@ -32,10 +32,10 @@ async function uploadLogoToStorage(dataUri: string, academyId: string): Promise<
 export const getThemeSettings = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     try {
-        const doc = await academySettingsCollection.doc(user.academyId).get();
+        const doc = await academySettingsCollection.doc(user.orgId).get();
         if (!doc.exists) {
             return res.status(200).json({
-                id: user.academyId,
+                id: user.orgId,
                 sidebarColor: '#004e89',
                 enableSidebarGradient: true,
                 sidebarHueRotation: 270,
@@ -58,8 +58,8 @@ export const getThemeSettings = async (req: Request, res: Response) => {
             sidebarLinkColor: settings.sidebarLinkColor || '#e5e7eb',
         });
     } catch (error) {
-        logger.error("Error fetching organization settings:", error);
-        res.status(500).json({ message: 'Failed to fetch organization settings.' });
+        logger.error("Error fetching workspace settings:", error);
+        res.status(500).json({ message: 'Failed to fetch workspace settings.' });
     }
 };
 
@@ -84,7 +84,7 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
     } = req.body;
 
     try {
-        const docRef = academySettingsCollection.doc(user.academyId);
+        const docRef = academySettingsCollection.doc(user.orgId);
         const dataToUpdate: {[key: string]: any} = {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
@@ -92,7 +92,7 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
         const sanitizedLogoUpload = sanitizeImageUrl(logoUpload);
         if (sanitizedLogoUpload && typeof sanitizedLogoUpload === 'string' && sanitizedLogoUpload.startsWith('data:image')) {
             try {
-                const publicUrl = await uploadLogoToStorage(sanitizedLogoUpload, user.academyId);
+                const publicUrl = await uploadLogoToStorage(sanitizedLogoUpload, user.orgId);
                 dataToUpdate.logoUrl = publicUrl;
             } catch (uploadErr) {
                 logger.error('Failed to upload logo to Storage:', uploadErr);
@@ -127,8 +127,8 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
         const updatedDoc = await docRef.get();
         res.json(snapshotToData(updatedDoc));
     } catch (error: any) {
-        logger.error("Error updating organization settings:", error);
-        res.status(500).json({ message: 'Failed to update organization settings.' });
+        logger.error("Error updating workspace settings:", error);
+        res.status(500).json({ message: 'Failed to update workspace settings.' });
     }
 };
 
@@ -136,7 +136,7 @@ export const regenerateApiKey = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     try {
         const newApiKey = `sk_${crypto.randomBytes(24).toString('hex')}`;
-        const docRef = academySettingsCollection.doc(user.academyId);
+        const docRef = academySettingsCollection.doc(user.orgId);
         await docRef.set({
             apiKey: newApiKey,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),

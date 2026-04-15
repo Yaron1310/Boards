@@ -18,7 +18,7 @@ const AcademyAuthCallbackPage: React.FC = () => {
         try {
             const success = await completeAcademySetupLogin(token);
             if (success) {
-              navigate('/setup-organization', { replace: true });
+              navigate('/setup-workspace', { replace: true });
             }
             // If !success, the error is already set in authContext and will be displayed.
         } catch (e: any) {

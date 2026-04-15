@@ -20,7 +20,7 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
     try {
         let query: admin.firestore.Query = organizationsCollection;
         if (user.role === UserRole.ACADEMY_ADMIN) {
-            query = query.where('academyId', '==', user.academyId);
+            query = query.where('orgId', '==', user.orgId);
         } else if (user.role === UserRole.ORGANIZATION_ADMIN) {
             query = query.where(admin.firestore.FieldPath.documentId(), '==', user.selectedOrganizationId);
         }
@@ -40,11 +40,11 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
 
 export const createOrganization = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
-    const { name, academyId } = req.body;
+    const { name, orgId } = req.body;
 
     if (!name) return res.status(400).json({ message: 'Workspace name is required.' });
 
-    const targetAcademyId = user.role === UserRole.SYSTEM_ADMIN ? academyId : user.academyId;
+    const targetAcademyId = user.role === UserRole.SYSTEM_ADMIN ? orgId : user.orgId;
     if (!targetAcademyId) return res.status(400).json({ message: 'Workspace ID is required.' });
 
     try {
@@ -52,7 +52,7 @@ export const createOrganization = async (req: Request, res: Response) => {
         const newOrg: Omit<DBOrganization, 'createdAt' | 'updatedAt'> = {
             id: newDocRef.id,
             name: sanitizeText(name),
-            academyId: targetAcademyId,
+            orgId: targetAcademyId,
             subscriptionProvider: 'manual',
             subscriptionStatus: 'incomplete',
             status: 'active',
@@ -77,7 +77,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
         const docRef = organizationsCollection.doc(id);
         const doc = await docRef.get();
         if (!doc.exists) return res.status(404).json({ message: "Workspace not found." });
-        if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.academyId !== user.academyId) {
+        if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.orgId !== user.orgId) {
             return res.status(403).json({ message: "Forbidden." });
         }
 
@@ -105,7 +105,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
         const docRef = organizationsCollection.doc(id);
         const doc = await docRef.get();
         if (!doc.exists) return res.status(204).send();
-        if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.academyId !== user.academyId) {
+        if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.orgId !== user.orgId) {
             return res.status(403).json({ message: "Forbidden." });
         }
 
@@ -146,7 +146,7 @@ export const getArchivedOrganizations = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     try {
         const snapshot = await organizationsCollection
-            .where('academyId', '==', user.academyId)
+            .where('orgId', '==', user.orgId)
             .where('status', '==', 'archived')
             .orderBy('updatedAt', 'desc')
             .get();
@@ -164,7 +164,7 @@ export const restoreOrganization = async (req: Request, res: Response) => {
         const docRef = organizationsCollection.doc(id);
         const doc = await docRef.get();
         if (!doc.exists) return res.status(404).json({ message: "Workspace not found." });
-        if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.academyId !== user.academyId) {
+        if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.orgId !== user.orgId) {
             return res.status(403).json({ message: "Forbidden." });
         }
 
@@ -190,7 +190,7 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
 
     try {
         const orgDoc = await organizationsCollection.doc(organizationId).get();
-        if (!orgDoc.exists || (requestingUser.role === UserRole.ACADEMY_ADMIN && orgDoc.data()?.academyId !== requestingUser.academyId)) {
+        if (!orgDoc.exists || (requestingUser.role === UserRole.ACADEMY_ADMIN && orgDoc.data()?.orgId !== requestingUser.orgId)) {
             return res.status(403).json({ message: "Forbidden: You cannot manage this workspace." });
         }
         const orgData = orgDoc.data() as DBOrganization;
@@ -215,7 +215,7 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
                 entityId: organizationId,
                 entityType: 'workspace',
                 role: UserRole.ORGANIZATION_ADMIN,
-                academyId: orgData.academyId,
+                orgId: orgData.orgId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
             return { isHigherAdmin: false, alreadyAdmin: false };
@@ -242,7 +242,7 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
             const verificationTokenPayload: any = { userId: newAdminUser.id, action: 'verify_email' };
             const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
-            const academyDoc = await academiesCollection.doc(orgDoc.data()!.academyId).get();
+            const academyDoc = await academiesCollection.doc(orgDoc.data()!.orgId).get();
             const academyName = academyDoc.exists ? (academyDoc.data() as DBAcademy).name : 'Gymind';
             await sendAccountVerificationEmail(email, newAdminUser.name, verificationLink, academyName, 'org_manager', orgData.name);
             return res.status(201).json({ message: `Successfully created Workspace Manager for ${email}. A verification email has been sent to them.` });
@@ -259,7 +259,7 @@ export const removeOrganizationManager = async (req: Request, res: Response) => 
 
     try {
         const orgDoc = await organizationsCollection.doc(organizationId).get();
-        if (!orgDoc.exists || (requestingUser.role === UserRole.ACADEMY_ADMIN && orgDoc.data()?.academyId !== requestingUser.academyId)) {
+        if (!orgDoc.exists || (requestingUser.role === UserRole.ACADEMY_ADMIN && orgDoc.data()?.orgId !== requestingUser.orgId)) {
             return res.status(403).json({ message: "Forbidden: You cannot manage this workspace." });
         }
 
@@ -298,8 +298,8 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
         const orgDoc = await organizationsCollection.doc(organizationId).get();
         if (!orgDoc.exists) return res.status(404).json({ message: "Workspace not found." });
         const organizationData = snapshotToData<DBOrganization>(orgDoc)!;
-        if (requestingUser.role === UserRole.ACADEMY_ADMIN && organizationData.academyId !== requestingUser.academyId) {
-            return res.status(403).json({ message: "You cannot remove users from an workspace outside your organization." });
+        if (requestingUser.role === UserRole.ACADEMY_ADMIN && organizationData.orgId !== requestingUser.orgId) {
+            return res.status(403).json({ message: "You cannot remove users from an workspace outside your workspace." });
         }
 
         const membershipsSnapshot = await membershipsCollection
@@ -314,12 +314,12 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
         const batch = db.batch();
         membershipsSnapshot.forEach(doc => batch.delete(doc.ref));
 
-        // If user has no other memberships, move them to the Default Workspace for the organization
+        // If user has no other memberships, move them to the Default Workspace for the workspace
         const allMembershipsSnapshot = await membershipsCollection.where('userId', '==', userId).get();
         const remainingMemberships = allMembershipsSnapshot.docs.filter(doc => !membershipsSnapshot.docs.some(d => d.id === doc.id));
 
         if (remainingMemberships.length === 0) {
-            const defaultOrgSnapshot = await organizationsCollection.where('academyId', '==', organizationData.academyId).where('name', '==', 'Default Workspace').limit(1).get();
+            const defaultOrgSnapshot = await organizationsCollection.where('orgId', '==', organizationData.orgId).where('name', '==', 'Default Workspace').limit(1).get();
             if (!defaultOrgSnapshot.empty) {
                 const defaultOrgId = defaultOrgSnapshot.docs[0].id;
                 const newMembershipRef = membershipsCollection.doc();
@@ -329,12 +329,12 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
                     entityId: defaultOrgId,
                     entityType: 'workspace',
                     role: UserRole.REGULAR_USER,
-                    academyId: organizationData.academyId,
+                    orgId: organizationData.orgId,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
                 logger.info(`User ${userId} was reassigned to Default Workspace after removal from ${organizationId}.`);
             } else {
-                 logger.warn(`Could not find Default Workspace for organization ${organizationData.academyId} to reassign user ${userId}.`);
+                 logger.warn(`Could not find Default Workspace for workspace ${organizationData.orgId} to reassign user ${userId}.`);
             }
         }
 

@@ -1,7 +1,7 @@
 export enum UserRole {
   REGULAR_USER = 'regular_user',
-  ORGANIZATION_ADMIN = 'organization_admin',
-  ACADEMY_ADMIN = 'academy_admin',
+  ORGANIZATION_ADMIN = 'workspace_admin',
+  ACADEMY_ADMIN = 'org_admin',
   SYSTEM_ADMIN = 'system_admin',
 }
 
@@ -15,7 +15,7 @@ export interface GrowthAllowanceTier {
 
 export interface Plan {
   id: string;
-  academyId: string;
+  orgId: string;
   name: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -47,7 +47,7 @@ export interface Plan {
 export interface Workspace {
   id: string;
   name: string;
-  academyId: string;
+  orgId: string;
   academyName?: string; 
   planId?: string;
   planName?: string;
@@ -182,7 +182,7 @@ export interface TutorialSettings {
 
 export interface ChatPersona {
   id: string;
-  academyId: string;
+  orgId: string;
   name: string;
   description: string;
   personaPreamble?: string;
@@ -211,7 +211,7 @@ export interface User {
     organizationAdmin?: string[];
   };
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
-  workspaces: Pick<Workspace, 'id' | 'name' | 'academyId' | 'academyName' | 'isPersonal'>[]; 
+  workspaces: Pick<Workspace, 'id' | 'name' | 'orgId' | 'academyName' | 'isPersonal'>[]; 
   profileImageUrl?: string; 
   hasSeenChatPrivacyNotice?: boolean;
   conversationSavingEnabled?: boolean;
@@ -271,7 +271,7 @@ export interface ChatSession {
 
 export interface TriggerPhrase {
   id: string;
-  academyId: string;
+  orgId: string;
   language: string; 
   phrase: string;   
 }
@@ -293,7 +293,7 @@ export interface TokenUsageData {
 
 export interface AcademyBillingCycle {
     id: string;
-    academyId: string;
+    orgId: string;
     billingCycleStart: Date;
     billingCycleEnd: Date;
     baselineUserCount: number;
@@ -324,7 +324,7 @@ export type QuestionType = 'multiple_choice' | 'open_text';
 
 export interface Questionnaire {
   id: string;
-  academyId: string;
+  orgId: string;
   name: string;
   description: string;
   type: QuestionnaireType;
@@ -419,7 +419,7 @@ export interface CourseQuestion {
 
 export interface Course {
   id: string;
-  academyId: string;
+  orgId: string;
   name: string;
   description: string;
   createdAt: Date;
@@ -477,7 +477,7 @@ export interface UserCourseProgress {
   userId: string;
   courseId: string;
   organizationId?: string;
-  academyId: string;
+  orgId: string;
   status: 'not-started' | 'in-progress' | 'completed';
   completedLessons: string[]; 
   startedAt: Date;
@@ -490,7 +490,7 @@ export interface UserCourseProgress {
 export interface NewsletterEdition {
   id: string;
   campaignId: string;
-  academyId: string;
+  orgId: string;
   subject: string;
   htmlContent: string;
   title: string;
@@ -511,7 +511,7 @@ export interface NewsletterEdition {
 
 export interface NewsletterCampaign {
   id: string;
-  academyId: string;
+  orgId: string;
   name: string;
   campaignType?: 'scheduled' | 'trigger';
   triggerType?: 'registration' | 'course_enrollment' | 'course_completion';
@@ -545,7 +545,7 @@ export type ThemeSettings = Pick<AcademySettings, 'sidebarColor' | 'appName' | '
 
 // New Interface for Payment Payouts
 export interface AcademyPayoutData {
-    academyId: string;
+    orgId: string;
     academyName: string;
     activeGymindOrgs: number;
     totalRevenue: number; // Org Payments

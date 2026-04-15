@@ -12,7 +12,7 @@ export interface DBAcademy {
 export interface DBOrganization {
   id: string;
   name: string;
-  academyId: string;
+  orgId: string;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt?: admin.firestore.Timestamp | Date | any;
   isPersonal?: boolean;
@@ -54,8 +54,8 @@ export interface DBTutorialSettings {
 
 export enum UserRole {
   REGULAR_USER = 'regular_user',
-  ORGANIZATION_ADMIN = 'organization_admin',
-  ACADEMY_ADMIN = 'academy_admin',
+  ORGANIZATION_ADMIN = 'workspace_admin',
+  ACADEMY_ADMIN = 'org_admin',
   SYSTEM_ADMIN = 'system_admin',
 }
 
@@ -82,9 +82,9 @@ export interface DBMembership {
   id: string;
   userId: string;
   entityId: string;
-  entityType: 'workspace' | 'organization';
+  entityType: 'workspace' | 'workspace';
   role: UserRole;
-  academyId: string;
+  orgId: string;
   createdAt: admin.firestore.Timestamp | Date | any;
   // Denormalized user fields for list views
   userName?: string;
@@ -99,7 +99,7 @@ export interface DBPreapprovedUser {
   id: string;
   email: string;
   organizationId: string;
-  academyId: string;
+  orgId: string;
   addedBy: string;
   createdAt: admin.firestore.Timestamp | Date | any;
 }
@@ -117,12 +117,12 @@ export interface JwtUserPayload {
   id: string;
   role: UserRole;
   selectedOrganizationId: string;
-  academyId: string;
+  orgId: string;
 }
 
 export interface JwtMultiOrgPayload {
   id: string;
-  action: 'select-workspace' | 'organization-setup';
+  action: 'select-workspace' | 'workspace-setup';
 }
 
 export interface JwtApprovalPayload {
@@ -154,7 +154,7 @@ declare global {
   namespace Express {
     interface User extends Partial<DBUser>, Partial<JwtUserPayload>, Partial<JwtMultiOrgPayload> {}
     interface Request {
-      academyId?: string;
+      orgId?: string;
     }
   }
 }
@@ -162,7 +162,7 @@ declare global {
 // --- AUDIT LOGGING ---
 
 export type AuditAction = 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'ANOMALY';
-export type AuditResourceType = 'user' | 'workspace' | 'organization';
+export type AuditResourceType = 'user' | 'workspace' | 'workspace';
 
 export interface DBAuditLog {
   id: string;
@@ -172,7 +172,7 @@ export interface DBAuditLog {
   resourceType: AuditResourceType;
   resourceId: string;
   organizationId?: string;
-  academyId?: string;
+  orgId?: string;
   changes?: { before: unknown; after: unknown };
   ipAddress?: string;
   userAgent?: string;

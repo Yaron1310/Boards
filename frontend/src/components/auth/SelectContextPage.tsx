@@ -87,7 +87,7 @@ const SelectContextPage: React.FC = () => {
                     </h2>
                     <div className="space-y-2">
                         {contexts.map(ctx => {
-                            const Icon = ctx.role === 'system_admin' ? FiShield : ctx.role === 'academy_admin' ? FiShield : ctx.role === 'organization_admin' ? FiBriefcase : FiUser;
+                            const Icon = ctx.role === 'system_admin' ? FiShield : ctx.role === 'org_admin' ? FiShield : ctx.role === 'workspace_admin' ? FiBriefcase : FiUser;
                             return (
                                 <label key={ctx.value} className="flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all border-gray-300 has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50 has-[:checked]:shadow-md">
                                     <Icon className="mr-3 text-gray-500" />

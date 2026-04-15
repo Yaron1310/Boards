@@ -449,7 +449,7 @@
   },
   "layout": {
     "adminDashboard": "לוח בקרה",
-    "organizations": "אקדמיות",
+    "workspaces": "אקדמיות",
     "academyPayouts": "תשלומי אקדמיה",
     "tokenLimits": "מגבלות טוקנים",
     "tutorialsSettings": "הגדרות הדרכות",
@@ -1339,7 +1339,7 @@
   "checkout": {
     "success": "הצלחה!",
     "error": "שגיאה",
-    "organization": "אקדמיה",
+    "workspace": "אקדמיה",
     "address": "כתובת",
     "billingInformation": "מידע לחיוב",
     "checkInbox": "בדוק את תיבת הדואר הנכנס שלך",
@@ -1371,7 +1371,7 @@
   },
   "marketing": {
     "unsubscribed": "הסרת רישום",
-    "unsubscribedDesc": "כתובת הדוא״ל שלך, {{email}}, הוסרה מרשימת התפוצה של הניוזלטר של {{organization}}.",
+    "unsubscribedDesc": "כתובת הדוא״ל שלך, {{email}}, הוסרה מרשימת התפוצה של הניוזלטר של {{workspace}}.",
     "noMoreUpdates": "לא תקבל יותר עדכונים מקמפיין זה.",
     "detail": {
       "trigger": "טריגר",

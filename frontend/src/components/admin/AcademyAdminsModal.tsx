@@ -22,12 +22,12 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
     const [isProcessing, setIsProcessing] = useState(false);
     const [adminToRemove, setAdminToRemove] = useState<User | null>(null);
     
-    const academyId = useMemo(() => selectedOrganization?.academyId, [selectedOrganization]);
+    const orgId = useMemo(() => selectedOrganization?.orgId, [selectedOrganization]);
 
     const currentAdmins = useMemo(() => {
-        if (!academyId) return [];
-        return users.filter(u => u.dbRoles?.academyAdmin?.includes(academyId));
-    }, [users, academyId]);
+        if (!orgId) return [];
+        return users.filter(u => u.dbRoles?.academyAdmin?.includes(orgId));
+    }, [users, orgId]);
     
     useEffect(() => {
         if (dataError) {
@@ -55,7 +55,7 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
         }
     }, [feedback]);
 
-    if (!isOpen || !academyId) return null;
+    if (!isOpen || !orgId) return null;
 
     const handleAddAdmin = async () => {
         if (!adminEmail.trim()) {
@@ -64,7 +64,7 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
         }
         setFeedback(null);
         setIsProcessing(true);
-        const result = await addAcademyAdmin(academyId, adminEmail);
+        const result = await addAcademyAdmin(orgId, adminEmail);
         setIsProcessing(true); // Keep processing true for a moment to avoid flickers
         if (result) {
             setFeedback({ type: 'success', text: result.message });
@@ -78,7 +78,7 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
         if (!adminToRemove) return;
         setFeedback(null);
         setIsProcessing(true);
-        const result = await removeAcademyAdmin(academyId, adminToRemove.id);
+        const result = await removeAcademyAdmin(orgId, adminToRemove.id);
         setIsProcessing(true); // Keep processing true for a moment
         if(result) {
             setFeedback({ type: 'success', text: result.message });

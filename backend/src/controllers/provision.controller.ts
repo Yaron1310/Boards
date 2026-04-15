@@ -3,7 +3,7 @@ import * as logger from 'firebase-functions/logger';
 import { organizationsCollection } from '../db/collections.js';
 
 export const checkOrganizationName = async (req: Request, res: Response) => {
-    const academyId = req.academyId!;
+    const orgId = req.orgId!;
     const name = req.query.name as string;
 
     if (!name || !name.trim()) {
@@ -12,14 +12,14 @@ export const checkOrganizationName = async (req: Request, res: Response) => {
 
     try {
         const orgSnapshot = await organizationsCollection
-            .where('academyId', '==', academyId)
+            .where('orgId', '==', orgId)
             .where('name', '==', name.trim())
             .limit(1)
             .get();
 
         return res.status(200).json({ available: orgSnapshot.empty });
     } catch (error) {
-        logger.error(`Error checking workspace name for organization ${academyId}:`, error);
+        logger.error(`Error checking workspace name for workspace ${orgId}:`, error);
         return res.status(500).json({ success: false, message: 'An internal server error occurred.' });
     }
 };

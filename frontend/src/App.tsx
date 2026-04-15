@@ -174,8 +174,8 @@ const App: React.FC = () => {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="/setup-organization" element={<AcademySetupWizard />} />
-          <Route path="*" element={<Navigate to="/setup-organization" replace />} />
+          <Route path="/setup-workspace" element={<AcademySetupWizard />} />
+          <Route path="*" element={<Navigate to="/setup-workspace" replace />} />
         </Routes>
       </BrowserRouter>
     );
@@ -192,10 +192,10 @@ const App: React.FC = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={user ? <Navigate to={redirectPath} /> : <LoginPage />} />
         <Route path="/register" element={user ? <Navigate to={redirectPath} /> : <RegistrationPage />} />
-        <Route path="/register-organization" element={user ? <Navigate to={redirectPath} /> : <AcademyRegistrationPage />} />
+        <Route path="/register-workspace" element={user ? <Navigate to={redirectPath} /> : <AcademyRegistrationPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/google/callback" element={<GoogleAuthCallbackPage />} />
-        <Route path="/auth/organization/callback" element={<AcademyAuthCallbackPage />} />
+        <Route path="/auth/workspace/callback" element={<AcademyAuthCallbackPage />} />
         <Route path="/verify-account" element={<VerifyAccountPage />} />
         <Route path="/approve-user" element={<UserApprovalPage />} />
         <Route path="/legal" element={<LegalPage />} />
@@ -261,7 +261,7 @@ const App: React.FC = () => {
               }
             />
             <Route
-              path="/admin/organizations"
+              path="/admin/workspaces"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]}>
                   <AcademyManagementPage />

@@ -73,7 +73,7 @@ export async function logAuditAndCheckAnomaly(entry: AuditEntryInput): Promise<v
                 resourceType: entry.resourceType,
                 resourceId: 'bulk_read',
                 organizationId: entry.organizationId,
-                academyId: entry.academyId,
+                orgId: entry.orgId,
                 ipAddress: entry.ipAddress,
                 userAgent: entry.userAgent,
                 details: `User exceeded ${ANOMALY_READ_THRESHOLD} ${entry.resourceType} reads in ${ANOMALY_WINDOW_MS / 60000} minutes (detected: ${readCount})`,

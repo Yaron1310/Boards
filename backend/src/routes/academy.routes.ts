@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import * as academyController from '../controllers/organization.controller.js';
+import * as academyController from '../controllers/workspace.controller.js';
 import { requireRole } from '../middleware/auth.middleware.js';
 import { authenticateToken, authenticatePartialToken } from '../middleware/auth.middleware.js';
 import { UserRole } from '../types/index.js';
@@ -18,7 +18,7 @@ academyRouter.get('/check-name', authenticateToken, academyController.checkNameU
 // These routes are only accessible by a System Administrator.
 academyRouter.get('/', requireRole([UserRole.SYSTEM_ADMIN]), academyController.getAllAcademies);
 academyRouter.post('/', requireRole([UserRole.SYSTEM_ADMIN]), academyController.createAcademy);
-academyRouter.post('/:academyId/admins', academyController.addAcademyAdmin);
-academyRouter.delete('/:academyId/admins/:userId', academyController.removeAcademyAdmin);
+academyRouter.post('/:orgId/admins', academyController.addAcademyAdmin);
+academyRouter.delete('/:orgId/admins/:userId', academyController.removeAcademyAdmin);
 academyRouter.put('/:id', requireRole([UserRole.SYSTEM_ADMIN]), academyController.updateAcademy);
 academyRouter.delete('/:id', requireRole([UserRole.SYSTEM_ADMIN]), academyController.deleteAcademy);
