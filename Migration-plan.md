@@ -17,7 +17,7 @@ Features:
 * Existing shell (auth, security, middleware) preserved but renamed
 * Full terminology refactor (Academy -> Organization, Organization -> Workspace)
 
-🧱 PHASE 0 — Strategy Decisions (LOCK BEFORE CODING)
+✅ PHASE 0 — Strategy Decisions (DONE)
 Final architecture decisions
 
 Logyx 6-Level Hierarchy:
@@ -36,26 +36,26 @@ Core Data Model (Flat Items)
 Items are stored at the Organization level to allow cross-board dashboards without "collection group" complexity.
 Path: /organizations/{organizationId}/items/{itemId}
 
-🧹 PHASE 1 — Remove Legacy Product Features
+✅ PHASE 1 — Remove Legacy Product Features (DONE)
 🔥 Delete Entire Feature Domains
 Backend (routes + services + collections)
 
-* Remove: AI Chat, Courses, Questionnaires, Insights, AI Wizard, Marketing, WordPress bridge.
-* Assets: Delete backend/src/assets/bridge.js and frontend/public/gymind-woocommerce-plugin.zip.
+* ✅ Remove: AI Chat, Courses, Questionnaires, Insights, AI Wizard, Marketing, WordPress bridge.
+* ✅ Assets: Delete backend/src/assets/bridge.js and frontend/public/gymind-woocommerce-plugin.zip.
 Frontend
-* Delete: chat/, courses/, questionnaire/, marketing/ folders.
-* Delete Pages: AiMentorWizard, ChatSettingsPage, PersonalInsightsPage, Course/Quiz management.
+* ✅ Delete: chat/, courses/, questionnaire/, marketing/ folders.
+* ✅ Delete Pages: AiMentorWizard, ChatSettingsPage, PersonalInsightsPage, Course/Quiz management.
 Firestore Collections
-* Delete: chatPersonas, conversations, triggerPhrases, courses, userCourseProgress, questionnaires, questions, answers, userQuestionnaireResults, personalInsights, newsletterCampaigns, newsletterEditions, triggerEnrollments, unsubscriptions.
+* ✅ Delete: chatPersonas, conversations, triggerPhrases, courses, userCourseProgress, questionnaires, questions, answers, userQuestionnaireResults, personalInsights, newsletterCampaigns, newsletterEditions, triggerEnrollments, unsubscriptions.
 
-🏗️ PHASE 2 — Preserve \& Stabilize Core Shell
-✅ Keep \& Refactor
+✅ PHASE 2 — Preserve & Stabilize Core Shell (DONE)
+✅ Keep & Refactor
 
-* Auth system (JWT + OAuth), Middleware (auth, rate limit, sanitization), Email service \& Audit logging.
-* Contexts: AuthContext, DataContext.
-* Layout: MainLayout.
+* ✅ Auth system (JWT + OAuth), Middleware (auth, rate limit, sanitization), Email service & Audit logging.
+* ✅ Contexts: AuthContext, DataContext.
+* ✅ Layout: MainLayout.
 🛠 Adjustments
-* Disable plans \& billing middleware temporarily.
+* ✅ Disable plans & billing middleware temporarily.
 
 🔤 PHASE 3 — Deep Terminology Refactor (CODE + UI)
 
