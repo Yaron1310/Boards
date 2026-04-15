@@ -108,7 +108,7 @@ const ProfilePage: React.FC = () => {
       ? users.find((u) => u.id === routeUserId)
       : authUser;
   
-    // Authorization check for Organization Admins viewing another user's profile.
+    // Authorization check for Workspace Admins viewing another user's profile.
     if (
       authUser?.role === UserRole.ORGANIZATION_ADMIN &&
       userToDisplay &&

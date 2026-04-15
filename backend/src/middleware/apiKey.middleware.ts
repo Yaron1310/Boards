@@ -20,7 +20,7 @@ export const authenticateApiKey = async (req: Request, res: Response, next: Next
             return res.status(401).json({ message: "Invalid API key." });
         }
         const settings = snapshotToData<DBAcademySettings>(snapshot.docs[0])!;
-        req.academyId = settings.id; // Academy ID is the document ID of settings
+        req.academyId = settings.id; // Organization ID is the document ID of settings
         next();
     } catch (error) {
         logger.error("Server error during API key authentication:", error);

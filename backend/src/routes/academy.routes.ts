@@ -6,7 +6,7 @@ import { UserRole } from '../types/index.js';
 
 export const academyRouter = Router();
 
-// --- Academy Self-Setup Routes ---
+// --- Organization Self-Setup Routes ---
 // These are authenticated with a special partial token.
 academyRouter.post('/setup', authenticatePartialToken, academyController.setupAcademy);
 academyRouter.post('/activate-subscription', authenticatePartialToken, academyController.activateSubscription);

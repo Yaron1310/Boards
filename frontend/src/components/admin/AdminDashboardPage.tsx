@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import { UserRole, User, Conversation, UserCourseProgress, Organization } from '../../types';
+import { UserRole, User, Conversation, UserCourseProgress, Workspace } from '../../types';
 import { FiUsers, FiBriefcase, FiBarChart2, FiMessageSquare, FiZap, FiBookOpen, FiShield, FiCpu, FiLoader, FiUserPlus, FiTrendingUp, FiClock, FiStar, FiActivity, FiPieChart, FiAward, FiChevronRight } from 'react-icons/fi';
 
 
@@ -44,7 +44,7 @@ const AdminDashboardPage: React.FC = () => {
       return (usage.used / usage.limit) * 100;
   }, [user, academyUsage, orgUsage]);
 
-  // --- Academy Admin Metrics ---
+  // --- Organization Admin Metrics ---
   const academyMetrics = useMemo(() => {
     if (user?.role !== UserRole.ACADEMY_ADMIN) return null;
 
@@ -79,9 +79,9 @@ const AdminDashboardPage: React.FC = () => {
         return created && created >= startOfMonth;
     }).length;
 
-    // 3. Organization Performance
+    // 3. Workspace Performance
     const orgPerformance = organizations
-        .filter(org => !org.isPersonal && org.name !== 'Default Organization')
+        .filter(org => !org.isPersonal && org.name !== 'Default Workspace')
         .map(org => {
             const orgId = org.id;
             const orgMembers = users.filter(u => u.organizations?.some(o => o.id === orgId));
@@ -112,7 +112,7 @@ const AdminDashboardPage: React.FC = () => {
         })
         .sort((a, b) => b.usedTokens - a.usedTokens);
 
-    // 4. Top Courses (Academy-wide)
+    // 4. Top Courses (Organization-wide)
     const courseStats = organizationProgress.reduce((acc, curr) => {
         acc[curr.courseId] = (acc[curr.courseId] || 0) + 1;
         return acc;
@@ -127,7 +127,7 @@ const AdminDashboardPage: React.FC = () => {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
-    // 5. Most Popular Mentors (Academy-wide)
+    // 5. Most Popular Mentors (Organization-wide)
     const mentorStats = conversations.reduce((acc, curr) => {
         acc[curr.personaName] = (acc[curr.personaName] || 0) + 1;
         return acc;
@@ -138,7 +138,7 @@ const AdminDashboardPage: React.FC = () => {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
-    // 6. Recent Activity (Academy-wide)
+    // 6. Recent Activity (Organization-wide)
     const latestConversations = [...conversations]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5)
@@ -160,7 +160,7 @@ const AdminDashboardPage: React.FC = () => {
     };
   }, [user, conversations, users, organizations, organizationProgress, courses, academyTokenUsage, orgTokenUsage]);
 
-  // --- Organization Manager Metrics ---
+  // --- Workspace Manager Metrics ---
   const orgMetrics = useMemo(() => {
     if (user?.role !== UserRole.ORGANIZATION_ADMIN) return null;
 
@@ -243,7 +243,7 @@ const AdminDashboardPage: React.FC = () => {
   const totalOrganizations = organizations.filter(org => !org.isPersonal).length;
   const totalConversations = conversations.length;
 
-  // For Organization Admins, the `users` and `conversations` lists from useData()
+  // For Workspace Admins, the `users` and `conversations` lists from useData()
   // are already scoped to their organization by the `fetchAllData` logic.
   const managerOrgUsers = user.role === UserRole.ORGANIZATION_ADMIN ? users.length : 0;
   const managerOrgConversations = user.role === UserRole.ORGANIZATION_ADMIN ? conversations.length : 0;
@@ -347,7 +347,7 @@ const AdminDashboardPage: React.FC = () => {
 
         {user.role === UserRole.ACADEMY_ADMIN && academyMetrics && (
             <div className="space-y-8">
-                {/* Organization Performance Table */}
+                {/* Workspace Performance Table */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                         <h3 className="text-lg font-bold text-gray-800 flex items-center">

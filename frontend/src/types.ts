@@ -44,7 +44,7 @@ export interface Plan {
   };
 }
 
-export interface Organization {
+export interface Workspace {
   id: string;
   name: string;
   academyId: string;
@@ -64,7 +64,7 @@ export interface Organization {
 }
 
 // ... rest of the file remains unchanged ...
-export interface Academy {
+export interface Organization {
   id: string;
   name: string;
 }
@@ -211,7 +211,7 @@ export interface User {
     organizationAdmin?: string[];
   };
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
-  organizations: Pick<Organization, 'id' | 'name' | 'academyId' | 'academyName' | 'isPersonal'>[]; 
+  organizations: Pick<Workspace, 'id' | 'name' | 'academyId' | 'academyName' | 'isPersonal'>[]; 
   profileImageUrl?: string; 
   hasSeenChatPrivacyNotice?: boolean;
   conversationSavingEnabled?: boolean;
@@ -227,7 +227,7 @@ export interface User {
   completedQuestionnairesCount?: number;
   conversationCount?: number;
   completedCourseCount?: number;
-  allAcademies?: Academy[]; 
+  allAcademies?: Organization[]; 
 }
 
 

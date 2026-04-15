@@ -27,7 +27,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
             return next();
         }
         
-        // Check for partial tokens (Context Selection or Academy Setup)
+        // Check for partial tokens (Context Selection or Organization Setup)
         const partialPayload = user as JwtMultiOrgPayload;
         if (partialPayload.id && (partialPayload.action === 'academy-setup' || partialPayload.action === 'select-organization')) {
              // For select-organization tokens, we allow access but the controller must handle the missing org/role data

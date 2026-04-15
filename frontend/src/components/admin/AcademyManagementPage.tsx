@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import type { Academy, User, Organization } from '../../types';
+import type { Organization, User, Workspace } from '../../types';
 import { UserRole } from '../../types';
 import * as apiService from '../../services/geminiService';
 import { FiPlusCircle, FiEdit, FiTrash2, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiShield, FiUserPlus, FiUsers, FiCpu } from 'react-icons/fi';
@@ -61,9 +61,9 @@ const AcademyManagementPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const [newAcademyName, setNewAcademyName] = useState('');
-  const [editingAcademy, setEditingAcademy] = useState<Academy | null>(null);
+  const [editingAcademy, setEditingAcademy] = useState<Organization | null>(null);
   const [editAcademyName, setEditAcademyName] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<Academy | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<Organization | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   useEffect(() => {
     if (feedbackMessage) {
@@ -73,7 +73,7 @@ const AcademyManagementPage: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [feedbackMessage]);
-  const [showAdminModal, setShowAdminModal] = useState<Academy | null>(null);
+  const [showAdminModal, setShowAdminModal] = useState<Organization | null>(null);
   const [adminEmail, setAdminEmail] = useState('');
   const [currentAdmins, setCurrentAdmins] = useState<User[]>([]);
   const [adminToRemove, setAdminToRemove] = useState<User | null>(null);
@@ -121,7 +121,7 @@ const AcademyManagementPage: React.FC = () => {
     setIsLoading(false);
   };
 
-  const handleEditClick = (academy: Academy) => {
+  const handleEditClick = (academy: Organization) => {
     clearFeedback();
     setEditingAcademy(academy);
     setEditAcademyName(academy.name);

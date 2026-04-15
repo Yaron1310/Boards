@@ -16,16 +16,16 @@ import { DBAcademy, DBOrganization, DBUser, UserRole, DBAcademySettings, DBMembe
 export const seedDefaultData = async () => {
   const batch = db.batch();
 
-  // --- 1. Seed Default Academy ---
+  // --- 1. Seed Default Organization ---
   let academyId: string;
   const academyDocRef = academiesCollection.doc('default_academy');
   const academyDoc = await academyDocRef.get();
 
   if (!academyDoc.exists) {
-    logger.info('Seeding initial Default Academy...');
+    logger.info('Seeding initial Default Organization...');
     const defaultAcademy: DBAcademy = {
       id: academyDocRef.id,
-      name: 'Default Academy',
+      name: 'Default Organization',
       createdAt: new Date(),
     };
     batch.set(academyDocRef, defaultAcademy);
@@ -42,11 +42,11 @@ export const seedDefaultData = async () => {
     batch.set(tokenLimitsDocRef, {});
   }
 
-  // --- 3. Seed Default Academy Settings (Theme) ---
+  // --- 3. Seed Default Organization Settings (Theme) ---
   const settingsDocRef = academySettingsCollection.doc(academyId);
   const academySettingsDoc = await settingsDocRef.get();
   if (!academySettingsDoc.exists) {
-    logger.info(`Seeding initial settings for Academy ID: ${academyId}`);
+    logger.info(`Seeding initial settings for Organization ID: ${academyId}`);
     const defaultSettings: Omit<DBAcademySettings, 'updatedAt'> = {
       id: academyId,
       sidebarColor: '#004e89',
@@ -61,16 +61,16 @@ export const seedDefaultData = async () => {
     batch.set(settingsDocRef, { ...defaultSettings, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
   }
 
-  // --- 4. Seed Default Organization ---
+  // --- 4. Seed Default Workspace ---
   let defaultOrganizationId: string;
   const orgDocRef = organizationsCollection.doc('default_org');
   const orgDoc = await orgDocRef.get();
 
   if (!orgDoc.exists) {
-    logger.info(`Seeding initial default organization for Academy ID: ${academyId}`);
+    logger.info(`Seeding initial default organization for Organization ID: ${academyId}`);
     const defaultOrganization: DBOrganization = {
       id: orgDocRef.id,
-      name: 'Default Organization',
+      name: 'Default Workspace',
       academyId: academyId,
       createdAt: new Date(),
       status: 'active',

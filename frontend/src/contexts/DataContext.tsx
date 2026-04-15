@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Organization, User, PreApprovedUser, AcademySettings, Academy, SystemSettings, TutorialSettings } from '../types';
+import type { Workspace, User, PreApprovedUser, AcademySettings, Organization, SystemSettings, TutorialSettings } from '../types';
 import { UserRole } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { queryKeys } from '../hooks/queries/queryKeys';
@@ -38,19 +38,19 @@ export const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 const api = () => import('../services/geminiService');
 
 interface DataContextType {
-  academies: Academy[];
+  academies: Organization[];
   fetchAcademies: () => Promise<void>;
-  addAcademy: (name: string) => Promise<Academy | null>;
+  addAcademy: (name: string) => Promise<Organization | null>;
   updateAcademy: (id: string, name: string) => Promise<boolean>;
   deleteAcademy: (id: string) => Promise<boolean>;
   addAcademyAdmin: (academyId: string, email: string) => Promise<{message: string} | null>;
   removeAcademyAdmin: (academyId: string, userId: string) => Promise<{message: string} | null>;
 
-  organizations: Organization[];
-  archivedOrganizations: Organization[];
+  organizations: Workspace[];
+  archivedOrganizations: Workspace[];
   fetchOrganizations: (filterType?: 'corporate' | 'individual' | 'all') => Promise<void>;
   fetchArchivedOrganizations: () => Promise<void>;
-  addOrganization: (name: string, academyId: string, planId?: string) => Promise<Organization | null>;
+  addOrganization: (name: string, academyId: string, planId?: string) => Promise<Workspace | null>;
   updateOrganization: (id: string, data: { name?: string; planId?: string }) => Promise<boolean>;
   deleteOrganization: (id: string, force?: boolean) => Promise<{ isConflict: boolean; dependencies?: any }>;
   confirmArchiveOrganization: (id: string) => Promise<boolean>;
@@ -324,7 +324,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return success === null;
   };
 
-  // Academy Settings
+  // Organization Settings
   const updateAcademySettings = async (settings: Partial<AcademySettings> & { logoUpload?: string }) => {
     const { updateThemeSettingsOnBackend } = await api();
     const result = await handleApiCall(() => updateThemeSettingsOnBackend(settings), undefined, 'Failed to update academy settings.');

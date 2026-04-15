@@ -129,7 +129,7 @@ const RegistrationPage: React.FC = () => {
         localStorage.setItem('pending_checkout_plan_id', planId);
     }
 
-    // --- Standard Registration Flow (Handles both Organization Pre-approved and Checkout Payment Flow) ---
+    // --- Standard Registration Flow (Handles both Workspace Pre-approved and Checkout Payment Flow) ---
     // If planId is present (checkout flow), backend register will skip pre-approval.
     // If planId is missing, backend register will enforce pre-approval.
     const recaptchaToken = await executeRecaptcha('register');

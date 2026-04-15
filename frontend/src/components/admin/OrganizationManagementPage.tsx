@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import type { Organization, Course, User, Plan } from '../../types';
+import type { Workspace, Course, User, Plan } from '../../types';
 import { UserRole } from '../../types';
 import { FiPlusCircle, FiEdit, FiArchive, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiBriefcase, FiAlertCircle as FiErrorCircle, FiKey, FiCpu, FiLoader, FiUsers, FiUserPlus, FiList, FiInfo, FiCreditCard, FiShare } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
@@ -53,7 +53,7 @@ const TokenUsageBar: React.FC<{ used: number; limit: number | null }> = ({ used,
     );
 };
 
-type OrgWithComputedData = Organization & {
+type OrgWithComputedData = Workspace & {
     userCount: number;
     tokensUsed: number;
     tokenLimit: number | null;
@@ -262,10 +262,10 @@ const OrganizationManagementPage: React.FC = () => {
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [viewType, setViewType] = useState<'all' | 'corporate' | 'individual'>('all');
   
-  const [preApproveModalOrg, setPreApproveModalOrg] = useState<Organization | null>(null);
+  const [preApproveModalOrg, setPreApproveModalOrg] = useState<Workspace | null>(null);
 
   // States for org manager modal
-  const [showAdminModal, setShowAdminModal] = useState<Organization | null>(null);
+  const [showAdminModal, setShowAdminModal] = useState<Workspace | null>(null);
   const [adminEmail, setAdminEmail] = useState('');
   const [currentAdmins, setCurrentAdmins] = useState<User[]>([]);
   const [adminToRemove, setAdminToRemove] = useState<User | null>(null);
@@ -412,7 +412,7 @@ const OrganizationManagementPage: React.FC = () => {
         setNewOrgPlanId('');
         setIsSaving(false);
         setIsAddModalOpen(false);
-        setFeedbackMessage({ type: 'success', text: `Organization "${newOrg.name}" added successfully.` });
+        setFeedbackMessage({ type: 'success', text: `Workspace "${newOrg.name}" added successfully.` });
       } else if (!dataError) { 
         setIsSaving(false);
         setModalError('Failed to add organization.');
@@ -420,7 +420,7 @@ const OrganizationManagementPage: React.FC = () => {
         setIsSaving(false);
       }
     } else {
-      setModalError('Organization Name is required.');
+      setModalError('Workspace Name is required.');
     }
   };
   
@@ -456,7 +456,7 @@ const OrganizationManagementPage: React.FC = () => {
       });
       setIsSaving(false);
       if (success) {
-        setFeedbackMessage({ type: 'success', text: `Organization "${editOrgData.name}" updated.` });
+        setFeedbackMessage({ type: 'success', text: `Workspace "${editOrgData.name}" updated.` });
         setOrgToEdit(null);
       } else if (!dataError) {
         setModalError('Failed to update organization.');
@@ -483,7 +483,7 @@ const OrganizationManagementPage: React.FC = () => {
     setIsSaving(true);
     const success = await confirmArchiveOrganization(archiveConfirmData.resource.id);
     if (success) {
-        setFeedbackMessage({ type: 'success', text: 'Organization archived successfully.' });
+        setFeedbackMessage({ type: 'success', text: 'Workspace archived successfully.' });
     }
     setIsSaving(false);
     setArchiveConfirmData(null);
@@ -792,7 +792,7 @@ const OrganizationManagementPage: React.FC = () => {
         onClose={() => setArchiveConfirmData(null)}
         onConfirm={handleConfirmArchive}
         isLoading={isSaving}
-        title="Confirm Organization Archive"
+        title="Confirm Workspace Archive"
         message={<>Are you sure you want to archive "<strong>{archiveConfirmData?.resource.name}</strong>"?</>}
         confirmText="Confirm Archive"
         dependencies={archiveConfirmData?.dependencies}

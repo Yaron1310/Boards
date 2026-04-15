@@ -1,4 +1,4 @@
-import type { User, Organization, PreApprovedUser, AcademySettings, Academy, UserRole, SystemSettings, TutorialSettings, PaginatedResponse } from '../types';
+import type { User, Workspace, PreApprovedUser, AcademySettings, Organization, UserRole, SystemSettings, TutorialSettings, PaginatedResponse } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const handleAuthError = () => {
@@ -169,7 +169,7 @@ export const logoutFromBackend = async (): Promise<void> => {
     });
 };
 
-// --- Academy Setup ---
+// --- Organization Setup ---
 export const setupAcademy = async (academyName: string): Promise<{ message: string }> => {
     return fetchWithAuth('/api/academies/setup', {
         method: 'POST',
@@ -177,7 +177,7 @@ export const setupAcademy = async (academyName: string): Promise<{ message: stri
     });
 };
 
-export const activateAcademySubscription = async (): Promise<{ user: User, selectedOrganization: Organization, accessToken: string }> => {
+export const activateAcademySubscription = async (): Promise<{ user: User, selectedOrganization: Workspace, accessToken: string }> => {
     return fetchWithAuth('/api/academies/activate-subscription', {
         method: 'POST',
     });
@@ -189,26 +189,26 @@ export const checkAcademyNameUniqueness = async (name: string): Promise<{ isUniq
 
 
 // --- Academies ---
-export const getAcademies = async (): Promise<Academy[]> => fetchWithAuth('/api/academies');
-export const createAcademy = async (name: string): Promise<Academy> => fetchWithAuth('/api/academies', { method: 'POST', body: JSON.stringify({ name }) });
-export const updateAcademy = async (id: string, name: string): Promise<Academy> => fetchWithAuth(`/api/academies/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+export const getAcademies = async (): Promise<Organization[]> => fetchWithAuth('/api/academies');
+export const createAcademy = async (name: string): Promise<Organization> => fetchWithAuth('/api/academies', { method: 'POST', body: JSON.stringify({ name }) });
+export const updateAcademy = async (id: string, name: string): Promise<Organization> => fetchWithAuth(`/api/academies/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
 export const deleteAcademy = async (id: string): Promise<null> => fetchWithAuth(`/api/academies/${id}`, { method: 'DELETE' });
 export const addAcademyAdmin = async (academyId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/academies/${academyId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
 export const removeAcademyAdmin = async (academyId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/academies/${academyId}/admins/${userId}`, { method: 'DELETE' });
 
 
 // --- Organizations ---
-export const getOrganizations = async (filterType?: 'corporate' | 'individual' | 'all'): Promise<Organization[]> => {
+export const getOrganizations = async (filterType?: 'corporate' | 'individual' | 'all'): Promise<Workspace[]> => {
     let url = '/api/organizations';
     if (filterType && filterType !== 'all') {
         url += `?type=${filterType}`;
     }
     return fetchWithAuth(url);
 };
-export const getArchivedOrganizations = async (): Promise<Organization[]> => fetchWithAuth('/api/organizations/archived');
-export const restoreOrganization = async (id: string): Promise<Organization> => fetchWithAuth(`/api/organizations/${id}/restore`, { method: 'PUT' });
-export const addOrganizationToBackend = async (name: string, academyId: string, planId?: string): Promise<Organization> => fetchWithAuth('/api/organizations', { method: 'POST', body: JSON.stringify({ name, academyId, planId }) });
-export const updateOrganizationOnBackend = async (id: string, data: { name?: string, planId?: string, subscriptionProvider?: string }): Promise<Organization> => fetchWithAuth(`/api/organizations/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const getArchivedOrganizations = async (): Promise<Workspace[]> => fetchWithAuth('/api/organizations/archived');
+export const restoreOrganization = async (id: string): Promise<Workspace> => fetchWithAuth(`/api/organizations/${id}/restore`, { method: 'PUT' });
+export const addOrganizationToBackend = async (name: string, academyId: string, planId?: string): Promise<Workspace> => fetchWithAuth('/api/organizations', { method: 'POST', body: JSON.stringify({ name, academyId, planId }) });
+export const updateOrganizationOnBackend = async (id: string, data: { name?: string, planId?: string, subscriptionProvider?: string }): Promise<Workspace> => fetchWithAuth(`/api/organizations/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteOrganizationFromBackend = async (id: string, force = false): Promise<null> => {
     return fetchWithAuth(`/api/organizations/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' });
 };
@@ -244,12 +244,12 @@ export const getPreApprovedUsersFromBackend = async (params?: { limit?: number; 
 export const deletePreApprovedUserFromBackend = async (preApprovedUserId: string): Promise<null> => fetchWithAuth(`/api/users/pre-approved/${preApprovedUserId}`, { method: 'DELETE' });
 
 // User's own profile updates
-export const getMyUserDetails = async (): Promise<{ user: User, selectedOrganization: Organization }> => fetchWithAuth('/api/users/me/details');
+export const getMyUserDetails = async (): Promise<{ user: User, selectedOrganization: Workspace }> => fetchWithAuth('/api/users/me/details');
 export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
 export const updateMyPassword = async (passwords: { currentPassword?: string; newPassword: string }): Promise<{ message: string }> => fetchWithAuth('/api/users/me/password', { method: 'PUT', body: JSON.stringify(passwords) });
 export const updateMyProfileImage = async (imageUrl: string): Promise<User> => fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: JSON.stringify({ imageUrl }) });
 
-// --- Academy Settings / Theme ---
+// --- Organization Settings / Theme ---
 export const getThemeSettingsFromBackend = async (): Promise<AcademySettings> => fetchWithAuth('/api/app-config/theme');
 export const updateThemeSettingsOnBackend = async (settings: Partial<AcademySettings> & { logoUpload?: string; }): Promise<AcademySettings> => fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify(settings) });
 export const regenerateApiKey = async (): Promise<AcademySettings> => fetchWithAuth('/api/app-config/api-key/regenerate', { method: 'POST' });

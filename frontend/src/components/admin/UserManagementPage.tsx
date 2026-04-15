@@ -128,7 +128,7 @@ const UserManagementPage: React.FC = () => {
         'Name': u.name,
         'Email': u.email,
         'Role': u.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        'Organization(s)': u.organizations.filter(o => !o.isPersonal).map(o => o.name).join(', '),
+        'Workspace(s)': u.organizations.filter(o => !o.isPersonal).map(o => o.name).join(', '),
     }));
 
     exportToCSV(dataForExport, "Gymind_Users_Export.csv");

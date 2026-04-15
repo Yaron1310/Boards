@@ -40,7 +40,7 @@ export const createAcademy = async (req: Request, res: Response) => {
         const defaultOrgRef = organizationsCollection.doc();
         const newDefaultOrg = {
             id: defaultOrgRef.id,
-            name: 'Default Organization',
+            name: 'Default Workspace',
             academyId: newAcademyRef.id,
             isPersonal: true,
             createdAt: new Date(),
@@ -79,14 +79,14 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
         // --- Authorization Check ---
         const academyDoc = await academiesCollection.doc(academyId).get();
         if (!academyDoc.exists) {
-            return res.status(404).json({ message: "Academy not found." });
+            return res.status(404).json({ message: "Organization not found." });
         }
 
         let isAuthorized = false;
         if (requestingUser.role === UserRole.SYSTEM_ADMIN) {
             isAuthorized = true;
         } else if (requestingUser.role === UserRole.ACADEMY_ADMIN) {
-            // An Academy Admin can only add other admins to their OWN academy.
+            // An Organization Admin can only add other admins to their OWN academy.
             isAuthorized = requestingUser.academyId === academyId;
         }
 
@@ -168,7 +168,7 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
             const { isHigherAdmin, alreadyAdmin } = await addAdminRole(user.id, user.email, user.name);
             if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System Admin and cannot be assigned to a specific academy.' });
             if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already an admin for this academy.` });
-            return res.status(200).json({ message: `Successfully promoted existing user ${email} to Academy Admin and created a Personal Workspace.` });
+            return res.status(200).json({ message: `Successfully promoted existing user ${email} to Organization Admin and created a Personal Workspace.` });
         } else {
             const newUserRef = usersCollection.doc();
             const newAdminUser: Omit<DBUser, 'createdAt' | 'googleId' | 'passwordHash'> = {
@@ -186,7 +186,7 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
             const academyName = academyDoc.exists ? (academyDoc.data()?.name || 'Gymind') : 'Gymind';
             await sendAccountVerificationEmail(email, newAdminUser.name, verificationLink, academyName, 'academy_admin');
-            return res.status(201).json({ message: `Successfully created Academy Admin for ${email}. A verification email and a new Personal Workspace have been prepared.` });
+            return res.status(201).json({ message: `Successfully created Organization Admin for ${email}. A verification email and a new Personal Workspace have been prepared.` });
         }
     } catch (error) {
         logger.error(`Error adding academy admin for academy ${academyId}:`, error);
@@ -206,7 +206,7 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
         // --- Authorization Check ---
         const academyDoc = await academiesCollection.doc(academyId).get();
         if (!academyDoc.exists) {
-            return res.status(404).json({ message: "Academy not found." });
+            return res.status(404).json({ message: "Organization not found." });
         }
 
         let isAuthorized = false;
@@ -239,12 +239,12 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
         const remainingMemberships = memberships.filter(m => m.id !== adminMembership.id);
 
         if (remainingMemberships.length === 0) {
-            logger.info(`User ${userId} only had this admin role. Reassigning to Default Organization instead of deleting.`);
+            logger.info(`User ${userId} only had this admin role. Reassigning to Default Workspace instead of deleting.`);
 
-            // Find the Default Organization for this Academy
+            // Find the Default Workspace for this Organization
             const defaultOrgSnapshot = await organizationsCollection
                 .where('academyId', '==', academyId)
-                .where('name', '==', 'Default Organization')
+                .where('name', '==', 'Default Workspace')
                 .limit(1).get();
 
             if (!defaultOrgSnapshot.empty) {
@@ -260,14 +260,14 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
                     academyId,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
-                return res.status(200).json({ message: `Admin privileges removed. The user has been reassigned to the Default Organization as a regular user.` });
+                return res.status(200).json({ message: `Admin privileges removed. The user has been reassigned to the Default Workspace as a regular user.` });
             } else {
                 // Should not happen if data integrity is maintained, but handling just in case
-                logger.error(`Default Organization not found for academy ${academyId}. User ${userId} is left without roles.`);
+                logger.error(`Default Workspace not found for academy ${academyId}. User ${userId} is left without roles.`);
                 return res.status(200).json({ message: `Admin privileges removed. User has no remaining roles.` });
             }
         } else {
-            logger.info(`Successfully removed Academy Admin privileges for user ${userId}. They have other roles.`);
+            logger.info(`Successfully removed Organization Admin privileges for user ${userId}. They have other roles.`);
             return res.status(200).json({ message: `Admin privileges removed. The user has been demoted.` });
         }
     } catch (error) {
@@ -310,7 +310,7 @@ export const checkNameUniqueness = async (req: Request, res: Response) => {
     const { name } = req.query;
 
     if (!name || typeof name !== 'string') {
-        return res.status(400).json({ message: 'Academy name is required.' });
+        return res.status(400).json({ message: 'Organization name is required.' });
     }
 
     try {
@@ -333,7 +333,7 @@ export const setupAcademy = async (req: Request, res: Response) => {
     const partialToken = req.user as JwtMultiOrgPayload;
 
     if (!academyName) {
-        return res.status(400).json({ message: 'Academy name is required.' });
+        return res.status(400).json({ message: 'Organization name is required.' });
     }
     if (!partialToken || partialToken.action !== 'academy-setup') {
         return res.status(401).json({ message: 'Invalid token for academy setup.' });
@@ -347,7 +347,7 @@ export const setupAcademy = async (req: Request, res: Response) => {
         await db.runTransaction(async (transaction) => {
             const academySnapshot = await transaction.get(academiesCollection.where('name', '==', sanitizedName).limit(1));
             if (!academySnapshot.empty) {
-                throw new Error('Academy name is already taken.');
+                throw new Error('Organization name is already taken.');
             }
 
             const userDoc = await transaction.get(usersCollection.doc(userId));
@@ -416,10 +416,10 @@ export const setupAcademy = async (req: Request, res: Response) => {
             transaction.set(settingsRef, { ...defaultSettings, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         });
 
-        res.status(201).json({ message: 'Academy created successfully. Proceed to payment.' });
+        res.status(201).json({ message: 'Organization created successfully. Proceed to payment.' });
 
     } catch (error: any) {
-        if (error.message === 'Academy name is already taken.' || error.message.includes('already an administrator')) {
+        if (error.message === 'Organization name is already taken.' || error.message.includes('already an administrator')) {
             return res.status(409).json({ message: error.message });
         }
         logger.error(`Error setting up academy for user ${partialToken.id}:`, error);

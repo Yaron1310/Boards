@@ -104,7 +104,7 @@ const TutorialSettingsPage: React.FC = () => {
                 </h1>
                 
                 <p className="text-gray-600 mb-6">
-                    Configure tutorial videos for Academy Admin pages. When enabled, a "Watch a tutorial" link will appear on the corresponding page for Academy Admins.
+                    Configure tutorial videos for Organization Admin pages. When enabled, a "Watch a tutorial" link will appear on the corresponding page for Organization Admins.
                 </p>
 
                 {feedback && (

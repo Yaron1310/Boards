@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, useRef, ReactNode, useCallback, useMemo } from 'react';
-import type { User, Organization, UserRole, Academy } from '../types';
+import type { User, Workspace, UserRole, Organization } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import * as apiService from '../services/geminiService';
 import { Capacitor } from '@capacitor/core';
@@ -9,12 +9,12 @@ import i18n from '../i18n';
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  selectedOrganization: (Organization & { hasChatAccess?: boolean, hasMindPatternsAccess?: boolean }) | null;
+  selectedOrganization: (Workspace & { hasChatAccess?: boolean, hasMindPatternsAccess?: boolean }) | null;
   isOrgSubscriptionActive: boolean;
 
   // New state for multi-context flow, replacing the old multi-org flow
   contextSelectionMode: 'login' | 'switch' | null;
-  userForContextSelection: (Omit<User, 'role'> & { organizations: Organization[], allAcademies?: Academy[] }) | null;
+  userForContextSelection: (Omit<User, 'role'> & { organizations: Workspace[], allAcademies?: Organization[] }) | null;
   availableContexts: { groupName: string, contexts: { label: string; value: string; role: UserRole }[] }[];
 
 
@@ -59,8 +59,8 @@ const getStoredUser = (): User | null => {
     const userString = localStorage.getItem('authUser');
     return userString ? JSON.parse(userString) : null;
 };
-const storeSelectedOrg = (org: Organization) => localStorage.setItem('authSelectedOrg', JSON.stringify(org));
-const getSelectedOrg = (): Organization | null => {
+const storeSelectedOrg = (org: Workspace) => localStorage.setItem('authSelectedOrg', JSON.stringify(org));
+const getSelectedOrg = (): Workspace | null => {
     const orgString = localStorage.getItem('authSelectedOrg');
     return orgString ? JSON.parse(orgString) : null;
 };
@@ -84,7 +84,7 @@ const removeAuthData = () => {
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
+  const [selectedOrganization, setSelectedOrganization] = useState<Workspace | null>(null);
   const [loading, setLoading] = useState(() => {
     // Only enter loading state if there is an existing session to validate.
     // Fresh unauthenticated visitors have nothing to validate, so starting
@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [contextSelectionMode, setContextSelectionMode] = useState<'login' | 'switch' | null>(null);
-  const [userForContextSelection, setUserForContextSelection] = useState<(Omit<User, 'role'> & { organizations: Organization[], allAcademies?: Academy[] }) | null>(null);
+  const [userForContextSelection, setUserForContextSelection] = useState<(Omit<User, 'role'> & { organizations: Workspace[], allAcademies?: Organization[] }) | null>(null);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
 
 
@@ -387,7 +387,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAuthError(null);
     try {
         const data = await apiService.registerAcademyAdmin(userData, planId, recaptchaToken);
-        console.log('[AUTH_FLOW] Academy admin registered. Handling partial login.');
+        console.log('[AUTH_FLOW] Organization admin registered. Handling partial login.');
         setUser(data.user);
         setToken('cookie');
         storeUser(data.user);
@@ -603,7 +603,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 1. System Admin role
     if (systemAdmin) {
-        const defaultOrg = userForContexts.organizations.find(o => o.name === 'Default Organization') || userForContexts.organizations[0];
+        const defaultOrg = userForContexts.organizations.find(o => o.name === 'Default Workspace') || userForContexts.organizations[0];
         if (defaultOrg) {
             const contextValue = JSON.stringify({ role: 'system_admin', organizationId: defaultOrg.id });
             if (!addedContexts.has(contextValue)) {
@@ -613,12 +613,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }
 
-    // 2. Academy Admin roles
+    // 2. Organization Admin roles
     const academiesForAdminRole = systemAdmin
         ? (userForContexts.allAcademies || [])
         : assignedAcademyAdmins.map(academyId => {
             const orgForName = userForContexts.organizations.find(o => o.academyId === academyId);
-            return { id: academyId, name: orgForName?.academyName || 'Unknown Academy' };
+            return { id: academyId, name: orgForName?.academyName || 'Unknown Organization' };
         });
 
     const academyAdminAcademyIds = new Set(academiesForAdminRole.map(a => a.id));
@@ -634,7 +634,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     });
 
-    // 3. Organization Admin roles
+    // 3. Workspace Admin roles
     assignedOrgAdmins.forEach(orgId => {
       const org = userForContexts.organizations.find(o => o.id === orgId);
       // Only hide if it's a personal workspace in an academy they manage
@@ -642,7 +642,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (org && !isManagedPersonalOrg && !academyAdminAcademyIds.has(org.academyId)) {
         const contextValue = JSON.stringify({ role: 'organization_admin', organizationId: org.id });
         if (!addedContexts.has(contextValue)) {
-            contexts.push({ label: `${org.name} Manager`, value: contextValue, role: 'organization_admin', academyName: org.academyName || 'Unknown Academy' });
+            contexts.push({ label: `${org.name} Manager`, value: contextValue, role: 'organization_admin', academyName: org.academyName || 'Unknown Organization' });
             addedContexts.add(contextValue);
         }
       }
@@ -652,19 +652,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     userForContexts.organizations.forEach(org => {
       // Only hide if it's a personal workspace in an academy they manage
       const isManagedPersonalOrg = org.isPersonal && academyAdminAcademyIds.has(org.academyId);
-      if (org.name === 'Default Organization' || isManagedPersonalOrg || systemAdmin) return;
+      if (org.name === 'Default Workspace' || isManagedPersonalOrg || systemAdmin) return;
 
       if (!academyAdminAcademyIds.has(org.academyId) && !assignedOrgAdmins.includes(org.id)) {
         const contextValue = JSON.stringify({ role: 'regular_user', organizationId: org.id });
         if (!addedContexts.has(contextValue)) {
-            contexts.push({ label: `${org.name} User`, value: contextValue, role: 'regular_user', academyName: org.academyName || 'Unknown Academy' });
+            contexts.push({ label: `${org.name} User`, value: contextValue, role: 'regular_user', academyName: org.academyName || 'Unknown Organization' });
             addedContexts.add(contextValue);
         }
       }
     });
 
     const grouped = contexts.reduce((acc, ctx) => {
-        const groupName = ctx.academyName === 'System-Wide' ? 'System Administration' : `Academy: ${ctx.academyName}`;
+        const groupName = ctx.academyName === 'System-Wide' ? 'System Administration' : `Organization: ${ctx.academyName}`;
         if (!acc[groupName]) acc[groupName] = [];
         acc[groupName].push(ctx);
         return acc;

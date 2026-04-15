@@ -174,7 +174,7 @@ export const formatUserForFrontend = async (
             const academiesData = academyFetchSnapshots.flatMap(snap => querySnapshotToArray<DBAcademy>(snap));
             const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
             userOrgs.forEach((org => {
-                org.academyName = academyMap.get(org.academyId) || 'Unknown Academy';
+                org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
             }));
         }
     }
@@ -200,7 +200,7 @@ export const formatUserForFrontend = async (
 export const generateFullLoginResponse = async (user: DBUser, selectedOrganizationId: string, memberships: DBMembership[], sessionRole?: UserRole) => {
     const orgDoc = await organizationsCollection.doc(selectedOrganizationId).get();
     if (!orgDoc.exists) {
-        throw new Error(`Organization ${selectedOrganizationId} not found for user ${user.id}`);
+        throw new Error(`Workspace ${selectedOrganizationId} not found for user ${user.id}`);
     }
     const selectedOrganization = snapshotToData<DBOrganization>(orgDoc)!;
     const academyId = selectedOrganization.academyId;
@@ -266,7 +266,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
 
     if (systemAdmin) {
         if (user.organizations.length > 0) {
-            const defaultOrg = user.organizations.find((o:any) => o.name === 'Default Organization' || o.id === 'default_org') || user.organizations[0];
+            const defaultOrg = user.organizations.find((o:any) => o.name === 'Default Workspace' || o.id === 'default_org') || user.organizations[0];
             const contextKey = `${UserRole.SYSTEM_ADMIN}|${defaultOrg.id}`;
             if (!addedContexts.has(contextKey)) {
                 contexts.push({ role: UserRole.SYSTEM_ADMIN, organizationId: defaultOrg.id });
@@ -298,14 +298,14 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
                     addedContexts.add(contextKey);
                 }
             } else {
-                logger.warn(`Academy '${academy.name}' (${academy.id}) has no organizations. Cannot create an Academy Admin context for it.`);
+                logger.warn(`Organization '${academy.name}' (${academy.id}) has no organizations. Cannot create an Organization Admin context for it.`);
             }
         }
     } else {
         academyAdmin.forEach((academyId: string) => {
-            // Academy Admin context is ONLY available for organizations the user is EXPLICITLY a member of in that academy.
+            // Organization Admin context is ONLY available for organizations the user is EXPLICITLY a member of in that academy.
             // This prevents them from assuming AA role for organizations they are not part of.
-            const userOrgsInAcademy = user.organizations.filter((o: any) => o.academyId === academyId && o.name !== 'Default Organization');
+            const userOrgsInAcademy = user.organizations.filter((o: any) => o.academyId === academyId && o.name !== 'Default Workspace');
             userOrgsInAcademy.forEach((org: any) => {
                 const contextKey = `${UserRole.ACADEMY_ADMIN}|${org.id}`;
                 if (!addedContexts.has(contextKey)) {
@@ -316,7 +316,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
         });
 
         organizationAdmin.forEach((orgId: string) => {
-            const org = user.organizations.find((o: any) => o.id === orgId && o.name !== 'Default Organization');
+            const org = user.organizations.find((o: any) => o.id === orgId && o.name !== 'Default Workspace');
             const isCoveredByAcademyAdmin = academyAdmin.includes(org?.academyId || '');
             if (org && !isCoveredByAcademyAdmin) {
                 const contextKey = `${UserRole.ORGANIZATION_ADMIN}|${org.id}`;
@@ -328,7 +328,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
         });
 
         user.organizations.forEach((org: any) => {
-            if (org.name === 'Default Organization') return;
+            if (org.name === 'Default Workspace') return;
 
             const isAcademyAdminForThisOrg = academyAdmin.includes(org.academyId);
             const isOrgManagerForThisOrg = organizationAdmin.includes(org.id);
@@ -344,9 +344,9 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
     }
 
     // Special case: If after all checks, no contexts are found, check if the user's ONLY organization
-    // is the "Default Organization". If so, grant them a limited login context.
-    if (contexts.length === 0 && user.organizations.length === 1 && user.organizations[0].name === 'Default Organization') {
-        logger.info(`User ${user.id} has no active contexts, but is a regular user in Default Organization. Granting limited login context.`);
+    // is the "Default Workspace". If so, grant them a limited login context.
+    if (contexts.length === 0 && user.organizations.length === 1 && user.organizations[0].name === 'Default Workspace') {
+        logger.info(`User ${user.id} has no active contexts, but is a regular user in Default Workspace. Granting limited login context.`);
         contexts.push({ role: UserRole.REGULAR_USER, organizationId: user.organizations[0].id });
     }
 
@@ -386,7 +386,7 @@ export const register = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'User with this email already exists.' });
         }
 
-        // Standard Organization Pre-approved Flow
+        // Standard Workspace Pre-approved Flow
         const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
         if (preapprovedQuery.empty) {
             logger.warn(`Registration attempt by non-pre-approved email: ${email}`);
@@ -484,7 +484,7 @@ export const registerAcademyAdmin = async (req: Request, res: Response) => {
         const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
         
         // Since the academy isn't created yet, we use a generic name.
-        await sendAccountVerificationEmail(email, name, verificationLink, "Your New Academy");
+        await sendAccountVerificationEmail(email, name, verificationLink, "Your New Organization");
 
         res.status(201).json({
             success: true,
@@ -492,7 +492,7 @@ export const registerAcademyAdmin = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        logger.error("Academy admin registration error:", error);
+        logger.error("Organization admin registration error:", error);
         res.status(500).json({ message: 'Server error during academy admin registration.' });
     }
 };
@@ -575,7 +575,7 @@ export const login = async (req: Request, res: Response) => {
                     const academiesData = querySnapshotToArray<DBAcademy>(academiesSnapshot);
                     const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
-                        org.academyName = academyMap.get(org.academyId) || 'Unknown Academy';
+                        org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
                     });
                 }
                 userForFrontend.organizations = allOrgs;
@@ -694,7 +694,7 @@ export const selectContext = async (req: Request, res: Response) => {
         const memberships = querySnapshotToArray<DBMembership>(membershipsSnapshot);
 
         const orgDoc = await organizationsCollection.doc(organizationId).get();
-        if (!orgDoc.exists) return res.status(404).json({ message: "Organization not found." });
+        if (!orgDoc.exists) return res.status(404).json({ message: "Workspace not found." });
         const targetOrg = snapshotToData<DBOrganization>(orgDoc)!;
         const targetAcademyId = targetOrg.academyId;
 
@@ -739,7 +739,7 @@ export const switchContext = async (req: Request, res: Response) => {
         const memberships = querySnapshotToArray<DBMembership>(membershipsSnapshot);
         
         const orgDoc = await organizationsCollection.doc(organizationId).get();
-        if (!orgDoc.exists) return res.status(404).json({ message: "Organization not found." });
+        if (!orgDoc.exists) return res.status(404).json({ message: "Workspace not found." });
         const targetOrg = snapshotToData<DBOrganization>(orgDoc)!;
         const targetAcademyId = targetOrg.academyId;
 
@@ -781,7 +781,7 @@ export const verifyAccount = async (req: Request, res: Response) => {
         const user = snapshotToData<DBUser>(userDoc)!;
 
         if (decoded.action === 'verify_academy_admin') {
-            if (user.status === 'active') return res.redirect(`${env.FRONTEND_URL}/login?message=Academy%20account%20already%20active.`);
+            if (user.status === 'active') return res.redirect(`${env.FRONTEND_URL}/login?message=Organization%20account%20already%20active.`);
             if (user.status !== 'pending' && user.status !== 'pending_setup') return res.redirect(`${env.FRONTEND_URL}/login?message=Account%20status%20is%20not%20pending.`);
             
             await userRef.update({ status: 'pending_setup' });
@@ -918,7 +918,7 @@ export const getGoogleLoginFinalization = async (req: Request, res: Response) =>
                     const academiesData = querySnapshotToArray<DBAcademy>(academiesSnapshot);
                     const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
-                        org.academyName = academyMap.get(org.academyId) || 'Unknown Academy';
+                        org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
                     });
                 }
                 userForFrontend.organizations = allOrgs;
@@ -1059,7 +1059,7 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                     const academiesData = querySnapshotToArray<DBAcademy>(academiesSnapshot);
                     const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
-                        org.academyName = academyMap.get(org.academyId) || 'Unknown Academy';
+                        org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
                     });
                 }
                 userForFrontend.organizations = allOrgs;
@@ -1212,7 +1212,7 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                     const academiesData = querySnapshotToArray<DBAcademy>(academiesSnapshot);
                     const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
-                        org.academyName = academyMap.get(org.academyId) || 'Unknown Academy';
+                        org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
                     });
                 }
                 userForFrontend.organizations = allOrgs;
@@ -1259,7 +1259,7 @@ export const finalizeAcademySetup = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        logger.error("Academy setup finalization error:", error);
+        logger.error("Organization setup finalization error:", error);
         res.status(500).json({ message: "Failed to finalize academy setup." });
     }
 };

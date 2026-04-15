@@ -28,7 +28,7 @@ const MainLayout = React.lazy(() => import('./components/layout/MainLayout'));
 // -- User chunk --
 const ProfilePage = React.lazy(() => import('./components/profile/ProfilePage'));
 
-// -- Academy/org-admin chunk --
+// -- Organization/org-admin chunk --
 const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'));
 const UserManagementPage = React.lazy(() => import('./components/admin/UserManagementPage'));
 const OrganizationManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));

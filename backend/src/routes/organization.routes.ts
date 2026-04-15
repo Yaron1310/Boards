@@ -18,7 +18,7 @@ organizationRouter.put('/:id', requireRole(adminRoles), orgController.updateOrga
 organizationRouter.put('/:id/restore', requireRole(adminRoles), orgController.restoreOrganization);
 organizationRouter.delete('/:id', requireRole(adminRoles), orgController.deleteOrganization);
 
-// Academy Admin routes for managing organization managers
+// Organization Admin routes for managing organization managers
 organizationRouter.post('/:organizationId/admins', requireRole(adminRoles), orgController.addOrganizationManager);
 organizationRouter.delete('/:organizationId/admins/:userId', requireRole(adminRoles), orgController.removeOrganizationManager);
 organizationRouter.delete('/:organizationId/users/:userId', requireRole(managerAndAdminRoles), orgController.removeUserFromOrganization);

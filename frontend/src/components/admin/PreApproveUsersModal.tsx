@@ -3,14 +3,14 @@ import React, { useState, useMemo, ChangeEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
 import { useData } from '../../hooks/useData';
-import type { Organization, PreApprovedUser } from '../../types'; 
+import type { Workspace, PreApprovedUser } from '../../types'; 
 import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 
 interface PreApproveUsersModalProps {
     isOpen: boolean;
     onClose: () => void;
-    organization: Organization | null;
+    organization: Workspace | null;
     maxUsers: number | null;
     currentRegularUsersCount: number;
     pendingInvitesCount: number;

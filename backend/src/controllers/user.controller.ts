@@ -77,7 +77,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                 if (membershipSnapshot.empty) {
                     const defaultOrgSnapshot = await organizationsCollection
                         .where('academyId', '==', orgData.academyId)
-                        .where('name', '==', 'Default Organization')
+                        .where('name', '==', 'Default Workspace')
                         .limit(1)
                         .get();
 
@@ -92,7 +92,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                             if (!defaultOrgMembershipSnapshot.empty) {
                                 defaultOrgMembershipSnapshot.forEach(doc => {
                                     batch.delete(doc.ref);
-                                    logger.info(`User ${user.email} removed from Default Organization (${defaultOrgId}) because they are being added to a new one.`);
+                                    logger.info(`User ${user.email} removed from Default Workspace (${defaultOrgId}) because they are being added to a new one.`);
                                 });
                             }
                         }

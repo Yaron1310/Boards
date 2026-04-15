@@ -171,8 +171,8 @@ export const sendAccountVerificationEmail = async (
 };
 
 const buildFallbackVerificationSubject = (inviteRole?: string, academyName?: string, orgName?: string): string => {
-    if (inviteRole === 'academy_admin') return `You've been invited as an Academy Admin for ${academyName}`;
-    if (inviteRole === 'org_manager') return `You've been invited as an Organization Manager for ${orgName || academyName}`;
+    if (inviteRole === 'academy_admin') return `You've been invited as an Organization Admin for ${academyName}`;
+    if (inviteRole === 'org_manager') return `You've been invited as an Workspace Manager for ${orgName || academyName}`;
     return `Verify Your Email for ${academyName}`;
 };
 
@@ -182,11 +182,11 @@ const buildFallbackVerificationHtml = (
     let introLine: string;
     let ignoreNote: string;
     if (inviteRole === 'academy_admin') {
-        introLine = `You've been invited to join <strong>${academyName}</strong> as an Academy Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+        introLine = `You've been invited to join <strong>${academyName}</strong> as an Organization Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else if (inviteRole === 'org_manager') {
         const entityName = orgName || academyName;
-        introLine = `You've been invited to join <strong>${entityName}</strong> as an Organization Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+        introLine = `You've been invited to join <strong>${entityName}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else {
         introLine = 'Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.';

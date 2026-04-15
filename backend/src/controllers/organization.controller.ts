@@ -42,10 +42,10 @@ export const createOrganization = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     const { name, academyId } = req.body;
 
-    if (!name) return res.status(400).json({ message: 'Organization name is required.' });
+    if (!name) return res.status(400).json({ message: 'Workspace name is required.' });
 
     const targetAcademyId = user.role === UserRole.SYSTEM_ADMIN ? academyId : user.academyId;
-    if (!targetAcademyId) return res.status(400).json({ message: 'Academy ID is required.' });
+    if (!targetAcademyId) return res.status(400).json({ message: 'Organization ID is required.' });
 
     try {
         const newDocRef = organizationsCollection.doc();
@@ -76,7 +76,7 @@ export const updateOrganization = async (req: Request, res: Response) => {
     try {
         const docRef = organizationsCollection.doc(id);
         const doc = await docRef.get();
-        if (!doc.exists) return res.status(404).json({ message: "Organization not found." });
+        if (!doc.exists) return res.status(404).json({ message: "Workspace not found." });
         if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.academyId !== user.academyId) {
             return res.status(403).json({ message: "Forbidden." });
         }
@@ -163,7 +163,7 @@ export const restoreOrganization = async (req: Request, res: Response) => {
     try {
         const docRef = organizationsCollection.doc(id);
         const doc = await docRef.get();
-        if (!doc.exists) return res.status(404).json({ message: "Organization not found." });
+        if (!doc.exists) return res.status(404).json({ message: "Workspace not found." });
         if (user.role === UserRole.ACADEMY_ADMIN && doc.data()?.academyId !== user.academyId) {
             return res.status(403).json({ message: "Forbidden." });
         }
@@ -224,9 +224,9 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
         if (!userSnapshot.empty) {
             const user = snapshotToData<DBUser>(userSnapshot.docs[0])!;
             const { isHigherAdmin, alreadyAdmin } = await addManagerRole(user.id);
-            if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System or Academy Admin and cannot be assigned as an Organization Manager.' });
+            if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System or Organization Admin and cannot be assigned as an Workspace Manager.' });
             if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already a manager of this organization.` });
-            return res.status(200).json({ message: `Successfully promoted existing user ${email} to Organization Manager.` });
+            return res.status(200).json({ message: `Successfully promoted existing user ${email} to Workspace Manager.` });
         } else {
             const newUserRef = usersCollection.doc();
             const newAdminUser: Omit<DBUser, 'createdAt' | 'googleId' | 'passwordHash'> = {
@@ -245,7 +245,7 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
             const academyDoc = await academiesCollection.doc(orgDoc.data()!.academyId).get();
             const academyName = academyDoc.exists ? (academyDoc.data() as DBAcademy).name : 'Gymind';
             await sendAccountVerificationEmail(email, newAdminUser.name, verificationLink, academyName, 'org_manager', orgData.name);
-            return res.status(201).json({ message: `Successfully created Organization Manager for ${email}. A verification email has been sent to them.` });
+            return res.status(201).json({ message: `Successfully created Workspace Manager for ${email}. A verification email has been sent to them.` });
         }
     } catch (error) {
         logger.error(`Error adding manager to org ${organizationId}:`, error);
@@ -296,7 +296,7 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
              return res.status(403).json({ message: "You can only remove users from your own organization." });
         }
         const orgDoc = await organizationsCollection.doc(organizationId).get();
-        if (!orgDoc.exists) return res.status(404).json({ message: "Organization not found." });
+        if (!orgDoc.exists) return res.status(404).json({ message: "Workspace not found." });
         const organizationData = snapshotToData<DBOrganization>(orgDoc)!;
         if (requestingUser.role === UserRole.ACADEMY_ADMIN && organizationData.academyId !== requestingUser.academyId) {
             return res.status(403).json({ message: "You cannot remove users from an organization outside your academy." });
@@ -314,12 +314,12 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
         const batch = db.batch();
         membershipsSnapshot.forEach(doc => batch.delete(doc.ref));
 
-        // If user has no other memberships, move them to the Default Organization for the academy
+        // If user has no other memberships, move them to the Default Workspace for the academy
         const allMembershipsSnapshot = await membershipsCollection.where('userId', '==', userId).get();
         const remainingMemberships = allMembershipsSnapshot.docs.filter(doc => !membershipsSnapshot.docs.some(d => d.id === doc.id));
 
         if (remainingMemberships.length === 0) {
-            const defaultOrgSnapshot = await organizationsCollection.where('academyId', '==', organizationData.academyId).where('name', '==', 'Default Organization').limit(1).get();
+            const defaultOrgSnapshot = await organizationsCollection.where('academyId', '==', organizationData.academyId).where('name', '==', 'Default Workspace').limit(1).get();
             if (!defaultOrgSnapshot.empty) {
                 const defaultOrgId = defaultOrgSnapshot.docs[0].id;
                 const newMembershipRef = membershipsCollection.doc();
@@ -332,9 +332,9 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
                     academyId: organizationData.academyId,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
-                logger.info(`User ${userId} was reassigned to Default Organization after removal from ${organizationId}.`);
+                logger.info(`User ${userId} was reassigned to Default Workspace after removal from ${organizationId}.`);
             } else {
-                 logger.warn(`Could not find Default Organization for academy ${organizationData.academyId} to reassign user ${userId}.`);
+                 logger.warn(`Could not find Default Workspace for academy ${organizationData.academyId} to reassign user ${userId}.`);
             }
         }
 
