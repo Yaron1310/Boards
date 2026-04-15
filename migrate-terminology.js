@@ -14,16 +14,16 @@ const EXCLUDE_PATTERNS = [
 ];
 
 const MIGRATIONS = [
-  {
-    name: 'Workspace → Workspace',
-    pattern: /\bOrganization\b/g,
-    replacement: 'Workspace',
-  },
-  {
-    name: 'Organization → Workspace',
-    pattern: /\bAcademy\b/g,
-    replacement: 'Workspace',
-  },
+  // Plurals first (must run before singulars)
+  { name: 'Organizations → Workspaces', pattern: /\bOrganizations\b/g, replacement: 'Workspaces' },
+  { name: 'organizations → workspaces', pattern: /\borganizations\b/g, replacement: 'workspaces' },
+  { name: 'Academies → Organizations',  pattern: /\bAcademies\b/g,     replacement: 'Organizations' },
+  { name: 'academies → organizations',  pattern: /\bacademies\b/g,      replacement: 'organizations' },
+  // Singulars second
+  { name: 'Organization → Workspace',   pattern: /\bOrganization\b/g,   replacement: 'Workspace' },
+  { name: 'organization → workspace',   pattern: /\borganization\b/g,   replacement: 'workspace' },
+  { name: 'Academy → Organization',     pattern: /\bAcademy\b/g,        replacement: 'Organization' },
+  { name: 'academy → organization',     pattern: /\bacademy\b/g,        replacement: 'organization' },
 ];
 
 const DRY_RUN = process.argv.includes('--apply') === false;
