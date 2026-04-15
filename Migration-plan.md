@@ -301,11 +301,98 @@ maxLength
 precision
 
 🔐 PHASE 5 — Security Rules
-Update rules for the new 6-level hierarchy:
 
-* Organizations: Only members can read.
-* Workspaces: Only members of the parent Org can read.
-* Items: Read/Write if user.organizationId == item.organizationId.
+### 5.0 — Foundation
+All authorization is enforced at the Express backend layer. Firestore rules stay deny-all — the backend is the sole trust boundary.
+
+JWT payload carries: `userId`, `role`, `orgId` (tenant), `selectedOrganizationId` (workspace).
+
+Tenant isolation rule: every Firestore query must filter by `organizationId === user.orgId`.
+
+Role hierarchy (lowest → highest): `REGULAR_USER` < `ORGANIZATION_ADMIN` < `ACADEMY_ADMIN` < `SYSTEM_ADMIN`
+
+`SYSTEM_ADMIN` bypasses all tenancy checks.
+
+Implementation: `backend/src/utils/workManagementAuth.ts` — authorization helper functions used by Phase 6 controllers.
+
+---
+
+### 5.1 — Organizations & Workspaces
+Carry-over from Phase 2/3 (already implemented). No changes.
+* Organizations: read/write by ACADEMY\_ADMIN (own org) or SYSTEM\_ADMIN.
+* Workspaces: CRUD by ORGANIZATION\_ADMIN (own), ACADEMY\_ADMIN (own org), SYSTEM\_ADMIN.
+
+---
+
+### 5.2 — Boards
+| Operation | Who |
+|-----------|-----|
+| Read list | Any member whose `orgId` matches `board.organizationId` |
+| Read single | Same — or ACADEMY\_ADMIN+ for any board in their org |
+| Create | ORGANIZATION\_ADMIN+, scoped to their workspaceId |
+| Update | Board creator (`createdBy === userId`) OR ORGANIZATION\_ADMIN (own workspace) OR ACADEMY\_ADMIN+ |
+| Archive (soft-delete) | ORGANIZATION\_ADMIN (own workspace) OR ACADEMY\_ADMIN+ |
+| Hard-delete | ACADEMY\_ADMIN or SYSTEM\_ADMIN only |
+
+Validation on write:
+* `board.organizationId` must equal `user.orgId`
+* `board.workspaceId` must be an existing workspace under that orgId
+
+---
+
+### 5.3 — Groups
+| Operation | Who |
+|-----------|-----|
+| Read | Same access as the parent board |
+| Create / Update | ORGANIZATION\_ADMIN+ OR board creator |
+| Delete | ORGANIZATION\_ADMIN+ (hard-delete acceptable for groups) |
+
+Validation on write:
+* `group.boardId` must exist in `boardsCollection(user.orgId)` — prevents cross-tenant injection
+
+---
+
+### 5.4 — Items
+| Operation | Who |
+|-----------|-----|
+| Read | `item.organizationId === user.orgId` OR `userId in item.assignees` |
+| Create | Member of the workspace: `selectedOrganizationId === item.workspaceId` |
+| Update | Item creator (`createdBy`) OR assignee (`userId in item.assignees`) OR ORGANIZATION\_ADMIN+ |
+| Archive | Item creator OR ORGANIZATION\_ADMIN+ |
+| Hard-delete | ORGANIZATION\_ADMIN+ only |
+
+Ownership chain validation on create/update:
+1. `boardId` must exist under `boardsCollection(user.orgId)`
+2. `groupId` must exist under `groupsCollection(user.orgId, boardId)`
+3. `board.workspaceId` must equal `item.workspaceId` — no cross-workspace item injection
+
+Column value validation on every write: run `validateColumnValue()` for each key in `values` map.
+
+---
+
+### 5.5 — Columns
+| Operation | Who |
+|-----------|-----|
+| Read | Any org member (`orgId` match) — needed to render board UI |
+| Create / Update / Delete | ORGANIZATION\_ADMIN, ACADEMY\_ADMIN, SYSTEM\_ADMIN |
+
+Validation on write:
+* `column.organizationId` must equal `user.orgId`
+* `column.type` must be a valid `ColumnType` enum value
+
+---
+
+### 5.6 — Cross-Cutting Rules
+* Field-length middleware applied to all new routes (already exists).
+* Rate limiting: authenticated limiter (200 req/15 min) for boards/items/groups/columns routes.
+* Archived items (`isArchived: true`) excluded from list queries by default; require explicit `includeArchived` flag.
+* `SYSTEM_ADMIN` bypass follows the same pattern as existing controllers.
+
+---
+
+### Out of Scope (deferred)
+* Board-level role sharing (inviting collaborators to a specific board) → Phase 9
+* Row-level column visibility permissions → post-MVP
 
 ⚙️ PHASE 6 — Backend APIs
 Build new endpoints:

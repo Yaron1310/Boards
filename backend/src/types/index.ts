@@ -317,7 +317,13 @@ export interface DBItem {
 // --- AUDIT LOGGING ---
 
 export type AuditAction = 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'ANOMALY';
-export type AuditResourceType = 'user' | 'workspace' | 'workspace';
+export type AuditResourceType =
+  | 'user'
+  | 'workspace'
+  | 'board'
+  | 'group'
+  | 'item'
+  | 'column';
 
 export interface DBAuditLog {
   id: string;
