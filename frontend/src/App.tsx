@@ -28,7 +28,7 @@ const MainLayout = React.lazy(() => import('./components/layout/MainLayout'));
 // -- User chunk --
 const ProfilePage = React.lazy(() => import('./components/profile/ProfilePage'));
 
-// -- Organization/org-admin chunk --
+// -- Workspace/org-admin chunk --
 const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'));
 const UserManagementPage = React.lazy(() => import('./components/admin/UserManagementPage'));
 const OrganizationManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));
@@ -174,8 +174,8 @@ const App: React.FC = () => {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="/setup-academy" element={<AcademySetupWizard />} />
-          <Route path="*" element={<Navigate to="/setup-academy" replace />} />
+          <Route path="/setup-organization" element={<AcademySetupWizard />} />
+          <Route path="*" element={<Navigate to="/setup-organization" replace />} />
         </Routes>
       </BrowserRouter>
     );
@@ -192,10 +192,10 @@ const App: React.FC = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={user ? <Navigate to={redirectPath} /> : <LoginPage />} />
         <Route path="/register" element={user ? <Navigate to={redirectPath} /> : <RegistrationPage />} />
-        <Route path="/register-academy" element={user ? <Navigate to={redirectPath} /> : <AcademyRegistrationPage />} />
+        <Route path="/register-organization" element={user ? <Navigate to={redirectPath} /> : <AcademyRegistrationPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/google/callback" element={<GoogleAuthCallbackPage />} />
-        <Route path="/auth/academy/callback" element={<AcademyAuthCallbackPage />} />
+        <Route path="/auth/organization/callback" element={<AcademyAuthCallbackPage />} />
         <Route path="/verify-account" element={<VerifyAccountPage />} />
         <Route path="/approve-user" element={<UserApprovalPage />} />
         <Route path="/legal" element={<LegalPage />} />
@@ -245,7 +245,7 @@ const App: React.FC = () => {
               }
             />
             <Route
-              path="/admin/organizations"
+              path="/admin/workspaces"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.ACADEMY_ADMIN]}>
                   <OrganizationManagementPage />
@@ -261,7 +261,7 @@ const App: React.FC = () => {
               }
             />
             <Route
-              path="/admin/academies"
+              path="/admin/organizations"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]}>
                   <AcademyManagementPage />

@@ -11,7 +11,7 @@ export const authRouter = Router();
 
 // Local Registration & Login — strict rate limiting + reCAPTCHA v3
 authRouter.post('/register', authStrictLimiter, verifyRecaptcha, authController.register);
-authRouter.post('/register-academy-admin', authStrictLimiter, verifyRecaptcha, authController.registerAcademyAdmin);
+authRouter.post('/register-organization-admin', authStrictLimiter, verifyRecaptcha, authController.registerAcademyAdmin);
 authRouter.post('/login', authStrictLimiter, verifyRecaptcha, authController.login);
 authRouter.post('/logout', authModerateLimiter, authController.logout);
 authRouter.post('/select-context', authModerateLimiter, authenticatePartialToken, authController.selectContext);
@@ -59,5 +59,5 @@ if (env.MICROSOFT_CLIENT_ID) {
 // Endpoint for frontend to get final token after Google redirect if multi-org
 authRouter.get('/google/finalize', authModerateLimiter, authenticatePartialToken, authController.getGoogleLoginFinalization);
 
-// Endpoint for frontend to get final token after academy verification redirect
-authRouter.get('/academy/finalize', authModerateLimiter, authenticatePartialToken, authController.finalizeAcademySetup);
+// Endpoint for frontend to get final token after organization verification redirect
+authRouter.get('/organization/finalize', authModerateLimiter, authenticatePartialToken, authController.finalizeAcademySetup);

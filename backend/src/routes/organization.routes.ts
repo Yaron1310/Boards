@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import * as orgController from '../controllers/organization.controller.js';
+import * as orgController from '../controllers/workspace.controller.js';
 import { requireRole } from '../middleware/auth.middleware.js';
 import { UserRole } from '../types/index.js';
 
@@ -18,7 +18,7 @@ organizationRouter.put('/:id', requireRole(adminRoles), orgController.updateOrga
 organizationRouter.put('/:id/restore', requireRole(adminRoles), orgController.restoreOrganization);
 organizationRouter.delete('/:id', requireRole(adminRoles), orgController.deleteOrganization);
 
-// Organization Admin routes for managing organization managers
+// Workspace Admin routes for managing workspace managers
 organizationRouter.post('/:organizationId/admins', requireRole(adminRoles), orgController.addOrganizationManager);
 organizationRouter.delete('/:organizationId/admins/:userId', requireRole(adminRoles), orgController.removeOrganizationManager);
 organizationRouter.delete('/:organizationId/users/:userId', requireRole(managerAndAdminRoles), orgController.removeUserFromOrganization);

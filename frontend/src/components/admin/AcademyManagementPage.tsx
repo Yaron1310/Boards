@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import type { Organization, User, Workspace } from '../../types';
+import type { Workspace, User, Workspace } from '../../types';
 import { UserRole } from '../../types';
 import * as apiService from '../../services/geminiService';
 import { FiPlusCircle, FiEdit, FiTrash2, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiShield, FiUserPlus, FiUsers, FiCpu } from 'react-icons/fi';
@@ -44,13 +44,13 @@ const AcademyManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { 
-    academies,
+    organizations,
     fetchAcademies,
     addAcademy, 
     updateAcademy, 
     deleteAcademy, 
     users,
-    organizations,
+    workspaces,
     removeAcademyAdmin,
     academyTokenUsage,
     isAnalyticsLoading,
@@ -61,9 +61,9 @@ const AcademyManagementPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const [newAcademyName, setNewAcademyName] = useState('');
-  const [editingAcademy, setEditingAcademy] = useState<Organization | null>(null);
+  const [editingAcademy, setEditingAcademy] = useState<Workspace | null>(null);
   const [editAcademyName, setEditAcademyName] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<Organization | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<Workspace | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   useEffect(() => {
     if (feedbackMessage) {
@@ -73,7 +73,7 @@ const AcademyManagementPage: React.FC = () => {
       return () => clearTimeout(timer);
     }
   }, [feedbackMessage]);
-  const [showAdminModal, setShowAdminModal] = useState<Organization | null>(null);
+  const [showAdminModal, setShowAdminModal] = useState<Workspace | null>(null);
   const [adminEmail, setAdminEmail] = useState('');
   const [currentAdmins, setCurrentAdmins] = useState<User[]>([]);
   const [adminToRemove, setAdminToRemove] = useState<User | null>(null);
@@ -98,7 +98,7 @@ const AcademyManagementPage: React.FC = () => {
     } else {
       setCurrentAdmins([]);
     }
-  }, [showAdminModal, users, organizations]);
+  }, [showAdminModal, users, workspaces]);
 
   const clearFeedback = () => {
     setFeedbackMessage(null);
@@ -121,10 +121,10 @@ const AcademyManagementPage: React.FC = () => {
     setIsLoading(false);
   };
 
-  const handleEditClick = (academy: Organization) => {
+  const handleEditClick = (organization: Workspace) => {
     clearFeedback();
-    setEditingAcademy(academy);
-    setEditAcademyName(academy.name);
+    setEditingAcademy(organization);
+    setEditAcademyName(organization.name);
   };
 
   const handleSaveEdit = async () => {
@@ -244,11 +244,11 @@ const AcademyManagementPage: React.FC = () => {
         </form>
 
         <div className="bg-white shadow-md rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-700">{t('admin.academyManagement.existingAcademies', { count: academies.length })}</h2>
+          <h2 className="text-xl font-semibold text-gray-700">{t('admin.academyManagement.existingAcademies', { count: organizations.length })}</h2>
         </div>
 
         <div className="bg-white shadow-md rounded-lg overflow-x-auto custom-scrollbar">
-          {academies.length === 0 && !isLoading ? (
+          {organizations.length === 0 && !isLoading ? (
             <p className="p-6 text-gray-500 text-center">{t('admin.academyManagement.noAcademiesFound')}</p>
           ) : (
             <table className="min-w-full divide-y divide-gray-200">
@@ -261,10 +261,10 @@ const AcademyManagementPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                  {academies.map(academy => {
-                    const usage = academyTokenUsage?.[academy.id];
-                    return editingAcademy?.id === academy.id ? (
-                      <tr key={`${academy.id}-edit`} className="bg-purple-50">
+                  {organizations.map(organization => {
+                    const usage = academyTokenUsage?.[organization.id];
+                    return editingAcademy?.id === organization.id ? (
+                      <tr key={`${organization.id}-edit`} className="bg-purple-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                               <input
                                 type="text"
@@ -280,7 +280,7 @@ const AcademyManagementPage: React.FC = () => {
                             }
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                            {academy.id}
+                            {organization.id}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <div className="flex items-center justify-end space-x-1">
@@ -290,9 +290,9 @@ const AcademyManagementPage: React.FC = () => {
                           </td>
                       </tr>
                     ) : (
-                      <tr key={academy.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={organization.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-sm font-medium text-gray-900">{academy.name}</div>
+                              <div className="text-sm font-medium text-gray-900">{organization.name}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
                             {isAnalyticsLoading && !academyTokenUsage ? <FiLoader className="animate-spin h-4 w-4"/> : 
@@ -300,15 +300,15 @@ const AcademyManagementPage: React.FC = () => {
                             }
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
-                            {academy.id}
+                            {organization.id}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <div className="flex items-center justify-end space-x-1">
-                                  <button onClick={() => { clearFeedback(); setShowAdminModal(academy); }} className="text-green-600 hover:text-green-800 p-2 rounded-full hover:bg-green-100" title={t('admin.academyManagement.manageAdmins')} aria-label={t('admin.academyManagement.manageAdmins')} disabled={isLoading}>
+                                  <button onClick={() => { clearFeedback(); setShowAdminModal(organization); }} className="text-green-600 hover:text-green-800 p-2 rounded-full hover:bg-green-100" title={t('admin.academyManagement.manageAdmins')} aria-label={t('admin.academyManagement.manageAdmins')} disabled={isLoading}>
                                       <FiUsers size={18} />
                                   </button>
-                                  <button onClick={() => handleEditClick(academy)} className="text-indigo-600 hover:text-indigo-800 p-2 rounded-full hover:bg-indigo-100" title={t('admin.academyManagement.editAcademy')} aria-label={t('admin.academyManagement.editAcademy')} disabled={isLoading}><FiEdit size={18} /></button>
-                                  <button onClick={() => { clearFeedback(); setShowDeleteConfirm(academy); }} className="text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-100" title={t('admin.academyManagement.deleteAcademy')} aria-label={t('admin.academyManagement.deleteAcademy')} disabled={isLoading}><FiTrash2 size={18} /></button>
+                                  <button onClick={() => handleEditClick(organization)} className="text-indigo-600 hover:text-indigo-800 p-2 rounded-full hover:bg-indigo-100" title={t('admin.academyManagement.editAcademy')} aria-label={t('admin.academyManagement.editAcademy')} disabled={isLoading}><FiEdit size={18} /></button>
+                                  <button onClick={() => { clearFeedback(); setShowDeleteConfirm(organization); }} className="text-red-600 hover:text-red-800 p-2 rounded-full hover:bg-red-100" title={t('admin.academyManagement.deleteAcademy')} aria-label={t('admin.academyManagement.deleteAcademy')} disabled={isLoading}><FiTrash2 size={18} /></button>
                               </div>
                           </td>
                       </tr>
@@ -317,7 +317,7 @@ const AcademyManagementPage: React.FC = () => {
               </tbody>
             </table>
           )}
-          {isLoading && academies.length === 0 && <div className="p-4 text-center"><FiLoader className="animate-spin h-6 w-6 text-purple-500 mx-auto"/></div>}
+          {isLoading && organizations.length === 0 && <div className="p-4 text-center"><FiLoader className="animate-spin h-6 w-6 text-purple-500 mx-auto"/></div>}
         </div>
       </div>
       

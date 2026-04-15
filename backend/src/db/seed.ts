@@ -16,16 +16,16 @@ import { DBAcademy, DBOrganization, DBUser, UserRole, DBAcademySettings, DBMembe
 export const seedDefaultData = async () => {
   const batch = db.batch();
 
-  // --- 1. Seed Default Organization ---
+  // --- 1. Seed Default Workspace ---
   let academyId: string;
   const academyDocRef = academiesCollection.doc('default_academy');
   const academyDoc = await academyDocRef.get();
 
   if (!academyDoc.exists) {
-    logger.info('Seeding initial Default Organization...');
+    logger.info('Seeding initial Default Workspace...');
     const defaultAcademy: DBAcademy = {
       id: academyDocRef.id,
-      name: 'Default Organization',
+      name: 'Default Workspace',
       createdAt: new Date(),
     };
     batch.set(academyDocRef, defaultAcademy);
@@ -42,11 +42,11 @@ export const seedDefaultData = async () => {
     batch.set(tokenLimitsDocRef, {});
   }
 
-  // --- 3. Seed Default Organization Settings (Theme) ---
+  // --- 3. Seed Default Workspace Settings (Theme) ---
   const settingsDocRef = academySettingsCollection.doc(academyId);
   const academySettingsDoc = await settingsDocRef.get();
   if (!academySettingsDoc.exists) {
-    logger.info(`Seeding initial settings for Organization ID: ${academyId}`);
+    logger.info(`Seeding initial settings for Workspace ID: ${academyId}`);
     const defaultSettings: Omit<DBAcademySettings, 'updatedAt'> = {
       id: academyId,
       sidebarColor: '#004e89',
@@ -67,7 +67,7 @@ export const seedDefaultData = async () => {
   const orgDoc = await orgDocRef.get();
 
   if (!orgDoc.exists) {
-    logger.info(`Seeding initial default organization for Organization ID: ${academyId}`);
+    logger.info(`Seeding initial default workspace for Workspace ID: ${academyId}`);
     const defaultOrganization: DBOrganization = {
       id: orgDocRef.id,
       name: 'Default Workspace',
@@ -104,7 +104,7 @@ export const seedDefaultData = async () => {
       id: membershipRef.id,
       userId: systemAdmin.id,
       entityId: defaultOrganizationId,
-      entityType: 'organization',
+      entityType: 'workspace',
       role: UserRole.SYSTEM_ADMIN,
       academyId,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),

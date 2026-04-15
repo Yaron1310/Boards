@@ -89,7 +89,7 @@ const ProfilePage: React.FC = () => {
 
   const personalOrg = useMemo(() => {
     if (!profileUser) return null;
-    return profileUser.organizations.find(org => (org as any).isPersonal);
+    return profileUser.workspaces.find(org => (org as any).isPersonal);
   }, [profileUser]);
 
   const planForPersonalOrg = useMemo(() => {
@@ -115,8 +115,8 @@ const ProfilePage: React.FC = () => {
       userToDisplay.id !== authUser.id
     ) {
       const adminOrgId = selectedOrganization?.id;
-      // An org admin can only view users who are part of their organization.
-      const isUserInAdminsOrg = userToDisplay.organizations.some(org => org.id === adminOrgId);
+      // An org admin can only view users who are part of their workspace.
+      const isUserInAdminsOrg = userToDisplay.workspaces.some(org => org.id === adminOrgId);
       if (!isUserInAdminsOrg) {
         navigate('/admin/users', { replace: true });
         return;
@@ -399,7 +399,7 @@ const ProfilePage: React.FC = () => {
     }
 
     if (!orgToRemoveId) {
-        setProfileUpdateMessage({ type: 'error', text: "Could not determine which organization to remove the user from." });
+        setProfileUpdateMessage({ type: 'error', text: "Could not determine which workspace to remove the user from." });
         return;
     }
 
@@ -409,9 +409,9 @@ const ProfilePage: React.FC = () => {
     setShowRemoveUserConfirmModal(false);
 
     if (success) {
-        setProfileUpdateMessage({type: 'success', text: `User ${profileUser.name} removed from organization.`});
+        setProfileUpdateMessage({type: 'success', text: `User ${profileUser.name} removed from workspace.`});
     } else {
-         if (!dataCtxError) setProfileUpdateMessage({type: 'error', text: 'Failed to remove user from organization.'});
+         if (!dataCtxError) setProfileUpdateMessage({type: 'error', text: 'Failed to remove user from workspace.'});
     }
   };
 
@@ -446,7 +446,7 @@ const ProfilePage: React.FC = () => {
   }
   
   const showAdminActions = !isOwnProfile && (
-    (authUser?.role === UserRole.ORGANIZATION_ADMIN && profileUser.role === UserRole.REGULAR_USER && profileUser.organizations.some(org => org.id === authUser.selectedOrganization?.id)) ||
+    (authUser?.role === UserRole.ORGANIZATION_ADMIN && profileUser.role === UserRole.REGULAR_USER && profileUser.workspaces.some(org => org.id === authUser.selectedOrganization?.id)) ||
     ((authUser?.role === UserRole.ACADEMY_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN) && profileUser.role !== UserRole.ACADEMY_ADMIN && profileUser.role !== UserRole.SYSTEM_ADMIN)
   );
 
@@ -590,10 +590,10 @@ const ProfilePage: React.FC = () => {
             <div className="mt-2">
                 <div className="flex items-center justify-center md:justify-start">
                     <p className="text-sm text-gray-500">
-                        {t('profile.organizations')}: <span className="font-semibold">
+                        {t('profile.workspaces')}: <span className="font-semibold">
                             {profileUser.role === UserRole.SYSTEM_ADMIN
                                 ? 'System-Wide Access'
-                                : profileUser.organizations.filter(o => !o.isPersonal).map(o => o.name).join(', ') || 'N/A'}
+                                : profileUser.workspaces.filter(o => !o.isPersonal).map(o => o.name).join(', ') || 'N/A'}
                         </span>
                     </p>
                 </div>

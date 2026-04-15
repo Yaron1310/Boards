@@ -23,8 +23,8 @@ export const getAllAcademies = async (req: Request, res: Response) => {
         const snapshot = await academiesCollection.orderBy('name').get();
         res.json(querySnapshotToArray(snapshot));
     } catch (error: any) {
-        logger.error("Error fetching academies:", error);
-        res.status(500).json({ message: "Failed to fetch academies." });
+        logger.error("Error fetching organizations:", error);
+        res.status(500).json({ message: "Failed to fetch organizations." });
     }
 };
 
@@ -58,11 +58,11 @@ export const createAcademy = async (req: Request, res: Response) => {
         };
         batch.set(settingsRef, { ...defaultSettings, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         await batch.commit();
-        logger.info(`Created new academy '${name}' (${newAcademyRef.id}) with default organization and settings.`);
+        logger.info(`Created new organization '${name}' (${newAcademyRef.id}) with default workspace and settings.`);
         res.status(201).json(snapshotToData(await newAcademyRef.get()));
     } catch (error) {
-        logger.error("Error creating academy:", error);
-        res.status(500).json({ message: "Failed to create academy." });
+        logger.error("Error creating organization:", error);
+        res.status(500).json({ message: "Failed to create organization." });
     }
 };
 
@@ -79,19 +79,19 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
         // --- Authorization Check ---
         const academyDoc = await academiesCollection.doc(academyId).get();
         if (!academyDoc.exists) {
-            return res.status(404).json({ message: "Organization not found." });
+            return res.status(404).json({ message: "Workspace not found." });
         }
 
         let isAuthorized = false;
         if (requestingUser.role === UserRole.SYSTEM_ADMIN) {
             isAuthorized = true;
         } else if (requestingUser.role === UserRole.ACADEMY_ADMIN) {
-            // An Organization Admin can only add other admins to their OWN academy.
+            // An Workspace Admin can only add other admins to their OWN organization.
             isAuthorized = requestingUser.academyId === academyId;
         }
 
         if (!isAuthorized) {
-            return res.status(403).json({ message: "Forbidden: You do not have permission to manage admins for this academy." });
+            return res.status(403).json({ message: "Forbidden: You do not have permission to manage admins for this organization." });
         }
         // --- End Authorization ---
 
@@ -113,7 +113,7 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
                     id: newMembershipRef.id,
                     userId: userId,
                     entityId: academyId,
-                    entityType: 'academy',
+                    entityType: 'organization',
                     role: UserRole.ACADEMY_ADMIN,
                     academyId,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -122,13 +122,13 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
                 return { alreadyAdmin: true };
             }
 
-            // Ensure the admin has a Personal Workspace in this academy
+            // Ensure the admin has a Personal Workspace in this organization
             const orgsSnapshot = await organizationsCollection
                 .where('academyId', '==', academyId)
                 .where('isPersonal', '==', true)
                 .get();
 
-            const userOrgIds = memberships.filter(m => m.entityType === 'organization').map(m => m.entityId);
+            const userOrgIds = memberships.filter(m => m.entityType === 'workspace').map(m => m.entityId);
             const hasPersonalOrgInThisAcademy = querySnapshotToArray<DBOrganization>(orgsSnapshot)
                 .some(org => userOrgIds.includes(org.id));
 
@@ -151,7 +151,7 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
                     id: personalMembershipRef.id,
                     userId: userId,
                     entityId: personalOrgId,
-                    entityType: 'organization',
+                    entityType: 'workspace',
                     role: UserRole.REGULAR_USER,
                     academyId,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -166,9 +166,9 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
         if (!userSnapshot.empty) {
             const user = snapshotToData<DBUser>(userSnapshot.docs[0])!;
             const { isHigherAdmin, alreadyAdmin } = await addAdminRole(user.id, user.email, user.name);
-            if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System Admin and cannot be assigned to a specific academy.' });
-            if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already an admin for this academy.` });
-            return res.status(200).json({ message: `Successfully promoted existing user ${email} to Organization Admin and created a Personal Workspace.` });
+            if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System Admin and cannot be assigned to a specific organization.' });
+            if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already an admin for this organization.` });
+            return res.status(200).json({ message: `Successfully promoted existing user ${email} to Workspace Admin and created a Personal Workspace.` });
         } else {
             const newUserRef = usersCollection.doc();
             const newAdminUser: Omit<DBUser, 'createdAt' | 'googleId' | 'passwordHash'> = {
@@ -186,10 +186,10 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
             const academyName = academyDoc.exists ? (academyDoc.data()?.name || 'Gymind') : 'Gymind';
             await sendAccountVerificationEmail(email, newAdminUser.name, verificationLink, academyName, 'academy_admin');
-            return res.status(201).json({ message: `Successfully created Organization Admin for ${email}. A verification email and a new Personal Workspace have been prepared.` });
+            return res.status(201).json({ message: `Successfully created Workspace Admin for ${email}. A verification email and a new Personal Workspace have been prepared.` });
         }
     } catch (error) {
-        logger.error(`Error adding academy admin for academy ${academyId}:`, error);
+        logger.error(`Error adding organization admin for organization ${academyId}:`, error);
         res.status(500).json({ message: 'An internal server error occurred.' });
     }
 };
@@ -206,7 +206,7 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
         // --- Authorization Check ---
         const academyDoc = await academiesCollection.doc(academyId).get();
         if (!academyDoc.exists) {
-            return res.status(404).json({ message: "Organization not found." });
+            return res.status(404).json({ message: "Workspace not found." });
         }
 
         let isAuthorized = false;
@@ -217,7 +217,7 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
         }
 
         if (!isAuthorized) {
-            return res.status(403).json({ message: "Forbidden: You do not have permission to manage admins for this academy." });
+            return res.status(403).json({ message: "Forbidden: You do not have permission to manage admins for this organization." });
         }
         // --- End Authorization ---
 
@@ -230,7 +230,7 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
         const adminMembership = memberships.find(m => m.entityId === academyId && m.role === UserRole.ACADEMY_ADMIN);
 
         if (!adminMembership) {
-            return res.status(400).json({ message: "This user is not an Admin for this academy." });
+            return res.status(400).json({ message: "This user is not an Admin for this organization." });
         }
 
         // Remove the Admin membership
@@ -241,7 +241,7 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
         if (remainingMemberships.length === 0) {
             logger.info(`User ${userId} only had this admin role. Reassigning to Default Workspace instead of deleting.`);
 
-            // Find the Default Workspace for this Organization
+            // Find the Default Workspace for this Workspace
             const defaultOrgSnapshot = await organizationsCollection
                 .where('academyId', '==', academyId)
                 .where('name', '==', 'Default Workspace')
@@ -255,7 +255,7 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
                     id: newMembershipRef.id,
                     userId: userId,
                     entityId: defaultOrgId,
-                    entityType: 'organization',
+                    entityType: 'workspace',
                     role: UserRole.REGULAR_USER,
                     academyId,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -263,15 +263,15 @@ export const removeAcademyAdmin = async (req: Request, res: Response) => {
                 return res.status(200).json({ message: `Admin privileges removed. The user has been reassigned to the Default Workspace as a regular user.` });
             } else {
                 // Should not happen if data integrity is maintained, but handling just in case
-                logger.error(`Default Workspace not found for academy ${academyId}. User ${userId} is left without roles.`);
+                logger.error(`Default Workspace not found for organization ${academyId}. User ${userId} is left without roles.`);
                 return res.status(200).json({ message: `Admin privileges removed. User has no remaining roles.` });
             }
         } else {
-            logger.info(`Successfully removed Organization Admin privileges for user ${userId}. They have other roles.`);
+            logger.info(`Successfully removed Workspace Admin privileges for user ${userId}. They have other roles.`);
             return res.status(200).json({ message: `Admin privileges removed. The user has been demoted.` });
         }
     } catch (error) {
-        logger.error(`Error removing academy admin for user ${userId}:`, error);
+        logger.error(`Error removing organization admin for user ${userId}:`, error);
         res.status(500).json({ message: 'An internal server error occurred while removing the admin.' });
     }
 };
@@ -283,8 +283,8 @@ export const updateAcademy = async (req: Request, res: Response) => {
         await academyRef.update({ name });
         res.json(snapshotToData(await academyRef.get()));
     } catch (error) {
-        logger.error("Error updating academy:", error);
-        res.status(500).json({ message: "Failed to update academy." });
+        logger.error("Error updating organization:", error);
+        res.status(500).json({ message: "Failed to update organization." });
     }
 };
 
@@ -294,15 +294,15 @@ export const deleteAcademy = async (req: Request, res: Response) => {
 
         const batch = db.batch();
         batch.delete(academiesCollection.doc(academyId));
-        // Delete academy settings to ensure public page is disabled
+        // Delete organization settings to ensure public page is disabled
         batch.delete(academySettingsCollection.doc(academyId));
         await batch.commit();
 
-        logger.info(`Successfully deleted academy ${academyId} and its settings.`);
+        logger.info(`Successfully deleted organization ${academyId} and its settings.`);
         res.status(204).send();
     } catch (error) {
-        logger.error("Error deleting academy:", error);
-        res.status(500).json({ message: "Failed to delete academy." });
+        logger.error("Error deleting organization:", error);
+        res.status(500).json({ message: "Failed to delete organization." });
     }
 };
 
@@ -310,7 +310,7 @@ export const checkNameUniqueness = async (req: Request, res: Response) => {
     const { name } = req.query;
 
     if (!name || typeof name !== 'string') {
-        return res.status(400).json({ message: 'Organization name is required.' });
+        return res.status(400).json({ message: 'Workspace name is required.' });
     }
 
     try {
@@ -323,7 +323,7 @@ export const checkNameUniqueness = async (req: Request, res: Response) => {
             return res.json({ isUnique: false });
         }
     } catch (error) {
-        logger.error(`Error checking academy name uniqueness for name: ${name}`, error);
+        logger.error(`Error checking organization name uniqueness for name: ${name}`, error);
         res.status(500).json({ message: 'Server error while checking name uniqueness.' });
     }
 };
@@ -333,10 +333,10 @@ export const setupAcademy = async (req: Request, res: Response) => {
     const partialToken = req.user as JwtMultiOrgPayload;
 
     if (!academyName) {
-        return res.status(400).json({ message: 'Organization name is required.' });
+        return res.status(400).json({ message: 'Workspace name is required.' });
     }
-    if (!partialToken || partialToken.action !== 'academy-setup') {
-        return res.status(401).json({ message: 'Invalid token for academy setup.' });
+    if (!partialToken || partialToken.action !== 'organization-setup') {
+        return res.status(401).json({ message: 'Invalid token for organization setup.' });
     }
 
     const sanitizedName = sanitizeText(academyName);
@@ -347,7 +347,7 @@ export const setupAcademy = async (req: Request, res: Response) => {
         await db.runTransaction(async (transaction) => {
             const academySnapshot = await transaction.get(academiesCollection.where('name', '==', sanitizedName).limit(1));
             if (!academySnapshot.empty) {
-                throw new Error('Organization name is already taken.');
+                throw new Error('Workspace name is already taken.');
             }
 
             const userDoc = await transaction.get(usersCollection.doc(userId));
@@ -360,7 +360,7 @@ export const setupAcademy = async (req: Request, res: Response) => {
                 membershipsCollection.where('userId', '==', userId).where('role', '==', UserRole.ACADEMY_ADMIN)
             );
             if (!existingAdminMemberships.empty) {
-                throw new Error('This user is already an administrator of an academy.');
+                throw new Error('This user is already an administrator of an organization.');
             }
 
             const newAcademyRef = academiesCollection.doc();
@@ -375,7 +375,7 @@ export const setupAcademy = async (req: Request, res: Response) => {
                 id: academyMembershipRef.id,
                 userId: userId,
                 entityId: newAcademyRef.id,
-                entityType: 'academy',
+                entityType: 'organization',
                 role: UserRole.ACADEMY_ADMIN,
                 academyId: newAcademyRef.id,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -398,7 +398,7 @@ export const setupAcademy = async (req: Request, res: Response) => {
                 id: orgMembershipRef.id,
                 userId: userId,
                 entityId: personalOrgRef.id,
-                entityType: 'organization',
+                entityType: 'workspace',
                 role: UserRole.REGULAR_USER,
                 academyId: newAcademyRef.id,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -416,20 +416,20 @@ export const setupAcademy = async (req: Request, res: Response) => {
             transaction.set(settingsRef, { ...defaultSettings, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         });
 
-        res.status(201).json({ message: 'Organization created successfully. Proceed to payment.' });
+        res.status(201).json({ message: 'Workspace created successfully. Proceed to payment.' });
 
     } catch (error: any) {
-        if (error.message === 'Organization name is already taken.' || error.message.includes('already an administrator')) {
+        if (error.message === 'Workspace name is already taken.' || error.message.includes('already an administrator')) {
             return res.status(409).json({ message: error.message });
         }
-        logger.error(`Error setting up academy for user ${partialToken.id}:`, error);
-        res.status(500).json({ message: 'An internal server error occurred during academy setup.' });
+        logger.error(`Error setting up organization for user ${partialToken.id}:`, error);
+        res.status(500).json({ message: 'An internal server error occurred during organization setup.' });
     }
 };
 
 export const activateSubscription = async (req: Request, res: Response) => {
     const partialToken = req.user as JwtMultiOrgPayload;
-    if (!partialToken || partialToken.action !== 'academy-setup') {
+    if (!partialToken || partialToken.action !== 'organization-setup') {
         return res.status(401).json({ message: 'Invalid token for activation.' });
     }
 
@@ -446,7 +446,7 @@ export const activateSubscription = async (req: Request, res: Response) => {
                 membershipsCollection.where('userId', '==', userId).where('role', '==', UserRole.ACADEMY_ADMIN).limit(1)
             );
             if (adminMembershipSnapshot.empty) {
-                throw new Error('User is not an academy admin.');
+                throw new Error('User is not an organization admin.');
             }
             academyId = adminMembershipSnapshot.docs[0].data().entityId;
 
@@ -454,7 +454,7 @@ export const activateSubscription = async (req: Request, res: Response) => {
                 organizationsCollection.where('academyId', '==', academyId).where('isPersonal', '==', true)
             );
             if (personalOrgSnapshot.empty) {
-                throw new Error('Personal organization for admin not found.');
+                throw new Error('Personal workspace for admin not found.');
             }
             const orgRef = personalOrgSnapshot.docs[0].ref;
             personalOrgId = orgRef.id;
@@ -477,7 +477,7 @@ export const activateSubscription = async (req: Request, res: Response) => {
         res.status(200).json(loginResponse);
 
     } catch (error: any) {
-        logger.error(`Error activating academy for user ${partialToken.id}:`, error);
+        logger.error(`Error activating organization for user ${partialToken.id}:`, error);
         res.status(500).json({ message: error.message || 'An internal server error occurred during activation.' });
     }
 };

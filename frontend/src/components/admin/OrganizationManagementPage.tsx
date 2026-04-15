@@ -200,7 +200,7 @@ const OrganizationManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const { 
-    organizations,
+    workspaces,
     archivedOrganizations,
     fetchOrganizations,
     fetchArchivedOrganizations,
@@ -312,10 +312,10 @@ const OrganizationManagementPage: React.FC = () => {
 
 
    const orgsWithComputedData: OrgWithComputedData[] = useMemo(() => {
-    if (!organizations || !users) return [];
+    if (!workspaces || !users) return [];
 
     // Hide system-generated fallback orgs (isPersonal: true) from the management table
-    let filteredOrgs = organizations.filter(org => !org.isPersonal);
+    let filteredOrgs = workspaces.filter(org => !org.isPersonal);
 
     // Filter by view type using plan.maxUsers as the source of truth
     if (viewType === 'individual') {
@@ -351,7 +351,7 @@ const OrganizationManagementPage: React.FC = () => {
     }
 
     return filteredOrgs.map(org => {
-        const orgUsers = users.filter(u => u.organizations.some(userOrg => userOrg.id === org.id));
+        const orgUsers = users.filter(u => u.workspaces.some(userOrg => userOrg.id === org.id));
         const usageData = orgTokenUsage?.[org.id];
         
         return {
@@ -361,7 +361,7 @@ const OrganizationManagementPage: React.FC = () => {
             tokenLimit: usageData?.limit ?? null
         };
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [organizations, users, orgTokenUsage, plans, searchTerm, filterPlan, filterStatus, viewType]);
+  }, [workspaces, users, orgTokenUsage, plans, searchTerm, filterPlan, filterStatus, viewType]);
 
   const dynamicTitle = useMemo(() => {
     const filters: string[] = [];
@@ -389,7 +389,7 @@ const OrganizationManagementPage: React.FC = () => {
         case 'individual':
             return `Individual Subscribers ${count}`;
         default:
-            return `All Organizations ${count}`;
+            return `All Workspaces ${count}`;
     }
   }, [searchTerm, filterPlan, filterStatus, viewType, plans, orgsWithComputedData.length]);
 
@@ -415,7 +415,7 @@ const OrganizationManagementPage: React.FC = () => {
         setFeedbackMessage({ type: 'success', text: `Workspace "${newOrg.name}" added successfully.` });
       } else if (!dataError) { 
         setIsSaving(false);
-        setModalError('Failed to add organization.');
+        setModalError('Failed to add workspace.');
       } else {
         setIsSaving(false);
       }
@@ -427,7 +427,7 @@ const OrganizationManagementPage: React.FC = () => {
   const handleRowClick = (org: OrgWithComputedData) => {
     if (org.isPersonal) {
         // Find the single user associated with this personal org
-        const userInOrg = users.find(u => u.organizations.some(userOrg => userOrg.id === org.id));
+        const userInOrg = users.find(u => u.workspaces.some(userOrg => userOrg.id === org.id));
         if (userInOrg) {
             navigate(`/admin/users/${userInOrg.id}`);
         } else {
@@ -459,7 +459,7 @@ const OrganizationManagementPage: React.FC = () => {
         setFeedbackMessage({ type: 'success', text: `Workspace "${editOrgData.name}" updated.` });
         setOrgToEdit(null);
       } else if (!dataError) {
-        setModalError('Failed to update organization.');
+        setModalError('Failed to update workspace.');
       }
     }
   };
@@ -569,7 +569,7 @@ const OrganizationManagementPage: React.FC = () => {
                   </button>
                 </div>
             </div>
-            <TutorialSection videoUrl={tutorialSettings?.organizations?.videoUrl} />
+            <TutorialSection videoUrl={tutorialSettings?.workspaces?.videoUrl} />
         </div>
       </div>
 
@@ -720,7 +720,7 @@ const OrganizationManagementPage: React.FC = () => {
       <PreApproveUsersModal 
         isOpen={!!preApproveModalOrg} 
         onClose={() => setPreApproveModalOrg(null)} 
-        organization={preApproveModalOrg}
+        workspace={preApproveModalOrg}
       />
 
       {showAdminModal && ReactDOM.createPortal(
@@ -802,7 +802,7 @@ const OrganizationManagementPage: React.FC = () => {
       <ArchiveRestoreModal
         isOpen={isArchiveModalOpen}
         onClose={() => setIsArchiveModalOpen(false)}
-        title="Archived Organizations"
+        title="Archived Workspaces"
         items={archivedOrganizations}
         onRestore={restoreOrganization}
         fetchItems={fetchArchivedOrganizations}

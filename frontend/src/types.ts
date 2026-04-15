@@ -64,7 +64,7 @@ export interface Workspace {
 }
 
 // ... rest of the file remains unchanged ...
-export interface Organization {
+export interface Workspace {
   id: string;
   name: string;
 }
@@ -176,7 +176,7 @@ export interface TutorialSettings {
   plansBilling?: TutorialLink;
   wpPlugin?: TutorialLink;
   theme?: TutorialLink;
-  organizations?: TutorialLink;
+  workspaces?: TutorialLink;
   users?: TutorialLink;
 }
 
@@ -211,7 +211,7 @@ export interface User {
     organizationAdmin?: string[];
   };
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
-  organizations: Pick<Workspace, 'id' | 'name' | 'academyId' | 'academyName' | 'isPersonal'>[]; 
+  workspaces: Pick<Workspace, 'id' | 'name' | 'academyId' | 'academyName' | 'isPersonal'>[]; 
   profileImageUrl?: string; 
   hasSeenChatPrivacyNotice?: boolean;
   conversationSavingEnabled?: boolean;
@@ -227,7 +227,7 @@ export interface User {
   completedQuestionnairesCount?: number;
   conversationCount?: number;
   completedCourseCount?: number;
-  allAcademies?: Organization[]; 
+  allAcademies?: Workspace[]; 
 }
 
 
@@ -516,7 +516,7 @@ export interface NewsletterCampaign {
   campaignType?: 'scheduled' | 'trigger';
   triggerType?: 'registration' | 'course_enrollment' | 'course_completion';
   triggerCourseId?: string;
-  recipientGroup: 'all_users' | 'organization' | 'course_enrolled' | 'course_completed';
+  recipientGroup: 'all_users' | 'workspace' | 'course_enrolled' | 'course_completed';
   recipientFilter?: string;
   frequency: 'one_time' | 'weekly' | 'biweekly' | 'monthly';
   scheduledDay?: number;

@@ -67,7 +67,7 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const systemAdminNavItems = [
       { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} /> },
-      { name: t('layout.academies'), path: '/admin/academies', icon: <FiShield className={iconClassName} /> },
+      { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiShield className={iconClassName} /> },
       { name: t('layout.tutorialsSettings'), path: '/admin/tutorials', icon: <FiVideo className={iconClassName} /> },
       { name: t('layout.emailTemplates'), path: '/admin/email-templates', icon: <FiMail className={iconClassName} /> },
     ];
@@ -246,11 +246,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   onClick={() => {
                     const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                     if (guard?.isDirty) {
-                        guard.onAttempt('/admin/academy-hub?openTheme=true');
+                        guard.onAttempt('/admin/organization-hub?openTheme=true');
                         return;
                     }
                     setIsSidebarOpen(false);
-                    sidebarNavigate('/admin/academy-hub?openTheme=true');
+                    sidebarNavigate('/admin/organization-hub?openTheme=true');
                   }}
                   aria-label={t('layout.clickToEdit')}
                 >
@@ -273,11 +273,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   onClick={() => {
                     const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                     if (guard?.isDirty) {
-                        guard.onAttempt('/admin/academy-hub');
+                        guard.onAttempt('/admin/organization-hub');
                         return;
                     }
                     setIsSidebarOpen(false);
-                    sidebarNavigate('/admin/academy-hub');
+                    sidebarNavigate('/admin/organization-hub');
                   }}
                   aria-label={t('layout.clickToEdit')}
                 >
@@ -328,12 +328,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               ))}
               <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
                 <NavLink
-                  to='/admin/academy-hub'
+                  to='/admin/organization-hub'
                   onClick={(e) => {
                       const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                       if (guard?.isDirty) {
                           e.preventDefault();
-                          guard.onAttempt('/admin/academy-hub');
+                          guard.onAttempt('/admin/organization-hub');
                           return;
                       }
                       setIsSidebarOpen(false);
@@ -594,7 +594,7 @@ const MainLayout: React.FC = () => {
   const adminNavItems: AdminNavItem[] = [
      { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN] },
      { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN] },
-     { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiBriefcase className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
+     { name: t('layout.workspaces'), path: '/admin/workspaces', icon: <FiBriefcase className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
   ];
 
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);

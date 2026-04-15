@@ -25,7 +25,7 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
             query = query.where(admin.firestore.FieldPath.documentId(), '==', user.selectedOrganizationId);
         }
 
-        // Filter out archived organizations from the main list
+        // Filter out archived workspaces from the main list
         query = query.where('status', '!=', 'archived');
 
         const snapshot = await query.orderBy('name').get();
@@ -33,8 +33,8 @@ export const getAllOrganizations = async (req: Request, res: Response) => {
 
         res.json(orgs);
     } catch (error) {
-        logger.error("Error fetching organizations:", error);
-        res.status(500).json({ message: "Failed to fetch organizations." });
+        logger.error("Error fetching workspaces:", error);
+        res.status(500).json({ message: "Failed to fetch workspaces." });
     }
 };
 
@@ -45,7 +45,7 @@ export const createOrganization = async (req: Request, res: Response) => {
     if (!name) return res.status(400).json({ message: 'Workspace name is required.' });
 
     const targetAcademyId = user.role === UserRole.SYSTEM_ADMIN ? academyId : user.academyId;
-    if (!targetAcademyId) return res.status(400).json({ message: 'Organization ID is required.' });
+    if (!targetAcademyId) return res.status(400).json({ message: 'Workspace ID is required.' });
 
     try {
         const newDocRef = organizationsCollection.doc();
@@ -63,8 +63,8 @@ export const createOrganization = async (req: Request, res: Response) => {
         const createdOrg = snapshotToData<DBOrganization>(await newDocRef.get());
         res.status(201).json(createdOrg);
     } catch (error) {
-        logger.error("Error creating organization:", error);
-        res.status(500).json({ message: 'Failed to create organization.' });
+        logger.error("Error creating workspace:", error);
+        res.status(500).json({ message: 'Failed to create workspace.' });
     }
 };
 
@@ -91,8 +91,8 @@ export const updateOrganization = async (req: Request, res: Response) => {
         const updatedOrg = snapshotToData<DBOrganization>(await docRef.get());
         res.json(updatedOrg);
     } catch (error) {
-        logger.error(`Error updating organization ${id}:`, error);
-        res.status(500).json({ message: 'Failed to update organization.' });
+        logger.error(`Error updating workspace ${id}:`, error);
+        res.status(500).json({ message: 'Failed to update workspace.' });
     }
 };
 
@@ -122,7 +122,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
                 const memberUsers = userFetchSnapshots.flatMap(snap => querySnapshotToArray<DBUser>(snap));
 
                 return res.status(409).json({
-                    message: `This organization has ${memberUsers.length} assigned user(s).`,
+                    message: `This workspace has ${memberUsers.length} assigned user(s).`,
                     dependencies: { users: memberUsers.map(u => ({ id: u.id, name: u.name })) }
                 });
             }
@@ -133,12 +133,12 @@ export const deleteOrganization = async (req: Request, res: Response) => {
             status: 'archived',
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
-        logger.info(`Successfully archived organization ${id}.`);
+        logger.info(`Successfully archived workspace ${id}.`);
 
         res.status(204).send();
     } catch (error) {
-        logger.error(`Error archiving organization ${id}:`, error);
-        res.status(500).json({ message: 'Failed to archive organization.' });
+        logger.error(`Error archiving workspace ${id}:`, error);
+        res.status(500).json({ message: 'Failed to archive workspace.' });
     }
 };
 
@@ -152,8 +152,8 @@ export const getArchivedOrganizations = async (req: Request, res: Response) => {
             .get();
         res.json(querySnapshotToArray(snapshot));
     } catch (error) {
-        logger.error("Error fetching archived organizations:", error);
-        res.status(500).json({ message: "Failed to fetch archived organizations." });
+        logger.error("Error fetching archived workspaces:", error);
+        res.status(500).json({ message: "Failed to fetch archived workspaces." });
     }
 };
 
@@ -174,8 +174,8 @@ export const restoreOrganization = async (req: Request, res: Response) => {
         });
         res.json(snapshotToData(await docRef.get()));
     } catch (error) {
-        logger.error(`Error restoring organization ${id}:`, error);
-        res.status(500).json({ message: 'Failed to restore organization.' });
+        logger.error(`Error restoring workspace ${id}:`, error);
+        res.status(500).json({ message: 'Failed to restore workspace.' });
     }
 };
 
@@ -191,7 +191,7 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
     try {
         const orgDoc = await organizationsCollection.doc(organizationId).get();
         if (!orgDoc.exists || (requestingUser.role === UserRole.ACADEMY_ADMIN && orgDoc.data()?.academyId !== requestingUser.academyId)) {
-            return res.status(403).json({ message: "Forbidden: You cannot manage this organization." });
+            return res.status(403).json({ message: "Forbidden: You cannot manage this workspace." });
         }
         const orgData = orgDoc.data() as DBOrganization;
 
@@ -213,7 +213,7 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
                 id: newMembershipRef.id,
                 userId: userId,
                 entityId: organizationId,
-                entityType: 'organization',
+                entityType: 'workspace',
                 role: UserRole.ORGANIZATION_ADMIN,
                 academyId: orgData.academyId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -224,8 +224,8 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
         if (!userSnapshot.empty) {
             const user = snapshotToData<DBUser>(userSnapshot.docs[0])!;
             const { isHigherAdmin, alreadyAdmin } = await addManagerRole(user.id);
-            if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System or Organization Admin and cannot be assigned as an Workspace Manager.' });
-            if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already a manager of this organization.` });
+            if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System or Workspace Admin and cannot be assigned as an Workspace Manager.' });
+            if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already a manager of this workspace.` });
             return res.status(200).json({ message: `Successfully promoted existing user ${email} to Workspace Manager.` });
         } else {
             const newUserRef = usersCollection.doc();
@@ -260,7 +260,7 @@ export const removeOrganizationManager = async (req: Request, res: Response) => 
     try {
         const orgDoc = await organizationsCollection.doc(organizationId).get();
         if (!orgDoc.exists || (requestingUser.role === UserRole.ACADEMY_ADMIN && orgDoc.data()?.academyId !== requestingUser.academyId)) {
-            return res.status(403).json({ message: "Forbidden: You cannot manage this organization." });
+            return res.status(403).json({ message: "Forbidden: You cannot manage this workspace." });
         }
 
         const userDoc = await usersCollection.doc(userId).get();
@@ -274,7 +274,7 @@ export const removeOrganizationManager = async (req: Request, res: Response) => 
             .limit(1).get();
 
         if(membershipSnapshot.empty) {
-            return res.status(400).json({ message: "User is not a manager of this organization." });
+            return res.status(400).json({ message: "User is not a manager of this workspace." });
         }
 
         const membershipRef = membershipSnapshot.docs[0].ref;
@@ -293,13 +293,13 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
     try {
         // Authorization
         if (requestingUser.role === UserRole.ORGANIZATION_ADMIN && requestingUser.selectedOrganizationId !== organizationId) {
-             return res.status(403).json({ message: "You can only remove users from your own organization." });
+             return res.status(403).json({ message: "You can only remove users from your own workspace." });
         }
         const orgDoc = await organizationsCollection.doc(organizationId).get();
         if (!orgDoc.exists) return res.status(404).json({ message: "Workspace not found." });
         const organizationData = snapshotToData<DBOrganization>(orgDoc)!;
         if (requestingUser.role === UserRole.ACADEMY_ADMIN && organizationData.academyId !== requestingUser.academyId) {
-            return res.status(403).json({ message: "You cannot remove users from an organization outside your academy." });
+            return res.status(403).json({ message: "You cannot remove users from an workspace outside your organization." });
         }
 
         const membershipsSnapshot = await membershipsCollection
@@ -308,13 +308,13 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
             .get();
 
         if(membershipsSnapshot.empty) {
-            return res.status(404).json({ message: 'User is not a member of this organization.' });
+            return res.status(404).json({ message: 'User is not a member of this workspace.' });
         }
 
         const batch = db.batch();
         membershipsSnapshot.forEach(doc => batch.delete(doc.ref));
 
-        // If user has no other memberships, move them to the Default Workspace for the academy
+        // If user has no other memberships, move them to the Default Workspace for the organization
         const allMembershipsSnapshot = await membershipsCollection.where('userId', '==', userId).get();
         const remainingMemberships = allMembershipsSnapshot.docs.filter(doc => !membershipsSnapshot.docs.some(d => d.id === doc.id));
 
@@ -327,14 +327,14 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
                     id: newMembershipRef.id,
                     userId,
                     entityId: defaultOrgId,
-                    entityType: 'organization',
+                    entityType: 'workspace',
                     role: UserRole.REGULAR_USER,
                     academyId: organizationData.academyId,
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
                 logger.info(`User ${userId} was reassigned to Default Workspace after removal from ${organizationId}.`);
             } else {
-                 logger.warn(`Could not find Default Workspace for academy ${organizationData.academyId} to reassign user ${userId}.`);
+                 logger.warn(`Could not find Default Workspace for organization ${organizationData.academyId} to reassign user ${userId}.`);
             }
         }
 
@@ -342,6 +342,6 @@ export const removeUserFromOrganization = async (req: Request, res: Response) =>
         res.status(204).send();
     } catch (error) {
         logger.error(`Error removing user ${userId} from org ${organizationId}:`, error);
-        res.status(500).json({ message: 'Failed to remove user from organization.' });
+        res.status(500).json({ message: 'Failed to remove user from workspace.' });
     }
 };

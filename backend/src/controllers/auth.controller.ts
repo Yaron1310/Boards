@@ -93,12 +93,12 @@ export const formatUserForFrontend = async (
         organizationAdmin: [...new Set(memberships.filter(m => m.role === UserRole.ORGANIZATION_ADMIN).map(m => m.entityId))],
     };
     
-    const organizationIdsFromMemberships = [...new Set(memberships.filter(m => m.entityType === 'organization').map(m => m.entityId))];
+    const organizationIdsFromMemberships = [...new Set(memberships.filter(m => m.entityType === 'workspace').map(m => m.entityId))];
     let allRelevantOrgIds = [...organizationIdsFromMemberships];
 
-    // If the user is an academy admin and has NO organization memberships, they need a representative org from their academy to log in.
+    // If the user is an organization admin and has NO workspace memberships, they need a representative org from their organization to log in.
     if (dbRoles.academyAdmin.length > 0 && allRelevantOrgIds.length === 0) {
-        // Fetch orgs for all admin academies in one query instead of N+1
+        // Fetch orgs for all admin organizations in one query instead of N+1
         const adminAcademyIds = dbRoles.academyAdmin;
         const repOrgPromises: Promise<admin.firestore.QuerySnapshot>[] = [];
         for (let i = 0; i < adminAcademyIds.length; i += 30) {
@@ -106,7 +106,7 @@ export const formatUserForFrontend = async (
         }
         const repOrgSnapshots = await Promise.all(repOrgPromises);
         const allRepOrgs = repOrgSnapshots.flatMap(snap => querySnapshotToArray<DBOrganization>(snap));
-        // Pick one org per academy
+        // Pick one org per organization
         const seenAcademies = new Set<string>();
         for (const org of allRepOrgs) {
             if (!seenAcademies.has(org.academyId)) {
@@ -128,13 +128,13 @@ export const formatUserForFrontend = async (
     let userOrgs: (Pick<DBOrganization, 'id' | 'name' | 'academyId' | 'isPersonal'> & { academyName?: string })[] = [];
 
     if (dbRoles.systemAdmin && !context) {
-        logger.info(`Formatting user ${user.id} as System Admin, fetching all academies and a representative org for each.`);
+        logger.info(`Formatting user ${user.id} as System Admin, fetching all organizations and a representative org for each.`);
         const allAcademiesSnapshot = await academiesCollection.orderBy('name').get();
-        const academies = querySnapshotToArray<DBAcademy>(allAcademiesSnapshot);
-        userForFrontend.allAcademies = academies;
+        const organizations = querySnapshotToArray<DBAcademy>(allAcademiesSnapshot);
+        userForFrontend.allAcademies = organizations;
 
-        if (academies.length > 0) {
-            // Fetch all orgs in one query instead of N+1 per-academy queries, then pick one per academy
+        if (organizations.length > 0) {
+            // Fetch all orgs in one query instead of N+1 per-organization queries, then pick one per organization
             const allOrgsSnapshot = await organizationsCollection.get();
             const allOrgs = querySnapshotToArray<DBOrganization>(allOrgsSnapshot);
             const seenAcademyIds = new Set<string>();
@@ -174,20 +174,20 @@ export const formatUserForFrontend = async (
             const academiesData = academyFetchSnapshots.flatMap(snap => querySnapshotToArray<DBAcademy>(snap));
             const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
             userOrgs.forEach((org => {
-                org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
+                org.academyName = academyMap.get(org.academyId) || 'Unknown Workspace';
             }));
         }
     }
-    userForFrontend.organizations = userOrgs;
+    userForFrontend.workspaces = userOrgs;
 
-    const academyAdminAcademyIds = new Set(memberships.filter(m => m.entityType === 'academy' && m.role === UserRole.ACADEMY_ADMIN).map(m => m.entityId));
+    const academyAdminAcademyIds = new Set(memberships.filter(m => m.entityType === 'organization' && m.role === UserRole.ACADEMY_ADMIN).map(m => m.entityId));
     const visibleOrgs = userOrgs.filter(o => !(o.isPersonal && academyAdminAcademyIds.has(o.academyId)));
 
     if (visibleOrgs.length === 1) {
         userForFrontend.organizationId = visibleOrgs[0].id;
         userForFrontend.organizationName = visibleOrgs[0].name;
     } else if (visibleOrgs.length > 1) {
-        userForFrontend.organizationName = 'Multiple Organizations';
+        userForFrontend.organizationName = 'Multiple Workspaces';
         delete userForFrontend.organizationId;
     } else {
         userForFrontend.organizationName = 'N/A';
@@ -240,7 +240,7 @@ const handleMultiOrgOrContextLogin = async (
     const userForFrontend = userObjectForFrontend || await formatUserForFrontend(user);
 
     const partialToken = existingPartialToken || jwt.sign(
-        { id: user.id, action: 'select-organization' } as JwtMultiOrgPayload,
+        { id: user.id, action: 'select-workspace' } as JwtMultiOrgPayload,
         env.JWT_SECRET,
         { expiresIn: '5m' }
     );
@@ -256,7 +256,7 @@ const handleMultiOrgOrContextLogin = async (
 };
 
 const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, organizationId: string }[]> => {
-    if (!user.organizations || !user.dbRoles) {
+    if (!user.workspaces || !user.dbRoles) {
         return [];
     }
 
@@ -265,8 +265,8 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
     const addedContexts = new Set<string>(); // "role|orgId"
 
     if (systemAdmin) {
-        if (user.organizations.length > 0) {
-            const defaultOrg = user.organizations.find((o:any) => o.name === 'Default Workspace' || o.id === 'default_org') || user.organizations[0];
+        if (user.workspaces.length > 0) {
+            const defaultOrg = user.workspaces.find((o:any) => o.name === 'Default Workspace' || o.id === 'default_org') || user.workspaces[0];
             const contextKey = `${UserRole.SYSTEM_ADMIN}|${defaultOrg.id}`;
             if (!addedContexts.has(contextKey)) {
                 contexts.push({ role: UserRole.SYSTEM_ADMIN, organizationId: defaultOrg.id });
@@ -277,7 +277,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
         const allAcademiesSnapshot = await academiesCollection.get();
         const allAcademies = querySnapshotToArray<DBAcademy>(allAcademiesSnapshot);
 
-        // Fetch all orgs in one query instead of N+1 per-academy queries
+        // Fetch all orgs in one query instead of N+1 per-organization queries
         const allOrgsSnapshot = await organizationsCollection.get();
         const allOrgs = querySnapshotToArray<DBOrganization>(allOrgsSnapshot);
 
@@ -289,8 +289,8 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
             }
         }
 
-        for (const academy of allAcademies) {
-            const orgId = firstOrgByAcademy.get(academy.id);
+        for (const organization of allAcademies) {
+            const orgId = firstOrgByAcademy.get(organization.id);
             if (orgId) {
                 const contextKey = `${UserRole.ACADEMY_ADMIN}|${orgId}`;
                 if (!addedContexts.has(contextKey)) {
@@ -298,14 +298,14 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
                     addedContexts.add(contextKey);
                 }
             } else {
-                logger.warn(`Organization '${academy.name}' (${academy.id}) has no organizations. Cannot create an Organization Admin context for it.`);
+                logger.warn(`Workspace '${organization.name}' (${organization.id}) has no workspaces. Cannot create an Workspace Admin context for it.`);
             }
         }
     } else {
         academyAdmin.forEach((academyId: string) => {
-            // Organization Admin context is ONLY available for organizations the user is EXPLICITLY a member of in that academy.
-            // This prevents them from assuming AA role for organizations they are not part of.
-            const userOrgsInAcademy = user.organizations.filter((o: any) => o.academyId === academyId && o.name !== 'Default Workspace');
+            // Workspace Admin context is ONLY available for workspaces the user is EXPLICITLY a member of in that organization.
+            // This prevents them from assuming AA role for workspaces they are not part of.
+            const userOrgsInAcademy = user.workspaces.filter((o: any) => o.academyId === academyId && o.name !== 'Default Workspace');
             userOrgsInAcademy.forEach((org: any) => {
                 const contextKey = `${UserRole.ACADEMY_ADMIN}|${org.id}`;
                 if (!addedContexts.has(contextKey)) {
@@ -316,7 +316,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
         });
 
         organizationAdmin.forEach((orgId: string) => {
-            const org = user.organizations.find((o: any) => o.id === orgId && o.name !== 'Default Workspace');
+            const org = user.workspaces.find((o: any) => o.id === orgId && o.name !== 'Default Workspace');
             const isCoveredByAcademyAdmin = academyAdmin.includes(org?.academyId || '');
             if (org && !isCoveredByAcademyAdmin) {
                 const contextKey = `${UserRole.ORGANIZATION_ADMIN}|${org.id}`;
@@ -327,7 +327,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
             }
         });
 
-        user.organizations.forEach((org: any) => {
+        user.workspaces.forEach((org: any) => {
             if (org.name === 'Default Workspace') return;
 
             const isAcademyAdminForThisOrg = academyAdmin.includes(org.academyId);
@@ -343,11 +343,11 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
         });
     }
 
-    // Special case: If after all checks, no contexts are found, check if the user's ONLY organization
+    // Special case: If after all checks, no contexts are found, check if the user's ONLY workspace
     // is the "Default Workspace". If so, grant them a limited login context.
-    if (contexts.length === 0 && user.organizations.length === 1 && user.organizations[0].name === 'Default Workspace') {
+    if (contexts.length === 0 && user.workspaces.length === 1 && user.workspaces[0].name === 'Default Workspace') {
         logger.info(`User ${user.id} has no active contexts, but is a regular user in Default Workspace. Granting limited login context.`);
-        contexts.push({ role: UserRole.REGULAR_USER, organizationId: user.organizations[0].id });
+        contexts.push({ role: UserRole.REGULAR_USER, organizationId: user.workspaces[0].id });
     }
 
     return contexts;
@@ -390,7 +390,7 @@ export const register = async (req: Request, res: Response) => {
         const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
         if (preapprovedQuery.empty) {
             logger.warn(`Registration attempt by non-pre-approved email: ${email}`);
-            return res.status(403).json({ message: 'You are not authorized to register. Please contact your organization manager.' });
+            return res.status(403).json({ message: 'You are not authorized to register. Please contact your workspace manager.' });
         }
 
         const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedQuery.docs[0])!;
@@ -417,7 +417,7 @@ export const register = async (req: Request, res: Response) => {
                 id: newMembershipRef.id,
                 userId: newUser.id,
                 entityId: organizationId,
-                entityType: 'organization',
+                entityType: 'workspace',
                 role: UserRole.REGULAR_USER,
                 academyId,
             };
@@ -483,8 +483,8 @@ export const registerAcademyAdmin = async (req: Request, res: Response) => {
         const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
         const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
         
-        // Since the academy isn't created yet, we use a generic name.
-        await sendAccountVerificationEmail(email, name, verificationLink, "Your New Organization");
+        // Since the organization isn't created yet, we use a generic name.
+        await sendAccountVerificationEmail(email, name, verificationLink, "Your New Workspace");
 
         res.status(201).json({
             success: true,
@@ -492,8 +492,8 @@ export const registerAcademyAdmin = async (req: Request, res: Response) => {
         });
 
     } catch (error) {
-        logger.error("Organization admin registration error:", error);
-        res.status(500).json({ message: 'Server error during academy admin registration.' });
+        logger.error("Workspace admin registration error:", error);
+        res.status(500).json({ message: 'Server error during organization admin registration.' });
     }
 };
 
@@ -556,7 +556,7 @@ export const login = async (req: Request, res: Response) => {
         
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', user.id).get();
         if (membershipsSnapshot.empty) {
-            return res.status(403).json({ message: "Your account is not assigned to any organization. Please contact an administrator." });
+            return res.status(403).json({ message: "Your account is not assigned to any workspace. Please contact an administrator." });
         }
         const memberships = querySnapshotToArray<DBMembership>(membershipsSnapshot);
 
@@ -565,7 +565,7 @@ export const login = async (req: Request, res: Response) => {
 
         if (availableContexts.length > 1) {
             if (userForFrontend.dbRoles?.systemAdmin) {
-                logger.info(`System Admin multi-context login for ${user.email}. Fetching all organizations for context selection UI.`);
+                logger.info(`System Admin multi-context login for ${user.email}. Fetching all workspaces for context selection UI.`);
                 const allOrgsSnapshot = await organizationsCollection.orderBy('name').get();
                 let allOrgs = querySnapshotToArray<DBOrganization>(allOrgsSnapshot).map(o => ({ id: o.id, name: o.name, academyId: o.academyId }));
                 
@@ -575,10 +575,10 @@ export const login = async (req: Request, res: Response) => {
                     const academiesData = querySnapshotToArray<DBAcademy>(academiesSnapshot);
                     const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
-                        org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
+                        org.academyName = academyMap.get(org.academyId) || 'Unknown Workspace';
                     });
                 }
-                userForFrontend.organizations = allOrgs;
+                userForFrontend.workspaces = allOrgs;
             }
             return handleMultiOrgOrContextLogin(user, res, undefined, userForFrontend);
         } else if (availableContexts.length === 1) {
@@ -588,7 +588,7 @@ export const login = async (req: Request, res: Response) => {
             res.clearCookie('partialAuthToken', { path: '/' });
             return res.json(response);
         } else {
-            return res.status(403).json({ message: "You do not have an active role in any organization. Please contact an administrator." });
+            return res.status(403).json({ message: "You do not have an active role in any workspace. Please contact an administrator." });
         }
     } catch (error) {
         logger.error("Login error:", error);
@@ -623,7 +623,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
         if (!membershipsSnapshot.empty) {
             const membership = snapshotToData<DBMembership>(membershipsSnapshot.docs[0])!;
             let academyId: string | undefined;
-            if (membership.entityType === 'academy') {
+            if (membership.entityType === 'organization') {
                 academyId = membership.entityId;
             } else {
                 const orgDoc = await organizationsCollection.doc(membership.entityId).get();
@@ -781,14 +781,14 @@ export const verifyAccount = async (req: Request, res: Response) => {
         const user = snapshotToData<DBUser>(userDoc)!;
 
         if (decoded.action === 'verify_academy_admin') {
-            if (user.status === 'active') return res.redirect(`${env.FRONTEND_URL}/login?message=Organization%20account%20already%20active.`);
+            if (user.status === 'active') return res.redirect(`${env.FRONTEND_URL}/login?message=Workspace%20account%20already%20active.`);
             if (user.status !== 'pending' && user.status !== 'pending_setup') return res.redirect(`${env.FRONTEND_URL}/login?message=Account%20status%20is%20not%20pending.`);
             
             await userRef.update({ status: 'pending_setup' });
-            const partialTokenPayload: JwtMultiOrgPayload = { id: user.id, action: 'academy-setup' };
+            const partialTokenPayload: JwtMultiOrgPayload = { id: user.id, action: 'organization-setup' };
             const partialToken = jwt.sign(partialTokenPayload, env.JWT_SECRET, { expiresIn: '1h' });
             setPartialAuthCookie(res, partialToken);
-            return res.redirect(`${env.FRONTEND_URL}/auth/academy/callback?token=${partialToken}`);
+            return res.redirect(`${env.FRONTEND_URL}/auth/organization/callback?token=${partialToken}`);
         }
 
         if (decoded.action === 'verify_email') {
@@ -828,7 +828,7 @@ export const googleCallback = async (req: Request, res: Response) => {
     try {
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', dbUser.id).get();
         if (dbUser.status === 'active' && !membershipsSnapshot.empty) {
-             const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-organization' };
+             const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-workspace' };
              const partialToken = jwt.sign(partialTokenPayload, env.JWT_SECRET, { expiresIn: '5m' });
              setPartialAuthCookie(res, partialToken);
              return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?token=${partialToken}`);
@@ -838,7 +838,7 @@ export const googleCallback = async (req: Request, res: Response) => {
         // Google OAuth verifies the email, so activate them and allow login.
         if (dbUser.status === 'pending' && !membershipsSnapshot.empty) {
             await usersCollection.doc(dbUser.id).update({ status: 'active', emailVerified: true, registrationType: 'standard' });
-            const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-organization' };
+            const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-workspace' };
             const partialToken = jwt.sign(partialTokenPayload, env.JWT_SECRET, { expiresIn: '5m' });
             setPartialAuthCookie(res, partialToken);
             return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?token=${partialToken}`);
@@ -868,7 +868,7 @@ export const googleCallback = async (req: Request, res: Response) => {
             id: newMembershipRef.id,
             userId: dbUser.id,
             entityId: organizationId,
-            entityType: 'organization',
+            entityType: 'workspace',
             role: UserRole.REGULAR_USER,
             academyId: orgAcademyId,
             createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -877,7 +877,7 @@ export const googleCallback = async (req: Request, res: Response) => {
         batch.delete(preapprovedQuery.docs[0].ref);
         await batch.commit();
 
-        const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-organization' };
+        const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-workspace' };
         const partialToken = jwt.sign(partialTokenPayload, env.JWT_SECRET, { expiresIn: '5m' });
         setPartialAuthCookie(res, partialToken);
         return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?token=${partialToken}`);
@@ -902,14 +902,14 @@ export const getGoogleLoginFinalization = async (req: Request, res: Response) =>
 
         if (memberships.length === 0) {
             logger.warn(`User ${user.id} logged in via Google but has no memberships.`);
-            return res.status(403).json({ message: "Your account is not assigned to any organization. Please contact an administrator." });
+            return res.status(403).json({ message: "Your account is not assigned to any workspace. Please contact an administrator." });
         }
 
         const availableContexts = await calculateAvailableContexts(userForFrontend);
         
         if (availableContexts.length > 1) {
             if (userForFrontend.dbRoles?.systemAdmin) {
-                logger.info(`System Admin multi-context Google login for ${user.email}. Fetching all organizations for context selection UI.`);
+                logger.info(`System Admin multi-context Google login for ${user.email}. Fetching all workspaces for context selection UI.`);
                 const allOrgsSnapshot = await organizationsCollection.orderBy('name').get();
                 let allOrgs = querySnapshotToArray<DBOrganization>(allOrgsSnapshot).map(o => ({ id: o.id, name: o.name, academyId: o.academyId }));
                 const academyIds = [...new Set(allOrgs.map(org => org.academyId))];
@@ -918,10 +918,10 @@ export const getGoogleLoginFinalization = async (req: Request, res: Response) =>
                     const academiesData = querySnapshotToArray<DBAcademy>(academiesSnapshot);
                     const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
-                        org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
+                        org.academyName = academyMap.get(org.academyId) || 'Unknown Workspace';
                     });
                 }
-                userForFrontend.organizations = allOrgs;
+                userForFrontend.workspaces = allOrgs;
             }
             return handleMultiOrgOrContextLogin(user, res, tokenFromHeader, userForFrontend);
         } else if (availableContexts.length === 1) {
@@ -932,7 +932,7 @@ export const getGoogleLoginFinalization = async (req: Request, res: Response) =>
             return res.json(response);
         } else {
              logger.warn(`User ${user.id} logged in via Google but has no available contexts.`);
-             return res.status(403).json({ message: "You do not have an active role in any organization. Please contact an administrator." });
+             return res.status(403).json({ message: "You do not have an active role in any workspace. Please contact an administrator." });
         }
     } catch (error) {
         logger.error("Google finalization error:", error);
@@ -1015,7 +1015,7 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                 id: newMembershipRef.id,
                 userId: newUserRef.id,
                 entityId: organizationId,
-                entityType: 'organization',
+                entityType: 'workspace',
                 role: UserRole.REGULAR_USER,
                 academyId: orgAcademyId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1042,7 +1042,7 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
         // Process login (similar to standard login flow)
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', user.id).get();
         if (membershipsSnapshot.empty) {
-            return res.status(403).json({ message: "Your account is not assigned to any organization. Please contact an administrator." });
+            return res.status(403).json({ message: "Your account is not assigned to any workspace. Please contact an administrator." });
         }
         const memberships = querySnapshotToArray<DBMembership>(membershipsSnapshot);
 
@@ -1059,10 +1059,10 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                     const academiesData = querySnapshotToArray<DBAcademy>(academiesSnapshot);
                     const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
-                        org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
+                        org.academyName = academyMap.get(org.academyId) || 'Unknown Workspace';
                     });
                 }
-                userForFrontend.organizations = allOrgs;
+                userForFrontend.workspaces = allOrgs;
             }
             return handleMultiOrgOrContextLogin(user, res, undefined, userForFrontend);
         } else if (availableContexts.length === 1) {
@@ -1071,7 +1071,7 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
             setAuthCookie(res, response.accessToken);
             return res.json(response);
         } else {
-            return res.status(403).json({ message: "You do not have an active role in any organization." });
+            return res.status(403).json({ message: "You do not have an active role in any workspace." });
         }
 
     } catch (error: any) {
@@ -1171,7 +1171,7 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                 id: newMembershipRef.id,
                 userId: newUserRef.id,
                 entityId: organizationId,
-                entityType: 'organization',
+                entityType: 'workspace',
                 role: UserRole.REGULAR_USER,
                 academyId: msOrgAcademyId,
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1195,7 +1195,7 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
 
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', user.id).get();
         if (membershipsSnapshot.empty) {
-            return res.status(403).json({ message: "Your account is not assigned to any organization. Please contact an administrator." });
+            return res.status(403).json({ message: "Your account is not assigned to any workspace. Please contact an administrator." });
         }
         const memberships = querySnapshotToArray<DBMembership>(membershipsSnapshot);
 
@@ -1212,10 +1212,10 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                     const academiesData = querySnapshotToArray<DBAcademy>(academiesSnapshot);
                     const academyMap = new Map(academiesData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
-                        org.academyName = academyMap.get(org.academyId) || 'Unknown Organization';
+                        org.academyName = academyMap.get(org.academyId) || 'Unknown Workspace';
                     });
                 }
-                userForFrontend.organizations = allOrgs;
+                userForFrontend.workspaces = allOrgs;
             }
             return handleMultiOrgOrContextLogin(user, res, undefined, userForFrontend);
         } else if (availableContexts.length === 1) {
@@ -1224,7 +1224,7 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
             setAuthCookie(res, response.accessToken);
             return res.json(response);
         } else {
-            return res.status(403).json({ message: "You do not have an active role in any organization." });
+            return res.status(403).json({ message: "You do not have an active role in any workspace." });
         }
     } catch (error: any) {
         logger.error("Native Microsoft Login error:", error);
@@ -1240,7 +1240,7 @@ export const finalizeAcademySetup = async (req: Request, res: Response) => {
         const user = snapshotToData<DBUser>(userDoc)!;
 
         if (user.status !== 'pending_setup') {
-            throw new Error("User is not pending academy setup.");
+            throw new Error("User is not pending organization setup.");
         }
 
         const userForFrontend = await formatUserForFrontend(user);
@@ -1248,7 +1248,7 @@ export const finalizeAcademySetup = async (req: Request, res: Response) => {
         // Return the same partial token and the user object
         const tokenFromHeader = req.cookies?.partialAuthToken || req.headers['authorization']?.split(' ')[1];
 
-        // Set the partial token as an auth cookie (academy setup is a special flow)
+        // Set the partial token as an auth cookie (organization setup is a special flow)
         if (tokenFromHeader) {
             setAuthCookie(res, tokenFromHeader);
         }
@@ -1259,8 +1259,8 @@ export const finalizeAcademySetup = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        logger.error("Organization setup finalization error:", error);
-        res.status(500).json({ message: "Failed to finalize academy setup." });
+        logger.error("Workspace setup finalization error:", error);
+        res.status(500).json({ message: "Failed to finalize organization setup." });
     }
 };
 

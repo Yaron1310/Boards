@@ -15,15 +15,15 @@ const EXCLUDE_PATTERNS = [
 
 const MIGRATIONS = [
   // Plurals first (must run before singulars)
-  { name: 'Organizations → Workspaces', pattern: /\bOrganizations\b/g, replacement: 'Workspaces' },
-  { name: 'organizations → workspaces', pattern: /\borganizations\b/g, replacement: 'workspaces' },
-  { name: 'Academies → Organizations',  pattern: /\bAcademies\b/g,     replacement: 'Organizations' },
-  { name: 'academies → organizations',  pattern: /\bacademies\b/g,      replacement: 'organizations' },
+  { name: 'Workspaces → Workspaces', pattern: /\bOrganizations\b/g, replacement: 'Workspaces' },
+  { name: 'workspaces → workspaces', pattern: /\borganizations\b/g, replacement: 'workspaces' },
+  { name: 'Organizations → Workspaces',  pattern: /\bAcademies\b/g,     replacement: 'Workspaces' },
+  { name: 'organizations → workspaces',  pattern: /\bacademies\b/g,      replacement: 'workspaces' },
   // Singulars second
-  { name: 'Organization → Workspace',   pattern: /\bOrganization\b/g,   replacement: 'Workspace' },
-  { name: 'organization → workspace',   pattern: /\borganization\b/g,   replacement: 'workspace' },
-  { name: 'Academy → Organization',     pattern: /\bAcademy\b/g,        replacement: 'Organization' },
-  { name: 'academy → organization',     pattern: /\bacademy\b/g,        replacement: 'organization' },
+  { name: 'Workspace → Workspace',   pattern: /\bOrganization\b/g,   replacement: 'Workspace' },
+  { name: 'workspace → workspace',   pattern: /\borganization\b/g,   replacement: 'workspace' },
+  { name: 'Organization → Workspace',     pattern: /\bAcademy\b/g,        replacement: 'Workspace' },
+  { name: 'organization → workspace',     pattern: /\bacademy\b/g,        replacement: 'workspace' },
 ];
 
 const DRY_RUN = process.argv.includes('--apply') === false;

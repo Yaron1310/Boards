@@ -4,7 +4,7 @@ import * as apiService from '@/services/geminiService';
 
 export const useOrganizationsQuery = (filterType?: 'corporate' | 'individual' | 'all', enabled = true) => {
   return useQuery({
-    queryKey: queryKeys.organizations.filtered(filterType),
+    queryKey: queryKeys.workspaces.filtered(filterType),
     queryFn: () => apiService.getOrganizations(filterType),
     enabled,
     staleTime: 5 * 60 * 1000,
@@ -13,7 +13,7 @@ export const useOrganizationsQuery = (filterType?: 'corporate' | 'individual' | 
 
 export const useArchivedOrganizationsQuery = (enabled = false) => {
   return useQuery({
-    queryKey: queryKeys.organizations.archived,
+    queryKey: queryKeys.workspaces.archived,
     queryFn: () => apiService.getArchivedOrganizations(),
     enabled,
     staleTime: 5 * 60 * 1000,

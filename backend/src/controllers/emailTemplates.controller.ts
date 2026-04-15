@@ -25,12 +25,12 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     },
     {
         id: 'invite_academy_admin',
-        name: 'Organization Admin Invitation',
-        description: 'Sent when a new Organization Admin is invited to set up their account.',
-        subject: "You've been invited as an Organization Admin for {{academyName}}",
+        name: 'Workspace Admin Invitation',
+        description: 'Sent when a new Workspace Admin is invited to set up their account.',
+        subject: "You've been invited as an Workspace Admin for {{academyName}}",
         variables: ['userName', 'academyName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
-<p>You've been invited to join <strong>{{academyName}}</strong> as an Organization Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
+<p>You've been invited to join <strong>{{academyName}}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
 <p>Thanks,<br/>The Gymind Team</p>`,
@@ -50,7 +50,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'approval_request',
         name: 'Approval Request (to Manager)',
-        description: "Sent to an organization manager when a new user registers and awaits approval.",
+        description: "Sent to an workspace manager when a new user registers and awaits approval.",
         subject: 'New User Registration Request: {{newUserName}}',
         variables: ['newUserName', 'newUserEmail', 'approvalLink'],
         html: `<p>Hello,</p>
@@ -63,11 +63,11 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'account_approved',
         name: 'Account Approved',
-        description: 'Sent to a user when an organization manager approves their account.',
+        description: 'Sent to a user when an workspace manager approves their account.',
         subject: 'Your Account Has Been Approved!',
         variables: ['userName', 'loginLink'],
         html: `<p>Hello {{userName}},</p>
-<p>Great news! Your account for Gymind has been approved by your organization's administrator.</p>
+<p>Great news! Your account for Gymind has been approved by your workspace's administrator.</p>
 <p>You can now log in and start using the application.</p>
 <p><a href="{{loginLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p>
 <p>Welcome aboard!</p>
@@ -88,11 +88,11 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'usage_alert',
         name: 'Token Usage Alert',
-        description: 'Sent to academy admins when AI token usage reaches a high threshold (75% or 95%).',
+        description: 'Sent to organization admins when AI token usage reaches a high threshold (75% or 95%).',
         subject: 'Usage Alert for {{academyName}}',
         variables: ['academyName', 'usagePercentage', 'warningLevel'],
         html: `<p>Hello,</p>
-<p>This is a <strong>{{warningLevel}}</strong> notification that your academy, <strong>{{academyName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
+<p>This is a <strong>{{warningLevel}}</strong> notification that your organization, <strong>{{academyName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
 <p>If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p>
 <p>To prevent service interruption, you can increase your limit by visiting the Billing Settings page in your admin dashboard.</p>
 <p>Thanks,<br/>The Gymind Team</p>`,
@@ -217,7 +217,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'user_invitation',
         name: 'User Invitation',
-        description: 'Sent to pre-approved users who have been invited to join an organization.',
+        description: 'Sent to pre-approved users who have been invited to join an workspace.',
         subject: "You've been invited to join {{orgName}} on Gymind",
         variables: ['orgName', 'academyName', 'registrationLink'],
         html: `<p>Hello,</p>
@@ -230,7 +230,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'newsletter_reminder_3day',
         name: 'Newsletter Reminder (3 Days)',
-        description: "Sent to an academy admin when a scheduled newsletter edition is due in 3 days but its content is still empty.",
+        description: "Sent to an organization admin when a scheduled newsletter edition is due in 3 days but its content is still empty.",
         subject: 'Reminder: Your newsletter "{{campaignName}}" is due in 3 days',
         variables: ['campaignName', 'academyName'],
         html: `<p>Hi,</p>
@@ -241,7 +241,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'newsletter_reminder_1day',
         name: 'Newsletter Reminder (1 Day — Urgent)',
-        description: "Sent to an academy admin as an urgent warning when a scheduled newsletter edition is due tomorrow but its content is still empty.",
+        description: "Sent to an organization admin as an urgent warning when a scheduled newsletter edition is due tomorrow but its content is still empty.",
         subject: 'Urgent: Your newsletter "{{campaignName}}" is due tomorrow',
         variables: ['campaignName', 'academyName'],
         html: `<p>Hi,</p>

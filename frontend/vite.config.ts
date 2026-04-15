@@ -57,7 +57,7 @@ export default defineConfig({
           // ── ACADEMY_ADMIN only (not needed by ORG_ADMIN) ───────────────────
           // AcademyBillingPage and ThemeSettingsPage are intentionally excluded:
           // AcademyHubPage (user-accessible) statically imports them, so forcing
-          // them here would create a chunk-user → chunk-academy-admin cycle.
+          // them here would create a chunk-user → chunk-organization-admin cycle.
           if (
             id.includes('/components/admin/OrganizationManagementPage.') ||
             id.includes('/components/admin/AiMentorWizard.')             ||
@@ -67,14 +67,14 @@ export default defineConfig({
             id.includes('/components/admin/QuestionnaireManagementPage.') ||
             // Admin-only questionnaire sub-components live under questionnaire/admin/
             // They were previously caught by the broad '/components/questionnaire/'
-            // user-chunk rule, which caused chunk-academy-admin → chunk-user.
+            // user-chunk rule, which caused chunk-organization-admin → chunk-user.
             id.includes('/components/questionnaire/admin/')
           ) {
-            return 'chunk-academy-admin';
+            return 'chunk-organization-admin';
           }
 
           // ── ORG_ADMIN + ACADEMY_ADMIN + SYSTEM_ADMIN ───────────────────────
-          // Separate chunk so ORG_ADMIN never downloads the full academy-admin bundle.
+          // Separate chunk so ORG_ADMIN never downloads the full organization-admin bundle.
           if (
             id.includes('/components/admin/AdminDashboardPage.') ||
             id.includes('/components/admin/UserManagementPage.')

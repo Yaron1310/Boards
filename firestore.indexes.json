@@ -132,7 +132,7 @@
       ]
     },
     {
-      "collectionGroup": "organizations",
+      "collectionGroup": "workspaces",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "academyId", "order": "ASCENDING" },
@@ -140,7 +140,7 @@
       ]
     },
     {
-      "collectionGroup": "organizations",
+      "collectionGroup": "workspaces",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "academyId", "order": "ASCENDING" },
@@ -149,7 +149,7 @@
       ]
     },
     {
-      "collectionGroup": "organizations",
+      "collectionGroup": "workspaces",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "name", "order": "ASCENDING" },

@@ -1,12 +1,12 @@
 import { Router } from 'express';
-import * as academyController from '../controllers/academy.controller.js';
+import * as academyController from '../controllers/organization.controller.js';
 import { requireRole } from '../middleware/auth.middleware.js';
 import { authenticateToken, authenticatePartialToken } from '../middleware/auth.middleware.js';
 import { UserRole } from '../types/index.js';
 
 export const academyRouter = Router();
 
-// --- Organization Self-Setup Routes ---
+// --- Workspace Self-Setup Routes ---
 // These are authenticated with a special partial token.
 academyRouter.post('/setup', authenticatePartialToken, academyController.setupAcademy);
 academyRouter.post('/activate-subscription', authenticatePartialToken, academyController.activateSubscription);

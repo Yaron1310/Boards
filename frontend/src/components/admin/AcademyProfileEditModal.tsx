@@ -73,9 +73,9 @@ const AcademyProfileEditModal: React.FC<AcademyProfileEditModalProps> = ({ isOpe
         <div className="p-6 border-b">
           <h2 className="text-2xl font-bold">{t('admin.editPublicInformation')}</h2>
         </div>
-        <form id="academy-profile-form" onSubmit={handleSubmit} className="flex-grow overflow-y-auto p-6">
+        <form id="organization-profile-form" onSubmit={handleSubmit} className="flex-grow overflow-y-auto p-6">
           {saveError && (
-            <div id="academy-profile-save-error" role="alert" className="mb-4 p-3 bg-red-100 text-red-700 rounded-md border border-red-300 text-sm">
+            <div id="organization-profile-save-error" role="alert" className="mb-4 p-3 bg-red-100 text-red-700 rounded-md border border-red-300 text-sm">
               {saveError}
             </div>
           )}
@@ -89,7 +89,7 @@ const AcademyProfileEditModal: React.FC<AcademyProfileEditModalProps> = ({ isOpe
                 name="appName"
                 required
                 aria-required="true"
-                aria-describedby={saveError ? 'academy-profile-save-error' : undefined}
+                aria-describedby={saveError ? 'organization-profile-save-error' : undefined}
                 className="mt-1 block w-full rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-black p-2 border border-gray-300"
                 value={formData.appName || ''}
                 onChange={handleChange}
@@ -166,7 +166,7 @@ const AcademyProfileEditModal: React.FC<AcademyProfileEditModalProps> = ({ isOpe
             <button type="button" onClick={onClose} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
               {t('common.cancel')}
             </button>
-            <button type="submit" form="academy-profile-form" disabled={isSaving} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300">
+            <button type="submit" form="organization-profile-form" disabled={isSaving} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300">
               {isSaving ? t('common.saving') : t('common.saveChanges')}
             </button>
           </div>

@@ -56,7 +56,7 @@ const TutorialSettingsPage: React.FC = () => {
         { key: 'aiMentor', label: t('admin.aiMentorSettings') },
         { key: 'courses', label: t('admin.courseManagement') },
         { key: 'questionnaires', label: t('admin.questionnaireSettings') },
-        { key: 'organizations', label: t('admin.organizationManagement') },
+        { key: 'workspaces', label: t('admin.organizationManagement') },
         { key: 'users', label: t('admin.userManagement') },
         { key: 'theme', label: t('admin.themeSettings') },
         { key: 'plansBilling', label: t('admin.plansBilling') },
@@ -104,7 +104,7 @@ const TutorialSettingsPage: React.FC = () => {
                 </h1>
                 
                 <p className="text-gray-600 mb-6">
-                    Configure tutorial videos for Organization Admin pages. When enabled, a "Watch a tutorial" link will appear on the corresponding page for Organization Admins.
+                    Configure tutorial videos for Workspace Admin pages. When enabled, a "Watch a tutorial" link will appear on the corresponding page for Workspace Admins.
                 </p>
 
                 {feedback && (

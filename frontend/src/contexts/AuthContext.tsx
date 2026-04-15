@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useEffect, useRef, ReactNode, useCallback, useMemo } from 'react';
-import type { User, Workspace, UserRole, Organization } from '../types';
+import type { User, Workspace, UserRole, Workspace } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import * as apiService from '../services/geminiService';
 import { Capacitor } from '@capacitor/core';
@@ -14,7 +14,7 @@ interface AuthContextType {
 
   // New state for multi-context flow, replacing the old multi-org flow
   contextSelectionMode: 'login' | 'switch' | null;
-  userForContextSelection: (Omit<User, 'role'> & { organizations: Workspace[], allAcademies?: Organization[] }) | null;
+  userForContextSelection: (Omit<User, 'role'> & { workspaces: Workspace[], allAcademies?: Workspace[] }) | null;
   availableContexts: { groupName: string, contexts: { label: string; value: string; role: UserRole }[] }[];
 
 
@@ -26,9 +26,9 @@ interface AuthContextType {
   finalizeLoginSession: (loginData: any) => void;
 
 
-  register: (userData: Omit<User, 'id' | 'role' | 'organizationIds' | 'organizations' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string; planId?: string }, recaptchaToken?: string | null) => Promise<{ success: boolean; message: string; }>;
+  register: (userData: Omit<User, 'id' | 'role' | 'organizationIds' | 'workspaces' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string; planId?: string }, recaptchaToken?: string | null) => Promise<{ success: boolean; message: string; }>;
   initiateCheckoutRegistration: (formData: any, recaptchaToken?: string | null) => Promise<{ success: boolean; message?: string }>;
-  registerAcademyAdmin: (userData: Omit<User, 'id' | 'role' | 'organizationIds' | 'organizations' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string }, planId: string, recaptchaToken?: string | null) => Promise<{ success: boolean; user?: User }>;
+  registerAcademyAdmin: (userData: Omit<User, 'id' | 'role' | 'organizationIds' | 'workspaces' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string }, planId: string, recaptchaToken?: string | null) => Promise<{ success: boolean; user?: User }>;
   logout: () => void;
   updateUserDetails: (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string }) => Promise<boolean>;
   updateUserPassword: (passwords: { currentPassword?: string; newPassword: string }) => Promise<boolean>;
@@ -97,7 +97,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authError, setAuthError] = useState<string | null>(null);
 
   const [contextSelectionMode, setContextSelectionMode] = useState<'login' | 'switch' | null>(null);
-  const [userForContextSelection, setUserForContextSelection] = useState<(Omit<User, 'role'> & { organizations: Workspace[], allAcademies?: Organization[] }) | null>(null);
+  const [userForContextSelection, setUserForContextSelection] = useState<(Omit<User, 'role'> & { workspaces: Workspace[], allAcademies?: Workspace[] }) | null>(null);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
 
 
@@ -263,8 +263,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!response.ok) throw new Error(data.message || 'Login failed');
 
       if (data.multiContext) {
-        if (!data.user.organizations || data.user.organizations.length === 0) {
-             // Payment flow user with no organizations yet
+        if (!data.user.workspaces || data.user.workspaces.length === 0) {
+             // Payment flow user with no workspaces yet
              console.log('[AUTH_FLOW] Payment flow user logged in (no orgs). Setting partial state.');
              setUser(data.user);
         } else {
@@ -362,7 +362,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     handleSuccessfulLogin(loginData);
   }, [handleSuccessfulLogin]);
 
-  const register = useCallback(async (userData: Omit<User, 'id'| 'role' | 'organizationIds' | 'organizations' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string; planId?: string }, recaptchaToken?: string | null): Promise<{ success: boolean; message: string; }> => {
+  const register = useCallback(async (userData: Omit<User, 'id'| 'role' | 'organizationIds' | 'workspaces' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string; planId?: string }, recaptchaToken?: string | null): Promise<{ success: boolean; message: string; }> => {
     setLoading(true);
     setAuthError(null);
     try {
@@ -382,12 +382,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const registerAcademyAdmin = useCallback(async (userData: Omit<User, 'id' | 'role' | 'organizationIds' | 'organizations' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string }, planId: string, recaptchaToken?: string | null): Promise<{ success: boolean; user?: User }> => {
+  const registerAcademyAdmin = useCallback(async (userData: Omit<User, 'id' | 'role' | 'organizationIds' | 'workspaces' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string }, planId: string, recaptchaToken?: string | null): Promise<{ success: boolean; user?: User }> => {
     setLoading(true);
     setAuthError(null);
     try {
         const data = await apiService.registerAcademyAdmin(userData, planId, recaptchaToken);
-        console.log('[AUTH_FLOW] Organization admin registered. Handling partial login.');
+        console.log('[AUTH_FLOW] Workspace admin registered. Handling partial login.');
         setUser(data.user);
         setToken('cookie');
         storeUser(data.user);
@@ -424,7 +424,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const data = await apiService.getGoogleLoginFinalization(receivedToken);
       if (data.multiContext) {
-        if (!data.user.organizations || data.user.organizations.length === 0) {
+        if (!data.user.workspaces || data.user.workspaces.length === 0) {
              console.log('[AUTH_FLOW] New Google user (checkout flow). Setting partial user state without context selection.');
              setUser(data.user);
         } else {
@@ -503,11 +503,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (currentUser && currentUser.id === updatedUserData.id) {
         const safeUserData = {
             ...updatedUserData,
-            // SECURITY: Forcefully preserve the current session role and organization context.
+            // SECURITY: Forcefully preserve the current session role and workspace context.
             // Even if the backend calculates a "better" role based on DB state,
             // the active session must not change role without a full login/switch event.
             role: currentUser.role,
-            organizations: currentUser.organizations,
+            workspaces: currentUser.workspaces,
             dbRoles: currentUser.dbRoles
         };
         storeUser(safeUserData);
@@ -594,7 +594,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const availableContexts = useMemo(() => {
     const userForContexts = contextSelectionMode === 'login' ? userForContextSelection : user;
-    if (!userForContexts?.organizations || !userForContexts?.dbRoles) return [];
+    if (!userForContexts?.workspaces || !userForContexts?.dbRoles) return [];
 
     const contexts: { label: string; value: string; role: UserRole; academyName: string; }[] = [];
     const addedContexts = new Set<string>();
@@ -603,7 +603,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 1. System Admin role
     if (systemAdmin) {
-        const defaultOrg = userForContexts.organizations.find(o => o.name === 'Default Workspace') || userForContexts.organizations[0];
+        const defaultOrg = userForContexts.workspaces.find(o => o.name === 'Default Workspace') || userForContexts.workspaces[0];
         if (defaultOrg) {
             const contextValue = JSON.stringify({ role: 'system_admin', organizationId: defaultOrg.id });
             if (!addedContexts.has(contextValue)) {
@@ -613,22 +613,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }
 
-    // 2. Organization Admin roles
+    // 2. Workspace Admin roles
     const academiesForAdminRole = systemAdmin
         ? (userForContexts.allAcademies || [])
         : assignedAcademyAdmins.map(academyId => {
-            const orgForName = userForContexts.organizations.find(o => o.academyId === academyId);
-            return { id: academyId, name: orgForName?.academyName || 'Unknown Organization' };
+            const orgForName = userForContexts.workspaces.find(o => o.academyId === academyId);
+            return { id: academyId, name: orgForName?.academyName || 'Unknown Workspace' };
         });
 
     const academyAdminAcademyIds = new Set(academiesForAdminRole.map(a => a.id));
 
-    academiesForAdminRole.forEach(academy => {
-        const orgInAcademy = userForContexts.organizations.find(o => o.academyId === academy.id);
+    academiesForAdminRole.forEach(organization => {
+        const orgInAcademy = userForContexts.workspaces.find(o => o.academyId === organization.id);
         if (orgInAcademy) {
             const contextValue = JSON.stringify({ role: 'academy_admin', organizationId: orgInAcademy.id });
             if (!addedContexts.has(contextValue)) {
-                contexts.push({ label: `${academy.name} Admin`, value: contextValue, role: 'academy_admin', academyName: academy.name });
+                contexts.push({ label: `${organization.name} Admin`, value: contextValue, role: 'academy_admin', academyName: organization.name });
                 addedContexts.add(contextValue);
             }
         }
@@ -636,35 +636,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 3. Workspace Admin roles
     assignedOrgAdmins.forEach(orgId => {
-      const org = userForContexts.organizations.find(o => o.id === orgId);
-      // Only hide if it's a personal workspace in an academy they manage
+      const org = userForContexts.workspaces.find(o => o.id === orgId);
+      // Only hide if it's a personal workspace in an organization they manage
       const isManagedPersonalOrg = org?.isPersonal && academyAdminAcademyIds.has(org.academyId);
       if (org && !isManagedPersonalOrg && !academyAdminAcademyIds.has(org.academyId)) {
         const contextValue = JSON.stringify({ role: 'organization_admin', organizationId: org.id });
         if (!addedContexts.has(contextValue)) {
-            contexts.push({ label: `${org.name} Manager`, value: contextValue, role: 'organization_admin', academyName: org.academyName || 'Unknown Organization' });
+            contexts.push({ label: `${org.name} Manager`, value: contextValue, role: 'organization_admin', academyName: org.academyName || 'Unknown Workspace' });
             addedContexts.add(contextValue);
         }
       }
     });
 
     // 4. Regular User roles
-    userForContexts.organizations.forEach(org => {
-      // Only hide if it's a personal workspace in an academy they manage
+    userForContexts.workspaces.forEach(org => {
+      // Only hide if it's a personal workspace in an organization they manage
       const isManagedPersonalOrg = org.isPersonal && academyAdminAcademyIds.has(org.academyId);
       if (org.name === 'Default Workspace' || isManagedPersonalOrg || systemAdmin) return;
 
       if (!academyAdminAcademyIds.has(org.academyId) && !assignedOrgAdmins.includes(org.id)) {
         const contextValue = JSON.stringify({ role: 'regular_user', organizationId: org.id });
         if (!addedContexts.has(contextValue)) {
-            contexts.push({ label: `${org.name} User`, value: contextValue, role: 'regular_user', academyName: org.academyName || 'Unknown Organization' });
+            contexts.push({ label: `${org.name} User`, value: contextValue, role: 'regular_user', academyName: org.academyName || 'Unknown Workspace' });
             addedContexts.add(contextValue);
         }
       }
     });
 
     const grouped = contexts.reduce((acc, ctx) => {
-        const groupName = ctx.academyName === 'System-Wide' ? 'System Administration' : `Organization: ${ctx.academyName}`;
+        const groupName = ctx.academyName === 'System-Wide' ? 'System Administration' : `Workspace: ${ctx.academyName}`;
         if (!acc[groupName]) acc[groupName] = [];
         acc[groupName].push(ctx);
         return acc;

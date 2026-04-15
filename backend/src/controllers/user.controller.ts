@@ -32,14 +32,14 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
     }
 
     const targetOrgId = (requestingUser.role === UserRole.SYSTEM_ADMIN || requestingUser.role === UserRole.ACADEMY_ADMIN) ? organizationId : requestingUser.selectedOrganizationId;
-    if (!targetOrgId) return res.status(400).json({ message: 'An organization ID is required.' });
+    if (!targetOrgId) return res.status(400).json({ message: 'An workspace ID is required.' });
 
     try {
         const orgDoc = await organizationsCollection.doc(targetOrgId).get();
-        if (!orgDoc.exists) return res.status(404).json({ message: 'Target organization not found.' });
+        if (!orgDoc.exists) return res.status(404).json({ message: 'Target workspace not found.' });
         const orgData = orgDoc.data() as DBOrganization;
         if (requestingUser.role === UserRole.ACADEMY_ADMIN && orgData.academyId !== requestingUser.academyId) {
-            return res.status(403).json({ message: 'You do not have permission to approve users for this organization.' });
+            return res.status(403).json({ message: 'You do not have permission to approve users for this workspace.' });
         }
 
         const batch = db.batch();
@@ -103,7 +103,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                         id: newMembershipRef.id,
                         userId: user.id,
                         entityId: targetOrgId,
-                        entityType: 'organization',
+                        entityType: 'workspace',
                         role: UserRole.REGULAR_USER,
                         academyId: orgData.academyId,
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
@@ -141,11 +141,11 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
 
         let message = '';
         if (preApprovedCount > 0 && updatedUserCount > 0) {
-            message = `${preApprovedCount} new email(s) have been pre-approved. ${updatedUserCount} existing user(s) have been added to the organization.`;
+            message = `${preApprovedCount} new email(s) have been pre-approved. ${updatedUserCount} existing user(s) have been added to the workspace.`;
         } else if (preApprovedCount > 0) {
             message = `${preApprovedCount} new email(s) have been pre-approved.`;
         } else if (updatedUserCount > 0) {
-            message = `${updatedUserCount} existing user(s) have been added to the organization.`;
+            message = `${updatedUserCount} existing user(s) have been added to the workspace.`;
         } else {
             message = 'No new users were pre-approved or added. They may already have access.';
         }
@@ -161,7 +161,7 @@ export const getPreApprovedUsers = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
 
     if (user.role === UserRole.ORGANIZATION_ADMIN && !user.selectedOrganizationId) {
-        return res.status(400).json({ message: "Manager is not associated with an organization." });
+        return res.status(400).json({ message: "Manager is not associated with an workspace." });
     }
 
     try {
@@ -213,7 +213,7 @@ export const deletePreApprovedUser = async (req: Request, res: Response) => {
       if (manager.role === UserRole.ORGANIZATION_ADMIN) {
         const entry = snapshotToData<DBPreapprovedUser>(doc)!;
         if (entry.organizationId !== manager.selectedOrganizationId) {
-          return res.status(403).json({ message: "Forbidden: You can only manage pre-approvals for your own organization." });
+          return res.status(403).json({ message: "Forbidden: You can only manage pre-approvals for your own workspace." });
         }
       }
       await docRef.delete();
@@ -349,7 +349,7 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
         if (orgDoc.exists) {
             orgData = snapshotToData<DBOrganization>(orgDoc)!;
         } else {
-            const membershipsSnapshot = await membershipsCollection.where('userId', '==', dbUser.id).where('entityType', '==', 'organization').limit(1).get();
+            const membershipsSnapshot = await membershipsCollection.where('userId', '==', dbUser.id).where('entityType', '==', 'workspace').limit(1).get();
             if (membershipsSnapshot.empty) {
                  return res.json({ user: formattedUser, selectedOrganization: null });
             }
@@ -368,7 +368,7 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
             isPersonal: orgData.isPersonal
         };
 
-        // Fetch academy name to include in the response
+        // Fetch organization name to include in the response
         const academyDoc = await academiesCollection.doc(orgData.academyId).get();
         if (academyDoc.exists) {
             selectedOrganizationForFrontend.academyName = academyDoc.data()?.name;
@@ -497,7 +497,7 @@ export const getUserById = async (req: Request, res: Response) => {
         } else if (requestingUser.role === UserRole.ACADEMY_ADMIN) {
             const orgsSnapshot = await organizationsCollection.where('academyId', '==', requestingUser.academyId).get();
             const academyOrgIds = orgsSnapshot.docs.map(doc => doc.id);
-            isAuthorized = targetMemberships.some(m => m.entityType === 'organization' && academyOrgIds.includes(m.entityId));
+            isAuthorized = targetMemberships.some(m => m.entityType === 'workspace' && academyOrgIds.includes(m.entityId));
         } else if (requestingUser.role === UserRole.ORGANIZATION_ADMIN) {
             isAuthorized = targetMemberships.some(m => m.entityId === requestingUser.selectedOrganizationId);
         }

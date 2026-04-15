@@ -29,7 +29,7 @@ export const AI_SYSTEM_PROMPT_CHAT_KEY = 'AI_SYSTEM_PROMPT_CHAT';
 export const APP_NAME = 'Gymind';
 
 
-// Default organizations can still be defined here if needed for frontend fallbacks or initial setup,
+// Default workspaces can still be defined here if needed for frontend fallbacks or initial setup,
 // but primary source should be the backend.
 export const DEFAULT_ORGANIZATIONS = [
   { id: 'org1', name: 'Mindful Solutions Inc.' },

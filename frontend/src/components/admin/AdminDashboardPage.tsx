@@ -12,9 +12,9 @@ const AdminDashboardPage: React.FC = () => {
   const { user, selectedOrganization } = useAuth();
   const { 
     users, 
-    organizations, 
+    workspaces, 
     conversations, 
-    academies, 
+    organizations, 
     academySettings, 
     academyTokenUsage, 
     orgTokenUsage, 
@@ -44,7 +44,7 @@ const AdminDashboardPage: React.FC = () => {
       return (usage.used / usage.limit) * 100;
   }, [user, academyUsage, orgUsage]);
 
-  // --- Organization Admin Metrics ---
+  // --- Workspace Admin Metrics ---
   const academyMetrics = useMemo(() => {
     if (user?.role !== UserRole.ACADEMY_ADMIN) return null;
 
@@ -80,11 +80,11 @@ const AdminDashboardPage: React.FC = () => {
     }).length;
 
     // 3. Workspace Performance
-    const orgPerformance = organizations
+    const orgPerformance = workspaces
         .filter(org => !org.isPersonal && org.name !== 'Default Workspace')
         .map(org => {
             const orgId = org.id;
-            const orgMembers = users.filter(u => u.organizations?.some(o => o.id === orgId));
+            const orgMembers = users.filter(u => u.workspaces?.some(o => o.id === orgId));
             const orgProgress = organizationProgress.filter(p => p.organizationId === orgId);
             
             // Average progress for this org
@@ -112,7 +112,7 @@ const AdminDashboardPage: React.FC = () => {
         })
         .sort((a, b) => b.usedTokens - a.usedTokens);
 
-    // 4. Top Courses (Organization-wide)
+    // 4. Top Courses (Workspace-wide)
     const courseStats = organizationProgress.reduce((acc, curr) => {
         acc[curr.courseId] = (acc[curr.courseId] || 0) + 1;
         return acc;
@@ -127,7 +127,7 @@ const AdminDashboardPage: React.FC = () => {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
-    // 5. Most Popular Mentors (Organization-wide)
+    // 5. Most Popular Mentors (Workspace-wide)
     const mentorStats = conversations.reduce((acc, curr) => {
         acc[curr.personaName] = (acc[curr.personaName] || 0) + 1;
         return acc;
@@ -138,7 +138,7 @@ const AdminDashboardPage: React.FC = () => {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
-    // 6. Recent Activity (Organization-wide)
+    // 6. Recent Activity (Workspace-wide)
     const latestConversations = [...conversations]
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .slice(0, 5)
@@ -158,7 +158,7 @@ const AdminDashboardPage: React.FC = () => {
         topMentors,
         latestConversations
     };
-  }, [user, conversations, users, organizations, organizationProgress, courses, academyTokenUsage, orgTokenUsage]);
+  }, [user, conversations, users, workspaces, organizationProgress, courses, academyTokenUsage, orgTokenUsage]);
 
   // --- Workspace Manager Metrics ---
   const orgMetrics = useMemo(() => {
@@ -240,11 +240,11 @@ const AdminDashboardPage: React.FC = () => {
   }
   
   const totalUsers = users.length;
-  const totalOrganizations = organizations.filter(org => !org.isPersonal).length;
+  const totalOrganizations = workspaces.filter(org => !org.isPersonal).length;
   const totalConversations = conversations.length;
 
   // For Workspace Admins, the `users` and `conversations` lists from useData()
-  // are already scoped to their organization by the `fetchAllData` logic.
+  // are already scoped to their workspace by the `fetchAllData` logic.
   const managerOrgUsers = user.role === UserRole.ORGANIZATION_ADMIN ? users.length : 0;
   const managerOrgConversations = user.role === UserRole.ORGANIZATION_ADMIN ? conversations.length : 0;
 
@@ -271,7 +271,7 @@ const AdminDashboardPage: React.FC = () => {
       <div className="sticky top-0 z-20 bg-gray-100 px-4 md:px-8 pt-4 md:pt-8 pb-4">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold text-gray-800">
-            {user.role === UserRole.ACADEMY_ADMIN ? t('admin.academyAdminDashboard') : user.role === UserRole.SYSTEM_ADMIN ? t('admin.systemAdminDashboard') : t('admin.managerDashboard', { name: user.selectedOrganization?.name || t('admin.organization') })}
+            {user.role === UserRole.ACADEMY_ADMIN ? t('admin.academyAdminDashboard') : user.role === UserRole.SYSTEM_ADMIN ? t('admin.systemAdminDashboard') : t('admin.managerDashboard', { name: user.selectedOrganization?.name || t('admin.workspace') })}
           </h1>
         </div>
       </div>
@@ -281,7 +281,7 @@ const AdminDashboardPage: React.FC = () => {
         <div className="max-w-6xl mx-auto">
 
         {user.role === UserRole.ACADEMY_ADMIN && (!academySettings?.description || (!academySettings?.contactEmail && !academySettings?.contactPhone)) && (
-            <Link to="/admin/academy-hub">
+            <Link to="/admin/organization-hub">
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 cursor-pointer rounded-r-lg shadow-sm">
                 <p className="text-yellow-700">{t('admin.completeAcademyDetails')}</p>
               </div>
@@ -323,7 +323,7 @@ const AdminDashboardPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
           {user.role === UserRole.SYSTEM_ADMIN ? (
               <>
-                <StatCard title={t('admin.totalAcademies')} value={academies.length} icon={<FiShield size={24}/>} color="border-purple-500" />
+                <StatCard title={t('admin.totalAcademies')} value={organizations.length} icon={<FiShield size={24}/>} color="border-purple-500" />
                 <StatCard title={t('admin.totalUsers')} value={totalUsers} icon={<FiUsers size={24}/>} color="border-blue-500" />
                 <StatCard title={t('admin.totalOrganizations')} value={totalOrganizations} icon={<FiBriefcase size={24}/>} color="border-green-500" />
                 <StatCard title={t('admin.totalConversations')} value={totalConversations} icon={<FiBarChart2 size={24}/>} color="border-indigo-500" />
@@ -353,7 +353,7 @@ const AdminDashboardPage: React.FC = () => {
                         <h3 className="text-lg font-bold text-gray-800 flex items-center">
                             <FiTrendingUp className="mr-2 text-blue-500" /> {t('admin.orgPerformance')}
                         </h3>
-                        <Link to="/admin/organizations" className="text-sm text-blue-600 hover:text-blue-800 flex items-center font-medium">
+                        <Link to="/admin/workspaces" className="text-sm text-blue-600 hover:text-blue-800 flex items-center font-medium">
                             {t('admin.manageOrgs')} <FiChevronRight className="ml-1 rtl-flip" />
                         </Link>
                     </div>
@@ -361,7 +361,7 @@ const AdminDashboardPage: React.FC = () => {
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
-                                    <th className="px-6 py-3 font-semibold">{t('admin.organization')}</th>
+                                    <th className="px-6 py-3 font-semibold">{t('admin.workspace')}</th>
                                     <th className="px-6 py-3 font-semibold text-center">{t('admin.members')}</th>
                                     <th className="px-6 py-3 font-semibold text-center">{t('admin.avgProgress')}</th>
                                     <th className="px-6 py-3 font-semibold text-left">{t('admin.tokenUsage')}</th>

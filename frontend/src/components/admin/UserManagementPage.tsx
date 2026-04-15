@@ -34,7 +34,7 @@ const UserManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const { user: authUser, selectedOrganization } = useAuth();
   const {
-    organizations,
+    workspaces,
     preApprovedUsers,
     tutorialSettings
   } = useData();
@@ -128,7 +128,7 @@ const UserManagementPage: React.FC = () => {
         'Name': u.name,
         'Email': u.email,
         'Role': u.role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-        'Workspace(s)': u.organizations.filter(o => !o.isPersonal).map(o => o.name).join(', '),
+        'Workspace(s)': u.workspaces.filter(o => !o.isPersonal).map(o => o.name).join(', '),
     }));
 
     exportToCSV(dataForExport, "Gymind_Users_Export.csv");
@@ -202,8 +202,8 @@ const UserManagementPage: React.FC = () => {
                         <button
                         onClick={handleOpenPreApproveModal}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
-                        aria-label="Pre-approve new users for your organization"
-                        title="Pre-approve new users for your organization"
+                        aria-label="Pre-approve new users for your workspace"
+                        title="Pre-approve new users for your workspace"
                         >
                         <FiUserPlus className="mr-2" /> {t('admin.preApproveUsers')}
                         </button>
@@ -212,8 +212,8 @@ const UserManagementPage: React.FC = () => {
                         <button
                         onClick={() => setShowAcademyAdminsModal(true)}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
-                        aria-label="Manage admins for your academy"
-                        title="Manage admins for your academy"
+                        aria-label="Manage admins for your organization"
+                        title="Manage admins for your organization"
                         >
                         <FiShield className="mr-2" /> {t('admin.manageAcademyAdmins')}
                         </button>
@@ -274,7 +274,7 @@ const UserManagementPage: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         {(authUser.role === UserRole.ACADEMY_ADMIN || authUser.role === UserRole.SYSTEM_ADMIN) && (
                             <div className="relative">
-                                <label htmlFor="org-filter-users" className="sr-only">Filter by organization</label>
+                                <label htmlFor="org-filter-users" className="sr-only">Filter by workspace</label>
                                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                     <FiFilter className="h-5 w-5 text-gray-400" />
                                 </span>
@@ -283,10 +283,10 @@ const UserManagementPage: React.FC = () => {
                                     value={filterOrg}
                                     onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterOrg(e.target.value)}
                                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
-                                    aria-label="Filter by organization"
+                                    aria-label="Filter by workspace"
                                 >
                                     <option value="">{t('admin.allOrganizations')}</option>
-                                    {organizations.map(org => (
+                                    {workspaces.map(org => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
                                     ))}
                                 </select>
@@ -321,7 +321,7 @@ const UserManagementPage: React.FC = () => {
             <div className="flex-grow flex flex-col bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
                 <div className="flex bg-gray-50 border-b border-gray-200 shrink-0 font-medium text-xs text-gray-500 uppercase tracking-wider" role="rowgroup">
                     <div className="flex-[2] px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
-                    <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.organization')}</div>
+                    <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
                     <div className="flex-1 px-6 py-3 text-left" role="columnheader">{t('common.email')}</div>
                     <div className="flex-[0.75] px-6 py-3 text-center" role="columnheader">{t('common.status')}</div>
                 </div>
@@ -374,7 +374,7 @@ const UserManagementPage: React.FC = () => {
         <PreApproveUsersModal
             isOpen={showPreApproveModal}
             onClose={() => setShowPreApproveModal(false)}
-            organization={orgForPreApproval}
+            workspace={orgForPreApproval}
             maxUsers={null}
             currentRegularUsersCount={currentRegularUsersCount}
             pendingInvitesCount={pendingInvitesCount}

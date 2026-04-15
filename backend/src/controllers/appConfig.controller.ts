@@ -58,8 +58,8 @@ export const getThemeSettings = async (req: Request, res: Response) => {
             sidebarLinkColor: settings.sidebarLinkColor || '#e5e7eb',
         });
     } catch (error) {
-        logger.error("Error fetching academy settings:", error);
-        res.status(500).json({ message: 'Failed to fetch academy settings.' });
+        logger.error("Error fetching organization settings:", error);
+        res.status(500).json({ message: 'Failed to fetch organization settings.' });
     }
 };
 
@@ -127,8 +127,8 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
         const updatedDoc = await docRef.get();
         res.json(snapshotToData(updatedDoc));
     } catch (error: any) {
-        logger.error("Error updating academy settings:", error);
-        res.status(500).json({ message: 'Failed to update academy settings.' });
+        logger.error("Error updating organization settings:", error);
+        res.status(500).json({ message: 'Failed to update organization settings.' });
     }
 };
 

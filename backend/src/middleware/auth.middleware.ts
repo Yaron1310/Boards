@@ -27,10 +27,10 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
             return next();
         }
         
-        // Check for partial tokens (Context Selection or Organization Setup)
+        // Check for partial tokens (Context Selection or Workspace Setup)
         const partialPayload = user as JwtMultiOrgPayload;
-        if (partialPayload.id && (partialPayload.action === 'academy-setup' || partialPayload.action === 'select-organization')) {
-             // For select-organization tokens, we allow access but the controller must handle the missing org/role data
+        if (partialPayload.id && (partialPayload.action === 'organization-setup' || partialPayload.action === 'select-workspace')) {
+             // For select-workspace tokens, we allow access but the controller must handle the missing org/role data
              req.user = partialPayload as Express.User;
              return next();
         }
@@ -59,7 +59,7 @@ export const authenticatePartialToken = (req: Request, res: Response, next: Next
         if (err) {
             return res.status(401).json({ message: "Invalid or expired session token." });
         }
-        if (user.action !== 'select-organization' && user.action !== 'academy-setup') {
+        if (user.action !== 'select-workspace' && user.action !== 'organization-setup') {
             return res.status(401).json({ message: "Invalid token action." });
         }
         req.user = user;

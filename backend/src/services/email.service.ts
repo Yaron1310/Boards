@@ -171,7 +171,7 @@ export const sendAccountVerificationEmail = async (
 };
 
 const buildFallbackVerificationSubject = (inviteRole?: string, academyName?: string, orgName?: string): string => {
-    if (inviteRole === 'academy_admin') return `You've been invited as an Organization Admin for ${academyName}`;
+    if (inviteRole === 'academy_admin') return `You've been invited as an Workspace Admin for ${academyName}`;
     if (inviteRole === 'org_manager') return `You've been invited as an Workspace Manager for ${orgName || academyName}`;
     return `Verify Your Email for ${academyName}`;
 };
@@ -182,7 +182,7 @@ const buildFallbackVerificationHtml = (
     let introLine: string;
     let ignoreNote: string;
     if (inviteRole === 'academy_admin') {
-        introLine = `You've been invited to join <strong>${academyName}</strong> as an Organization Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+        introLine = `You've been invited to join <strong>${academyName}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else if (inviteRole === 'org_manager') {
         const entityName = orgName || academyName;
@@ -251,7 +251,7 @@ export const sendAccountApprovedEmail = async (userEmail: string, userName: stri
     const subject = tpl ? renderTemplate(tpl.subject, vars) : 'Your Account Has Been Approved!';
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello ${userName},</p><p>Great news! Your account for Gymind has been approved by your organization's administrator.</p><p>You can now log in and start using the application.</p><p><a href="${loginLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p><p>Welcome aboard!</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello ${userName},</p><p>Great news! Your account for Gymind has been approved by your workspace's administrator.</p><p>You can now log in and start using the application.</p><p><a href="${loginLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p><p>Welcome aboard!</p><p>Thanks,<br/>The Gymind Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -334,7 +334,7 @@ export const sendUsageNotificationEmail = async (
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `Usage Alert for ${academyName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>This is a notification that your academy, <strong>${academyName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>This is a notification that your organization, <strong>${academyName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Gymind Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -342,7 +342,7 @@ export const sendUsageNotificationEmail = async (
             to: adminEmails.join(','),
             subject,
             html,
-            text: `Your academy, ${academyName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
+            text: `Your organization, ${academyName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
         });
         logger.info(`Usage notification email sent successfully to admins of ${academyName}`);
         return { success: true };

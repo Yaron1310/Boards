@@ -82,7 +82,7 @@ export interface DBMembership {
   id: string;
   userId: string;
   entityId: string;
-  entityType: 'organization' | 'academy';
+  entityType: 'workspace' | 'organization';
   role: UserRole;
   academyId: string;
   createdAt: admin.firestore.Timestamp | Date | any;
@@ -122,7 +122,7 @@ export interface JwtUserPayload {
 
 export interface JwtMultiOrgPayload {
   id: string;
-  action: 'select-organization' | 'academy-setup';
+  action: 'select-workspace' | 'organization-setup';
 }
 
 export interface JwtApprovalPayload {
@@ -162,7 +162,7 @@ declare global {
 // --- AUDIT LOGGING ---
 
 export type AuditAction = 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'ANOMALY';
-export type AuditResourceType = 'user' | 'organization' | 'academy';
+export type AuditResourceType = 'user' | 'workspace' | 'organization';
 
 export interface DBAuditLog {
   id: string;

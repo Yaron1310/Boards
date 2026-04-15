@@ -10,13 +10,13 @@ import readXlsxFile from 'read-excel-file';
 interface PreApproveUsersModalProps {
     isOpen: boolean;
     onClose: () => void;
-    organization: Workspace | null;
+    workspace: Workspace | null;
     maxUsers: number | null;
     currentRegularUsersCount: number;
     pendingInvitesCount: number;
 }
 
-const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onClose, organization, maxUsers, currentRegularUsersCount, pendingInvitesCount }) => {
+const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onClose, workspace, maxUsers, currentRegularUsersCount, pendingInvitesCount }) => {
     const { t } = useTranslation();
     const {
         preApproveUsersInBulk,
@@ -49,11 +49,11 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
 
 
     useEffect(() => {
-        if (isOpen && organization) {
-            console.log('%c[DEBUG] PreApproveUsersModal rendering', 'color: purple; font-weight: bold;', { isOpen, organization });
+        if (isOpen && workspace) {
+            console.log('%c[DEBUG] PreApproveUsersModal rendering', 'color: purple; font-weight: bold;', { isOpen, workspace });
             console.log('%c[DEBUG] PreApproveUsersModal: Full preApprovedUsers list from context:', 'color: purple;', preApprovedUsers);
         }
-    }, [isOpen, organization, preApprovedUsers]);
+    }, [isOpen, workspace, preApprovedUsers]);
 
     useEffect(() => {
         // Clear state when modal is opened or closed
@@ -67,11 +67,11 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
     }, [isOpen, clearDataError]);
 
     const orgPreApprovedUsers = useMemo(() => {
-        if (!organization) return [];
-        const filtered = preApprovedUsers.filter(paUser => paUser.organizationId === organization.id);
-        console.log('%c[DEBUG] PreApproveUsersModal: Filtered list for this org:', 'color: purple;', { orgId: organization.id, count: filtered.length, data: filtered });
+        if (!workspace) return [];
+        const filtered = preApprovedUsers.filter(paUser => paUser.organizationId === workspace.id);
+        console.log('%c[DEBUG] PreApproveUsersModal: Filtered list for this org:', 'color: purple;', { orgId: workspace.id, count: filtered.length, data: filtered });
         return filtered;
-    }, [preApprovedUsers, organization]);
+    }, [preApprovedUsers, workspace]);
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
         setFeedback(null);
@@ -96,13 +96,13 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
             setFeedback({ type: 'error', text: 'Please enter a valid email address.' });
             return;
         }
-        if (!organization?.id) return;
+        if (!workspace?.id) return;
         
         setIsUploading(true);
         setFeedback(null);
 
         try {
-            const result = await preApproveUsersInBulk([manualEmail.trim()], organization.id);
+            const result = await preApproveUsersInBulk([manualEmail.trim()], workspace.id);
             if (result) {
                 setFeedback({ type: 'success', text: result.message });
                 setManualEmail('');
@@ -121,7 +121,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
             setFeedback({ type: 'error', text: 'Please select a file to upload.' });
             return;
         }
-        if (!organization?.id) return;
+        if (!workspace?.id) return;
 
         setIsUploading(true);
         setFeedback(null);
@@ -137,7 +137,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                 throw new Error(`Your plan has ${availableSlots} available slot(s), but you are trying to invite ${emails.length} users.`);
             }
 
-            const result = await preApproveUsersInBulk(emails, organization.id);
+            const result = await preApproveUsersInBulk(emails, workspace.id);
             if (result) {
                 setFeedback({ type: 'success', text: result.message });
                 setUploadFile(null);
@@ -169,14 +169,14 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
         setUserToRevoke(null);
     };
 
-    if (!isOpen || !organization) return null;
+    if (!isOpen || !workspace) return null;
 
     return ReactDOM.createPortal(
         <>
             <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                     <div className="p-6 border-b flex justify-between items-center">
-                        <h2 className="text-xl font-bold text-gray-800">{t('admin.preApproveUsersFor', { name: organization.name })}</h2>
+                        <h2 className="text-xl font-bold text-gray-800">{t('admin.preApproveUsersFor', { name: workspace.name })}</h2>
                         <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200"><FiXCircle size={24}/></button>
                     </div>
                     <div className="p-6 flex-grow overflow-y-auto custom-scrollbar space-y-6">

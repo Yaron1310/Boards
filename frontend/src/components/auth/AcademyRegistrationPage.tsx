@@ -159,7 +159,7 @@ const AcademyRegistrationPage: React.FC = () => {
             <p className="text-gray-600 text-center mb-6">{t('auth.setUpAdminAccount')}</p>
 
           {displayError && (
-            <div id="academy-reg-form-error" role="alert" className="mb-6 text-sm text-red-700 bg-red-100 p-4 rounded-lg border border-red-300 flex items-center shadow">
+            <div id="organization-reg-form-error" role="alert" className="mb-6 text-sm text-red-700 bg-red-100 p-4 rounded-lg border border-red-300 flex items-center shadow">
               <FiAlertCircle className="mr-3 h-5 w-5 flex-shrink-0"/>
               <span className="font-medium">{displayError}</span>
             </div>
@@ -169,17 +169,17 @@ const AcademyRegistrationPage: React.FC = () => {
             <p className="text-xs text-gray-500">{t('common.mandatoryFields')}</p>
             <div>
               <label htmlFor="name_reg_academy" className="block text-sm font-medium text-gray-700">{t('common.fullName')} <span aria-hidden="true">*</span></label>
-              <input id="name_reg_academy" type="text" value={name} onChange={(e) => setName(e.target.value)} required aria-required="true" aria-describedby={displayError ? "academy-reg-form-error" : undefined} className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('common.fullNamePlaceholder')}/>
+              <input id="name_reg_academy" type="text" value={name} onChange={(e) => setName(e.target.value)} required aria-required="true" aria-describedby={displayError ? "organization-reg-form-error" : undefined} className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('common.fullNamePlaceholder')}/>
             </div>
             <div>
               <label htmlFor="email_reg_academy" className="block text-sm font-medium text-gray-700">{t('common.emailAddress')} <span aria-hidden="true">*</span></label>
-              <input id="email_reg_academy" type="email" value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} required aria-required="true" aria-describedby={displayError ? "academy-reg-form-error" : undefined} className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('common.emailPlaceholder')}/>
+              <input id="email_reg_academy" type="email" value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} required aria-required="true" aria-describedby={displayError ? "organization-reg-form-error" : undefined} className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('common.emailPlaceholder')}/>
             </div>
 
             <div>
               <label htmlFor="password_reg_academy" className="block text-sm font-medium text-gray-700">{t('common.password')} <span aria-hidden="true">*</span></label>
                <div className="mt-1 relative">
-                  <input id="password_reg_academy" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required aria-required="true" aria-describedby={displayError ? "academy-reg-form-error" : undefined} className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••"/>
+                  <input id="password_reg_academy" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required aria-required="true" aria-describedby={displayError ? "organization-reg-form-error" : undefined} className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••"/>
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500" aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}>
                       {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
                   </button>
@@ -189,7 +189,7 @@ const AcademyRegistrationPage: React.FC = () => {
             <div>
               <label htmlFor="confirmPassword_reg_academy" className="block text-sm font-medium text-gray-700">{t('common.confirmPassword')} <span aria-hidden="true">*</span></label>
               <div className="mt-1 relative">
-                  <input id="confirmPassword_reg_academy" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required aria-required="true" aria-describedby={displayError ? "academy-reg-form-error" : undefined} className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••"/>
+                  <input id="confirmPassword_reg_academy" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required aria-required="true" aria-describedby={displayError ? "organization-reg-form-error" : undefined} className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••"/>
                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500" aria-label={showConfirmPassword ? t('common.hideConfirmPassword') : t('common.showConfirmPassword')}>
                       {showConfirmPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
                   </button>
