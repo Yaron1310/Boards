@@ -9,6 +9,7 @@ import { FiLoader, FiArchive, FiRotateCcw, FiChevronLeft, FiPlus } from 'react-i
 import ColumnHeader from './ColumnHeader';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
+import ItemDetailPanel from './ItemDetailPanel';
 
 const BoardViewPage: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
@@ -27,8 +28,7 @@ const BoardViewPage: React.FC = () => {
 
   const [showAddGroup, setShowAddGroup] = useState(false);
 
-  // Placeholder state for item detail panel — wired in Phase 7E
-  const [_detailItem, setDetailItem] = useState<Item | null>(null);
+  const [detailItem, setDetailItem] = useState<Item | null>(null);
 
   const canManage =
     user?.role === UserRole.ORGANIZATION_ADMIN ||
@@ -89,6 +89,7 @@ const BoardViewPage: React.FC = () => {
   const sortedGroups = [...groups].sort((a, b) => a.order - b.order);
 
   return (
+    <>
     <div className="flex flex-col h-full min-h-0">
       {/* Board top bar */}
       <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 bg-white flex items-center gap-3">
@@ -214,6 +215,11 @@ const BoardViewPage: React.FC = () => {
         )}
       </div>
     </div>
+
+      {detailItem && (
+        <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
+      )}
+    </>
   );
 };
 
