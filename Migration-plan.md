@@ -794,7 +794,7 @@ Inline edit behavior:
 
 ---
 
-## 🗂️ PHASE 7E — Item Detail & Column Management | 🟠 Medium risk
+## ✅ 🗂️ PHASE 7E — Item Detail & Column Management | 🟠 Medium risk (DONE)
 > Two medium-heavy admin/detail components. Both reuse the cell editors from 7D so 7D must be complete first.
 
 ### 7.11 — Item Detail Panel
