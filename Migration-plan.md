@@ -602,7 +602,7 @@ Sub-phases are sized by session risk, not equal effort. ⚫ Heavy sections each 
 
 ---
 
-## 📦 PHASE 7A — Foundation | 🟢 Low risk
+## ✅ 📦 PHASE 7A — Foundation | 🟢 Low risk (DONE)
 > Data layer, routing, and navigation. Nothing else can be built without these. All tasks are small wiring/boilerplate files.
 
 ### 7.0 — Service Layer (API Client)
@@ -874,8 +874,10 @@ Every new interactive element must have:
 - `aria-grabbed` / `aria-dropeffect` on drag handles.
 - Focus trap in all modals (reuse existing `ModalWrapper`).
 
+---
 
-📊 PHASE 8 — Dashboards (The "Logyx" Power)
+## 📊 PHASE 8 — Dashboards (The "Logyx" Power)
+
 Query: /organizations/{organizationId}/items
 Filters: workspaceId, boardId, assignee, date.
 Widgets:
@@ -884,12 +886,16 @@ Widgets:
 * Overdue items tracker.
 * Workload by person.
 
-🔄 PHASE 9 — Permissions \& Notifications
+---
+
+## 🔄 PHASE 9 — Permissions & Notifications
 
 * Board-level roles (Viewer/Editor/Admin).
-* Notifications for assignments \& mentions.
+* Notifications for assignments & mentions.
 
-🧪 PHASE 10 — Testing \& Rollout
+---
+
+## 🧪 PHASE 10 — Testing & Rollout
 
 * Validate multi-tenancy security.
 * Performance testing on flat item queries.
