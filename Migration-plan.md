@@ -394,7 +394,7 @@ Validation on write:
 * Board-level role sharing (inviting collaborators to a specific board) → Phase 9
 * Row-level column visibility permissions → post-MVP
 
-⚙️ PHASE 6 — Backend APIs
+✅ ⚙️ PHASE 6 — Backend APIs (DONE)
 
 New files to create:
   backend/src/controllers/board.controller.ts
