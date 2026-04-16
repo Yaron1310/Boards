@@ -3,13 +3,92 @@ import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiPieChart, FiMail } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiPieChart, FiMail, FiLayout, FiPlus, FiChevronDown, FiChevronRight } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
+import { useBoards } from '../../hooks/queries/useBoardQueries';
 
 import AcademyHubIcon from '../common/AcademyHubIcon';
 import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
 import CookieConsent from '../legal/CookieConsent';
+
+// --- BOARDS NAV SECTION ---
+
+interface BoardsNavSectionProps {
+  workspaceId: string;
+  sidebarLinkColor: string;
+  onNavigate: () => void;
+  canCreateBoard: boolean;
+}
+
+const BoardsNavSection: React.FC<BoardsNavSectionProps> = ({ workspaceId, sidebarLinkColor, onNavigate, canCreateBoard }) => {
+  const navigate = useNavigate();
+  const [isExpanded, setIsExpanded] = useState(true);
+  const { data: boards = [], isLoading } = useBoards(workspaceId, false, !!workspaceId);
+
+  return (
+    <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
+      <div className="flex items-center justify-between px-4 mb-1">
+        <button
+          type="button"
+          onClick={() => setIsExpanded((v) => !v)}
+          className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider transition-opacity hover:opacity-100"
+          style={{ color: sidebarLinkColor, opacity: 0.7 }}
+          aria-expanded={isExpanded}
+          aria-controls="boards-nav-list"
+          aria-label={isExpanded ? 'Collapse boards' : 'Expand boards'}
+        >
+          {isExpanded ? <FiChevronDown size={12} aria-hidden="true" /> : <FiChevronRight size={12} aria-hidden="true" />}
+          Boards
+        </button>
+        {canCreateBoard && (
+          <button
+            type="button"
+            onClick={() => { navigate(`/workspaces/${workspaceId}/boards`); onNavigate(); }}
+            className="rounded p-0.5 transition-opacity hover:opacity-100"
+            style={{ color: sidebarLinkColor, opacity: 0.7 }}
+            aria-label="Go to boards list to create a new board"
+          >
+            <FiPlus size={14} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {isExpanded && (
+        <ul id="boards-nav-list" role="list" aria-label="Boards">
+          {isLoading && (
+            <li className="px-4 py-2">
+              <FiLoader className="animate-spin" size={14} style={{ color: sidebarLinkColor, opacity: 0.5 }} aria-hidden="true" />
+            </li>
+          )}
+          {!isLoading && boards.length === 0 && (
+            <li className="px-4 py-1.5 text-xs" style={{ color: sidebarLinkColor, opacity: 0.5 }}>
+              No boards yet
+            </li>
+          )}
+          {boards.map((board) => (
+            <li key={board.id} role="listitem">
+              <NavLink
+                to={`/boards/${board.id}`}
+                onClick={onNavigate}
+                style={() => ({ color: sidebarLinkColor })}
+                className={({ isActive }) =>
+                  `sidebar-nav-item flex items-center gap-2 px-4 py-2 rounded-lg text-sm transition-colors duration-150 ${
+                    isActive ? 'active font-semibold' : 'hover:text-white'
+                  }`
+                }
+                aria-label={`Open board ${board.name}`}
+              >
+                <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
+                <span className="truncate">{board.name}</span>
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
 
 // --- TYPE DEFINITIONS for Sidebar Components ---
 
@@ -53,6 +132,8 @@ interface SidebarContentProps {
   userImageSidebar: string;
   user: User | null;
   selectedOrganizationIsPersonal: boolean;
+  selectedWorkspaceId: string;
+  canCreateBoard: boolean;
   onOpenLegal: () => void;
   onOpenAccessibility: () => void;
 }
@@ -166,6 +247,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     userImageSidebar,
     user,
     selectedOrganizationIsPersonal,
+    selectedWorkspaceId,
+    canCreateBoard,
     onOpenLegal,
     onOpenAccessibility
 }) => {
@@ -348,6 +431,16 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   <AcademyHubIcon className={iconClassName} /> {t('layout.academyHub')}
                 </NavLink>
               </div>
+
+              {selectedWorkspaceId && (
+                <BoardsNavSection
+                  workspaceId={selectedWorkspaceId}
+                  sidebarLinkColor={sidebarLinkColor}
+                  onNavigate={() => setIsSidebarOpen(false)}
+                  canCreateBoard={canCreateBoard}
+                />
+              )}
+
               {availableAdminNavItems.length > 0 && (
                   <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
                        <h2 className="px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: sidebarLinkColor, opacity: 0.7 }}>{t('layout.management')}</h2>
@@ -588,7 +681,7 @@ const MainLayout: React.FC = () => {
   const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
 
   const navItems: NavItem[] = [
-    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
+    { name: t('layout.dashboard'), path: '/workspaces', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
   ];
 
   const adminNavItems: AdminNavItem[] = [
@@ -600,6 +693,11 @@ const MainLayout: React.FC = () => {
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);
   const availableAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role) && (item.show !== false));
 
+  const selectedWorkspaceId = selectedOrganization?.id ?? '';
+  const canCreateBoard =
+    user.role === UserRole.ORGANIZATION_ADMIN ||
+    user.role === UserRole.ACADEMY_ADMIN ||
+    user.role === UserRole.SYSTEM_ADMIN;
 
   return (
     <div className="flex h-dynamic-screen bg-gray-100">
@@ -624,6 +722,8 @@ const MainLayout: React.FC = () => {
             userImageSidebar={userImageSidebar}
             user={user}
             selectedOrganizationIsPersonal={selectedOrganization.isPersonal || false}
+            selectedWorkspaceId={selectedWorkspaceId}
+            canCreateBoard={canCreateBoard}
             onOpenLegal={() => setShowLegalModal(true)}
             onOpenAccessibility={() => setShowAccessibilityModal(true)}
           />
@@ -648,7 +748,8 @@ const MainLayout: React.FC = () => {
                 userImageSidebar={userImageSidebar}
                 user={user}
                 selectedOrganizationIsPersonal={selectedOrganization.isPersonal || false}
-                isOrgSubscriptionActive={isOrgSubscriptionActive}
+                selectedWorkspaceId={selectedWorkspaceId}
+                canCreateBoard={canCreateBoard}
                 onOpenLegal={() => setShowLegalModal(true)}
                 onOpenAccessibility={() => setShowAccessibilityModal(true)}
             />

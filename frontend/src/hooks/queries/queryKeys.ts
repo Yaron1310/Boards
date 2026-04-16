@@ -1,7 +1,6 @@
+import type { ListItemsParams } from '@/services/workManagementService';
+
 export const queryKeys = {
-  workspaces: {
-    all: ['workspaces'] as const,
-  },
   workspaces: {
     all: ['workspaces'] as const,
     filtered: (filterType?: string) => ['workspaces', { filterType }] as const,
@@ -15,5 +14,21 @@ export const queryKeys = {
     workspace: ['settings', 'workspace'] as const,
     system: ['settings', 'system'] as const,
     tutorial: ['settings', 'tutorial'] as const,
+  },
+  boards: {
+    all: (workspaceId?: string, includeArchived = false) =>
+      ['boards', { workspaceId, includeArchived }] as const,
+    one: (id: string) => ['boards', id] as const,
+  },
+  groups: {
+    all: (boardId: string) => ['groups', boardId] as const,
+  },
+  items: {
+    list: (params: ListItemsParams) => ['items', params] as const,
+    one: (id: string) => ['items', id] as const,
+  },
+  columns: {
+    all: ['columns'] as const,
+    one: (id: string) => ['columns', id] as const,
   },
 };

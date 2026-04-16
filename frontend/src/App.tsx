@@ -34,6 +34,12 @@ const UserManagementPage = React.lazy(() => import('./components/admin/UserManag
 const OrganizationManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));
 const ThemeSettingsPage = React.lazy(() => import('./components/admin/ThemeSettingsPage'));
 
+// -- Work management chunk --
+const WorkspaceHomePage = React.lazy(() => import('./components/boards/WorkspaceHomePage'));
+const BoardListPage = React.lazy(() => import('./components/boards/BoardListPage'));
+const BoardViewPage = React.lazy(() => import('./components/boards/BoardViewPage'));
+const ColumnManagementPage = React.lazy(() => import('./components/boards/ColumnManagementPage'));
+
 // -- System-admin chunk --
 const AcademyManagementPage = React.lazy(() => import('./components/admin/AcademyManagementPage'));
 const TutorialSettingsPage = React.lazy(() => import('./components/admin/TutorialSettingsPage'));
@@ -181,7 +187,7 @@ const App: React.FC = () => {
     );
   }
 
-  const redirectPath = user?.role === UserRole.SYSTEM_ADMIN ? '/admin' : '/dashboard';
+  const redirectPath = user?.role === UserRole.SYSTEM_ADMIN ? '/admin' : '/workspaces';
 
   return (
     <>
@@ -205,9 +211,38 @@ const App: React.FC = () => {
         <Route element={<Suspense fallback={<PageLoader />}><MainLayout /></Suspense>}>
             <Route
               path="/dashboard"
+              element={<Navigate to="/workspaces" replace />}
+            />
+
+            <Route
+              path="/workspaces"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN]}>
-                  <ProfilePage />
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                  <WorkspaceHomePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/workspaces/:workspaceId/boards"
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                  <BoardListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/boards/:boardId"
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                  <BoardViewPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/columns"
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                  <ColumnManagementPage />
                 </ProtectedRoute>
               }
             />
