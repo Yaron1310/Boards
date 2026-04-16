@@ -680,7 +680,7 @@ Update `MainLayout.tsx`:
 
 ---
 
-## 🏗️ PHASE 7B — Pages & Board Skeleton | 🟡 Low-Medium risk
+## ✅ 🏗️ PHASE 7B — Pages & Board Skeleton | 🟡 Low-Medium risk (DONE)
 > Workspace home, board list, board view container, and column header. Multiple components but each is individually moderate. No complex interactivity yet.
 
 ### 7.4 — Workspace Home Page
