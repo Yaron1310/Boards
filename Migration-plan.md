@@ -728,7 +728,7 @@ New component: `frontend/src/components/boards/ColumnHeader.tsx`
 
 ---
 
-## 🧩 PHASE 7C — Group Section & Item Row | 🟠 Medium risk
+## ✅ 🧩 PHASE 7C — Group Section & Item Row | 🟠 Medium risk (DONE)
 > GroupSection is the most complex structural component (collapse, inline edit, kebab menu). ItemRow depends on it. Build together since GroupSection renders ItemRows.
 
 ### 7.7 — Group Section
