@@ -1,10 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useBoard, useUpdateBoard, useArchiveBoard, useRestoreBoard } from '../../hooks/queries/useBoardQueries';
+import { useGroups } from '../../hooks/queries/useGroupQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
+import type { Item } from '../../types';
 import { FiLoader, FiArchive, FiRotateCcw, FiChevronLeft, FiPlus } from 'react-icons/fi';
 import ColumnHeader from './ColumnHeader';
+import GroupSection from './GroupSection';
+import AddGroupForm from './AddGroupForm';
 
 const BoardViewPage: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
@@ -12,6 +16,7 @@ const BoardViewPage: React.FC = () => {
   const { user } = useAuth();
 
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);
+  const { data: groups = [], isLoading: groupsLoading } = useGroups(boardId ?? '', !!boardId);
   const { mutateAsync: updateBoard, isPending: isSaving } = useUpdateBoard();
   const { mutateAsync: archiveBoard, isPending: isArchiving } = useArchiveBoard();
   const { mutateAsync: restoreBoard, isPending: isRestoring } = useRestoreBoard();
@@ -19,6 +24,11 @@ const BoardViewPage: React.FC = () => {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const [showAddGroup, setShowAddGroup] = useState(false);
+
+  // Placeholder state for item detail panel — wired in Phase 7E
+  const [_detailItem, setDetailItem] = useState<Item | null>(null);
 
   const canManage =
     user?.role === UserRole.ORGANIZATION_ADMIN ||
@@ -75,6 +85,8 @@ const BoardViewPage: React.FC = () => {
       </div>
     );
   }
+
+  const sortedGroups = [...groups].sort((a, b) => a.order - b.order);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -150,26 +162,50 @@ const BoardViewPage: React.FC = () => {
       </div>
 
       {/* Board content area */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" role="grid" aria-label={`Board: ${board.name}`}>
         {/* Column header row */}
         <ColumnHeader canManage={canManage} />
 
         {/* Groups area */}
         <div className="p-4 space-y-4" role="region" aria-label="Board groups">
-          {/* Phase 7C: GroupSection components will be rendered here */}
-          <div className="text-center py-16 text-gray-400 text-sm">
-            <p>No groups yet. Add a group to start organising items.</p>
-          </div>
+          {groupsLoading ? (
+            <div className="flex justify-center items-center py-16" role="status" aria-label="Loading groups">
+              <FiLoader className="animate-spin h-6 w-6 text-indigo-400" aria-hidden="true" />
+            </div>
+          ) : sortedGroups.length === 0 && !showAddGroup ? (
+            <div className="text-center py-16 text-gray-400 text-sm">
+              <p>No groups yet. Add a group to start organising items.</p>
+            </div>
+          ) : (
+            sortedGroups.map((group) => (
+              <GroupSection
+                key={group.id}
+                group={group}
+                boardId={board.id}
+                workspaceId={board.workspaceId}
+                canManage={canManage && !board.isArchived}
+                onOpenDetail={setDetailItem}
+              />
+            ))
+          )}
+
+          {/* Add Group inline form */}
+          {canManage && !board.isArchived && showAddGroup && boardId && (
+            <AddGroupForm
+              boardId={boardId}
+              onClose={() => setShowAddGroup(false)}
+            />
+          )}
         </div>
 
         {/* Add Group button */}
-        {canManage && !board.isArchived && (
+        {canManage && !board.isArchived && !showAddGroup && (
           <div className="px-4 pb-6">
             <button
               type="button"
+              onClick={() => setShowAddGroup(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors"
               aria-label="Add new group"
-              onClick={() => {/* AddGroupForm — Phase 7C */}}
             >
               <FiPlus size={15} aria-hidden="true" />
               Add Group
