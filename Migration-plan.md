@@ -597,9 +597,15 @@ DELETE /columns/:id
 
 Goal: Build the complete work-management UI on top of the Phase 6 backend. This phase turns the existing shell (auth, admin, layout) into a fully functional board-based task manager.
 
+Effort key: 🟢 Light (1pt) · 🟡 Light-Medium (2pt) · 🟠 Medium (3pt) · 🔴 Medium-Heavy (4pt) · ⚫ Heavy (6pt)
+Phase is split into 4 sub-phases (7A–7D) of roughly equal weight (~12–16 pts each).
+
 ---
 
-### 7.0 — Service Layer (API Client)
+## 📦 PHASE 7A — Foundation (12 pts)
+> Data layer, routing, and navigation. Nothing else can be built without these.
+
+### 7.0 — Service Layer (API Client) 🟠 Medium
 
 New file: `frontend/src/services/workManagementService.ts`
 Wrap all Phase 6 REST endpoints using the existing Axios/fetch pattern from `geminiService.ts`.
@@ -612,7 +618,7 @@ Functions to expose:
 
 ---
 
-### 7.1 — React Query Hooks
+### 7.1 — React Query Hooks 🟠 Medium
 
 New files in `frontend/src/hooks/queries/`:
 - `useBoardQueries.ts` — `useBoards(workspaceId?)`, `useBoard(id)`, board mutation hooks
@@ -631,7 +637,7 @@ Real-time via Firestore `onSnapshot`:
 
 ---
 
-### 7.2 — Routing
+### 7.2 — Routing 🟢 Light
 
 Add new routes to `App.tsx` under the `MainLayout` protected wrapper:
 
@@ -646,7 +652,7 @@ Default authenticated redirect: `/` → `/workspaces`
 
 ---
 
-### 7.3 — Sidebar & Navigation
+### 7.3 — Sidebar & Navigation 🟠 Medium
 
 Update `MainLayout.tsx`:
 - Add a **Workspaces** section in the sidebar that lists the user's workspaces.
@@ -657,7 +663,10 @@ Update `MainLayout.tsx`:
 
 ---
 
-### 7.4 — Workspace Home Page
+## 🏗️ PHASE 7B — Board & Group Shell (16 pts)
+> Static page structure: workspace home, board list, board view, group layout, column header. No inline editing yet — focus on rendering the correct skeleton.
+
+### 7.4 — Workspace Home Page 🟡 Light-Medium
 
 New component: `frontend/src/components/boards/WorkspaceHomePage.tsx`
 - Grid/list of workspaces the user belongs to.
@@ -666,7 +675,7 @@ New component: `frontend/src/components/boards/WorkspaceHomePage.tsx`
 
 ---
 
-### 7.5 — Board List Page
+### 7.5 — Board List Page 🟡 Light-Medium
 
 New component: `frontend/src/components/boards/BoardListPage.tsx`
 - Lists all boards in a workspace.
@@ -682,7 +691,7 @@ New component: `frontend/src/components/boards/CreateBoardModal.tsx`
 
 ---
 
-### 7.6 — Board View Page
+### 7.6 — Board View Page 🟠 Medium
 
 New component: `frontend/src/components/boards/BoardViewPage.tsx`
 - Top bar: board name (editable inline by ORGANIZATION_ADMIN+), description, archive button.
@@ -692,7 +701,7 @@ New component: `frontend/src/components/boards/BoardViewPage.tsx`
 
 ---
 
-### 7.7 — Group Section
+### 7.7 — Group Section ⚫ Heavy
 
 New component: `frontend/src/components/boards/GroupSection.tsx`
 - Group header: color dot, name (editable inline), item count, collapse toggle, kebab menu (rename, delete).
@@ -705,7 +714,7 @@ New component: `frontend/src/components/boards/AddGroupForm.tsx`
 
 ---
 
-### 7.8 — Column Header Row
+### 7.8 — Column Header Row 🟠 Medium
 
 New component: `frontend/src/components/boards/ColumnHeader.tsx`
 - Renders the sticky column header using the org's column definitions (`useColumns()`).
@@ -715,7 +724,10 @@ New component: `frontend/src/components/boards/ColumnHeader.tsx`
 
 ---
 
-### 7.9 — Item Row
+## ✏️ PHASE 7C — Item Layer & Column Cells (13 pts)
+> The interactive core: item rows render live data, every cell is editable, the detail panel exposes the full item. This is the densest UX work.
+
+### 7.9 — Item Row 🟠 Medium
 
 New component: `frontend/src/components/boards/ItemRow.tsx`
 - Fixed columns: checkbox (select), item name.
@@ -725,7 +737,7 @@ New component: `frontend/src/components/boards/ItemRow.tsx`
 
 ---
 
-### 7.10 — Column Cell Renderers & Editors
+### 7.10 — Column Cell Renderers & Editors ⚫ Heavy
 
 New folder: `frontend/src/components/boards/cells/`
 
@@ -758,7 +770,7 @@ Inline edit behavior:
 
 ---
 
-### 7.11 — Item Detail Panel
+### 7.11 — Item Detail Panel 🔴 Medium-Heavy
 
 New component: `frontend/src/components/boards/ItemDetailPanel.tsx`
 - Slides in from the right when an item row is clicked.
@@ -768,7 +780,10 @@ New component: `frontend/src/components/boards/ItemDetailPanel.tsx`
 
 ---
 
-### 7.12 — Column Management (Admin)
+## ⚡ PHASE 7D — Admin, Interactivity & Polish (14 pts)
+> Power features that elevate the app: column admin, drag-and-drop reordering, live Firestore updates, and a final accessibility pass.
+
+### 7.12 — Column Management (Admin) 🔴 Medium-Heavy
 
 New component: `frontend/src/components/boards/ColumnManagementPage.tsx`
 - Table of all org columns: name, type, settings summary, actions.
@@ -789,7 +804,7 @@ New component: `frontend/src/components/boards/AddColumnModal.tsx`
 
 ---
 
-### 7.13 — Drag & Drop
+### 7.13 — Drag & Drop ⚫ Heavy
 
 Use `@dnd-kit/core` + `@dnd-kit/sortable` (or `react-beautiful-dnd`).
 
@@ -803,7 +818,7 @@ Optimistic UI: update local order immediately; revert on API error.
 
 ---
 
-### 7.14 — Real-Time Subscriptions
+### 7.14 — Real-Time Subscriptions 🟠 Medium
 
 New hook: `frontend/src/hooks/useLiveItems.ts`
 - Uses Firestore `onSnapshot` on `/organizations/{orgId}/items` filtered by `boardId`.
@@ -816,7 +831,7 @@ New hook: `frontend/src/hooks/useLiveGroups.ts`
 
 ---
 
-### 7.15 — Accessibility (ARIA)
+### 7.15 — Accessibility (ARIA) 🟢 Light
 
 Every new interactive element must have:
 - `aria-label` or `aria-labelledby` on all buttons, inputs, modals.
@@ -827,7 +842,7 @@ Every new interactive element must have:
 
 ---
 
-### 7.16 — TypeScript & Linting
+### 7.16 — TypeScript & Linting 🟢 Light
 
 - All new components must use types from `types.ts` (Board, Group, Item, Column, ColumnType, etc.).
 - Zero ESLint warnings (enforce with `npm run lint` before each commit).
@@ -835,7 +850,7 @@ Every new interactive element must have:
 
 ---
 
-### 7.17 — Entry Point Updates
+### 7.17 — Entry Point Updates 🟢 Light
 
 - `App.tsx`: add the 4 new routes from 7.2.
 - `MainLayout.tsx`: add sidebar board navigation (7.3).
