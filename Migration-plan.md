@@ -594,15 +594,253 @@ DELETE /columns/:id
   Returns: 204
 
 🎨 PHASE 7 — Frontend Core Features (Logyx UI)
-Boards UI
 
-* Board list \& Board view with real-time onSnapshot updates.
-Groups \& Items
-* Table UI with inline editing.
-* Drag \& Drop (Items between groups).
-Column System
-* Full support for types defined in Phase 4.1 (Status, Number, Date, etc.).
-* Global organization labels for Status/Dropdown.
+Goal: Build the complete work-management UI on top of the Phase 6 backend. This phase turns the existing shell (auth, admin, layout) into a fully functional board-based task manager.
+
+---
+
+### 7.0 — Service Layer (API Client)
+
+New file: `frontend/src/services/workManagementService.ts`
+Wrap all Phase 6 REST endpoints using the existing Axios/fetch pattern from `geminiService.ts`.
+
+Functions to expose:
+- **Boards**: `createBoard`, `listBoards(workspaceId?, includeArchived?)`, `getBoard(id)`, `updateBoard(id, patch)`, `archiveBoard(id)`, `restoreBoard(id)`, `deleteBoard(id)`
+- **Groups**: `listGroups(boardId)`, `createGroup(boardId, data)`, `updateGroup(boardId, groupId, patch)`, `deleteGroup(boardId, groupId)`, `reorderGroups(boardId, order[])`
+- **Items**: `createItem(data)`, `listItems(params)`, `getItem(id)`, `updateItem(id, patch)`, `reorderItems(updates[])`, `archiveItem(id)`, `restoreItem(id)`, `deleteItem(id)`
+- **Columns**: `listColumns()`, `getColumn(id)`, `createColumn(data)`, `updateColumn(id, patch)`, `reorderColumns(order[])`, `deleteColumn(id)`
+
+---
+
+### 7.1 — React Query Hooks
+
+New files in `frontend/src/hooks/queries/`:
+- `useBoardQueries.ts` — `useBoards(workspaceId?)`, `useBoard(id)`, board mutation hooks
+- `useGroupQueries.ts` — `useGroups(boardId)`, group mutation hooks
+- `useItemQueries.ts` — `useItems(params)`, `useItem(id)`, item mutation hooks
+- `useColumnQueries.ts` — `useColumns()`, `useColumn(id)`, column mutation hooks
+
+Add query keys to `queryKeys.ts`:
+```
+boards, board(id), groups(boardId), items(params), item(id), columns, column(id)
+```
+
+Real-time via Firestore `onSnapshot`:
+- Subscribe to `/organizations/{orgId}/items` filtered by `boardId` in the board view.
+- Invalidate React Query cache on snapshot change (or replace with live Firestore listener using a custom hook `useLiveItems(boardId)`).
+
+---
+
+### 7.2 — Routing
+
+Add new routes to `App.tsx` under the `MainLayout` protected wrapper:
+
+| Path | Component | Roles |
+|------|-----------|-------|
+| `/workspaces` | `WorkspaceHomePage` | All authenticated |
+| `/workspaces/:workspaceId/boards` | `BoardListPage` | All authenticated |
+| `/boards/:boardId` | `BoardViewPage` | All authenticated |
+| `/admin/columns` | `ColumnManagementPage` | ORGANIZATION_ADMIN+ |
+
+Default authenticated redirect: `/` → `/workspaces`
+
+---
+
+### 7.3 — Sidebar & Navigation
+
+Update `MainLayout.tsx`:
+- Add a **Workspaces** section in the sidebar that lists the user's workspaces.
+- Under the selected workspace, show a collapsible list of its boards (fetched via `useBoards(workspaceId)`).
+- Active board highlighted; clicking navigates to `/boards/:boardId`.
+- "+ New Board" button (visible to ORGANIZATION_ADMIN+) opens `CreateBoardModal`.
+- Preserve all existing admin/profile nav links.
+
+---
+
+### 7.4 — Workspace Home Page
+
+New component: `frontend/src/components/boards/WorkspaceHomePage.tsx`
+- Grid/list of workspaces the user belongs to.
+- Each card links to `/workspaces/:workspaceId/boards`.
+- Shows workspace name, member count, active board count.
+
+---
+
+### 7.5 — Board List Page
+
+New component: `frontend/src/components/boards/BoardListPage.tsx`
+- Lists all boards in a workspace.
+- Shows board name, description, creation date, creator.
+- "New Board" button → `CreateBoardModal`.
+- Archive toggle (ORGANIZATION_ADMIN+): shows/hides archived boards.
+- Click a board → navigate to `/boards/:boardId`.
+
+New component: `frontend/src/components/boards/CreateBoardModal.tsx`
+- Fields: name (required), description (optional).
+- Submits `createBoard({ name, description, workspaceId })`.
+- On success: invalidate boards query, navigate to new board.
+
+---
+
+### 7.6 — Board View Page
+
+New component: `frontend/src/components/boards/BoardViewPage.tsx`
+- Top bar: board name (editable inline by ORGANIZATION_ADMIN+), description, archive button.
+- Renders a list of `GroupSection` components ordered by `group.order`.
+- "Add Group" button at the bottom (ORGANIZATION_ADMIN+).
+- Columns header row shared across all groups.
+
+---
+
+### 7.7 — Group Section
+
+New component: `frontend/src/components/boards/GroupSection.tsx`
+- Group header: color dot, name (editable inline), item count, collapse toggle, kebab menu (rename, delete).
+- Collapsed state: hides item rows, shows summary bar.
+- Item rows rendered below the header using `ItemRow`.
+- "Add Item" row at the bottom of each group.
+
+New component: `frontend/src/components/boards/AddGroupForm.tsx`
+- Inline form to create a new group (name + color picker).
+
+---
+
+### 7.8 — Column Header Row
+
+New component: `frontend/src/components/boards/ColumnHeader.tsx`
+- Renders the sticky column header using the org's column definitions (`useColumns()`).
+- Each column header shows: type icon, column name, sort/filter toggle (MVP: sort only).
+- "+" button at the end (ORGANIZATION_ADMIN+) opens `AddColumnModal`.
+- Drag handles for column reordering (ORGANIZATION_ADMIN+).
+
+---
+
+### 7.9 — Item Row
+
+New component: `frontend/src/components/boards/ItemRow.tsx`
+- Fixed columns: checkbox (select), item name.
+- Dynamic columns: renders `ColumnCell` for each column in `useColumns()`.
+- Hover: show drag handle (left), delete/archive icon (right).
+- Click on name → opens `ItemDetailPanel` (side panel).
+
+---
+
+### 7.10 — Column Cell Renderers & Editors
+
+New folder: `frontend/src/components/boards/cells/`
+
+One component per column type (read view + inline edit mode):
+
+| Column Type | Read View | Edit Mode |
+|-------------|-----------|-----------|
+| `text` | Truncated string | `<input type="text">` |
+| `number` | Formatted number + unit | `<input type="number">` |
+| `date` | Formatted date | Date picker |
+| `status` | Colored badge | Dropdown of status options |
+| `person` | Avatar stack | User multi-select |
+| `dropdown` | Tags/chips | Options multi-select |
+| `checkbox` | Checkbox icon | Toggle |
+| `tags` | Pill list | Tag input with autocomplete |
+| `time` | HH:mm string | Time picker |
+| `email` | Mailto link | `<input type="email">` |
+| `phone` | Formatted phone | `<input type="tel">` |
+| `location` | Address string | Address text input |
+| `time_range` | Start → End | Two date pickers |
+| `simple_formula` | Computed value (read-only) | N/A (computed) |
+
+`ColumnCell.tsx` — dispatcher that renders the correct cell component by `column.type`.
+
+Inline edit behavior:
+- Single-click activates edit mode for the cell.
+- Blur or Enter confirms and calls `updateItem(id, { values: { [columnId]: newValue } })`.
+- Escape cancels.
+- Optimistic update via React Query.
+
+---
+
+### 7.11 — Item Detail Panel
+
+New component: `frontend/src/components/boards/ItemDetailPanel.tsx`
+- Slides in from the right when an item row is clicked.
+- Shows: item name (editable), all column values (using same cell editors), assignees, status, due date.
+- Archive / Delete actions (permission-gated).
+- Close button or click outside dismisses.
+
+---
+
+### 7.12 — Column Management (Admin)
+
+New component: `frontend/src/components/boards/ColumnManagementPage.tsx`
+- Table of all org columns: name, type, settings summary, actions.
+- "Add Column" button → `AddColumnModal`.
+- Reorder via drag-and-drop (calls `reorderColumns`).
+- Edit column name/settings inline.
+- Delete column (with confirmation — warns about data loss).
+
+New component: `frontend/src/components/boards/AddColumnModal.tsx`
+- Fields: name, type selector (all ColumnType values).
+- Conditional settings fields based on selected type:
+  - `status` / `dropdown`: options builder (add/remove/recolor options).
+  - `number`: unit, precision.
+  - `text`: maxLength, multiline toggle.
+  - `person`: multiple toggle.
+  - `simple_formula`: operation selector + 2 column selectors.
+- Submits to `createColumn`.
+
+---
+
+### 7.13 — Drag & Drop
+
+Use `@dnd-kit/core` + `@dnd-kit/sortable` (or `react-beautiful-dnd`).
+
+Interactions:
+- **Items within a group**: vertical sort → calls `reorderItems` on drop.
+- **Items between groups**: drag an item row to a different `GroupSection` → `reorderItems` with new `groupId`.
+- **Groups**: vertical sort of `GroupSection` components → `reorderGroups` on drop.
+- **Columns**: horizontal sort of `ColumnHeader` cells → `reorderColumns` on drop (ORGANIZATION_ADMIN+ only).
+
+Optimistic UI: update local order immediately; revert on API error.
+
+---
+
+### 7.14 — Real-Time Subscriptions
+
+New hook: `frontend/src/hooks/useLiveItems.ts`
+- Uses Firestore `onSnapshot` on `/organizations/{orgId}/items` filtered by `boardId`.
+- Pushes results into React Query cache via `queryClient.setQueryData`.
+- Cleans up listener on unmount.
+
+New hook: `frontend/src/hooks/useLiveGroups.ts`
+- `onSnapshot` on `/organizations/{orgId}/boards/{boardId}/groups`.
+- Same cache-injection pattern.
+
+---
+
+### 7.15 — Accessibility (ARIA)
+
+Every new interactive element must have:
+- `aria-label` or `aria-labelledby` on all buttons, inputs, modals.
+- `role="grid"` on the board table, `role="row"` on item rows, `role="gridcell"` on cells.
+- `aria-expanded` on collapsible group headers.
+- `aria-grabbed` / `aria-dropeffect` on drag handles.
+- Focus trap in all modals (reuse existing `ModalWrapper`).
+
+---
+
+### 7.16 — TypeScript & Linting
+
+- All new components must use types from `types.ts` (Board, Group, Item, Column, ColumnType, etc.).
+- Zero ESLint warnings (enforce with `npm run lint` before each commit).
+- No `any` types in component props; use explicit interfaces.
+
+---
+
+### 7.17 — Entry Point Updates
+
+- `App.tsx`: add the 4 new routes from 7.2.
+- `MainLayout.tsx`: add sidebar board navigation (7.3).
+- `geminiService.ts` or new `workManagementService.ts`: export all API functions (7.0).
+- `hooks/queries/index.ts`: export all new query hooks.
 
 📊 PHASE 8 — Dashboards (The "Logyx" Power)
 Query: /organizations/{organizationId}/items
