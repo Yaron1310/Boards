@@ -4,12 +4,14 @@ import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
 import { FiLayout, FiPlus, FiArchive } from 'react-icons/fi';
+import CreateBoardModal from './CreateBoardModal';
 
 const BoardListPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [includeArchived, setIncludeArchived] = React.useState(false);
+  const [showCreateModal, setShowCreateModal] = React.useState(false);
 
   const { data: boards = [], isLoading, error } = useBoards(workspaceId, includeArchived, !!workspaceId);
 
@@ -52,7 +54,7 @@ const BoardListPage: React.FC = () => {
           )}
           {canManageBoards && (
             <button
-              onClick={() => {/* CreateBoardModal — wired in Phase 7B */}}
+              onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
               aria-label="Create new board"
             >
@@ -95,6 +97,13 @@ const BoardListPage: React.FC = () => {
             </button>
           ))}
         </div>
+      )}
+
+      {showCreateModal && workspaceId && (
+        <CreateBoardModal
+          workspaceId={workspaceId}
+          onClose={() => setShowCreateModal(false)}
+        />
       )}
     </div>
   );
