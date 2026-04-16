@@ -4,7 +4,8 @@ import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
-import type { Item, Column } from '../../types';
+import type { Item } from '../../types';
+import { ColumnCell } from './cells';
 
 interface ItemRowProps {
   item: Item;
@@ -12,21 +13,6 @@ interface ItemRowProps {
   onSelectToggle: (id: string) => void;
   onOpenDetail: (item: Item) => void;
 }
-
-// Placeholder renderer for column cells — Phase 7D will replace this with typed cell components.
-const ColumnCell: React.FC<{ column: Column; value: unknown }> = ({ column, value }) => {
-  const display = value == null || value === '' ? '' : String(value);
-  return (
-    <div
-      role="gridcell"
-      className="flex items-center min-w-[120px] px-3 py-2 border-r border-gray-100 last:border-r-0 text-sm text-gray-700 truncate"
-      aria-label={`${column.name}: ${display || 'empty'}`}
-      title={display}
-    >
-      {display}
-    </div>
-  );
-};
 
 const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onOpenDetail }) => {
   const { user } = useAuth();
@@ -114,7 +100,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
 
       {/* Dynamic column cells */}
       {columns.map((col) => (
-        <ColumnCell key={col.id} column={col} value={item.values[col.id]} />
+        <ColumnCell key={col.id} item={item} column={col} />
       ))}
 
       {/* Row actions — visible on hover */}

@@ -1,0 +1,63 @@
+import React, { useEffect, useState } from 'react';
+import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import type { Item, Column } from '../../../types';
+import CellWrapper from './CellWrapper';
+
+interface Props { item: Item; column: Column }
+
+const PhoneCell: React.FC<Props> = ({ item, column }) => {
+  const rawValue = (item.values[column.id] ?? '') as string;
+  const { mutate } = useUpdateItem();
+  const [draft, setDraft] = useState(rawValue);
+
+  useEffect(() => { setDraft(rawValue); }, [rawValue]);
+
+  const commit = (stopEdit: () => void) => {
+    if (draft !== rawValue) {
+      mutate({ id: item.id, patch: { values: { [column.id]: draft } } });
+    }
+    stopEdit();
+  };
+
+  return (
+    <CellWrapper column={column}>
+      {(isEditing, stopEdit) => {
+        if (isEditing) {
+          return (
+            <input
+              type="tel"
+              value={draft}
+              autoFocus
+              className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none"
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={() => commit(stopEdit)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
+                if (e.key === 'Escape') { setDraft(rawValue); stopEdit(); }
+              }}
+              aria-label={column.name}
+            />
+          );
+        }
+        return (
+          <div className="px-3 py-2 text-sm truncate w-full">
+            {rawValue ? (
+              <a
+                href={`tel:${rawValue}`}
+                className="text-indigo-600 hover:underline"
+                onClick={(e) => e.stopPropagation()}
+                aria-label={`Call ${rawValue}`}
+              >
+                {rawValue}
+              </a>
+            ) : (
+              <span className="text-gray-300 text-xs">—</span>
+            )}
+          </div>
+        );
+      }}
+    </CellWrapper>
+  );
+};
+
+export default PhoneCell;

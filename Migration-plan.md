@@ -756,7 +756,7 @@ New component: `frontend/src/components/boards/ItemRow.tsx`
 
 ---
 
-## 🎨 PHASE 7D — Column Cell Renderers | 🔴 High risk
+## ✅ 🎨 PHASE 7D — Column Cell Renderers | 🔴 High risk (DONE)
 > 14 column types × read + edit mode = the largest volume of new files in this phase. Dedicated session — do not combine with anything else.
 
 ### 7.10 — Column Cell Renderers & Editors

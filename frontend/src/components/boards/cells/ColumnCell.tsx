@@ -1,0 +1,44 @@
+import React from 'react';
+import { ColumnType } from '../../../types';
+import type { Item, Column } from '../../../types';
+import TextCell from './TextCell';
+import NumberCell from './NumberCell';
+import DateCell from './DateCell';
+import StatusCell from './StatusCell';
+import PersonCell from './PersonCell';
+import DropdownCell from './DropdownCell';
+import CheckboxCell from './CheckboxCell';
+import TagsCell from './TagsCell';
+import TimeCell from './TimeCell';
+import EmailCell from './EmailCell';
+import PhoneCell from './PhoneCell';
+import LocationCell from './LocationCell';
+import TimeRangeCell from './TimeRangeCell';
+import SimpleFormulaCell from './SimpleFormulaCell';
+
+interface ColumnCellProps {
+  item: Item;
+  column: Column;
+}
+
+const ColumnCell: React.FC<ColumnCellProps> = ({ item, column }) => {
+  switch (column.type) {
+    case ColumnType.TEXT:          return <TextCell item={item} column={column} />;
+    case ColumnType.NUMBER:        return <NumberCell item={item} column={column} />;
+    case ColumnType.DATE:          return <DateCell item={item} column={column} />;
+    case ColumnType.STATUS:        return <StatusCell item={item} column={column} />;
+    case ColumnType.PERSON:        return <PersonCell item={item} column={column} />;
+    case ColumnType.DROPDOWN:      return <DropdownCell item={item} column={column} />;
+    case ColumnType.CHECKBOX:      return <CheckboxCell item={item} column={column} />;
+    case ColumnType.TAGS:          return <TagsCell item={item} column={column} />;
+    case ColumnType.TIME:          return <TimeCell item={item} column={column} />;
+    case ColumnType.EMAIL:         return <EmailCell item={item} column={column} />;
+    case ColumnType.PHONE:         return <PhoneCell item={item} column={column} />;
+    case ColumnType.LOCATION:      return <LocationCell item={item} column={column} />;
+    case ColumnType.TIME_RANGE:    return <TimeRangeCell item={item} column={column} />;
+    case ColumnType.SIMPLE_FORMULA: return <SimpleFormulaCell item={item} column={column} />;
+    default:                       return <TextCell item={item} column={column} />;
+  }
+};
+
+export default ColumnCell;
