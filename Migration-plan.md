@@ -830,7 +830,7 @@ New component: `frontend/src/components/boards/AddColumnModal.tsx`
 
 ---
 
-## 🖱️ PHASE 7F — Drag & Drop | 🔴 High risk
+## ✅ 🖱️ PHASE 7F — Drag & Drop | 🔴 High risk (DONE)
 > DnD touches every structural component (ItemRow, GroupSection, ColumnHeader) and requires installing + wiring a new library. Dedicated session.
 
 ### 7.13 — Drag & Drop

@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   FiChevronDown, FiChevronRight, FiMoreHorizontal, FiPlus,
-  FiEdit2, FiTrash2, FiLoader,
+  FiEdit2, FiTrash2, FiLoader, FiGripVertical,
 } from 'react-icons/fi';
-import { useItems, useCreateItem } from '../../hooks/queries/useItemQueries';
+import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useCreateItem } from '../../hooks/queries/useItemQueries';
 import { useUpdateGroup, useDeleteGroup } from '../../hooks/queries/useGroupQueries';
 import { useAuth } from '../../hooks/useAuth';
-import { UserRole } from '../../types';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
 
@@ -15,6 +16,7 @@ interface GroupSectionProps {
   boardId: string;
   workspaceId: string;
   canManage: boolean;
+  items: Item[];
   onOpenDetail: (item: Item) => void;
 }
 
@@ -23,17 +25,12 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   boardId,
   workspaceId,
   canManage,
+  items,
   onOpenDetail,
 }) => {
   const { user } = useAuth();
 
   const isCollapsed = group.isCollapsed ?? false;
-
-  const { data: itemsPage, isLoading: itemsLoading } = useItems(
-    { boardId, groupId: group.id },
-    true,
-  );
-  const items = itemsPage?.data ?? [];
 
   const { mutateAsync: updateGroup, isPending: isUpdating } = useUpdateGroup();
   const { mutateAsync: deleteGroup, isPending: isDeleting } = useDeleteGroup();
@@ -51,8 +48,25 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const addItemInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const {
+    attributes: groupDragAttributes,
+    listeners: groupDragListeners,
+    setNodeRef: setGroupRef,
+    transform: groupTransform,
+    transition: groupTransition,
+    isDragging: isGroupDragging,
+  } = useSortable({
+    id: group.id,
+    data: { type: 'group' as const, group },
+  });
+
+  const groupStyle: React.CSSProperties = {
+    transform: CSS.Transform.toString(groupTransform),
+    transition: groupTransition,
+    opacity: isGroupDragging ? 0.5 : 1,
+  };
 
   useEffect(() => {
     setNameValue(group.name);
@@ -66,7 +80,6 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     if (addingItem) addItemInputRef.current?.focus();
   }, [addingItem]);
 
-  // Close kebab menu on outside click
   useEffect(() => {
     if (!menuOpen) return;
     const handleClick = (e: MouseEvent) => {
@@ -118,7 +131,6 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       groupId: group.id,
     });
     setNewItemName('');
-    // Keep input open for fast entry
   };
 
   const handleAddItemKeyDown = (e: React.KeyboardEvent) => {
@@ -140,9 +152,12 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
   const groupColor = group.color ?? '#6366f1';
   const itemCount = items.length;
+  const itemIds = items.map((i) => i.id);
 
   return (
     <section
+      ref={setGroupRef}
+      style={groupStyle}
       className="rounded-lg border border-gray-200 overflow-hidden bg-white"
       aria-label={`Group: ${group.name}`}
     >
@@ -151,6 +166,18 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 select-none"
         style={{ borderLeft: `4px solid ${groupColor}` }}
       >
+        {/* Group drag handle */}
+        {canManage && (
+          <div
+            className="flex items-center justify-center w-5 h-5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+            aria-label="Drag to reorder group"
+            {...groupDragAttributes}
+            {...groupDragListeners}
+          >
+            <FiGripVertical size={13} aria-hidden="true" />
+          </div>
+        )}
+
         {/* Collapse toggle */}
         <button
           type="button"
@@ -280,28 +307,22 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       {/* Item rows */}
       {!isCollapsed && (
         <div role="rowgroup" aria-label={`Items in ${group.name}`}>
-          {itemsLoading ? (
-            <div
-              className="flex justify-center items-center py-6"
-              role="status"
-              aria-label="Loading items"
-            >
-              <FiLoader className="animate-spin text-gray-400" size={16} aria-hidden="true" />
-            </div>
-          ) : items.length === 0 ? (
+          {items.length === 0 ? (
             <div className="px-4 py-4 text-xs text-gray-400 italic">
               No items yet.
             </div>
           ) : (
-            items.map((item) => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                isSelected={selectedIds.has(item.id)}
-                onSelectToggle={handleSelectToggle}
-                onOpenDetail={onOpenDetail}
-              />
-            ))
+            <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+              {items.map((item) => (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  isSelected={selectedIds.has(item.id)}
+                  onSelectToggle={handleSelectToggle}
+                  onOpenDetail={onOpenDetail}
+                />
+              ))}
+            </SortableContext>
           )}
 
           {/* Add item row */}

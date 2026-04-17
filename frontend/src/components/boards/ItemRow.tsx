@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { FiMenu, FiArchive, FiRotateCcw, FiTrash2 } from 'react-icons/fi';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
 import { useAuth } from '../../hooks/useAuth';
@@ -23,6 +25,23 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
   const { mutateAsync: deleteItem, isPending: isDeleting } = useDeleteItem();
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: item.id,
+    data: { type: 'item' as const, item },
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   const canManage =
     user?.role === UserRole.ORGANIZATION_ADMIN ||
@@ -58,18 +77,22 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
 
   return (
     <div
+      ref={setNodeRef}
       role="row"
+      style={style}
       className={`flex items-stretch group border-b border-gray-100 last:border-b-0 hover:bg-indigo-50/40 transition-colors ${
         item.isArchived ? 'opacity-60' : ''
-      } ${isSelected ? 'bg-indigo-50' : 'bg-white'}`}
+      } ${isSelected ? 'bg-indigo-50' : 'bg-white'} ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
       aria-selected={isSelected}
     >
-      {/* Drag handle — visual only; wired in Phase 7F */}
+      {/* Drag handle */}
       <div
-        className="flex items-center px-1 opacity-0 group-hover:opacity-40 cursor-grab text-gray-400 flex-shrink-0"
-        aria-hidden="true"
+        className="flex items-center px-1 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none"
+        aria-label="Drag to reorder item"
+        {...attributes}
+        {...listeners}
       >
-        <FiMenu size={13} />
+        <FiMenu size={13} aria-hidden="true" />
       </div>
 
       {/* Checkbox */}
