@@ -11,6 +11,7 @@ import {
   assertGroupAccess,
   validateGroupOwnershipChain,
 } from '../utils/workManagementAuth.js';
+import { touchBoardVersion } from '../services/boardVersion.service.js';
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
@@ -97,6 +98,7 @@ export const createGroup = async (req: Request, res: Response) => {
     });
 
     const created = snapshotToData<DBGroup>(await docRef.get());
+    touchBoardVersion(user.orgId, boardId);
 
     void logAudit({
       actorUserId: user.id,
@@ -147,6 +149,7 @@ export const reorderGroups = async (req: Request, res: Response) => {
       batch.update(ref, { order: item.order, updatedAt: timestamp });
     }
     await batch.commit();
+    touchBoardVersion(user.orgId, boardId);
 
     res.json({ message: 'Groups reordered.' });
   } catch (err: unknown) {
@@ -184,6 +187,7 @@ export const updateGroup = async (req: Request, res: Response) => {
     if (order !== undefined) updateData.order = Number(order);
 
     await groupsCollection(user.orgId, boardId).doc(groupId).update(updateData);
+    touchBoardVersion(user.orgId, boardId);
     const updated = snapshotToData<DBGroup>(
       await groupsCollection(user.orgId, boardId).doc(groupId).get(),
     );
@@ -227,6 +231,7 @@ export const deleteGroup = async (req: Request, res: Response) => {
     assertGroupAccess(user, group, 'delete', board.createdBy);
 
     await groupsCollection(user.orgId, boardId).doc(groupId).delete();
+    touchBoardVersion(user.orgId, boardId);
 
     void logAudit({
       actorUserId: user.id,

@@ -13,6 +13,7 @@ import {
 } from '../utils/workManagementAuth.js';
 import { validateColumnValue } from '../utils/columnValidator.js';
 import { parsePaginationParams, applyPagination, buildPaginatedResult } from '../utils/pagination.js';
+import { touchBoardVersion } from '../services/boardVersion.service.js';
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
@@ -182,6 +183,7 @@ export const createItem = async (req: Request, res: Response) => {
       updatedAt: timestamp,
     };
     await docRef.set(itemData);
+    touchBoardVersion(user.orgId, boardId);
 
     const created = snapshotToData<DBItem>(await docRef.get());
 
@@ -362,6 +364,9 @@ export const reorderItems = async (req: Request, res: Response) => {
 
     await batch.commit();
 
+    const firstItem = snapshotToData<DBItem>(fetchResults[0]);
+    if (firstItem) touchBoardVersion(user.orgId, firstItem.boardId);
+
     res.json({ message: 'Items reordered.' });
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
@@ -432,6 +437,7 @@ export const updateItem = async (req: Request, res: Response) => {
     else if (mirrored.dueDate !== undefined) updateData.dueDate = mirrored.dueDate;
 
     await itemsCollection(user.orgId).doc(id).update(updateData);
+    touchBoardVersion(user.orgId, item.boardId);
     const updated = snapshotToData<DBItem>(await itemsCollection(user.orgId).doc(id).get());
 
     void logAudit({
@@ -472,6 +478,7 @@ export const archiveItem = async (req: Request, res: Response) => {
       isArchived: true,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    touchBoardVersion(user.orgId, item.boardId);
 
     void logAudit({
       actorUserId: user.id,
@@ -511,6 +518,7 @@ export const restoreItem = async (req: Request, res: Response) => {
       isArchived: false,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    touchBoardVersion(user.orgId, item.boardId);
 
     void logAudit({
       actorUserId: user.id,
@@ -547,6 +555,7 @@ export const deleteItem = async (req: Request, res: Response) => {
     assertItemAccess(user, item, 'delete');
 
     await itemsCollection(user.orgId).doc(id).delete();
+    touchBoardVersion(user.orgId, item.boardId);
 
     void logAudit({
       actorUserId: user.id,

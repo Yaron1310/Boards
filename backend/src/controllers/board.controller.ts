@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { boardsCollection, groupsCollection, organizationsCollection } from '../db/collections.js';
+import { boardsCollection, boardVersionsCollection, groupsCollection, organizationsCollection } from '../db/collections.js';
 import { JwtUserPayload, DBBoard } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -328,5 +328,31 @@ export const deleteBoard = async (req: Request, res: Response) => {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error(`Error deleting board ${req.params.id}:`, err);
     res.status(500).json({ message: 'Failed to delete board.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /boards/:id/version
+// ---------------------------------------------------------------------------
+export const getBoardVersion = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { id } = req.params;
+
+  try {
+    const boardDoc = await boardsCollection(user.orgId).doc(id).get();
+    if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
+
+    const board = snapshotToData<DBBoard>(boardDoc)!;
+    assertBoardAccess(user, board, 'read');
+
+    const versionDoc = await boardVersionsCollection(user.orgId).doc(id).get();
+    const raw = versionDoc.exists ? versionDoc.data()?.lastUpdatedAt : null;
+    const lastUpdatedAt: string | null = raw?.toDate?.()?.toISOString?.() ?? null;
+
+    res.json({ lastUpdatedAt });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error fetching board version ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to fetch board version.' });
   }
 };

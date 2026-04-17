@@ -30,3 +30,8 @@ export const itemsCollection = (organizationId: string) =>
 // /workspaces/{organizationId}/columns/{columnId}
 export const columnsCollection = (organizationId: string) =>
   db.collection('workspaces').doc(organizationId).collection('columns');
+
+// Board version stamps (one doc per board, touched on every item/group mutation):
+// /workspaces/{organizationId}/boardVersions/{boardId}
+export const boardVersionsCollection = (organizationId: string) =>
+  db.collection('workspaces').doc(organizationId).collection('boardVersions');

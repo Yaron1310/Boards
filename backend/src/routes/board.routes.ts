@@ -8,6 +8,7 @@ boardRouter.get('/', boardController.getBoards);
 boardRouter.post('/', boardController.createBoard);
 
 // Single board — specific action routes before generic /:id
+boardRouter.get('/:id/version', boardController.getBoardVersion);
 boardRouter.patch('/:id/archive', boardController.archiveBoard);
 boardRouter.patch('/:id/restore', boardController.restoreBoard);
 

@@ -16,8 +16,7 @@ import { useBoard, useUpdateBoard, useArchiveBoard, useRestoreBoard } from '../.
 import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries';
 import { useItems, useReorderItems } from '../../hooks/queries/useItemQueries';
 import { useAuth } from '../../hooks/useAuth';
-import { useLiveItems } from '../../hooks/useLiveItems';
-import { useLiveGroups } from '../../hooks/useLiveGroups';
+import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
 import { UserRole } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
@@ -46,9 +45,8 @@ const BoardViewPage: React.FC = () => {
   const { mutateAsync: reorderGroups } = useReorderGroups();
   const { mutateAsync: reorderItems } = useReorderItems();
 
-  // Real-time polling — keeps cache fresh; upgradeable to onSnapshot
-  useLiveItems(boardId);
-  useLiveGroups(boardId);
+  // ETag-style live updates — checks version timestamp before pulling full data
+  useLiveBoardVersion(boardId);
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');

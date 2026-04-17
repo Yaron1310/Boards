@@ -97,6 +97,9 @@ export const restoreBoard = (id: string): Promise<Board> =>
 export const deleteBoard = (id: string): Promise<null> =>
   fetchWithAuth(`/api/boards/${id}`, { method: 'DELETE' });
 
+export const getBoardVersion = (id: string): Promise<{ lastUpdatedAt: string | null }> =>
+  fetchWithAuth(`/api/boards/${id}/version`);
+
 // ─── GROUPS ──────────────────────────────────────────────────────────────────
 
 export interface CreateGroupData {
