@@ -850,29 +850,51 @@ Optimistic UI: update local order immediately; revert on API error.
 ---
 
 ## ✅ PHASE 7G — Real-Time & Accessibility | 🟢 Low risk (DONE)
-> Two focused hooks and a cross-cutting accessibility pass. Light finishing work to complete the phase.
 
-### 7.14 — Real-Time Subscriptions
+### 7.14 — Real-Time Updates (ETag / Cache-Validation Pattern)
 
-New hook: `frontend/src/hooks/useLiveItems.ts`
-- Uses Firestore `onSnapshot` on `/organizations/{orgId}/items` filtered by `boardId`.
-- Pushes results into React Query cache via `queryClient.setQueryData`.
-- Cleans up listener on unmount.
+Chosen approach: ETag-style version check instead of Firestore `onSnapshot` (Firestore rules are deny-all; Firebase client SDK not configured in frontend).
 
-New hook: `frontend/src/hooks/useLiveGroups.ts`
-- `onSnapshot` on `/organizations/{orgId}/boards/{boardId}/groups`.
-- Same cache-injection pattern.
+**Backend — new files/changes:**
+- `backend/src/db/collections.ts` — added `boardVersionsCollection(orgId)`: `/workspaces/{orgId}/boardVersions/{boardId}`
+- `backend/src/services/boardVersion.service.ts` — `touchBoardVersion(orgId, boardId)`: fire-and-forget write of `{ lastUpdatedAt: serverTimestamp() }` to the version document. Errors are logged, never thrown.
+- `backend/src/controllers/board.controller.ts` — added `GET /boards/:id/version` handler: reads 1 Firestore document, returns `{ lastUpdatedAt: string | null }`. Auth: same as `GET /boards/:id`.
+- `backend/src/routes/board.routes.ts` — registered `GET /:id/version` before `/:id` to avoid route conflict.
+- `backend/src/controllers/item.controller.ts` — `touchBoardVersion` called after every mutation: `createItem`, `updateItem`, `archiveItem`, `restoreItem`, `deleteItem`, `reorderItems`.
+- `backend/src/controllers/group.controller.ts` — `touchBoardVersion` called after every mutation: `createGroup`, `updateGroup`, `deleteGroup`, `reorderGroups`.
+
+**Frontend — new files/changes:**
+- `frontend/src/services/workManagementService.ts` — added `getBoardVersion(id)`.
+- `frontend/src/hooks/useLiveBoardVersion.ts` — new hook wired into `BoardViewPage`:
+  1. On mount: fetches version immediately and stores timestamp in `localStorage` as baseline.
+  2. Every 20s: if user has interacted within the last 60s, fetches `GET /boards/:id/version` (1 Firestore read).
+  3. If server timestamp is newer than `localStorage` value → invalidates `['items']` and `['groups', boardId]` React Query keys → triggers refetch.
+  4. If same → does nothing (zero additional Firestore cost).
+  5. Cleans up interval on unmount.
+
+**Cost profile (50 users, 2h active/day):**
+- ~1,100,000 reads/month total (flag checks + triggered full pulls) — within free tier.
+- ~99% fewer Firestore reads compared to blind time-based polling.
 
 ---
 
 ### 7.15 — Accessibility (ARIA)
 
-Every new interactive element must have:
-- `aria-label` or `aria-labelledby` on all buttons, inputs, modals.
-- `role="grid"` on the board table, `role="row"` on item rows, `role="gridcell"` on cells.
-- `aria-expanded` on collapsible group headers.
-- `aria-grabbed` / `aria-dropeffect` on drag handles.
-- Focus trap in all modals (reuse existing `ModalWrapper`).
+New hook: `frontend/src/hooks/useFocusTrap.ts`
+- Traps Tab / Shift+Tab focus within a given container ref while active.
+- Prevents keyboard focus from escaping open modals/panels.
+
+Applied to:
+- `CreateBoardModal.tsx` — `useFocusTrap(dialogRef)` on the inner dialog div.
+- `AddColumnModal.tsx` — `useFocusTrap(dialogRef)` on the inner dialog div.
+- `ItemDetailPanel.tsx` — `useFocusTrap(panelRef)` on the slide-out panel div.
+
+`aria-grabbed={isDragging}` added to drag handles in:
+- `ItemRow.tsx` — item drag handle.
+- `GroupSection.tsx` — group drag handle.
+- `ColumnHeader.tsx` — column header drag handle.
+
+All three drag handles already spread `{...attributes}` from dnd-kit's `useSortable`, which provides `aria-roledescription` and `aria-label`. The explicit `aria-grabbed` complements this for screen-reader drag state.
 
 ---
 
