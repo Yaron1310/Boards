@@ -681,7 +681,7 @@ const MainLayout: React.FC = () => {
   const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
 
   const navItems: NavItem[] = [
-    { name: t('layout.dashboard'), path: '/workspaces', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
+    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
   ];
 
   const adminNavItems: AdminNavItem[] = [

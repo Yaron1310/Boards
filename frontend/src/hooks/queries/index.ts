@@ -20,3 +20,6 @@ export {
   useColumns, useColumn,
   useCreateColumn, useUpdateColumn, useReorderColumns, useDeleteColumn,
 } from './useColumnQueries';
+export {
+  useDashboardSummary, useDashboardOverdue,
+} from './useDashboardQueries';

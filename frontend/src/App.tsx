@@ -39,6 +39,7 @@ const WorkspaceHomePage = React.lazy(() => import('./components/boards/Workspace
 const BoardListPage = React.lazy(() => import('./components/boards/BoardListPage'));
 const BoardViewPage = React.lazy(() => import('./components/boards/BoardViewPage'));
 const ColumnManagementPage = React.lazy(() => import('./components/boards/ColumnManagementPage'));
+const DashboardPage = React.lazy(() => import('./components/dashboard/DashboardPage'));
 
 // -- System-admin chunk --
 const AcademyManagementPage = React.lazy(() => import('./components/admin/AcademyManagementPage'));
@@ -211,7 +212,11 @@ const App: React.FC = () => {
         <Route element={<Suspense fallback={<PageLoader />}><MainLayout /></Suspense>}>
             <Route
               path="/dashboard"
-              element={<Navigate to="/workspaces" replace />}
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                  <DashboardPage />
+                </ProtectedRoute>
+              }
             />
 
             <Route

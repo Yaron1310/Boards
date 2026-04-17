@@ -1,4 +1,5 @@
-import type { ListItemsParams } from '@/services/workManagementService';
+import type { ListItemsParams, DashboardPaginationParams } from '@/services/workManagementService';
+import type { DashboardParams } from '@/types';
 
 export const queryKeys = {
   workspaces: {
@@ -30,5 +31,9 @@ export const queryKeys = {
   columns: {
     all: ['columns'] as const,
     one: (id: string) => ['columns', id] as const,
+  },
+  dashboard: {
+    summary: (params: DashboardParams) => ['dashboard', 'summary', params] as const,
+    overdue: (params: DashboardParams & DashboardPaginationParams) => ['dashboard', 'overdue', params] as const,
   },
 };

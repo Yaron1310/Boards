@@ -711,3 +711,49 @@ export interface Item {
   createdAt: Date | string;
   updatedAt: Date | string;
 }
+
+// =============================================================================
+// PHASE 8 — DASHBOARD TYPES
+// =============================================================================
+
+export interface DashboardParams {
+  workspaceId?: string;
+  boardIds?: string[];
+  assigneeId?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+}
+
+export interface StatusDistributionEntry {
+  statusId: string;
+  label: string;
+  color: string;
+  count: number;
+}
+
+export interface WorkloadByPersonEntry {
+  userId: string;
+  name: string;
+  profileImageUrl?: string;
+  count: number;
+}
+
+export interface ItemsByBoardEntry {
+  boardId: string;
+  name: string;
+  count: number;
+}
+
+export interface DashboardSummary {
+  statusDistribution: StatusDistributionEntry[];
+  overdue: { count: number; items: Item[] };
+  workloadByPerson: WorkloadByPersonEntry[];
+  itemsByBoard: ItemsByBoardEntry[];
+  summary: {
+    total: number;
+    completed: number;
+    completionRate: number;
+    archived: number;
+  };
+  truncated: boolean;
+}

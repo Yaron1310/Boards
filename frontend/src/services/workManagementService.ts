@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
@@ -250,3 +250,35 @@ export const reorderColumns = (order: ReorderColumnItem[]): Promise<void> =>
 
 export const deleteColumn = (id: string): Promise<null> =>
   fetchWithAuth(`/api/columns/${id}`, { method: 'DELETE' });
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+
+export interface DashboardPaginationParams {
+  cursor?: string;
+  limit?: number;
+}
+
+const buildDashboardQs = (params: DashboardParams): string => {
+  const p = new URLSearchParams();
+  if (params.workspaceId) p.set('workspaceId', params.workspaceId);
+  if (params.boardIds?.length) p.set('boardIds', params.boardIds.join(','));
+  if (params.assigneeId) p.set('assigneeId', params.assigneeId);
+  if (params.dueDateFrom) p.set('dueDateFrom', params.dueDateFrom);
+  if (params.dueDateTo) p.set('dueDateTo', params.dueDateTo);
+  return p.toString();
+};
+
+export const getDashboardSummary = (params: DashboardParams = {}): Promise<DashboardSummary> => {
+  const qs = buildDashboardQs(params);
+  return fetchWithAuth(`/api/dashboard/summary${qs ? `?${qs}` : ''}`);
+};
+
+export const getDashboardOverdue = (
+  params: DashboardParams & DashboardPaginationParams = {},
+): Promise<PaginatedResponse<Item>> => {
+  const p = new URLSearchParams(buildDashboardQs(params));
+  if (params.cursor) p.set('cursor', params.cursor);
+  if (params.limit) p.set('limit', String(params.limit));
+  const qs = p.toString();
+  return fetchWithAuth(`/api/dashboard/overdue${qs ? `?${qs}` : ''}`);
+};

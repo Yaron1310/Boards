@@ -962,7 +962,7 @@ interface DashboardSummaryResponse { ... }
 
 ---
 
-### 🔌 PHASE 8B — Foundation | 🟢 Low risk
+### ✅ 🔌 PHASE 8B — Foundation | 🟢 Low risk (DONE)
 
 > Wiring only — no UI logic. Recharts install, service functions, query hooks, types, and two small routing updates.
 
