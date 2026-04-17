@@ -1029,7 +1029,7 @@ New folder: `frontend/src/components/dashboard/`
 
 ---
 
-### 🎨 PHASE 8D — Widget Components | 🔴 High risk — dedicated session
+### ✅ 🎨 PHASE 8D — Widget Components | 🔴 High risk — dedicated session (DONE)
 
 > Five chart components × (read view + accessibility) = largest volume of new UI code in this phase. Do not combine with 8C.
 

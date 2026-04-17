@@ -1,13 +1,17 @@
-import React, { useReducer, useEffect } from 'react';
+import React, { useReducer, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import DashboardFilterBar, {
   filterReducer,
   toDashboardParams,
-  INITIAL_FILTER_STATE,
   type FilterState,
 } from './DashboardFilterBar';
 import WidgetCard from './WidgetCard';
 import { useDashboardSummary } from '../../hooks/queries/useDashboardQueries';
+import SummaryStatsWidget from './widgets/SummaryStatsWidget';
+import StatusDistributionWidget from './widgets/StatusDistributionWidget';
+import WorkloadByPersonWidget from './widgets/WorkloadByPersonWidget';
+import OverdueItemsWidget from './widgets/OverdueItemsWidget';
+import ItemsByBoardWidget from './widgets/ItemsByBoardWidget';
 
 // ---------------------------------------------------------------------------
 // URL ↔ FilterState helpers
@@ -60,6 +64,12 @@ const DashboardPage: React.FC = () => {
 
   const summaryIsEmpty = !isLoading && !summary;
 
+  // Build boardId → name lookup from itemsByBoard for overdue widget
+  const boardNameMap = useMemo(
+    () => Object.fromEntries((summary?.itemsByBoard ?? []).map(b => [b.boardId, b.name])),
+    [summary],
+  );
+
   return (
     <main className="p-6 max-w-7xl mx-auto flex flex-col gap-6" aria-label="Dashboard">
       <div className="flex items-center justify-between">
@@ -89,20 +99,14 @@ const DashboardPage: React.FC = () => {
           className="md:col-span-2"
         >
           {summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4" role="list" aria-label="Summary stats">
-              <StatCard label="Total Items" value={summary.summary.total} color="gray" />
-              <StatCard label="Completed" value={summary.summary.completed} color="green" />
-              <StatCard
-                label="Completion Rate"
-                value={`${Math.round(summary.summary.completionRate * 100)}%`}
-                color="green"
-              />
-              <StatCard label="Overdue" value={summary.overdue.count} color="red" />
-            </div>
+            <SummaryStatsWidget
+              summary={summary.summary}
+              overdueCount={summary.overdue.count}
+            />
           )}
         </WidgetCard>
 
-        {/* Status distribution placeholder */}
+        {/* Status distribution */}
         <WidgetCard
           title="Status Distribution"
           subtitle="Item counts per status"
@@ -110,13 +114,12 @@ const DashboardPage: React.FC = () => {
           isEmpty={!isLoading && (summary?.statusDistribution.length ?? 0) === 0}
           emptyMessage="No status data yet"
         >
-          {/* Filled in Phase 8D — StatusDistributionWidget */}
           {summary && summary.statusDistribution.length > 0 && (
-            <p className="text-sm text-gray-500 italic">Chart coming in Phase 8D</p>
+            <StatusDistributionWidget data={summary.statusDistribution} />
           )}
         </WidgetCard>
 
-        {/* Workload by person placeholder */}
+        {/* Workload by person */}
         <WidgetCard
           title="Workload by Person"
           subtitle="Items assigned per team member"
@@ -124,13 +127,12 @@ const DashboardPage: React.FC = () => {
           isEmpty={!isLoading && (summary?.workloadByPerson.length ?? 0) === 0}
           emptyMessage="No assignee data yet"
         >
-          {/* Filled in Phase 8D — WorkloadByPersonWidget */}
           {summary && summary.workloadByPerson.length > 0 && (
-            <p className="text-sm text-gray-500 italic">Chart coming in Phase 8D</p>
+            <WorkloadByPersonWidget data={summary.workloadByPerson} />
           )}
         </WidgetCard>
 
-        {/* Overdue items placeholder */}
+        {/* Overdue items */}
         <WidgetCard
           title="Overdue Items"
           subtitle="Tasks past their due date"
@@ -138,13 +140,17 @@ const DashboardPage: React.FC = () => {
           isEmpty={!isLoading && (summary?.overdue.count ?? 0) === 0}
           emptyMessage="No overdue items"
         >
-          {/* Filled in Phase 8D — OverdueItemsWidget */}
           {summary && summary.overdue.count > 0 && (
-            <p className="text-sm text-gray-500 italic">List coming in Phase 8D</p>
+            <OverdueItemsWidget
+              count={summary.overdue.count}
+              items={summary.overdue.items}
+              dashboardParams={params}
+              boardNameMap={boardNameMap}
+            />
           )}
         </WidgetCard>
 
-        {/* Items by board placeholder — hidden when single board is filtered */}
+        {/* Items by board — hidden when a single board is already filtered */}
         {filters.boardIds.length !== 1 && (
           <WidgetCard
             title="Items by Board"
@@ -153,44 +159,13 @@ const DashboardPage: React.FC = () => {
             isEmpty={!isLoading && (summary?.itemsByBoard.length ?? 0) === 0}
             emptyMessage="No board data yet"
           >
-            {/* Filled in Phase 8D — ItemsByBoardWidget */}
             {summary && summary.itemsByBoard.length > 0 && (
-              <p className="text-sm text-gray-500 italic">Chart coming in Phase 8D</p>
+              <ItemsByBoardWidget data={summary.itemsByBoard} />
             )}
           </WidgetCard>
         )}
       </div>
     </main>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Small KPI card (used in the Summary widget)
-// ---------------------------------------------------------------------------
-
-interface StatCardProps {
-  label: string;
-  value: number | string;
-  color: 'gray' | 'green' | 'red';
-}
-
-const colorMap: Record<StatCardProps['color'], { bg: string; text: string; value: string }> = {
-  gray: { bg: 'bg-gray-50', text: 'text-gray-500', value: 'text-gray-800' },
-  green: { bg: 'bg-green-50', text: 'text-green-600', value: 'text-green-700' },
-  red: { bg: 'bg-red-50', text: 'text-red-600', value: 'text-red-700' },
-};
-
-const StatCard: React.FC<StatCardProps> = ({ label, value, color }) => {
-  const c = colorMap[color];
-  return (
-    <div
-      className={`${c.bg} rounded-lg p-4 flex flex-col gap-1`}
-      role="listitem"
-      aria-label={`${label}: ${value}`}
-    >
-      <span className={`text-xs font-medium ${c.text} uppercase tracking-wide`}>{label}</span>
-      <span className={`text-2xl font-bold ${c.value}`}>{value}</span>
-    </div>
   );
 };
 
