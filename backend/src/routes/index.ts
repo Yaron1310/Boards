@@ -19,6 +19,8 @@ import { boardRouter } from './board.routes.js';
 import { groupRouter } from './group.routes.js';
 import { itemRouter } from './item.routes.js';
 import { columnRouter } from './column.routes.js';
+// Phase 8 — Dashboard routes
+import { dashboardRouter } from './dashboard.routes.js';
 
 export const mainRouter = Router();
 
@@ -43,3 +45,5 @@ mainRouter.use('/boards', boardRouter);
 mainRouter.use('/boards/:boardId/groups', groupRouter);
 mainRouter.use('/items', itemRouter);
 mainRouter.use('/columns', columnRouter);
+// Phase 8 — Dashboard
+mainRouter.use('/dashboard', dashboardRouter);

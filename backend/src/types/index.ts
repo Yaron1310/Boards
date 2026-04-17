@@ -342,6 +342,44 @@ export interface DBAuditLog {
   expiresAt: admin.firestore.Timestamp | Date | any;
 }
 
+// --- PHASE 8: DASHBOARD ---
+
+export interface DashboardStatusDistribution {
+  statusId: string;
+  label: string;
+  color: string;
+  count: number;
+}
+
+export interface DashboardWorkloadPerson {
+  userId: string;
+  name: string;
+  profileImageUrl?: string;
+  count: number;
+}
+
+export interface DashboardBoardCount {
+  boardId: string;
+  name: string;
+  count: number;
+}
+
+export interface DashboardSummaryStats {
+  total: number;
+  completed: number;
+  completionRate: number;
+  archived: number;
+}
+
+export interface DashboardSummaryResponse {
+  statusDistribution: DashboardStatusDistribution[];
+  overdue: { count: number; items: DBItem[] };
+  workloadByPerson: DashboardWorkloadPerson[];
+  itemsByBoard: DashboardBoardCount[];
+  summary: DashboardSummaryStats;
+  truncated: boolean;
+}
+
 export interface DBEmailTemplate {
   id: string;
   name: string;

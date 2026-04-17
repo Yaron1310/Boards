@@ -906,7 +906,7 @@ Sub-phases are sized by coding workload / context-limit risk.
 
 ---
 
-### 📦 PHASE 8A — Backend Dashboard API | 🟡 Low-Medium risk
+### ✅ 📦 PHASE 8A — Backend Dashboard API | 🟡 Low-Medium risk (DONE)
 
 **New files:**
 - `backend/src/controllers/dashboard.controller.ts`
