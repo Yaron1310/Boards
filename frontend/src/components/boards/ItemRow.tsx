@@ -89,6 +89,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
       <div
         className="flex items-center px-1 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none"
         aria-label="Drag to reorder item"
+        aria-grabbed={isDragging}
         {...attributes}
         {...listeners}
       >

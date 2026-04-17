@@ -112,6 +112,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
         <span
           className="opacity-0 group-hover:opacity-40 text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
           aria-label={`Drag to reorder ${column.name} column`}
+          aria-grabbed={isDragging}
           {...attributes}
           {...listeners}
         >

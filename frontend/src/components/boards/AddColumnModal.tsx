@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { FiX, FiColumns, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useCreateColumn, useColumns } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
 import type { StatusOption, DropdownOption } from '../../types';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface AddColumnModalProps {
   onClose: () => void;
@@ -34,6 +35,8 @@ const STATUS_PALETTE = [
 const AddColumnModal: React.FC<AddColumnModalProps> = ({ onClose }) => {
   const { mutateAsync: createColumn, isPending } = useCreateColumn();
   const { data: allColumns = [] } = useColumns();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
 
   const [name, setName] = useState('');
   const [type, setType] = useState<ColumnType>(ColumnType.TEXT);
@@ -172,7 +175,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ onClose }) => {
       aria-modal="true"
       aria-labelledby="add-column-title"
     >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div ref={dialogRef} className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">

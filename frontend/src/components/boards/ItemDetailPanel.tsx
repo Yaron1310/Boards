@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface ItemDetailPanelProps {
   item: Item;
@@ -27,6 +28,8 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   const [nameValue, setNameValue] = useState(item.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef);
 
   const canManage =
     user?.role === UserRole.ORGANIZATION_ADMIN ||
@@ -95,6 +98,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
       />
 
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="item-detail-title"

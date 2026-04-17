@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { FiX, FiLayout } from 'react-icons/fi';
 import { useCreateBoard } from '../../hooks/queries/useBoardQueries';
+import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface CreateBoardModalProps {
   workspaceId: string;
@@ -14,6 +15,8 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
 
   const { mutateAsync: createBoard, isPending } = useCreateBoard();
 
@@ -44,7 +47,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
       aria-modal="true"
       aria-labelledby="create-board-title"
     >
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+      <div ref={dialogRef} className="bg-white rounded-xl shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">

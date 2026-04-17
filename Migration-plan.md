@@ -849,7 +849,7 @@ Optimistic UI: update local order immediately; revert on API error.
 
 ---
 
-## ✅ PHASE 7G — Real-Time & Accessibility | 🟢 Low risk
+## ✅ PHASE 7G — Real-Time & Accessibility | 🟢 Low risk (DONE)
 > Two focused hooks and a cross-cutting accessibility pass. Light finishing work to complete the phase.
 
 ### 7.14 — Real-Time Subscriptions
