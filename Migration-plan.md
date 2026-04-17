@@ -900,13 +900,178 @@ All three drag handles already spread `{...attributes}` from dnd-kit's `useSorta
 
 ## 📊 PHASE 8 — Dashboards (The "Logyx" Power)
 
-Query: /organizations/{organizationId}/items
-Filters: workspaceId, boardId, assignee, date.
-Widgets:
+Goal: Build cross-board analytics on top of the flat item storage. Every step is net-new — no overlap with Phases 1–7 — except two small updates in 8B (the `/dashboard` route and sidebar link already exist but point to wrong destinations).
 
-* Status distribution (Pie/Bar).
-* Overdue items tracker.
-* Workload by person.
+Sub-phases are sized by coding workload / context-limit risk.
+
+---
+
+### 📦 PHASE 8A — Backend Dashboard API | 🟡 Low-Medium risk
+
+**New files:**
+- `backend/src/controllers/dashboard.controller.ts`
+- `backend/src/routes/dashboard.routes.ts`
+
+**Query strategy:** Fetch items from `/organizations/{orgId}/items` with tenant isolation, apply filters in Firestore, aggregate in memory on the server (Firestore has no GROUP BY). Cap at 1,000 items per request; return `truncated: true` if the cap is hit. Reuse the existing item query logic from `item.controller.ts` — do not duplicate it.
+
+**Endpoint 1:**
+```
+GET /dashboard/summary
+  Query params:
+    workspaceId?    — scope to one workspace
+    boardIds?       — comma-separated list (multi-board filter)
+    assigneeId?     — filter by userId in assignees[]
+    dueDateFrom?    — ISO string
+    dueDateTo?      — ISO string
+  Auth: any org member (same as GET /items)
+  Tenant isolation: always filter by organizationId === user.orgId
+  Audit: logAuditAndCheckAnomaly (READ event)
+
+  Returns:
+  {
+    statusDistribution: { statusId: string, label: string, color: string, count: number }[]
+    overdue:            { count: number, items: Item[] }   // max 5 preview items
+    workloadByPerson:   { userId: string, name: string, profileImageUrl?: string, count: number }[]
+    itemsByBoard:       { boardId: string, name: string, count: number }[]
+    summary:            { total: number, completed: number, completionRate: number, archived: number }
+    truncated:          boolean
+  }
+```
+
+**Endpoint 2:**
+```
+GET /dashboard/overdue
+  Query params: workspaceId?, boardIds?, cursor?, limit? (default 20, max 100)
+  Auth: any org member
+  Returns: PaginatedResult<Item>
+```
+
+**Overdue definition:** `dueDate < now AND isArchived = false AND status not in the done-options of the org's STATUS column`.
+
+**Data resolution inside the controller (batch lookups — not per-item):**
+- Fetch org's column definitions once → resolve `statusId → { label, color }` from the STATUS column's `settings.options`
+- Collect the unique `boardId` set from results → batch-fetch board names
+- Collect the unique `userId` set from all `assignees` arrays → batch-fetch names + `profileImageUrl` from memberships
+
+**Security:** Wire into `routes/index.ts` under `authenticateToken + authenticatedLimiter`. No new permission level needed.
+
+**Backend types** — add to `backend/src/types/index.ts`:
+```ts
+interface DashboardSummaryResponse { ... }
+```
+
+---
+
+### 🔌 PHASE 8B — Foundation | 🟢 Low risk
+
+> Wiring only — no UI logic. Recharts install, service functions, query hooks, types, and two small routing updates.
+
+**Install chart library:**
+```bash
+cd frontend && npm install recharts
+```
+Recharts chosen because: React-native SVG (no canvas wrapper), strong TypeScript support, good pie/bar primitives, small bundle footprint.
+
+**Service layer** — add to `frontend/src/services/workManagementService.ts`:
+```ts
+getDashboardSummary(params: DashboardParams): Promise<DashboardSummary>
+getDashboardOverdue(params: DashboardParams & PaginationParams): Promise<PaginatedResult<Item>>
+```
+
+**Query hook** — new file `frontend/src/hooks/queries/useDashboardQueries.ts`:
+```ts
+useDashboardSummary(params)   // staleTime: 60s, refetchInterval: 60s
+useDashboardOverdue(params)   // paginated, no auto-refetch
+```
+
+**Query keys** — add to `queryKeys.ts`:
+```ts
+dashboardSummary: (params) => ['dashboard', 'summary', params] as const,
+dashboardOverdue: (params) => ['dashboard', 'overdue', params] as const,
+```
+
+**Types** — add to `frontend/src/types.ts`:
+```ts
+interface DashboardParams { workspaceId?: string; boardIds?: string[]; assigneeId?: string; dueDateFrom?: string; dueDateTo?: string; }
+interface DashboardSummary { statusDistribution: ...; overdue: ...; workloadByPerson: ...; itemsByBoard: ...; summary: ...; truncated: boolean; }
+```
+
+**Routing update** — `frontend/src/App.tsx`: the `/dashboard` route already exists but redirects to `/workspaces`. Replace the `<Navigate>` with `<DashboardPage>`.
+
+**Sidebar update** — `frontend/src/components/layout/MainLayout.tsx`: the "Dashboard" nav item already exists but its `path` points to `/workspaces`. Update the path to `/dashboard`. Leave the separate "Admin Dashboard" link (`/admin`) untouched.
+
+---
+
+### 🏗️ PHASE 8C — Page Shell & Shared Components | 🟡 Low-Medium risk
+
+New folder: `frontend/src/components/dashboard/`
+
+**`WidgetCard.tsx`** — shared wrapper used by every widget:
+- Props: `title`, `subtitle?`, `isLoading`, `isEmpty`, `emptyMessage?`, `children`
+- Loading state: skeleton placeholder
+- Empty state: "No data yet" message
+- `role="region"` + `aria-labelledby={titleId}` on the outer div
+
+**`DashboardFilterBar.tsx`** — filter controls row:
+- Workspace selector (scoped to user's workspaces from auth context)
+- Board multi-select (populates from `useBoards(workspaceId)`, disabled until workspace selected)
+- Date range: two date inputs (dueDateFrom / dueDateTo)
+- Assignee dropdown (workspace members)
+- "Clear filters" button
+- Filter state managed with `useReducer`; persisted to URL search params so filters survive refresh
+
+**`DashboardPage.tsx`** — page container:
+- Renders `DashboardFilterBar` at top
+- Responsive 2-column widget grid (1 column on mobile via Tailwind `grid-cols-1 md:grid-cols-2`)
+- Passes `params` derived from filter state down to all widget components
+- Page title: "Dashboard"
+- All authenticated users can access
+
+---
+
+### 🎨 PHASE 8D — Widget Components | 🔴 High risk — dedicated session
+
+> Five chart components × (read view + accessibility) = largest volume of new UI code in this phase. Do not combine with 8C.
+
+New folder: `frontend/src/components/dashboard/widgets/`
+
+**`SummaryStatsWidget.tsx`**
+- Four KPI cards in a row: Total Items | Completed | Completion Rate (%) | Overdue
+- Color-coded: neutral / green / green / red
+- No chart library needed — pure Tailwind
+- Each card: `role="figure"` + `aria-label="X items completed"`
+
+**`StatusDistributionWidget.tsx`**
+- `recharts` `PieChart` with `Tooltip` and `Legend`
+- Falls back to a `BarChart` if > 6 status values (too many for a readable pie)
+- Color per slice taken from `statusDistribution[].color` (sourced from the org's STATUS column options — not hardcoded)
+- Color is never the only indicator: text labels shown inside slices or in legend
+- Screen-reader fallback: `<table className="sr-only" aria-label="Status distribution data">` with one row per status
+
+**`WorkloadByPersonWidget.tsx`**
+- `recharts` horizontal `BarChart`, sorted by count descending, top 10 assignees
+- Y-axis shows user name; tooltip shows count
+- Screen-reader fallback table
+
+**`OverdueItemsWidget.tsx`**
+- List of up to 5 most-overdue items (sorted by `dueDate` ascending)
+- Each row: item name, board name, days overdue (computed from `dueDate`)
+- "View all X overdue items" link → opens a modal rendering paginated `useDashboardOverdue` results
+- Modal uses `useFocusTrap` (already built in Phase 7G)
+
+**`ItemsByBoardWidget.tsx`**
+- `recharts` vertical `BarChart` showing item count per board
+- Hidden when the `boardIds` filter is already scoped to a single board (widget becomes meaningless)
+- Screen-reader fallback table
+
+**Accessibility (applied during widget build, not as a separate pass):**
+- Every `recharts` chart wrapped in `<figure aria-label="...">` describing the data shown
+- All hidden fallback tables use `className="sr-only"` (existing Tailwind utility)
+- No color-only encoding anywhere
+
+**TypeScript & linting (applied during widget build):**
+- No `any` in component props — explicit interfaces for all widget prop types
+- `npm run lint` passes with zero warnings before commit
 
 ---
 
