@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Workspace, User, PreApprovedUser, OrganizationSettings, Workspace, SystemSettings, TutorialSettings } from '../types';
+import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSettings, TutorialSettings } from '../types';
 import { UserRole } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { queryKeys } from '../hooks/queries/queryKeys';
@@ -38,7 +38,7 @@ export const loadFromLocalStorage = <T,>(key: string, defaultValue: T): T => {
 const api = () => import('../services/geminiService');
 
 interface DataContextType {
-  workspaces: Workspace[];
+  organizations: Workspace[];
   fetchAcademies: () => Promise<void>;
   addOrganization: (name: string) => Promise<Workspace | null>;
   updateOrganization: (id: string, name: string) => Promise<boolean>;
@@ -112,7 +112,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const tutorialSettingsQuery = useTutorialSettingsQuery(isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
 
   // --- Derived state from React Query ---
-  const workspaces = academiesQuery.data ?? [];
+  const organizations = academiesQuery.data ?? [];
   const workspaces = workspacesQuery.data ?? [];
   const archivedWorkspaces = archivedWorkspacesQuery.data ?? [];
   const users = usersQuery.data ?? [];
@@ -366,7 +366,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <DataContext.Provider value={{
-      workspaces, fetchAcademies, addOrganization, updateOrganization, deleteOrganization, addOrganizationAdmin, removeOrganizationAdmin,
+      organizations, fetchAcademies, addOrganization, updateOrganization, deleteOrganization, addOrganizationAdmin, removeOrganizationAdmin,
       workspaces, archivedWorkspaces, fetchWorkspaces, fetchArchivedWorkspaces, addWorkspace, updateWorkspace, deleteWorkspace, confirmArchiveWorkspace, restoreWorkspace, addWorkspaceManager, removeWorkspaceManager, removeUserFromWorkspace,
       users, fetchUsers, deleteUser,
       preApprovedUsers, preApproveUsersInBulk, revokePreApprovedUser,

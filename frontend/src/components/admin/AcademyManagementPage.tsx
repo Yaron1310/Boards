@@ -43,14 +43,13 @@ const TokenUsageBar: React.FC<{ used: number; limit: number | null }> = ({ used,
 const OrganizationManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { 
-    workspaces,
+  const {
+    organizations,
     fetchAcademies,
-    addOrganization, 
-    updateOrganization, 
-    deleteOrganization, 
+    addOrganization,
+    updateOrganization,
+    deleteOrganization,
     users,
-    workspaces,
     removeOrganizationAdmin,
     organizationTokenUsage,
     isAnalyticsLoading,
@@ -98,7 +97,7 @@ const OrganizationManagementPage: React.FC = () => {
     } else {
       setCurrentAdmins([]);
     }
-  }, [showAdminModal, users, workspaces]);
+  }, [showAdminModal, users, organizations]);
 
   const clearFeedback = () => {
     setFeedbackMessage(null);
@@ -244,11 +243,11 @@ const OrganizationManagementPage: React.FC = () => {
         </form>
 
         <div className="bg-white shadow-md rounded-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-700">{t('admin.organizationManagement.existingAcademies', { count: workspaces.length })}</h2>
+          <h2 className="text-xl font-semibold text-gray-700">{t('admin.organizationManagement.existingAcademies', { count: organizations.length })}</h2>
         </div>
 
         <div className="bg-white shadow-md rounded-lg overflow-x-auto custom-scrollbar">
-          {workspaces.length === 0 && !isLoading ? (
+          {organizations.length === 0 && !isLoading ? (
             <p className="p-6 text-gray-500 text-center">{t('admin.organizationManagement.noAcademiesFound')}</p>
           ) : (
             <table className="min-w-full divide-y divide-gray-200">
@@ -261,7 +260,7 @@ const OrganizationManagementPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                  {workspaces.map(workspace => {
+                  {organizations.map(workspace => {
                     const usage = organizationTokenUsage?.[workspace.id];
                     return editingOrganization?.id === workspace.id ? (
                       <tr key={`${workspace.id}-edit`} className="bg-purple-50">
@@ -317,7 +316,7 @@ const OrganizationManagementPage: React.FC = () => {
               </tbody>
             </table>
           )}
-          {isLoading && workspaces.length === 0 && <div className="p-4 text-center"><FiLoader className="animate-spin h-6 w-6 text-purple-500 mx-auto"/></div>}
+          {isLoading && organizations.length === 0 && <div className="p-4 text-center"><FiLoader className="animate-spin h-6 w-6 text-purple-500 mx-auto"/></div>}
         </div>
       </div>
       
