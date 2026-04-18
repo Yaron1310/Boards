@@ -32,6 +32,7 @@ const ProfilePage = React.lazy(() => import('./components/profile/ProfilePage'))
 const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'));
 const UserManagementPage = React.lazy(() => import('./components/admin/UserManagementPage'));
 const WorkspaceManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));
+const AcademyHubPage = React.lazy(() => import('./components/admin/AcademyHubPage'));
 const ThemeSettingsPage = React.lazy(() => import('./components/admin/ThemeSettingsPage'));
 
 // -- Work management chunk --
@@ -42,7 +43,7 @@ const ColumnManagementPage = React.lazy(() => import('./components/boards/Column
 const DashboardPage = React.lazy(() => import('./components/dashboard/DashboardPage'));
 
 // -- System-admin chunk --
-const OrganizationManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));
+const AcademyManagementPage = React.lazy(() => import('./components/admin/AcademyManagementPage'));
 const TutorialSettingsPage = React.lazy(() => import('./components/admin/TutorialSettingsPage'));
 const EmailTemplatesPage = React.lazy(() => import('./components/admin/EmailTemplatesPage'));
 
@@ -69,14 +70,12 @@ const App: React.FC = () => {
     ) {
       void import('./components/admin/AdminDashboardPage');
     }
-    if (
-      userRole === UserRole.ORGANIZATION_ADMIN ||
-      userRole === UserRole.SYSTEM_ADMIN
-    ) {
+    if (userRole === UserRole.ORGANIZATION_ADMIN) {
       void import('./components/admin/OrganizationManagementPage');
+      void import('./components/admin/AcademyHubPage');
     }
     if (userRole === UserRole.SYSTEM_ADMIN) {
-      void import('./components/admin/OrganizationManagementPage');
+      void import('./components/admin/AcademyManagementPage');
     }
   }, [userRole]);
 
@@ -293,6 +292,14 @@ const App: React.FC = () => {
               }
             />
             <Route
+              path="/admin/workspace-hub"
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN]}>
+                  <AcademyHubPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/admin/theme-settings"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN]}>
@@ -301,10 +308,10 @@ const App: React.FC = () => {
               }
             />
             <Route
-              path="/admin/workspaces"
+              path="/admin/organizations"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]}>
-                  <OrganizationManagementPage />
+                  <AcademyManagementPage />
                 </ProtectedRoute>
               }
             />

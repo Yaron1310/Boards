@@ -4,41 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import type { Workspace, User, Workspace } from '../../types';
+import type { Workspace, User } from '../../types';
 import { UserRole } from '../../types';
-import * as apiService from '../../services/geminiService';
-import { FiPlusCircle, FiEdit, FiTrash2, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiShield, FiUserPlus, FiUsers, FiCpu } from 'react-icons/fi';
-
-const TokenUsageBar: React.FC<{ used: number; limit: number | null }> = ({ used, limit }) => {
-    const formatTokens = (tokens: number) => {
-        if (tokens < 1000) {
-            return tokens.toLocaleString();
-        }
-        return `${(tokens / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })}k`;
-    };
-
-    if (limit === null || limit === 0) {
-        return <>{formatTokens(used)}</>;
-    }
-
-    const percentage = limit > 0 ? (used / limit) * 100 : 0;
-    const isOverLimit = percentage > 100;
-
-    return (
-        <div className="w-full">
-            <div className="flex justify-between text-xs mb-1">
-                <span>{formatTokens(used)}</span>
-                <span className="text-gray-500">/ {formatTokens(limit)}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                    className={`h-2 rounded-full ${isOverLimit ? 'bg-red-500' : 'bg-purple-500'}`}
-                    style={{ width: `${Math.min(percentage, 100)}%` }}
-                ></div>
-            </div>
-        </div>
-    );
-};
+import { FiPlusCircle, FiEdit, FiTrash2, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiShield, FiUserPlus, FiUsers } from 'react-icons/fi';
 
 const OrganizationManagementPage: React.FC = () => {
   const { t } = useTranslation();
@@ -49,12 +17,11 @@ const OrganizationManagementPage: React.FC = () => {
     addOrganization,
     updateOrganization,
     deleteOrganization,
+    addOrganizationAdmin,
     users,
     removeOrganizationAdmin,
-    organizationTokenUsage,
-    isAnalyticsLoading,
-    dataError, 
-    clearDataError, 
+    dataError,
+    clearDataError,
   } = useData();
   
   const [isLoading, setIsLoading] = useState(false);
@@ -150,10 +117,14 @@ const OrganizationManagementPage: React.FC = () => {
     clearFeedback();
     setIsLoading(true);
     try {
-        const result = await apiService.addOrganizationAdmin(showAdminModal.id, adminEmail);
-        setFeedbackMessage({ type: 'success', text: result.message });
-        setShowAdminModal(null);
-        setAdminEmail('');
+        const result = await addOrganizationAdmin(showAdminModal.id, adminEmail);
+        if (result) {
+          setFeedbackMessage({ type: 'success', text: result.message });
+          setShowAdminModal(null);
+          setAdminEmail('');
+        } else {
+          setFeedbackMessage({ type: 'error', text: t('admin.organizationManagement.failedToAddAdmin') });
+        }
     } catch (err: any) {
         setFeedbackMessage({ type: 'error', text: err.message || t('admin.organizationManagement.failedToAddAdmin') });
     } finally {
@@ -254,14 +225,12 @@ const OrganizationManagementPage: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.organizationManagement.colOrganizationName')}</th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">{t('admin.organizationManagement.colTokensUsed')}</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.organizationManagement.colId')}</th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.organizationManagement.colActions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                   {organizations.map(workspace => {
-                    const usage = organizationTokenUsage?.[workspace.id];
                     return editingOrganization?.id === workspace.id ? (
                       <tr key={`${workspace.id}-edit`} className="bg-purple-50">
                           <td className="px-6 py-4 whitespace-nowrap">
@@ -272,11 +241,6 @@ const OrganizationManagementPage: React.FC = () => {
                                 className="flex-grow px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                                 disabled={isLoading}
                               />
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {isAnalyticsLoading ? <FiLoader className="animate-spin h-4 w-4 mx-auto"/> : 
-                                usage ? <TokenUsageBar used={usage.used} limit={usage.limit} /> : '0'
-                            }
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                             {workspace.id}
@@ -292,11 +256,6 @@ const OrganizationManagementPage: React.FC = () => {
                       <tr key={workspace.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm font-medium text-gray-900">{workspace.name}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                            {isAnalyticsLoading && !organizationTokenUsage ? <FiLoader className="animate-spin h-4 w-4"/> : 
-                                usage ? <TokenUsageBar used={usage.used} limit={usage.limit} /> : '0'
-                            }
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                             {workspace.id}
