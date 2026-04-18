@@ -406,6 +406,10 @@ export interface DBBoardMember {
   role: BoardRole;
   addedBy: string;
   createdAt: admin.firestore.Timestamp;
+  // Denormalized user info (written on add)
+  userName?: string;
+  userEmail?: string;
+  userProfileImageUrl?: string;
 }
 
 export type NotificationType = 'assignment' | 'mention';

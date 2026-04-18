@@ -1198,7 +1198,7 @@ export const notificationsCollection = (organizationId: string) =>
 
 ---
 
-### 🔑 PHASE 9B — Board Member API | 🟡 Low-Medium risk
+### ✅ 🔑 PHASE 9B — Board Member API | �� Low-Medium risk (DONE)
 
 **New controller** — create `backend/src/controllers/boardMember.controller.ts` (~180 lines):
 
@@ -1255,7 +1255,7 @@ router.use('/boards', boardMemberRoutes);
 
 ---
 
-### 🔌 PHASE 9C — Controller Security Wiring + Notification Triggers | 🟠 Medium risk
+### ✅ 🔌 PHASE 9C — Controller Security Wiring + Notification Triggers | 🟠 Medium risk (DONE)
 
 > Batches 4 large controller reads + notification trigger code in `item.controller.ts`.
 

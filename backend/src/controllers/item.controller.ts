@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { itemsCollection, columnsCollection } from '../db/collections.js';
-import { JwtUserPayload, DBItem, DBColumn, ColumnType } from '../types/index.js';
+import { itemsCollection, columnsCollection, boardMembersCollection, notificationsCollection, usersCollection, boardsCollection } from '../db/collections.js';
+import { JwtUserPayload, DBItem, DBColumn, DBUser, DBBoard, DBBoardMember, ColumnType, NotificationType } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
 import {
@@ -90,6 +90,84 @@ async function computeMirroredFields(
 }
 
 // ---------------------------------------------------------------------------
+// Notification helpers (fire-and-forget)
+// ---------------------------------------------------------------------------
+
+function extractMentions(text: string): string[] {
+  const matches = text.match(/@[a-zA-Z0-9_-]+/g) ?? [];
+  return matches.map((m) => m.slice(1));
+}
+
+async function getActorName(actorId: string): Promise<string> {
+  const doc = await usersCollection.doc(actorId).get();
+  return doc.exists ? (doc.data() as DBUser).name : actorId;
+}
+
+async function getBoardName(orgId: string, boardId: string): Promise<string> {
+  const doc = await boardsCollection(orgId).doc(boardId).get();
+  return doc.exists ? (doc.data() as DBBoard).name : boardId;
+}
+
+function triggerItemNotifications(
+  orgId: string,
+  actorId: string,
+  actorName: string,
+  item: DBItem,
+  boardName: string,
+  previousAssignees: string[],
+): void {
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+  // Assignment notifications: newly added assignees (not self)
+  const currentAssignees = item.assignees ?? [];
+  const addedAssignees = currentAssignees.filter(
+    (id) => !previousAssignees.includes(id) && id !== actorId,
+  );
+  for (const recipientId of addedAssignees) {
+    void notificationsCollection(orgId).add({
+      recipientId,
+      actorId,
+      actorName,
+      type: 'assignment' as NotificationType,
+      resourceType: 'item',
+      resourceId: item.id,
+      resourceName: item.name,
+      boardId: item.boardId,
+      boardName,
+      read: false,
+      organizationId: orgId,
+      createdAt: timestamp,
+    }).catch((err) => logger.warn('Failed to create assignment notification:', err));
+  }
+
+  // Mention notifications: @userId patterns in name and text column values
+  const mentionedIds = new Set<string>();
+  for (const id of extractMentions(item.name)) mentionedIds.add(id);
+  for (const v of Object.values(item.values)) {
+    if (typeof v === 'string') {
+      for (const id of extractMentions(v)) mentionedIds.add(id);
+    }
+  }
+  for (const recipientId of mentionedIds) {
+    if (recipientId === actorId) continue;
+    void notificationsCollection(orgId).add({
+      recipientId,
+      actorId,
+      actorName,
+      type: 'mention' as NotificationType,
+      resourceType: 'item',
+      resourceId: item.id,
+      resourceName: item.name,
+      boardId: item.boardId,
+      boardName,
+      read: false,
+      organizationId: orgId,
+      createdAt: timestamp,
+    }).catch((err) => logger.warn('Failed to create mention notification:', err));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // POST /items
 // ---------------------------------------------------------------------------
 export const createItem = async (req: Request, res: Response) => {
@@ -134,6 +212,10 @@ export const createItem = async (req: Request, res: Response) => {
     // Compute mirrored fields from column values
     const mirrored = await computeMirroredFields(user.orgId, normalizedValues);
 
+    // Fetch board membership for calling user
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+
     // Build a provisional item to check create permission
     const provisionalItem: DBItem = {
       id: '',
@@ -149,7 +231,7 @@ export const createItem = async (req: Request, res: Response) => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    assertItemAccess(user, provisionalItem, 'create');
+    assertItemAccess(user, provisionalItem, 'create', memberData);
 
     // Auto-calculate order if not provided
     let itemOrder = typeof order === 'number' ? order : null;
@@ -185,7 +267,7 @@ export const createItem = async (req: Request, res: Response) => {
     await docRef.set(itemData);
     touchBoardVersion(user.orgId, boardId);
 
-    const created = snapshotToData<DBItem>(await docRef.get());
+    const created = snapshotToData<DBItem>(await docRef.get())!;
 
     void logAudit({
       actorUserId: user.id,
@@ -198,6 +280,13 @@ export const createItem = async (req: Request, res: Response) => {
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
     });
+
+    // Trigger assignment & mention notifications (fire-and-forget)
+    void (async () => {
+      const boardName = (chain.board as { name?: string })?.name ?? boardId;
+      const actorName = await getActorName(user.id);
+      triggerItemNotifications(user.orgId, user.id, actorName, created, boardName, []);
+    })();
 
     res.status(201).json(created);
   } catch (err: unknown) {
@@ -343,6 +432,14 @@ export const reorderItems = async (req: Request, res: Response) => {
       ),
     );
 
+    // Fetch board membership once using the first item's boardId (all items typically on same board)
+    const firstDoc = fetchResults[0];
+    const firstItem = firstDoc.exists ? snapshotToData<DBItem>(firstDoc) : null;
+    const reorderMemberDoc = firstItem
+      ? await boardMembersCollection(user.orgId, firstItem.boardId).doc(user.id).get()
+      : null;
+    const reorderMemberData = reorderMemberDoc?.exists ? reorderMemberDoc.data() as DBBoardMember : null;
+
     const batch = db.batch();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
 
@@ -355,7 +452,7 @@ export const reorderItems = async (req: Request, res: Response) => {
       if (!doc.exists) return res.status(404).json({ message: `Item "${u.id}" not found.` });
 
       const item = snapshotToData<DBItem>(doc)!;
-      assertItemAccess(user, item, 'update');
+      assertItemAccess(user, item, 'update', reorderMemberData);
 
       const updateData: Record<string, unknown> = { order: u.order, updatedAt: timestamp };
       if (typeof u.groupId === 'string') updateData.groupId = u.groupId;
@@ -388,7 +485,10 @@ export const updateItem = async (req: Request, res: Response) => {
     if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
 
     const item = snapshotToData<DBItem>(doc)!;
-    assertItemAccess(user, item, 'update');
+
+    const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertItemAccess(user, item, 'update', memberData);
 
     // If groupId is changing, re-validate the ownership chain
     if (groupId !== undefined && groupId !== item.groupId) {
@@ -436,9 +536,10 @@ export const updateItem = async (req: Request, res: Response) => {
     if (dueDate !== undefined) updateData.dueDate = dueDate;
     else if (mirrored.dueDate !== undefined) updateData.dueDate = mirrored.dueDate;
 
+    const previousAssignees = item.assignees ?? [];
     await itemsCollection(user.orgId).doc(id).update(updateData);
     touchBoardVersion(user.orgId, item.boardId);
-    const updated = snapshotToData<DBItem>(await itemsCollection(user.orgId).doc(id).get());
+    const updated = snapshotToData<DBItem>(await itemsCollection(user.orgId).doc(id).get())!;
 
     void logAudit({
       actorUserId: user.id,
@@ -451,6 +552,15 @@ export const updateItem = async (req: Request, res: Response) => {
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
     });
+
+    // Trigger assignment & mention notifications (fire-and-forget)
+    void (async () => {
+      const [actorName, boardName] = await Promise.all([
+        getActorName(user.id),
+        getBoardName(user.orgId, item.boardId),
+      ]);
+      triggerItemNotifications(user.orgId, user.id, actorName, updated, boardName, previousAssignees);
+    })();
 
     res.json(updated);
   } catch (err: unknown) {
@@ -472,7 +582,9 @@ export const archiveItem = async (req: Request, res: Response) => {
     if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
 
     const item = snapshotToData<DBItem>(doc)!;
-    assertItemAccess(user, item, 'archive');
+    const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertItemAccess(user, item, 'archive', memberData);
 
     await itemsCollection(user.orgId).doc(id).update({
       isArchived: true,
@@ -512,7 +624,9 @@ export const restoreItem = async (req: Request, res: Response) => {
     if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
 
     const item = snapshotToData<DBItem>(doc)!;
-    assertItemAccess(user, item, 'archive');
+    const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertItemAccess(user, item, 'archive', memberData);
 
     await itemsCollection(user.orgId).doc(id).update({
       isArchived: false,
@@ -552,7 +666,9 @@ export const deleteItem = async (req: Request, res: Response) => {
     if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
 
     const item = snapshotToData<DBItem>(doc)!;
-    assertItemAccess(user, item, 'delete');
+    const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertItemAccess(user, item, 'delete', memberData);
 
     await itemsCollection(user.orgId).doc(id).delete();
     touchBoardVersion(user.orgId, item.boardId);

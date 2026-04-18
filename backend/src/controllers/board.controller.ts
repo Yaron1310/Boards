@@ -2,11 +2,11 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { boardsCollection, boardVersionsCollection, groupsCollection, organizationsCollection } from '../db/collections.js';
-import { JwtUserPayload, DBBoard } from '../types/index.js';
+import { boardsCollection, boardVersionsCollection, groupsCollection, organizationsCollection, boardMembersCollection } from '../db/collections.js';
+import { JwtUserPayload, DBBoard, DBBoardMember } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
-import { assertBoardAccess, canAccessBoard } from '../utils/workManagementAuth.js';
+import { assertBoardAccess, canAccessBoard, effectiveBoardRole } from '../utils/workManagementAuth.js';
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
@@ -145,7 +145,10 @@ export const getBoardById = async (req: Request, res: Response) => {
     if (!doc.exists) return res.status(404).json({ message: 'Board not found.' });
 
     const board = snapshotToData<DBBoard>(doc)!;
-    assertBoardAccess(user, board, 'read');
+
+    const memberDoc = await boardMembersCollection(user.orgId, id).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertBoardAccess(user, board, 'read', memberData);
 
     void logAuditAndCheckAnomaly({
       actorUserId: user.id,
@@ -159,7 +162,8 @@ export const getBoardById = async (req: Request, res: Response) => {
       userAgent: req.headers['user-agent'] as string | undefined,
     });
 
-    res.json(board);
+    const userBoardRole = effectiveBoardRole(user, board, memberData);
+    res.json({ ...board, userBoardRole });
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error(`Error fetching board ${req.params.id}:`, err);

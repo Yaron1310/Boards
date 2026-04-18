@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { boardsCollection, groupsCollection } from '../db/collections.js';
-import { JwtUserPayload, DBBoard, DBGroup } from '../types/index.js';
+import { boardsCollection, groupsCollection, boardMembersCollection } from '../db/collections.js';
+import { JwtUserPayload, DBBoard, DBGroup, DBBoardMember } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, getClientIp } from '../services/audit.service.js';
 import {
@@ -62,6 +62,9 @@ export const createGroup = async (req: Request, res: Response) => {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
     const board = snapshotToData<DBBoard>(boardDoc)!;
 
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+
     // Build a provisional group to check permission before writing
     const provisionalGroup: DBGroup = {
       id: '',
@@ -74,7 +77,7 @@ export const createGroup = async (req: Request, res: Response) => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    assertGroupAccess(user, provisionalGroup, 'create', board.createdBy);
+    assertGroupAccess(user, provisionalGroup, 'create', board.createdBy, memberData);
 
     // Auto-calculate order if not provided
     let groupOrder = typeof order === 'number' ? order : null;
@@ -136,7 +139,10 @@ export const reorderGroups = async (req: Request, res: Response) => {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
     if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
     const board = snapshotToData<DBBoard>(boardDoc)!;
-    assertBoardAccess(user, board, 'update');
+
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertBoardAccess(user, board, 'update', memberData);
 
     const batch = db.batch();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
@@ -176,7 +182,9 @@ export const updateGroup = async (req: Request, res: Response) => {
     if (!groupDoc.exists) return res.status(404).json({ message: 'Group not found.' });
     const group = snapshotToData<DBGroup>(groupDoc)!;
 
-    assertGroupAccess(user, group, 'update', board.createdBy);
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertGroupAccess(user, group, 'update', board.createdBy, memberData);
 
     const updateData: Record<string, unknown> = {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -228,7 +236,9 @@ export const deleteGroup = async (req: Request, res: Response) => {
     if (!groupDoc.exists) return res.status(404).json({ message: 'Group not found.' });
     const group = snapshotToData<DBGroup>(groupDoc)!;
 
-    assertGroupAccess(user, group, 'delete', board.createdBy);
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertGroupAccess(user, group, 'delete', board.createdBy, memberData);
 
     await groupsCollection(user.orgId, boardId).doc(groupId).delete();
     touchBoardVersion(user.orgId, boardId);
