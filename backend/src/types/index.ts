@@ -390,3 +390,38 @@ export interface DBEmailTemplate {
   updatedAt: admin.firestore.Timestamp | Date | any;
   updatedBy?: string;
 }
+
+// --- PHASE 9: PERMISSIONS & NOTIFICATIONS ---
+
+export enum BoardRole {
+  VIEWER = 'viewer',
+  EDITOR = 'editor',
+  ADMIN  = 'admin',
+}
+
+export interface DBBoardMember {
+  userId: string;
+  boardId: string;
+  organizationId: string;
+  role: BoardRole;
+  addedBy: string;
+  createdAt: admin.firestore.Timestamp;
+}
+
+export type NotificationType = 'assignment' | 'mention';
+
+export interface DBNotification {
+  id: string;
+  organizationId: string;
+  recipientId: string;
+  actorId: string;
+  actorName: string;
+  type: NotificationType;
+  resourceType: 'item';
+  resourceId: string;
+  resourceName: string;
+  boardId: string;
+  boardName: string;
+  read: boolean;
+  createdAt: admin.firestore.Timestamp;
+}

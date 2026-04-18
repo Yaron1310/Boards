@@ -8,7 +8,7 @@
  * All enforcement stays at the Express layer; Firestore rules remain deny-all.
  */
 
-import { UserRole, JwtUserPayload, DBBoard, DBGroup, DBItem, DBColumn } from '../types/index.js';
+import { UserRole, JwtUserPayload, DBBoard, DBGroup, DBItem, DBColumn, DBBoardMember, BoardRole } from '../types/index.js';
 import { boardsCollection, groupsCollection } from '../db/collections.js';
 
 // ---------------------------------------------------------------------------
@@ -29,63 +29,92 @@ function isAtLeast(userRole: UserRole, minRole: UserRole): boolean {
 export type WorkManagementOperation = 'read' | 'create' | 'update' | 'archive' | 'delete';
 
 // ---------------------------------------------------------------------------
+// Board role helpers (Phase 9)
+// ---------------------------------------------------------------------------
+
+const BOARD_ROLE_LEVEL: Record<BoardRole, number> = {
+  [BoardRole.VIEWER]: 0,
+  [BoardRole.EDITOR]: 1,
+  [BoardRole.ADMIN]:  2,
+};
+
+function boardRoleAtLeast(effective: BoardRole | 'full_access' | null, min: BoardRole): boolean {
+  if (effective === null) return false;
+  if (effective === 'full_access') return true;
+  return BOARD_ROLE_LEVEL[effective] >= BOARD_ROLE_LEVEL[min];
+}
+
+/**
+ * Merges workspace role and explicit board membership into a single effective role.
+ *
+ * - SYSTEM_ADMIN / ACADEMY_ADMIN → full_access (bypasses board restrictions)
+ * - ORGANIZATION_ADMIN in own workspace → full_access
+ * - Board creator → ADMIN
+ * - Explicit board member → member.role
+ * - Everyone else → null (no access)
+ */
+export function effectiveBoardRole(
+  user: JwtUserPayload,
+  board: DBBoard,
+  member: DBBoardMember | null,
+): BoardRole | 'full_access' | null {
+  if (user.role === UserRole.SYSTEM_ADMIN) return 'full_access';
+  if (isAtLeast(user.role, UserRole.ACADEMY_ADMIN)) return 'full_access';
+  if (
+    user.role === UserRole.ORGANIZATION_ADMIN &&
+    user.selectedOrganizationId === board.workspaceId
+  ) return 'full_access';
+  if (board.createdBy === user.id) return BoardRole.ADMIN;
+  return member?.role ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Boards
 // ---------------------------------------------------------------------------
 
 /**
  * Returns true if the user is allowed to perform `op` on the given board.
  *
- * Rules (Phase 5.2):
- *   read   — any member whose orgId matches board.organizationId;
- *            ACADEMY_ADMIN+ can read any board in their org.
- *   create — ORGANIZATION_ADMIN+ scoped to their workspaceId.
- *   update — board creator OR ORGANIZATION_ADMIN (own workspace) OR ACADEMY_ADMIN+.
- *   archive— ORGANIZATION_ADMIN (own workspace) OR ACADEMY_ADMIN+.
- *   delete — ACADEMY_ADMIN+ only (hard-delete).
+ * Rules (Phase 9A — board-role aware):
+ *   read   — effectiveBoardRole >= viewer (or full_access)
+ *   create — ORGANIZATION_ADMIN+ in their workspace (pre-membership; no board exists yet)
+ *   update — effectiveBoardRole = admin (or full_access)
+ *   archive— effectiveBoardRole = admin (or full_access)
+ *   delete — full_access only (ACADEMY_ADMIN+ or SYSTEM_ADMIN)
+ *
+ * The `member` parameter defaults to null (backwards-compatible with Phase 5/6 callers).
  */
 export function canAccessBoard(
   user: JwtUserPayload,
   board: DBBoard,
   op: WorkManagementOperation,
+  member: DBBoardMember | null = null,
 ): boolean {
-  // SYSTEM_ADMIN bypasses all checks
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
-  // Tenant boundary — always required
   if (user.orgId !== board.organizationId) return false;
+
+  const effective = effectiveBoardRole(user, board, member);
 
   switch (op) {
     case 'read':
-      // Any org member can read boards in their workspace; ACADEMY_ADMIN+ sees all org boards
-      return (
-        isAtLeast(user.role, UserRole.ACADEMY_ADMIN) ||
-        user.selectedOrganizationId === board.workspaceId
-      );
+      return boardRoleAtLeast(effective, BoardRole.VIEWER);
 
     case 'create':
+      // Creating a board has no prior membership; keep workspace-admin gate
       return (
         isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN) &&
         user.selectedOrganizationId === board.workspaceId
       );
 
     case 'update':
-      return (
-        board.createdBy === user.id ||
-        (user.role === UserRole.ORGANIZATION_ADMIN &&
-          user.selectedOrganizationId === board.workspaceId) ||
-        isAtLeast(user.role, UserRole.ACADEMY_ADMIN)
-      );
+      return boardRoleAtLeast(effective, BoardRole.ADMIN);
 
     case 'archive':
-      return (
-        (user.role === UserRole.ORGANIZATION_ADMIN &&
-          user.selectedOrganizationId === board.workspaceId) ||
-        isAtLeast(user.role, UserRole.ACADEMY_ADMIN)
-      );
+      return boardRoleAtLeast(effective, BoardRole.ADMIN);
 
     case 'delete':
-      // Hard-delete: ACADEMY_ADMIN+ only
-      return isAtLeast(user.role, UserRole.ACADEMY_ADMIN);
+      return effective === 'full_access';
 
     default:
       return false;
@@ -100,8 +129,9 @@ export function assertBoardAccess(
   user: JwtUserPayload,
   board: DBBoard,
   op: WorkManagementOperation,
+  member: DBBoardMember | null = null,
 ): void {
-  if (!canAccessBoard(user, board, op)) {
+  if (!canAccessBoard(user, board, op, member)) {
     throw { status: 403, message: 'Forbidden: insufficient permissions for this board.' };
   }
 }
@@ -113,20 +143,27 @@ export function assertBoardAccess(
 /**
  * Returns true if the user is allowed to perform `op` on the given group.
  *
- * Rules (Phase 5.3):
- *   read   — same tenant access as the parent board (orgId match).
- *   create/update — ORGANIZATION_ADMIN+ OR board creator (passed as boardCreatedBy).
- *   delete — ORGANIZATION_ADMIN+ (hard-delete).
+ * Rules (Phase 9A — board-role aware):
+ *   read   — any org member OR board member with viewer+
+ *   create/update — ORGANIZATION_ADMIN+ OR board creator OR board member with editor+
+ *   delete — ORGANIZATION_ADMIN+ OR board member with admin
+ *
+ * `member` defaults to null (backwards-compatible).
  */
 export function canAccessGroup(
   user: JwtUserPayload,
   group: DBGroup,
   op: WorkManagementOperation,
   boardCreatedBy?: string,
+  member: DBBoardMember | null = null,
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
   if (user.orgId !== group.organizationId) return false;
+
+  const isOrgAdmin = isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN);
+  const isBoardCreator = boardCreatedBy !== undefined && boardCreatedBy === user.id;
+  const boardMemberRole = member?.role ?? null;
 
   switch (op) {
     case 'read':
@@ -135,13 +172,17 @@ export function canAccessGroup(
     case 'create':
     case 'update':
       return (
-        (boardCreatedBy !== undefined && boardCreatedBy === user.id) ||
-        isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)
+        isOrgAdmin ||
+        isBoardCreator ||
+        boardRoleAtLeast(boardMemberRole, BoardRole.EDITOR)
       );
 
     case 'archive':
     case 'delete':
-      return isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN);
+      return (
+        isOrgAdmin ||
+        boardRoleAtLeast(boardMemberRole, BoardRole.ADMIN)
+      );
 
     default:
       return false;
@@ -153,8 +194,9 @@ export function assertGroupAccess(
   group: DBGroup,
   op: WorkManagementOperation,
   boardCreatedBy?: string,
+  member: DBBoardMember | null = null,
 ): void {
-  if (!canAccessGroup(user, group, op, boardCreatedBy)) {
+  if (!canAccessGroup(user, group, op, boardCreatedBy, member)) {
     throw { status: 403, message: 'Forbidden: insufficient permissions for this group.' };
   }
 }
@@ -166,41 +208,59 @@ export function assertGroupAccess(
 /**
  * Returns true if the user is allowed to perform `op` on the given item.
  *
- * Rules (Phase 5.4):
- *   read   — orgId match OR user is in item.assignees.
- *   create — workspace member: selectedOrganizationId === item.workspaceId (and orgId match).
- *   update — item creator OR assignee OR ORGANIZATION_ADMIN+.
- *   archive— item creator OR ORGANIZATION_ADMIN+.
- *   delete — ORGANIZATION_ADMIN+ only (hard-delete).
+ * Rules (Phase 9A — board-role aware):
+ *   read   — effectiveBoardRole >= viewer OR user is an assignee
+ *   create — effectiveBoardRole >= editor
+ *   update — effectiveBoardRole >= editor OR (creator/assignee AND >= viewer)
+ *   archive— effectiveBoardRole >= editor
+ *   delete — effectiveBoardRole = admin
+ *
+ * Effective role computed without board.createdBy (not available here); board
+ * creators are always ORGANIZATION_ADMIN+ and receive full_access that way.
+ *
+ * `member` defaults to null (backwards-compatible).
  */
 export function canAccessItem(
   user: JwtUserPayload,
   item: DBItem,
   op: WorkManagementOperation,
+  member: DBBoardMember | null = null,
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
   const isOrgMember = user.orgId === item.organizationId;
   const isAssignee = Array.isArray(item.assignees) && item.assignees.includes(user.id);
   const isCreator = item.createdBy === user.id;
-  const isWorkspaceMember =
-    isOrgMember && user.selectedOrganizationId === item.workspaceId;
+  const isWorkspaceMember = isOrgMember && user.selectedOrganizationId === item.workspaceId;
+
+  // Compute effective board role (simplified — no board.createdBy available)
+  let effective: BoardRole | 'full_access' | null = null;
+  if (isAtLeast(user.role, UserRole.ACADEMY_ADMIN)) {
+    effective = 'full_access';
+  } else if (user.role === UserRole.ORGANIZATION_ADMIN && isWorkspaceMember) {
+    effective = 'full_access';
+  } else {
+    effective = member?.role ?? null;
+  }
 
   switch (op) {
     case 'read':
-      return isOrgMember || isAssignee;
+      return boardRoleAtLeast(effective, BoardRole.VIEWER) || isAssignee;
 
     case 'create':
-      return isWorkspaceMember;
+      return boardRoleAtLeast(effective, BoardRole.EDITOR);
 
     case 'update':
-      return (isOrgMember || isAssignee) && (isCreator || isAssignee || isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN));
+      return (
+        boardRoleAtLeast(effective, BoardRole.EDITOR) ||
+        ((isCreator || isAssignee) && boardRoleAtLeast(effective, BoardRole.VIEWER))
+      );
 
     case 'archive':
-      return isOrgMember && (isCreator || isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN));
+      return boardRoleAtLeast(effective, BoardRole.EDITOR);
 
     case 'delete':
-      return isOrgMember && isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN);
+      return boardRoleAtLeast(effective, BoardRole.ADMIN);
 
     default:
       return false;
@@ -211,8 +271,9 @@ export function assertItemAccess(
   user: JwtUserPayload,
   item: DBItem,
   op: WorkManagementOperation,
+  member: DBBoardMember | null = null,
 ): void {
-  if (!canAccessItem(user, item, op)) {
+  if (!canAccessItem(user, item, op, member)) {
     throw { status: 403, message: 'Forbidden: insufficient permissions for this item.' };
   }
 }
@@ -224,14 +285,18 @@ export function assertItemAccess(
 /**
  * Returns true if the user is allowed to perform `op` on column definitions.
  *
- * Rules (Phase 5.5):
+ * Rules (Phase 9A — board-role aware):
  *   read   — any org member.
- *   create/update/delete — ORGANIZATION_ADMIN+ only.
+ *   create/update/delete — ORGANIZATION_ADMIN+ OR board member with editor+
+ *
+ * Columns are org-level; `member` allows editors to manage columns when passed.
+ * `member` defaults to null (backwards-compatible).
  */
 export function canAccessColumn(
   user: JwtUserPayload,
   column: DBColumn,
   op: WorkManagementOperation,
+  member: DBBoardMember | null = null,
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
@@ -244,7 +309,10 @@ export function canAccessColumn(
     case 'create':
     case 'update':
     case 'delete':
-      return isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN);
+      return (
+        isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN) ||
+        boardRoleAtLeast(member?.role ?? null, BoardRole.EDITOR)
+      );
 
     default:
       return false;
@@ -255,8 +323,9 @@ export function assertColumnAccess(
   user: JwtUserPayload,
   column: DBColumn,
   op: WorkManagementOperation,
+  member: DBBoardMember | null = null,
 ): void {
-  if (!canAccessColumn(user, column, op)) {
+  if (!canAccessColumn(user, column, op, member)) {
     throw { status: 403, message: 'Forbidden: insufficient permissions for column definitions.' };
   }
 }

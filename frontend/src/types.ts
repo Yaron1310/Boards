@@ -757,3 +757,39 @@ export interface DashboardSummary {
   };
   truncated: boolean;
 }
+
+// =============================================================================
+// PHASE 9 — PERMISSIONS & NOTIFICATIONS
+// =============================================================================
+
+export enum BoardRole {
+  VIEWER = 'viewer',
+  EDITOR = 'editor',
+  ADMIN  = 'admin',
+}
+
+export interface BoardMember {
+  userId: string;
+  boardId: string;
+  organizationId: string;
+  role: BoardRole;
+  addedBy: string;
+  createdAt: Date | string;
+  userName?: string;
+  userEmail?: string;
+  userProfileImageUrl?: string;
+}
+
+export type NotificationType = 'assignment' | 'mention';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  actorName: string;
+  resourceName: string;
+  boardName: string;
+  boardId: string;
+  resourceId: string;
+  read: boolean;
+  createdAt: Date | string;
+}

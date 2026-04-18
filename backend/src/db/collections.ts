@@ -35,3 +35,13 @@ export const columnsCollection = (organizationId: string) =>
 // /workspaces/{organizationId}/boardVersions/{boardId}
 export const boardVersionsCollection = (organizationId: string) =>
   db.collection('workspaces').doc(organizationId).collection('boardVersions');
+
+// Board members subcollection (Phase 9):
+// /workspaces/{organizationId}/boards/{boardId}/members/{userId}
+export const boardMembersCollection = (organizationId: string, boardId: string) =>
+  boardsCollection(organizationId).doc(boardId).collection('members');
+
+// Notifications (Phase 9):
+// /workspaces/{organizationId}/notifications/{notificationId}
+export const notificationsCollection = (organizationId: string) =>
+  db.collection('workspaces').doc(organizationId).collection('notifications');
