@@ -139,6 +139,7 @@ export const formatUserForFrontend = async (
             const allOrgs = querySnapshotToArray<DBWorkspace>(allOrgsSnapshot);
             const seenOrganizationIds = new Set<string>();
             userOrgs = allOrgs
+                .filter(o => !!o.orgId)
                 .filter(o => {
                     if (seenOrganizationIds.has(o.orgId)) return false;
                     seenOrganizationIds.add(o.orgId);
@@ -564,7 +565,7 @@ export const login = async (req: Request, res: Response) => {
             if (userForFrontend.dbRoles?.systemAdmin) {
                 logger.info(`System Admin multi-context login for ${user.email}. Fetching all workspaces for context selection UI.`);
                 const allOrgsSnapshot = await workspacesCollection.orderBy('name').get();
-                let allOrgs = querySnapshotToArray<DBWorkspace>(allOrgsSnapshot).map(o => ({ id: o.id, name: o.name, orgId: o.orgId }));
+                let allOrgs = querySnapshotToArray<DBWorkspace>(allOrgsSnapshot).filter(o => !!o.orgId).map(o => ({ id: o.id, name: o.name, orgId: o.orgId }));
                 
                 const organizationIds = [...new Set(allOrgs.map(org => org.orgId))];
                 if (organizationIds.length > 0) {
