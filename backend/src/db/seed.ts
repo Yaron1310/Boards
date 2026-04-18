@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 
 import { db } from '../services/firestore.service.js';
 import {
-    academiesCollection,
+    organizationsCollection,
     organizationSettingsCollection,
     workspacesCollection,
     usersCollection,
@@ -18,7 +18,7 @@ export const seedDefaultData = async () => {
 
   // --- 1. Seed Default Workspace ---
   let orgId: string;
-  const organizationDocRef = academiesCollection.doc('default_organization');
+  const organizationDocRef = organizationsCollection.doc('default_organization');
   const organizationDoc = await organizationDocRef.get();
 
   if (!organizationDoc.exists) {

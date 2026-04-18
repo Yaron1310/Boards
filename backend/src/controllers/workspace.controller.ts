@@ -6,7 +6,7 @@ import {
     workspacesCollection,
     usersCollection,
     membershipsCollection,
-    academiesCollection,
+    organizationsCollection,
 } from '../db/collections.js';
 import { JwtUserPayload, DBWorkspace, DBUser, UserRole, DBMembership, JwtVerificationPayload, DBOrganization } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
@@ -237,7 +237,7 @@ export const addWorkspaceManager = async (req: Request, res: Response) => {
             const verificationTokenPayload: any = { userId: newAdminUser.id, action: 'verify_email' };
             const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
-            const organizationDoc = await academiesCollection.doc(orgDoc.data()!.orgId).get();
+            const organizationDoc = await organizationsCollection.doc(orgDoc.data()!.orgId).get();
             const organizationName = organizationDoc.exists ? (organizationDoc.data() as DBOrganization).name : 'Logyx';
             await sendAccountVerificationEmail(email, newAdminUser.name, verificationLink, organizationName, 'org_manager', orgData.name);
             return res.status(201).json({ message: `Successfully created Workspace Manager for ${email}. A verification email has been sent to them.` });

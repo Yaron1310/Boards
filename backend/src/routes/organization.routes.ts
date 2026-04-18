@@ -16,7 +16,7 @@ organizationRouter.get('/check-name', authenticateToken, organizationController.
 
 // --- System Admin Management Routes ---
 // These routes are only accessible by a System Administrator.
-organizationRouter.get('/', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.getAllAcademies);
+organizationRouter.get('/', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.getAllOrganizations);
 organizationRouter.post('/', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.createOrganization);
 organizationRouter.post('/:orgId/admins', organizationController.addOrganizationAdmin);
 organizationRouter.delete('/:orgId/admins/:userId', organizationController.removeOrganizationAdmin);

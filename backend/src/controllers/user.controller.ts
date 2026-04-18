@@ -11,7 +11,7 @@ import {
     workspacesCollection,
     preapprovedUsersCollection,
     membershipsCollection,
-    academiesCollection
+    organizationsCollection
 } from '../db/collections.js';
 import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { JwtUserPayload, DBUser, DBWorkspace, DBPreapprovedUser, UserRole, DBMembership, PaginatedResponse } from '../types/index.js';
@@ -131,7 +131,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
         }
 
         if (newlyPreApprovedEmails.length > 0) {
-            const organizationDoc = await academiesCollection.doc(orgData.orgId).get();
+            const organizationDoc = await organizationsCollection.doc(orgData.orgId).get();
             const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
             const registrationLink = `${env.FRONTEND_URL}/register`;
             await Promise.allSettled(
@@ -369,7 +369,7 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
         };
 
         // Fetch workspace name to include in the response
-        const organizationDoc = await academiesCollection.doc(orgData.orgId).get();
+        const organizationDoc = await organizationsCollection.doc(orgData.orgId).get();
         if (organizationDoc.exists) {
             selectedWorkspaceForFrontend.organizationName = organizationDoc.data()?.name;
         }

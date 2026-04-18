@@ -4,7 +4,7 @@ import jwt from 'jsonwebtoken';
 import admin from 'firebase-admin';
 
 import {
-    academiesCollection,
+    organizationsCollection,
     workspacesCollection,
     usersCollection,
     organizationSettingsCollection,
@@ -18,9 +18,9 @@ import { sanitizeText, sanitizeUrl } from '../utils/sanitizer.js';
 import { generateFullLoginResponse } from './auth.controller.js';
 
 
-export const getAllAcademies = async (req: Request, res: Response) => {
+export const getAllOrganizations = async (req: Request, res: Response) => {
     try {
-        const snapshot = await academiesCollection.orderBy('name').get();
+        const snapshot = await organizationsCollection.orderBy('name').get();
         res.json(querySnapshotToArray(snapshot));
     } catch (error: any) {
         logger.error("Error fetching workspaces:", error);
@@ -33,7 +33,7 @@ export const createOrganization = async (req: Request, res: Response) => {
     if (!name) return res.status(400).json({ message: 'Name is required.' });
     try {
         const batch = db.batch();
-        const newOrganizationRef = academiesCollection.doc();
+        const newOrganizationRef = organizationsCollection.doc();
         const newOrganization = { id: newOrganizationRef.id, name, createdAt: new Date() };
         batch.set(newOrganizationRef, newOrganization);
 
@@ -77,7 +77,7 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
 
     try {
         // --- Authorization Check ---
-        const organizationDoc = await academiesCollection.doc(orgId).get();
+        const organizationDoc = await organizationsCollection.doc(orgId).get();
         if (!organizationDoc.exists) {
             return res.status(404).json({ message: "Workspace not found." });
         }
@@ -201,7 +201,7 @@ export const removeOrganizationAdmin = async (req: Request, res: Response) => {
 
     try {
         // --- Authorization Check ---
-        const organizationDoc = await academiesCollection.doc(orgId).get();
+        const organizationDoc = await organizationsCollection.doc(orgId).get();
         if (!organizationDoc.exists) {
             return res.status(404).json({ message: "Workspace not found." });
         }
@@ -275,7 +275,7 @@ export const removeOrganizationAdmin = async (req: Request, res: Response) => {
 
 export const updateOrganization = async (req: Request, res: Response) => {
     try {
-        const organizationRef = academiesCollection.doc(req.params.id);
+        const organizationRef = organizationsCollection.doc(req.params.id);
         const name = sanitizeText(req.body.name);
         await organizationRef.update({ name });
         res.json(snapshotToData(await organizationRef.get()));
@@ -290,7 +290,7 @@ export const deleteOrganization = async (req: Request, res: Response) => {
         const orgId = req.params.id;
 
         const batch = db.batch();
-        batch.delete(academiesCollection.doc(orgId));
+        batch.delete(organizationsCollection.doc(orgId));
         // Delete workspace settings to ensure public page is disabled
         batch.delete(organizationSettingsCollection.doc(orgId));
         await batch.commit();
@@ -312,7 +312,7 @@ export const checkNameUniqueness = async (req: Request, res: Response) => {
 
     try {
         const sanitizedName = sanitizeText(name);
-        const organizationSnapshot = await academiesCollection.where('name', '==', sanitizedName).limit(1).get();
+        const organizationSnapshot = await organizationsCollection.where('name', '==', sanitizedName).limit(1).get();
 
         if (organizationSnapshot.empty) {
             return res.json({ isUnique: true });
@@ -342,7 +342,7 @@ export const setupOrganization = async (req: Request, res: Response) => {
         const userId = partialToken.id;
 
         await db.runTransaction(async (transaction) => {
-            const organizationSnapshot = await transaction.get(academiesCollection.where('name', '==', sanitizedName).limit(1));
+            const organizationSnapshot = await transaction.get(organizationsCollection.where('name', '==', sanitizedName).limit(1));
             if (!organizationSnapshot.empty) {
                 throw new Error('Workspace name is already taken.');
             }
@@ -360,7 +360,7 @@ export const setupOrganization = async (req: Request, res: Response) => {
                 throw new Error('This user is already an administrator of an workspace.');
             }
 
-            const newOrganizationRef = academiesCollection.doc();
+            const newOrganizationRef = organizationsCollection.doc();
             transaction.set(newOrganizationRef, {
                 id: newOrganizationRef.id,
                 name: sanitizedName,
@@ -455,7 +455,7 @@ export const activateSubscription = async (req: Request, res: Response) => {
             personalOrgId = orgRef.id;
 
             // --- WRITE PHASE ---
-            const organizationRef = academiesCollection.doc(orgId);
+            const organizationRef = organizationsCollection.doc(orgId);
             transaction.update(organizationRef, { subscriptionStatus: 'active' });
             transaction.update(orgRef, { subscriptionStatus: 'active' });
             transaction.update(userRef, { status: 'active' });

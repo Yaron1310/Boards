@@ -14,7 +14,7 @@ import {
     usersCollection,
     workspacesCollection,
     preapprovedUsersCollection,
-    academiesCollection,
+    organizationsCollection,
     membershipsCollection,
 } from '../db/collections.js';
 import { snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
@@ -107,10 +107,10 @@ export const formatUserForFrontend = async (
         const repOrgSnapshots = await Promise.all(repOrgPromises);
         const allRepOrgs = repOrgSnapshots.flatMap(snap => querySnapshotToArray<DBWorkspace>(snap));
         // Pick one org per workspace
-        const seenAcademies = new Set<string>();
+        const seenOrganizations = new Set<string>();
         for (const org of allRepOrgs) {
-            if (!seenAcademies.has(org.orgId)) {
-                seenAcademies.add(org.orgId);
+            if (!seenOrganizations.has(org.orgId)) {
+                seenOrganizations.add(org.orgId);
                 allRelevantOrgIds.push(org.id);
             }
         }
@@ -129,9 +129,9 @@ export const formatUserForFrontend = async (
 
     if (dbRoles.systemAdmin && !context) {
         logger.info(`Formatting user ${user.id} as System Admin, fetching all workspaces and a representative org for each.`);
-        const allAcademiesSnapshot = await academiesCollection.orderBy('name').get();
-        const workspaces = querySnapshotToArray<DBOrganization>(allAcademiesSnapshot);
-        userForFrontend.allAcademies = workspaces;
+        const allOrganizationsSnapshot = await organizationsCollection.orderBy('name').get();
+        const workspaces = querySnapshotToArray<DBOrganization>(allOrganizationsSnapshot);
+        userForFrontend.allOrganizations = workspaces;
 
         if (workspaces.length > 0) {
             // Fetch all orgs in one query instead of N+1 per-workspace queries, then pick one per workspace
@@ -169,11 +169,11 @@ export const formatUserForFrontend = async (
         if (organizationIds.length > 0) {
             const organizationFetchPromises: Promise<admin.firestore.QuerySnapshot>[] = [];
             for (let i = 0; i < organizationIds.length; i += 30) {
-                organizationFetchPromises.push(academiesCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds.slice(i, i + 30)).get());
+                organizationFetchPromises.push(organizationsCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds.slice(i, i + 30)).get());
             }
             const organizationFetchSnapshots = await Promise.all(organizationFetchPromises);
-            const academiesData = organizationFetchSnapshots.flatMap(snap => querySnapshotToArray<DBOrganization>(snap));
-            const organizationMap = new Map(academiesData.map(a => [a.id, a.name]));
+            const organizationsData = organizationFetchSnapshots.flatMap(snap => querySnapshotToArray<DBOrganization>(snap));
+            const organizationMap = new Map(organizationsData.map(a => [a.id, a.name]));
             userOrgs.forEach((org => {
                 org.organizationName = organizationMap.get(org.orgId) || 'Unknown Workspace';
             }));
@@ -275,8 +275,8 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
             }
         }
         
-        const allAcademiesSnapshot = await academiesCollection.get();
-        const allAcademies = querySnapshotToArray<DBOrganization>(allAcademiesSnapshot);
+        const allOrganizationsSnapshot = await organizationsCollection.get();
+        const allOrganizations = querySnapshotToArray<DBOrganization>(allOrganizationsSnapshot);
 
         // Fetch all orgs in one query instead of N+1 per-workspace queries
         const allOrgsSnapshot = await workspacesCollection.get();
@@ -290,7 +290,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
             }
         }
 
-        for (const workspace of allAcademies) {
+        for (const workspace of allOrganizations) {
             const orgId = firstOrgByOrganization.get(workspace.id);
             if (orgId) {
                 const contextKey = `${UserRole.ORGANIZATION_ADMIN}|${orgId}`;
@@ -435,7 +435,7 @@ export const register = async (req: Request, res: Response) => {
 
         let organizationName = 'Logyx';
         if (orgId) {
-            const organizationDoc = await academiesCollection.doc(orgId).get();
+            const organizationDoc = await organizationsCollection.doc(orgId).get();
             organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
         }
 
@@ -569,9 +569,9 @@ export const login = async (req: Request, res: Response) => {
                 
                 const organizationIds = [...new Set(allOrgs.map(org => org.orgId))];
                 if (organizationIds.length > 0) {
-                    const academiesSnapshot = await academiesCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds).get();
-                    const academiesData = querySnapshotToArray<DBOrganization>(academiesSnapshot);
-                    const organizationMap = new Map(academiesData.map(a => [a.id, a.name]));
+                    const organizationsSnapshot = await organizationsCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds).get();
+                    const organizationsData = querySnapshotToArray<DBOrganization>(organizationsSnapshot);
+                    const organizationMap = new Map(organizationsData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
                         org.organizationName = organizationMap.get(org.orgId) || 'Unknown Workspace';
                     });
@@ -628,7 +628,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
                 if (orgDoc.exists) orgId = orgDoc.data()?.orgId;
             }
             if(orgId) {
-                const organizationDoc = await academiesCollection.doc(orgId).get();
+                const organizationDoc = await organizationsCollection.doc(orgId).get();
                 if (organizationDoc.exists) organizationName = organizationDoc.data()?.name || 'Logyx';
             }
         }
@@ -907,9 +907,9 @@ export const getGoogleLoginFinalization = async (req: Request, res: Response) =>
                 let allOrgs = querySnapshotToArray<DBWorkspace>(allOrgsSnapshot).map(o => ({ id: o.id, name: o.name, orgId: o.orgId }));
                 const organizationIds = [...new Set(allOrgs.map(org => org.orgId))];
                 if (organizationIds.length > 0) {
-                    const academiesSnapshot = await academiesCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds).get();
-                    const academiesData = querySnapshotToArray<DBOrganization>(academiesSnapshot);
-                    const organizationMap = new Map(academiesData.map(a => [a.id, a.name]));
+                    const organizationsSnapshot = await organizationsCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds).get();
+                    const organizationsData = querySnapshotToArray<DBOrganization>(organizationsSnapshot);
+                    const organizationMap = new Map(organizationsData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
                         org.organizationName = organizationMap.get(org.orgId) || 'Unknown Workspace';
                     });
@@ -1047,9 +1047,9 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                 let allOrgs = querySnapshotToArray<DBWorkspace>(allOrgsSnapshot).map(o => ({ id: o.id, name: o.name, orgId: o.orgId }));
                 const organizationIds = [...new Set(allOrgs.map(org => org.orgId))];
                 if (organizationIds.length > 0) {
-                    const academiesSnapshot = await academiesCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds).get();
-                    const academiesData = querySnapshotToArray<DBOrganization>(academiesSnapshot);
-                    const organizationMap = new Map(academiesData.map(a => [a.id, a.name]));
+                    const organizationsSnapshot = await organizationsCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds).get();
+                    const organizationsData = querySnapshotToArray<DBOrganization>(organizationsSnapshot);
+                    const organizationMap = new Map(organizationsData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
                         org.organizationName = organizationMap.get(org.orgId) || 'Unknown Workspace';
                     });
@@ -1199,9 +1199,9 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                 let allOrgs = querySnapshotToArray<DBWorkspace>(allOrgsSnapshot).map(o => ({ id: o.id, name: o.name, orgId: o.orgId }));
                 const organizationIds = [...new Set(allOrgs.map(org => org.orgId))];
                 if (organizationIds.length > 0) {
-                    const academiesSnapshot = await academiesCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds).get();
-                    const academiesData = querySnapshotToArray<DBOrganization>(academiesSnapshot);
-                    const organizationMap = new Map(academiesData.map(a => [a.id, a.name]));
+                    const organizationsSnapshot = await organizationsCollection.where(admin.firestore.FieldPath.documentId(), 'in', organizationIds).get();
+                    const organizationsData = querySnapshotToArray<DBOrganization>(organizationsSnapshot);
+                    const organizationMap = new Map(organizationsData.map(a => [a.id, a.name]));
                     allOrgs.forEach((org: any) => {
                         org.organizationName = organizationMap.get(org.orgId) || 'Unknown Workspace';
                     });
