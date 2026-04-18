@@ -616,6 +616,10 @@ const MainLayout: React.FC = () => {
   const userImageSidebar = user?.profileImageUrl || `/default_user.webp`;
   const userImageHeader = user?.profileImageUrl || `/default_user.webp`;
 
+  const isHebrewLanguage = i18n.language.startsWith('he');
+  const isRTL = isHebrewLanguage;
+  const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
+
   // --- SYSTEM ADMIN LAYOUT ---
   if (user.role === UserRole.SYSTEM_ADMIN) {
     return (
@@ -675,11 +679,6 @@ const MainLayout: React.FC = () => {
   const displayNameColor = isDarkContrast ? '#000000' : (organizationSettings?.displayNameColor || '#ffffff');
   const sidebarLinkColor = isDarkContrast ? '#111111' : (organizationSettings?.sidebarLinkColor || '#e5e7eb');
   
-  // Add margin-top for Hebrew language to align icons properly
-  const isHebrewLanguage = i18n.language.startsWith('he');
-  const isRTL = isHebrewLanguage;
-  const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
-
   const navItems: NavItem[] = [
     { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
   ];
