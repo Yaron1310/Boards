@@ -1,4 +1,4 @@
-import type { User, Workspace, PreApprovedUser, OrganizationSettings, Workspace, UserRole, SystemSettings, TutorialSettings, PaginatedResponse } from '../types';
+import type { User, Workspace, PreApprovedUser, OrganizationSettings, UserRole, SystemSettings, TutorialSettings, PaginatedResponse } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const handleAuthError = () => {

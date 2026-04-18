@@ -22,11 +22,7 @@ console.log(
     `(Production Mode: ${isProduction})`
 );
 
-export const GEMINI_CHAT_MODEL_KEY = 'GEMINI_CHAT_MODEL';
-export const GEMINI_EXTRACTION_MODEL_KEY = 'GEMINI_EXTRACTION_MODEL';
-export const AI_SYSTEM_PROMPT_CHAT_KEY = 'AI_SYSTEM_PROMPT_CHAT';
-
-export const APP_NAME = 'Gymind';
+export const APP_NAME = 'Logyx';
 
 
 // Default workspaces can still be defined here if needed for frontend fallbacks or initial setup,
