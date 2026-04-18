@@ -219,7 +219,6 @@ export const createItem = async (req: Request, res: Response) => {
     // Build a provisional item to check create permission
     const provisionalItem: DBItem = {
       id: '',
-      workspaceId: user.orgId,
       workspaceId,
       boardId,
       groupId,
@@ -248,7 +247,6 @@ export const createItem = async (req: Request, res: Response) => {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     const itemData: Record<string, unknown> = {
       id: docRef.id,
-      workspaceId: user.orgId,
       workspaceId,
       boardId,
       groupId,

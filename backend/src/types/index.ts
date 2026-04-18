@@ -268,7 +268,6 @@ export type ColumnValueMap = Record<string, unknown>;
 export interface DBBoard {
   id: string;
   workspaceId: string;
-  workspaceId: string;
   name: string;
   description?: string;
   order: number;
@@ -296,7 +295,6 @@ export interface DBGroup {
 
 export interface DBItem {
   id: string;
-  workspaceId: string;
   workspaceId: string;
   boardId: string;
   groupId: string;

@@ -351,13 +351,13 @@ export interface OwnershipChainResult {
  * Call this before creating or updating an item.
  */
 export async function validateItemOwnershipChain(
-  workspaceId: string,
+  orgId: string,
   workspaceId: string,
   boardId: string,
   groupId: string,
 ): Promise<OwnershipChainResult> {
   // 1. Board must exist under this org
-  const boardDoc = await boardsCollection(workspaceId).doc(boardId).get();
+  const boardDoc = await boardsCollection(orgId).doc(boardId).get();
   if (!boardDoc.exists) {
     return { valid: false, error: `Board "${boardId}" not found in this workspace.` };
   }
@@ -373,7 +373,7 @@ export async function validateItemOwnershipChain(
   }
 
   // 3. Group must exist under this board
-  const groupDoc = await groupsCollection(workspaceId, boardId).doc(groupId).get();
+  const groupDoc = await groupsCollection(orgId, boardId).doc(groupId).get();
   if (!groupDoc.exists) {
     return {
       valid: false,

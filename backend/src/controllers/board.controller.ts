@@ -36,7 +36,6 @@ export const createBoard = async (req: Request, res: Response) => {
     // Build a provisional board to check create permission before writing
     const provisionalBoard: DBBoard = {
       id: '',
-      workspaceId: user.orgId,
       workspaceId,
       name: sanitizeText(name),
       order: typeof order === 'number' ? order : 0,
@@ -58,7 +57,6 @@ export const createBoard = async (req: Request, res: Response) => {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     await docRef.set({
       id: docRef.id,
-      workspaceId: user.orgId,
       workspaceId,
       name: sanitizeText(name),
       description: description ? sanitizeText(description) : null,
