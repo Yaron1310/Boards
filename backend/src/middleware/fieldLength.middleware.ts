@@ -7,23 +7,12 @@ const DEFAULT_MAX_LENGTH = 500;
  * Key: field name, Value: max allowed length (use Infinity for no practical limit beyond bodyParser).
  */
 const LARGE_FIELD_LIMITS: Record<string, number> = {
-    customHtml:           200_000,  // Custom code assignments — structural HTML
-    customCss:            200_000,  // Custom code assignments — CSS part
-    customJs:             200_000,  // Custom code assignments — JS part
     html:                 200_000,  // Email template HTML (system admin email templates)
     htmlContent:          200_000,  // Marketing email HTML
     mediaData:            Infinity, // Base64-encoded media uploads (guard is Express 10MB body limit)
-    customInstructions:   2_000,    // Custom AI image generation instructions from admin (pre-populated with name+description)
-    systemPrompt:         50_000,   // Chat persona AI system prompts
-    aiInsightPrompt:      50_000,   // Chat persona AI insight generation prompts
-    personaPreamble:      50_000,   // Chat persona preamble definitions
-    globalSystemPrompt:   50_000,   // System-wide AI instruction (system settings)
     message:              5_000,    // Individual chat messages
-    userMessage:          5_000,    // AI chat messages
     mainText:             10_000,   // Marketing email main body text
     description:          2_000,    // Item/board descriptions and instructions
-    summaryInstructions:  2_000,    // Chat persona summary instructions
-    initialMessage:       2_000,    // Chat persona initial welcome message
     text:                 2_000,    // General text field
     recaptchaToken:       Infinity, // Google reCAPTCHA Enterprise tokens — variable-length JWTs, validated by Google's API not by us
 };

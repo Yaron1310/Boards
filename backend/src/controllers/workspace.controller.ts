@@ -68,7 +68,7 @@ export const createWorkspace = async (req: Request, res: Response) => {
 
 export const updateWorkspace = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name, subscriptionProvider, subscriptionStatus } = req.body;
+    const { name } = req.body;
     const user = req.user as JwtUserPayload;
 
     try {
@@ -81,8 +81,6 @@ export const updateWorkspace = async (req: Request, res: Response) => {
 
         const updateData: any = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
         if (name) updateData.name = sanitizeText(name);
-        if (subscriptionProvider) updateData.subscriptionProvider = subscriptionProvider;
-        if (subscriptionStatus) updateData.subscriptionStatus = subscriptionStatus;
 
         await docRef.update(updateData);
 
@@ -240,7 +238,7 @@ export const addWorkspaceManager = async (req: Request, res: Response) => {
             const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
             const organizationDoc = await academiesCollection.doc(orgDoc.data()!.orgId).get();
-            const organizationName = organizationDoc.exists ? (organizationDoc.data() as DBOrganization).name : 'Gymind';
+            const organizationName = organizationDoc.exists ? (organizationDoc.data() as DBOrganization).name : 'Logyx';
             await sendAccountVerificationEmail(email, newAdminUser.name, verificationLink, organizationName, 'org_manager', orgData.name);
             return res.status(201).json({ message: `Successfully created Workspace Manager for ${email}. A verification email has been sent to them.` });
         }

@@ -67,11 +67,11 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         subject: 'Your Account Has Been Approved!',
         variables: ['userName', 'loginLink'],
         html: `<p>Hello {{userName}},</p>
-<p>Great news! Your account for Gymind has been approved by your workspace's administrator.</p>
+<p>Great news! Your account for Logyx has been approved by your workspace's administrator.</p>
 <p>You can now log in and start using the application.</p>
 <p><a href="{{loginLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p>
 <p>Welcome aboard!</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'password_reset',
@@ -83,7 +83,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>We received a request to reset your password for <strong>{{organizationName}}</strong>. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p>
 <p><a href="{{resetLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p>
 <p>If you did not request a password reset, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'usage_alert',
@@ -95,13 +95,13 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>This is a <strong>{{warningLevel}}</strong> notification that your workspace, <strong>{{organizationName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
 <p>If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p>
 <p>To prevent service interruption, you can increase your limit by visiting the Billing Settings page in your admin dashboard.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'welcome',
         name: 'Welcome Email',
         description: 'Sent after a user successfully verifies their email or completes a payment-based signup.',
-        subject: 'Welcome to Gymind, {{userName}}!',
+        subject: 'Welcome to Logyx, {{userName}}!',
         variables: ['userName', 'dashboardLink'],
         html: `<!DOCTYPE html>
 <html>
@@ -120,18 +120,18 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 </head>
 <body>
   <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to Gymind</span></div>
+    <div class="header"><span class="welcome-text">Welcome to Logyx</span></div>
     <div class="content">
       <p>Hello {{userName}},</p>
-      <p>We're excited to have you join us! Gymind is a new space to learn, grow, and transform.</p>
-      <p>Your account is now fully active. You can start exploring our AI-powered mentors, courses, and more right away.</p>
+      <p>We're excited to have you join us! Logyx is your new workspace for business management.</p>
+      <p>Your account is now fully active. You can start exploring your boards, items, and dashboards right away.</p>
       <div class="button-container">
         <a href="{{dashboardLink}}" class="button">Go to Dashboard</a>
       </div>
       <p>If you have any questions or need a hand getting started, we're here to help.</p>
-      <p>Best regards,<br/>The Gymind Team</p>
+      <p>Best regards,<br/>The Logyx Team</p>
     </div>
-    <div class="footer">&copy; {{currentYear}} Gymind. All rights reserved.</div>
+    <div class="footer">&copy; {{currentYear}} Logyx. All rights reserved.</div>
   </div>
 </body>
 </html>`,
@@ -140,14 +140,14 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'user_invitation',
         name: 'User Invitation',
         description: 'Sent to pre-approved users who have been invited to join an workspace.',
-        subject: "You've been invited to join {{orgName}} on Gymind",
+        subject: "You've been invited to join {{orgName}} on Logyx",
         variables: ['orgName', 'organizationName', 'registrationLink'],
         html: `<p>Hello,</p>
-<p>You've been invited to join <strong>{{orgName}}</strong> (part of <strong>{{organizationName}}</strong>) on Gymind.</p>
+<p>You've been invited to join <strong>{{orgName}}</strong> (part of <strong>{{organizationName}}</strong>) on Logyx.</p>
 <p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p>
 <p><a href="{{registrationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
 ];
 

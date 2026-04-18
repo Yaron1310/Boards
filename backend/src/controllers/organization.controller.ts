@@ -181,7 +181,7 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
             const verificationTokenPayload: JwtVerificationPayload = { userId: newAdminUser.id, action: 'verify_email' };
             const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
-            const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Gymind') : 'Gymind';
+            const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
             await sendAccountVerificationEmail(email, newAdminUser.name, verificationLink, organizationName, 'org_admin');
             return res.status(201).json({ message: `Successfully created Workspace Admin for ${email}. A verification email and a new Personal Workspace have been prepared.` });
         }

@@ -432,10 +432,10 @@ export const register = async (req: Request, res: Response) => {
         const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
         const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
 
-        let organizationName = 'Gymind';
+        let organizationName = 'Logyx';
         if (orgId) {
             const organizationDoc = await academiesCollection.doc(orgId).get();
-            organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Gymind') : 'Gymind';
+            organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
         }
 
         await sendAccountVerificationEmail(email, name, verificationLink, organizationName);
@@ -615,7 +615,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
         await usersCollection.doc(user.id).update({ passwordResetId: resetId });
         const resetLink = `${env.FRONTEND_URL}/reset-password?token=${resetToken}`;
         
-        let organizationName = 'Gymind';
+        let organizationName = 'Logyx';
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', user.id).limit(1).get();
         if (!membershipsSnapshot.empty) {
             const membership = snapshotToData<DBMembership>(membershipsSnapshot.docs[0])!;
@@ -628,7 +628,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
             }
             if(orgId) {
                 const organizationDoc = await academiesCollection.doc(orgId).get();
-                if (organizationDoc.exists) organizationName = organizationDoc.data()?.name || 'Gymind';
+                if (organizationDoc.exists) organizationName = organizationDoc.data()?.name || 'Logyx';
             }
         }
         await sendPasswordResetEmail(user.email, user.name, resetLink, organizationName);

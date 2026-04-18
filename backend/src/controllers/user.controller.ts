@@ -132,7 +132,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
 
         if (newlyPreApprovedEmails.length > 0) {
             const organizationDoc = await academiesCollection.doc(orgData.orgId).get();
-            const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Gymind') : 'Gymind';
+            const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
             const registrationLink = `${env.FRONTEND_URL}/register`;
             await Promise.allSettled(
                 newlyPreApprovedEmails.map(email => sendUserInvitationEmail(email, orgData.name, organizationName, registrationLink))
