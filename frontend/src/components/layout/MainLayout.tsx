@@ -7,7 +7,7 @@ import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevrons
 import { useTranslation } from 'react-i18next';
 import { useBoards } from '../../hooks/queries/useBoardQueries';
 
-import OrganizationHubIcon from '../common/OrganizationHubIcon';
+import OrganizationHubIcon from '../common/AcademyHubIcon';
 import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
 import CookieConsent from '../legal/CookieConsent';

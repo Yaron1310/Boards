@@ -10,11 +10,10 @@ import { FiUsers, FiBriefcase, FiBarChart2, FiMessageSquare, FiZap, FiBookOpen, 
 const AdminDashboardPage: React.FC = () => {
   const { t } = useTranslation();
   const { user, selectedWorkspace } = useAuth();
-  const { 
-    users, 
-    workspaces, 
-    conversations, 
-    workspaces, 
+  const {
+    users,
+    conversations,
+    workspaces,
     organizationSettings, 
     organizationTokenUsage, 
     orgTokenUsage, 

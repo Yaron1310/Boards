@@ -5,10 +5,10 @@ import { useData } from '../../hooks/useData';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UserRole } from '../../types';
 import ThemeSettingsPage from './ThemeSettingsPage';
-import OrganizationProfileEditModal from './OrganizationProfileEditModal';
-import OrganizationAdminsModal from './OrganizationAdminsModal';
+import OrganizationProfileEditModal from './AcademyProfileEditModal';
+import OrganizationAdminsModal from './AcademyAdminsModal';
 import { FiTrello, FiShield, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
-import OrganizationHubIcon from '../common/OrganizationHubIcon';
+import OrganizationHubIcon from '../common/AcademyHubIcon';
 
 const OrganizationHubPage: React.FC = () => {
   const { t } = useTranslation();

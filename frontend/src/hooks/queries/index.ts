@@ -1,6 +1,6 @@
 export { queryKeys } from './queryKeys';
-export { useAcademiesQuery, useOrganizationSettingsQuery } from './useOrganizationQueries';
-export { useWorkspacesQuery, useArchivedWorkspacesQuery } from './useWorkspaceQueries';
+export { useAcademiesQuery, useOrganizationSettingsQuery } from './useAcademyQueries';
+export { useWorkspacesQuery, useArchivedWorkspacesQuery } from './useOrganizationQueries';
 export { useUsersQuery, usePreApprovedUsersQuery } from './useUserQueries';
 export { useSystemSettingsQuery, useTutorialSettingsQuery } from './useSettingsQueries';
 export {

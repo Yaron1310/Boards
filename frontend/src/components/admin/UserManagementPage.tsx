@@ -9,7 +9,7 @@ import { UserRole } from '../../types';
 import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
 import TutorialSection from '../common/TutorialSection';
-import OrganizationAdminsModal from './OrganizationAdminsModal';
+import OrganizationAdminsModal from './AcademyAdminsModal';
 import { useUsersInfiniteQuery } from '../../hooks/queries/useUserQueries';
 import { List } from 'react-window';
 import { InfiniteLoader } from 'react-window-infinite-loader';

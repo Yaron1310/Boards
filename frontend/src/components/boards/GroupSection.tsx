@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   FiChevronDown, FiChevronRight, FiMoreHorizontal, FiPlus,
-  FiEdit2, FiTrash2, FiLoader, FiGripVertical,
+  FiEdit2, FiTrash2, FiLoader, FiMenu,
 } from 'react-icons/fi';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -175,7 +175,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             {...groupDragAttributes}
             {...groupDragListeners}
           >
-            <FiGripVertical size={13} aria-hidden="true" />
+            <FiMenu size={13} aria-hidden="true" />
           </div>
         )}
 

@@ -20,7 +20,7 @@ import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
 import { UserRole } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiRotateCcw, FiChevronLeft, FiPlus, FiGripVertical } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiRotateCcw, FiChevronLeft, FiPlus, FiMenu } from 'react-icons/fi';
 import ColumnHeader from './ColumnHeader';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
@@ -417,7 +417,7 @@ const BoardViewPage: React.FC = () => {
                   style={{ borderLeft: `4px solid ${activeDrag.group.color ?? '#6366f1'}` }}
                   aria-hidden="true"
                 >
-                  <FiGripVertical size={13} className="text-gray-400" />
+                  <FiMenu size={13} className="text-gray-400" />
                   <span className="text-sm font-semibold text-gray-800">{activeDrag.group.name}</span>
                 </div>
               )}

@@ -4,8 +4,8 @@ import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSett
 import { UserRole } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { queryKeys } from '../hooks/queries/queryKeys';
-import { useAcademiesQuery, useOrganizationSettingsQuery } from '../hooks/queries/useOrganizationQueries';
-import { useWorkspacesQuery, useArchivedWorkspacesQuery } from '../hooks/queries/useWorkspaceQueries';
+import { useAcademiesQuery, useOrganizationSettingsQuery } from '../hooks/queries/useAcademyQueries';
+import { useWorkspacesQuery, useArchivedWorkspacesQuery } from '../hooks/queries/useOrganizationQueries';
 import { useUsersQuery, usePreApprovedUsersQuery } from '../hooks/queries/useUserQueries';
 import { useSystemSettingsQuery, useTutorialSettingsQuery } from '../hooks/queries/useSettingsQueries';
 
