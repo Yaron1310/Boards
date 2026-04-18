@@ -29,6 +29,7 @@ export const createApp = async (): Promise<Application> => {
 
     // 3. Middlewares
     const allowedOrigins = [env.FRONTEND_URL, 'http://localhost:5173'];
+    logger.info(`CORS allowed origins: ${JSON.stringify(allowedOrigins)}`);
     app.use(cors((req: Request, callback: any) => {
         const origin = req.header('Origin');
         if (!origin || allowedOrigins.includes(origin)) {

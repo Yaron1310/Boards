@@ -363,7 +363,7 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
 
     const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://app.logyx.co';
+    const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
     const logoPath = path.join(process.cwd(), 'src', 'assets', 'email_logo.png');
     const hasLogo = fs.existsSync(logoPath);
 
