@@ -14,17 +14,17 @@ import type { Application } from 'express';
 // If the deployment fails with "Secret not found", ensure you have run:
 // firebase functions:secrets:set SECRET_NAME
 const secrets = [
-    "JWT_SECRET",
-    "GOOGLE_CLIENT_ID",
-    "GOOGLE_CLIENT_SECRET",
-    "GOOGLE_CALLBACK_URL",
-    "FRONTEND_URL",
-    // "BACKEND_API_URL_FOR_CALLBACKS", // This secret is optional and should not be required for deployment.
-    "SMTP_HOST",
-    "SMTP_PORT",
-    "SMTP_USER",
-    "SMTP_PASS",
-    "SMTP_FROM_NAME",
+    "JWT_SECRET:latest",
+    "GOOGLE_CLIENT_ID:latest",
+    "GOOGLE_CLIENT_SECRET:latest",
+    "GOOGLE_CALLBACK_URL:latest",
+    "FRONTEND_URL:latest",
+    // "BACKEND_API_URL_FOR_CALLBACKS:latest",
+    "SMTP_HOST:latest",
+    "SMTP_PORT:latest",
+    "SMTP_USER:latest",
+    "SMTP_PASS:latest",
+    "SMTP_FROM_NAME:latest",
     // Microsoft Auth — disabled until secrets are provisioned
     // "MICROSOFT_CLIENT_ID",
     // "MICROSOFT_CLIENT_SECRET",
