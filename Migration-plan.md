@@ -1075,10 +1075,530 @@ New folder: `frontend/src/components/dashboard/widgets/`
 
 ---
 
-## 🔄 PHASE 9 — Permissions & Notifications
+## 🔒 PHASE 9 — Permissions & Notifications
 
-* Board-level roles (Viewer/Editor/Admin).
-* Notifications for assignments & mentions.
+Goal: Add board-level role-based access control (Viewer/Editor/Admin) and in-app + email notifications for item assignments and @mentions. Board roles layer on top of existing workspace roles (ORGANIZATION_ADMIN+ retain full access). All 6 sub-phases target ~270 lines written per session to stay within token budgets.
+
+Sub-phases are sequenced to minimize cross-file reading per session (e.g., all 4 remaining controllers read together in 9C).
+
+---
+
+### 🏗️ PHASE 9A — Backend Foundation: Types, Collections & Auth Refactor | 🟡 Low-Medium risk
+
+**New backend types** — add to `backend/src/types/index.ts`:
+```ts
+export enum BoardRole {
+  VIEWER = 'viewer',
+  EDITOR = 'editor',
+  ADMIN  = 'admin',
+}
+
+export interface DBBoardMember {
+  userId: string;
+  boardId: string;
+  organizationId: string;
+  role: BoardRole;
+  addedBy: string;
+  createdAt: admin.firestore.Timestamp;
+}
+
+export type NotificationType = 'assignment' | 'mention';
+
+export interface DBNotification {
+  id: string;
+  organizationId: string;
+  recipientId: string;
+  actorId: string;
+  actorName: string;
+  type: NotificationType;
+  resourceType: 'item';
+  resourceId: string;           // itemId
+  resourceName: string;         // item name at notification time
+  boardId: string;
+  boardName: string;
+  read: boolean;
+  createdAt: admin.firestore.Timestamp;
+}
+```
+
+**New frontend types** — add to `frontend/src/types.ts`:
+```ts
+export enum BoardRole { VIEWER = 'viewer', EDITOR = 'editor', ADMIN = 'admin' }
+
+export interface BoardMember {
+  userId: string;
+  boardId: string;
+  organizationId: string;
+  role: BoardRole;
+  addedBy: string;
+  createdAt: Date | string;
+  userName?: string;
+  userEmail?: string;
+  userProfileImageUrl?: string;
+}
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  actorName: string;
+  resourceName: string;
+  boardName: string;
+  boardId: string;
+  resourceId: string;
+  read: boolean;
+  createdAt: Date | string;
+}
+```
+
+**New collection helpers** — add to `backend/src/db/collections.ts`:
+```ts
+export const boardMembersCollection = (organizationId: string, boardId: string) =>
+  boardsCollection(organizationId).doc(boardId).collection('members');
+
+export const notificationsCollection = (organizationId: string) =>
+  db.collection('workspaces').doc(organizationId).collection('notifications');
+```
+
+**Auth layer refactor** — update `backend/src/utils/workManagementAuth.ts`:
+- Add `BoardRole` enum export
+- Add helper `effectiveBoardRole()` — merges workspace role and board membership:
+  ```ts
+  export function effectiveBoardRole(
+    user: JwtUserPayload,
+    board: DBBoard,
+    member: DBBoardMember | null,
+  ): BoardRole | 'full_access' | null {
+    if (user.role === UserRole.SYSTEM_ADMIN) return 'full_access';
+    if (isAtLeast(user.role, UserRole.ACADEMY_ADMIN)) return 'full_access';
+    if (user.role === UserRole.ORGANIZATION_ADMIN &&
+        user.selectedOrganizationId === board.workspaceId) return 'full_access';
+    if (board.createdBy === user.id) return BoardRole.ADMIN;
+    return member?.role ?? null;
+  }
+  ```
+- Update `canAccessBoard()` to accept optional `member: DBBoardMember | null = null`:
+  - `read`: effective role >= `viewer` (or `full_access`)
+  - `update` (settings): effective role = `admin` (or `full_access`)
+  - `archive`: effective role = `admin` (or `full_access`)
+  - `delete`: `full_access` only
+- Update `canAccessItem()` to accept optional `member: DBBoardMember | null = null`:
+  - `read`: effective role >= `viewer`
+  - `create`: effective role >= `editor`
+  - `update`: effective role >= `editor` (or item creator/assignee + >= `viewer`)
+  - `archive`: effective role >= `editor`
+  - `delete`: effective role = `admin`
+- Update `canAccessGroup()` and `canAccessColumn()` similarly (both require `editor`+ to mutate)
+- **Backwards-compatible**: all new `member` parameters default to `null`; existing behavior preserved if not passed
+
+**Acceptance criteria:**
+- [ ] All new types compile without errors
+- [ ] `effectiveBoardRole()` correctly handles SYSTEM_ADMIN, ACADEMY_ADMIN, ORGANIZATION_ADMIN, board creator, and regular members
+- [ ] Auth functions accept optional `member` parameter; `null` returns `null` effective role
+- [ ] `npm run lint` passes with zero warnings
+
+---
+
+### 🔑 PHASE 9B — Board Member API | 🟡 Low-Medium risk
+
+**New controller** — create `backend/src/controllers/boardMember.controller.ts` (~180 lines):
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `listMembers` | `GET /boards/:boardId/members` | List all members with denormalized user info; only callable by board admin or ORGANIZATION_ADMIN+ |
+| `addMember` | `POST /boards/:boardId/members` | Body: `{userId: string, role: BoardRole}`; creates notification doc on success |
+| `updateMemberRole` | `PATCH /boards/:boardId/members/:userId` | Body: `{role: BoardRole}`; cannot demote last admin |
+| `removeMember` | `DELETE /boards/:boardId/members/:userId` | Remove member; denies if last admin |
+
+**GET response augmentation** — update `board.controller.ts` `getBoard()` to include `userBoardRole: BoardRole | 'full_access' | null` (server-computed for requesting user):
+```ts
+const member = await boardMembersCollection(organizationId, boardId).doc(user.id).get();
+const effectiveRole = effectiveBoardRole(user, board, member.data() as DBBoardMember | null);
+return { ...boardData, userBoardRole: effectiveRole };
+```
+
+**New routes** — create `backend/src/routes/boardMember.routes.ts`:
+```ts
+router.get('/:boardId/members', authenticateToken, async (req, res) => {
+  const { boardId } = req.params;
+  return boardMemberController.listMembers(req, res);
+});
+router.post('/:boardId/members', authenticateToken, async (req, res) => {
+  return boardMemberController.addMember(req, res);
+});
+// ...patch, delete
+```
+
+**Mount routes** — add to `backend/src/routes/index.ts`:
+```ts
+router.use('/boards', boardMemberRoutes);
+```
+
+**Firestore collection structure:**
+```
+/workspaces/{organizationId}/boards/{boardId}/members/{userId}
+  {
+    userId: string,
+    role: 'viewer' | 'editor' | 'admin',
+    addedBy: string,
+    createdAt: Timestamp
+  }
+```
+
+**Acceptance criteria:**
+- [ ] All 4 CRUD endpoints return correct status + error messages
+- [ ] Cannot add a user not in the workspace (403)
+- [ ] Cannot demote the last admin of a board (409)
+- [ ] Denormalized `userName`, `userEmail`, `userProfileImageUrl` written on add; updated on user rename
+- [ ] `userBoardRole` field present in `GET /boards/:boardId` response
+- [ ] ORGANIZATION_ADMIN can CRUD board members of any board in their workspace
+- [ ] Non-admin users receive 403 on all member endpoints
+
+---
+
+### 🔌 PHASE 9C — Controller Security Wiring + Notification Triggers | 🟠 Medium risk
+
+> Batches 4 large controller reads + notification trigger code in `item.controller.ts`.
+
+**Controller wiring** — update each controller to fetch `DBBoardMember` for user, pass to auth checks:
+
+In `item.controller.ts`, `group.controller.ts`, `column.controller.ts`, `dashboard.controller.ts` — at start of each mutation handler (~15-20 lines per controller):
+```ts
+const member = await boardMembersCollection(organizationId, boardId).doc(user.id).get();
+const memberData = member.data() as DBBoardMember | null;
+// Now pass memberData to assertItemAccess, assertGroupAccess, etc.
+assertItemAccess(user, item, 'update', memberData);
+```
+
+**Notification triggers** — add to `item.controller.ts` `createItem()` and `updateItem()`:
+
+*Assignment notifications* (~40 lines):
+```ts
+if (op === 'update') {
+  const oldAssignees = existingItem.assignees ?? [];
+  const newAssignees = req.body.assignees ?? [];
+  const addedAssignees = newAssignees.filter(id => !oldAssignees.includes(id) && id !== user.id);
+  
+  for (const recipientId of addedAssignees) {
+    await notificationsCollection(organizationId).add({
+      recipientId,
+      actorId: user.id,
+      actorName: user.name,
+      type: 'assignment',
+      resourceType: 'item',
+      resourceId: item.id,
+      resourceName: item.name,
+      boardId: item.boardId,
+      boardName: boardDoc.data().name,
+      read: false,
+      organizationId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  }
+}
+```
+
+*Mention notifications* (~40 lines):
+```ts
+function extractMentions(text: string): string[] {
+  const matches = text.match(/@[a-zA-Z0-9_-]+/g) || [];
+  return matches.map(m => m.slice(1)); // remove @
+}
+
+// In createItem / updateItem, after write:
+const mentionedIds = new Set<string>();
+mentionedIds.forEach(m => extractMentions(item.name));
+Object.values(item.values).forEach(v => {
+  if (typeof v === 'string') mentionedIds.forEach(m => extractMentions(v));
+});
+for (const recipientId of mentionedIds) {
+  if (recipientId === user.id) continue; // skip self
+  await notificationsCollection(organizationId).add({ type: 'mention', ... });
+}
+```
+
+**New notification controller** — create `backend/src/controllers/notification.controller.ts` (~150 lines):
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `listNotifications` | `GET /notifications` | List for requesting user; `?unreadOnly=true`; cursor paginated (20/page); sorted by `createdAt` desc |
+| `markRead` | `PATCH /notifications/:id/read` | Mark single notification as read |
+| `markAllRead` | `PATCH /notifications/read-all` | Mark all notifications as read for user |
+
+**New routes** — create `backend/src/routes/notification.routes.ts`:
+```ts
+router.get('/', authenticateToken, notificationController.listNotifications);
+router.patch('/:id/read', authenticateToken, notificationController.markRead);
+router.patch('/read-all', authenticateToken, notificationController.markAllRead);
+```
+
+**Mount routes** — add to `backend/src/routes/index.ts`:
+```ts
+router.use('/notifications', notificationRoutes);
+```
+
+**Email notifications** (optional enhancement) — after writing notification doc, call email service:
+```ts
+if (org.emailNotificationsEnabled) {
+  await emailService.sendEmail(recipientUser.email, 'item-assignment', { itemName, boardName, actorName });
+}
+```
+(Requires adding `emailNotificationsEnabled?: boolean` to `DBAcademy` type.)
+
+**Acceptance criteria:**
+- [ ] All 5 controllers fetch and pass `DBBoardMember` to auth functions
+- [ ] Viewer cannot create/update/delete items (403)
+- [ ] Editor cannot manage columns or board settings (403)
+- [ ] Assignment notification created when user added to `assignees`
+- [ ] Assignment notification NOT created for self-assignment
+- [ ] Mention notification created for each `@{userId}` in item name or text columns
+- [ ] `GET /notifications` returns only requesting user's notifications
+- [ ] Pagination cursor works correctly across sessions
+- [ ] Mark-read endpoints update `read: true` atomically
+
+---
+
+### 🎨 PHASE 9D — Board Permissions UI: Foundation | 🟡 Low-Medium risk
+
+**New context** — create `frontend/src/contexts/BoardPermissionsContext.tsx`:
+```ts
+export interface BoardPermissions {
+  canView: boolean;
+  canEdit: boolean;   // editor+
+  canAdmin: boolean;  // admin
+}
+
+export const BoardPermissionsContext = createContext<BoardPermissions>({ canView: false, canEdit: false, canAdmin: false });
+
+export function BoardPermissionsProvider({ children, role }: { children: React.ReactNode; role: BoardRole | 'full_access' | null }) {
+  const perms: BoardPermissions = {
+    canView: role && role !== 'full_access' ? role !== 'viewer' || role === 'viewer' : true, // all > viewer
+    canEdit: role === 'full_access' || role === 'editor' || role === 'admin',
+    canAdmin: role === 'full_access' || role === 'admin',
+  };
+  return <BoardPermissionsContext.Provider value={perms}>{children}</BoardPermissionsContext.Provider>;
+}
+
+export function useBoardPermissions() {
+  return useContext(BoardPermissionsContext);
+}
+```
+
+**Service functions** — add to `frontend/src/services/workManagementService.ts`:
+```ts
+async function listBoardMembers(boardId: string): Promise<BoardMember[]> { ... }
+async function addBoardMember(boardId: string, userId: string, role: BoardRole): Promise<void> { ... }
+async function updateBoardMemberRole(boardId: string, userId: string, role: BoardRole): Promise<void> { ... }
+async function removeBoardMember(boardId: string, userId: string): Promise<void> { ... }
+```
+
+**Query hook** — create `frontend/src/hooks/queries/useBoardMemberQueries.ts`:
+```ts
+export const useListBoardMembers = (boardId: string) =>
+  useQuery({ queryKey: ['boardMembers', boardId], queryFn: () => workManagementService.listBoardMembers(boardId) });
+
+export const useAddBoardMember = () =>
+  useMutation({ mutationFn: (data) => workManagementService.addBoardMember(data.boardId, data.userId, data.role) });
+
+// ...updateMemberRole, removeMember
+```
+
+**BoardViewPage update** — wrap with context provider:
+```ts
+<BoardPermissionsProvider role={board.userBoardRole}>
+  {/* existing board UI */}
+</BoardPermissionsProvider>
+```
+
+Add "Members" button in board header (only visible if user has any access):
+```tsx
+<button onClick={() => setMembersModalOpen(true)}>Members</button>
+```
+
+**Acceptance criteria:**
+- [ ] `BoardPermissionsContext` correctly computes `canEdit` and `canAdmin` from board role
+- [ ] Context provider wraps the entire board UI
+- [ ] `useBoardPermissions()` hook works in nested components
+- [ ] "Members" button appears in board header
+- [ ] ARIA labels on all new buttons
+
+---
+
+### 🔐 PHASE 9E — Board Member Modal + Permission Gates | 🟠 Medium risk
+
+> Heavy on UI — new modal (~220L) + gating 5 existing components.
+
+**New modal** — create `frontend/src/components/boards/BoardMembersModal.tsx` (~220 lines):
+- List current members: name, email, avatar, role badge, remove button
+- User search combobox (auto-complete from workspace members)
+- Role selector dropdown (`viewer` / `editor` / `admin`)
+- "Add member" button → validates, calls mutation, handles errors
+- "Remove member" confirmation dialog
+- Loading states, empty states, error messages
+- ARIA: `role="dialog"`, labels on all form controls, aria-live for error messages
+- Only rendered when current user is board admin
+
+**Component gates** — add to existing components:
+
+**`GroupSection.tsx`** — hide "Add group" button + group rename/delete controls when `!canEdit`:
+```ts
+const { canEdit } = useBoardPermissions();
+return (
+  <>
+    {canEdit && <button>+ Add group</button>}
+    {/* group rows with canEdit passed down */}
+  </>
+);
+```
+
+**`ItemRow.tsx`** — hide "Add item" button when `!canEdit`:
+```ts
+const { canEdit } = useBoardPermissions();
+if (!canEdit) return <div role="row">{/* read-only display */}</div>;
+```
+
+**`CellWrapper.tsx`** — pass `readOnly` prop when `!canEdit`:
+```ts
+const { canEdit } = useBoardPermissions();
+<ColumnCell {...props} readOnly={!canEdit} />
+```
+
+**`ColumnHeader.tsx`** — disable rename/settings when `!canAdmin`:
+```ts
+const { canAdmin } = useBoardPermissions();
+<button disabled={!canAdmin} onClick={() => renameColumn()}>Rename</button>
+```
+
+**`ColumnManagementPage.tsx`** — show read-only view or redirect when `!canAdmin`:
+```ts
+const { canAdmin } = useBoardPermissions();
+if (!canAdmin) return <div>You don't have permission to manage columns.</div>;
+```
+
+**Acceptance criteria:**
+- [ ] Modal opens/closes cleanly
+- [ ] Member list shows denormalized names + avatars
+- [ ] User search combobox filters workspace members
+- [ ] Adding/removing/updating role works end-to-end
+- [ ] Cannot demote last admin (error message)
+- [ ] All viewers see read-only board (no edit affordances)
+- [ ] All editors can mutate items but not columns
+- [ ] All admins see all controls
+- [ ] ARIA attributes on modal, combobox, and all buttons
+- [ ] `npm run lint` passes with zero warnings
+
+---
+
+### 🔔 PHASE 9F — Notification Backend: Triggers + API | 🟡 Low-Medium risk
+
+> `item.controller.ts` triggers written in 9C; this phase covers notification read/list API.
+
+**This phase completes the backend notification system** (types + collections from 9A, triggers from 9C):
+
+`notification.controller.ts` handles:
+- `listNotifications()` — query `/notifications` filtered by `recipientId === user.id`, `read: false` if `?unreadOnly=true`, paginated cursor-based, max 20 per page, sorted by `createdAt` desc
+- `markRead()` — set `read: true` on single doc
+- `markAllRead()` — batch update all docs where `recipientId === user.id` to `read: true`
+
+**Acceptance criteria:**
+- [ ] `GET /notifications` returns only requesting user's notifications
+- [ ] Pagination cursor persists state correctly
+- [ ] `?unreadOnly=true` filters correctly
+- [ ] Mark-read endpoints are idempotent
+- [ ] Notification timestamps are server-side (use `FieldValue.serverTimestamp()`)
+
+---
+
+### 🔔 PHASE 9G — Notification Bell UI | 🟡 Low-Medium risk
+
+**New component** — create `frontend/src/components/layout/NotificationBell.tsx` (~180 lines):
+- Bell icon in top nav (left of user avatar)
+- Unread count badge (red, hidden when 0)
+- Click → dropdown panel:
+  - Last 20 notifications, sorted by time desc
+  - Each row: actor avatar + auto-generated message (`"Alex assigned you to 'Fix login bug' on board 'Sprint 23'"`)
+  - Relative time (`"2h ago"`)
+  - Unread rows: blue left border or background tint
+  - Click row → mark read + navigate to item's board
+  - "Mark all as read" button at top
+  - "No notifications" empty state
+- Close on outside click (use existing `useFocusTrap`)
+- Polling refetch every 30s
+
+**Query hook** — create `frontend/src/hooks/queries/useNotificationQueries.ts`:
+```ts
+export const useNotifications = () =>
+  useQuery({
+    queryKey: ['notifications'],
+    queryFn: workManagementService.fetchNotifications,
+    refetchInterval: 30_000,
+  });
+
+export const useMarkNotificationRead = () =>
+  useMutation({ mutationFn: (id) => workManagementService.markNotificationRead(id) });
+
+export const useMarkAllNotificationsRead = () =>
+  useMutation({ mutationFn: () => workManagementService.markAllNotificationsRead() });
+```
+
+**Service functions** — add to `frontend/src/services/workManagementService.ts`:
+```ts
+async function fetchNotifications(): Promise<Notification[]> { ... }
+async function markNotificationRead(id: string): Promise<void> { ... }
+async function markAllNotificationsRead(): Promise<void> { ... }
+```
+
+**Mount in MainLayout** — add to `frontend/src/components/layout/MainLayout.tsx`:
+```tsx
+<div className="flex items-center gap-4">
+  <NotificationBell />
+  <UserMenu />
+</div>
+```
+
+**ARIA attributes:**
+- Bell button: `aria-label="Notifications"`
+- Badge: `aria-label="{count} unread notifications"` (dynamic)
+- Panel: `role="dialog"`, `aria-labelledby="notification-title"`
+- Notification rows: `role="button"`, `aria-current="true"` for unread
+- Live region: `aria-live="polite"` to announce new notifications
+
+**Acceptance criteria:**
+- [ ] Unread count badge updates correctly
+- [ ] Panel shows last 20 notifications, sorted by time
+- [ ] Clicking row marks read + navigates to board
+- [ ] "Mark all" button works; optimistic update in UI
+- [ ] Panel closes on outside click
+- [ ] Polling refetch fires every 30s
+- [ ] All ARIA attributes present and correct
+- [ ] `npm run lint` passes with zero warnings
+
+---
+
+### ✅ Acceptance Criteria Summary (Phase 9)
+
+**Permissions (9A–9E):**
+- [ ] Board members subcollection created and written correctly
+- [ ] All CRUD endpoints return proper 403s for unauthorized users
+- [ ] ORGANIZATION_ADMIN+ always retain full access regardless of board membership
+- [ ] Viewers cannot create/update/delete items (403)
+- [ ] Editors cannot manage columns (403)
+- [ ] Board creator is implicitly admin
+- [ ] All editing UI hidden/disabled for viewers
+- [ ] Column management page inaccessible to non-admins
+- [ ] `BoardPermissionsContext` provides role throughout board tree
+- [ ] No ARIA warnings in `npm run lint`
+
+**Notifications (9A, 9C, 9F–9G):**
+- [ ] Assignment notification created when user added to `assignees`
+- [ ] Mention notification created for `@{userId}` in item name or text fields
+- [ ] Self-assignments do not trigger notifications
+- [ ] `GET /notifications` returns correct unread notifications
+- [ ] Mark-read endpoints work atomically
+- [ ] Notification bell shows unread count badge
+- [ ] Clicking notification marks read + navigates
+- [ ] Polling refetch works every 30s
+- [ ] Email notifications sent (if enabled)
+- [ ] No ARIA warnings in `npm run lint`
 
 ---
 
