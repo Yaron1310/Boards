@@ -36,6 +36,7 @@ export interface OrganizationSettings {
   apiKey?: string;
   displayNameColor?: string;
   sidebarLinkColor?: string;
+  logoCircle?: boolean;
   bridgeEnabled?: boolean;
   bridgeSecretKey?: string;
 }

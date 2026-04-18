@@ -18,6 +18,7 @@ const THEME_FIELDS: (keyof OrganizationSettings)[] = [
     'displayNameColor',
     'sidebarLinkColor',
     'logoUrl',
+    'logoCircle',
 ];
 
 const LOGO_MAX_RAW_SIZE = 10 * 1024 * 1024; // 10 MB — reject before processing
@@ -244,13 +245,31 @@ const ThemeSettingsPage: React.FC<ThemeSettingsPageProps> = ({ onDirtyChange }) 
                             <div>
                                 <label htmlFor="logoUpload" className="block text-sm font-medium text-gray-700">{t('admin.themeSettings.organizationLogo')}</label>
                                 <div className="mt-1 flex items-center space-x-4">
-                                    {formData.logoUrl && <img src={formData.logoUrl} alt={t('admin.themeSettings.logoPreviewAlt')} className="h-12 w-12 rounded-full object-cover bg-gray-100" />}
+                                    {formData.logoUrl && (
+                                        <img
+                                            src={formData.logoUrl}
+                                            alt={t('admin.themeSettings.logoPreviewAlt')}
+                                            className={`h-12 object-cover bg-gray-100 ${(formData.logoCircle ?? true) ? 'w-12 rounded-full' : 'w-auto rounded'}`}
+                                        />
+                                    )}
                                     <label htmlFor="logoUpload" className="cursor-pointer inline-flex items-center px-4 py-2 text-sm bg-white text-gray-700 rounded-md border border-gray-300 hover:bg-gray-50 shadow-sm">
                                         <FiUploadCloud className="mr-2"/> {t('admin.themeSettings.uploadLogo')}
                                     </label>
                                     <input type="file" id="logoUpload" name="logoUpload" accept="image/*" onChange={handleFileChange} className="hidden"/>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-2">{t('admin.themeSettings.logoUploadHint')}</p>
+                                <label htmlFor="logoCircle" className="flex items-center text-sm font-medium text-gray-700 cursor-pointer mt-3">
+                                    <input
+                                        type="checkbox"
+                                        id="logoCircle"
+                                        name="logoCircle"
+                                        checked={formData.logoCircle ?? true}
+                                        onChange={handleInputChange}
+                                        className="h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 mr-3"
+                                    />
+                                    {t('admin.themeSettings.logoCircle')}
+                                </label>
+                                <p className="text-xs text-gray-500 mt-1 ml-8">{t('admin.themeSettings.logoCircleHint')}</p>
                             </div>
 
                             {/* Sidebar Color */}

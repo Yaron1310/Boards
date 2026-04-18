@@ -668,6 +668,8 @@
       "logoPreviewAlt": "Logo Preview",
       "uploadLogo": "Upload Logo",
       "logoUploadHint": "Recommended: Square image (e.g., 200x200px). Supports PNG, JPG, WEBP. Max 10 MB — images are automatically compressed and saved as PNG.",
+      "logoCircle": "Display logo in a circle",
+      "logoCircleHint": "When unchecked, the logo will be displayed with its original proportions instead of cropped to a circle.",
       "sidebarBackgroundColor": "Sidebar Background Color",
       "enableSidebarGradient": "Enable Sidebar Gradient Overlay",
       "enableSidebarGradientHint": "Adds a subtle light gradient from the bottom of the sidebar for better visual depth.",

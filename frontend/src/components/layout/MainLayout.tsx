@@ -123,6 +123,7 @@ interface SidebarContentProps {
   sidebarGradientHeight?: number;
   sidebarGradientMaskOpacity?: number;
   logoUrl: string;
+  logoCircle?: boolean;
   appName: string;
   displayNameColor: string;
   sidebarLinkColor: string;
@@ -238,6 +239,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     sidebarGradientHeight,
     sidebarGradientMaskOpacity,
     logoUrl,
+    logoCircle = true,
     appName,
     displayNameColor,
     sidebarLinkColor,
@@ -340,7 +342,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   <img
                     src={logoUrl}
                     alt={t('common.appLogoAlt')}
-                    className="h-12 w-12 rounded-full object-cover shadow-sm transition-all"
+                    className={`h-12 object-cover shadow-sm transition-all ${logoCircle ? 'w-12 rounded-full' : 'w-auto rounded'}`}
                     onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)}
                   />
                   <span className="absolute bottom-0 right-0 flex items-center justify-center w-5 h-5 rounded-full bg-gray-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" aria-hidden="true">
@@ -348,7 +350,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   </span>
                 </div>
               ) : (
-                <img src={logoUrl} alt={t('common.appLogoAlt')} className="h-12 w-auto rounded-full object-cover shadow-sm mr-4" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} />
+                <img src={logoUrl} alt={t('common.appLogoAlt')} className={`h-12 object-cover shadow-sm mr-4 ${logoCircle ? 'w-12 rounded-full' : 'w-auto rounded'}`} onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} />
               )}
               {isOrganizationAdmin ? (
                 <div
@@ -678,7 +680,8 @@ const MainLayout: React.FC = () => {
   const sidebarGradientMaskOpacity = organizationSettings?.sidebarGradientMaskOpacity ?? 40;
   const displayNameColor = isDarkContrast ? '#000000' : (organizationSettings?.displayNameColor || '#ffffff');
   const sidebarLinkColor = isDarkContrast ? '#111111' : (organizationSettings?.sidebarLinkColor || '#e5e7eb');
-  
+  const logoCircle = organizationSettings?.logoCircle ?? true;
+
   const navItems: NavItem[] = [
     { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
   ];
@@ -712,6 +715,7 @@ const MainLayout: React.FC = () => {
             sidebarGradientHeight={sidebarGradientHeight}
             sidebarGradientMaskOpacity={sidebarGradientMaskOpacity}
             logoUrl={logoUrl}
+            logoCircle={logoCircle}
             appName={appName}
             displayNameColor={displayNameColor}
             sidebarLinkColor={sidebarLinkColor}
@@ -738,6 +742,7 @@ const MainLayout: React.FC = () => {
                 sidebarGradientHeight={sidebarGradientHeight}
                 sidebarGradientMaskOpacity={sidebarGradientMaskOpacity}
                 logoUrl={logoUrl}
+                logoCircle={logoCircle}
                 appName={appName}
                 displayNameColor={displayNameColor}
                 sidebarLinkColor={sidebarLinkColor}

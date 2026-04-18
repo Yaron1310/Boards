@@ -616,6 +616,8 @@
       "logoPreviewAlt": "תצוגה מקדימה של הלוגו",
       "uploadLogo": "העלה לוגו",
       "logoUploadHint": "מומלץ: תמונה מרובעת (למשל 200x200px). תומך ב-PNG, JPG, WEBP. מקסימום 10 MB - תמונות נדחסות באופן אוטומטי ונשמרות כ-PNG.",
+      "logoCircle": "הצג לוגו בצורת עיגול",
+      "logoCircleHint": "כאשר לא מסומן, הלוגו יוצג בפרופורציות המקוריות שלו במקום בחיתוך עיגול.",
       "sidebarBackgroundColor": "צבע רקע סרגל צד",
       "enableSidebarGradient": "הפעל שכבת צבע הדרגתי",
       "enableSidebarGradientHint": "הוסף שכבת צבע הדרגתי בתחתית סרגל הצד.",
