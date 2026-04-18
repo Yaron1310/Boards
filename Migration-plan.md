@@ -1083,7 +1083,7 @@ Sub-phases are sequenced to minimize cross-file reading per session (e.g., all 4
 
 ---
 
-### 🏗️ PHASE 9A — Backend Foundation: Types, Collections & Auth Refactor | 🟡 Low-Medium risk
+### ✅ 🏗️ PHASE 9A — Backend Foundation: Types, Collections & Auth Refactor | 🟡 Low-Medium risk (DONE)
 
 **New backend types** — add to `backend/src/types/index.ts`:
 ```ts
