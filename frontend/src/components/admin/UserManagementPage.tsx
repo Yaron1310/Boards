@@ -131,7 +131,7 @@ const UserManagementPage: React.FC = () => {
         'Workspace(s)': u.workspaces.filter(o => !o.isPersonal).map(o => o.name).join(', '),
     }));
 
-    exportToCSV(dataForExport, "Gymind_Users_Export.csv");
+    exportToCSV(dataForExport, "Logyx_Users_Export.csv");
   };
 
   const isItemLoaded = (index: number) => !hasNextPage || index < allUsers.length;

@@ -53,14 +53,9 @@ const TutorialSettingsPage: React.FC = () => {
     }
 
     const sections = [
-        { key: 'aiMentor', label: t('admin.aiMentorSettings') },
-        { key: 'courses', label: t('admin.courseManagement') },
-        { key: 'questionnaires', label: t('admin.questionnaireSettings') },
         { key: 'workspaces', label: t('admin.workspaceManagement') },
         { key: 'users', label: t('admin.userManagement') },
         { key: 'theme', label: t('admin.themeSettings') },
-        { key: 'plansBilling', label: t('admin.plansBilling') },
-        { key: 'wpPlugin', label: t('admin.wordpressPluginIntegration') },
     ];
 
     const handleToggle = (key: keyof TutorialSettings) => {

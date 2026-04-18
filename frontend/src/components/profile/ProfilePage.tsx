@@ -3,9 +3,9 @@ import ReactDOM from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import type { User, Plan } from '../../types';
+import type { User } from '../../types';
 import { UserRole } from '../../types';
-import { FiEdit3, FiSave, FiUserCheck, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiChevronsRight, FiUserMinus, FiShield, FiMessageSquare, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiCreditCard, FiEye, FiEyeOff, FiGlobe } from 'react-icons/fi';
+import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiUserMinus, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiGlobe } from 'react-icons/fi';
 import i18n, { SUPPORTED_LANGUAGES } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -24,12 +24,10 @@ const ProfilePage: React.FC = () => {
     availableContexts,
     selectedWorkspace,
   } = useAuth();
-  const { 
+  const {
     users,
-    plans,
     deleteUser,
     removeUserFromWorkspace,
-    cancelUserSubscriptionByAdmin,
     dataError: dataCtxError,
     clearDataError: clearDataCtxError,
     isLoading: dataCtxLoading,
@@ -55,10 +53,6 @@ const ProfilePage: React.FC = () => {
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
 
-  // Chat Settings State
-  const [isChatSettingsOpen, setIsChatSettingsOpen] = useState(false);
-  const [saveChatHistoryEnabled, setSaveChatHistoryEnabled] = useState(true);
-
   // Language Settings State
   const [isLanguageSettingsOpen, setIsLanguageSettingsOpen] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>(() => authUser?.preferredLanguage || i18n.language.split('-')[0] || 'en');
@@ -76,7 +70,6 @@ const ProfilePage: React.FC = () => {
   
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
   const [showRemoveUserConfirmModal, setShowRemoveUserConfirmModal] = useState(false);
-  const [showAdminCancelConfirm, setShowAdminCancelConfirm] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [deletionType, setDeletionType] = useState<'soft' | 'hard' | null>(null);
 
@@ -87,19 +80,6 @@ const ProfilePage: React.FC = () => {
     return availableContexts.flatMap(g => g.contexts).length > 1;
   }, [authUser, availableContexts]);
 
-  const personalOrg = useMemo(() => {
-    if (!profileUser) return null;
-    return profileUser.workspaces.find(org => (org as any).isPersonal);
-  }, [profileUser]);
-
-  const planForPersonalOrg = useMemo(() => {
-    if (!personalOrg || !plans) return null;
-    return plans.find(p => p.id === (personalOrg as any).planId);
-  }, [personalOrg, plans]);
-
-  const canAdminManageSubscription = !isOwnProfile &&
-      (authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN) &&
-      personalOrg;
 
 
   useEffect(() => {
@@ -128,10 +108,8 @@ const ProfilePage: React.FC = () => {
       setEditedName((userToDisplay as User).name);
       setEditedImageUrl((userToDisplay as User).profileImageUrl || '');
       
-      // Load chat saving preference if own profile from API user object
+      // Load language preference if own profile
       if (isOwnProfile && authUser) {
-          // Default to true if undefined
-          setSaveChatHistoryEnabled(authUser.conversationSavingEnabled !== false);
           if (authUser.preferredLanguage) {
               setSelectedLanguage(authUser.preferredLanguage);
           }
@@ -329,20 +307,6 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleToggleChatHistory = async () => {
-      if (authUser) {
-          const newState = !saveChatHistoryEnabled;
-          setSaveChatHistoryEnabled(newState); // Optimistic update
-          
-          const success = await updateUserDetails({ conversationSavingEnabled: newState });
-          if (!success) {
-              // Revert if failed
-              setSaveChatHistoryEnabled(!newState);
-              // Error will be set by updateUserDetails in context
-          }
-      }
-  };
-
   const handleLanguageChange = (langCode: string) => {
     setSelectedLanguage(langCode);
   };
@@ -413,19 +377,6 @@ const ProfilePage: React.FC = () => {
     } else {
          if (!dataCtxError) setProfileUpdateMessage({type: 'error', text: 'Failed to remove user from workspace.'});
     }
-  };
-
-  const handleAdminCancelSubscription = async () => {
-    if (!profileUser) return;
-    setIsProcessingAction(true);
-    const result = await cancelUserSubscriptionByAdmin(profileUser.id);
-    setIsProcessingAction(false);
-    setShowAdminCancelConfirm(false);
-    if(result) {
-        setProfileUpdateMessage({ type: 'success', text: result.message });
-        // TODO: Optionally refresh user data to reflect change instantly
-    }
-    // Error is handled by context, which will set `profileUpdateMessage`
   };
 
   const handleLogoutClick = () => {
@@ -644,14 +595,6 @@ const ProfilePage: React.FC = () => {
                     >
                         <FiKey className="mr-2"/> {authUser?.hasPassword ? t('profile.changePassword') : t('profile.createPassword')}
                     </button>
-                    {selectedWorkspace?.hasChatAccess !== false && (
-                        <button
-                            onClick={() => {setIsChatSettingsOpen(true); clearMessages();}}
-                            className="text-sm text-indigo-600 hover:text-indigo-800 py-1 px-2 rounded-md hover:bg-indigo-50 flex items-center transition-colors"
-                        >
-                            <FiMessageSquare className="mr-2"/> {t('profile.chatSettings')}
-                        </button>
-                    )}
                     <button
                         onClick={() => { setIsLanguageSettingsOpen(true); clearMessages(); }}
                         className="text-sm text-teal-600 hover:text-teal-800 py-1 px-2 rounded-md hover:bg-teal-50 flex items-center transition-colors"
@@ -659,15 +602,7 @@ const ProfilePage: React.FC = () => {
                     >
                         <FiGlobe className="mr-2" /> {t('profile.language')}
                     </button>
-                    {selectedWorkspace?.isPersonal && authUser?.role !== UserRole.ORGANIZATION_ADMIN && (
-                        <Link 
-                            to="/my-subscription"
-                            className="text-sm text-pink-600 hover:text-pink-800 py-1 px-2 rounded-md hover:bg-pink-50 flex items-center transition-colors"
-                        >
-                            <FiCreditCard className="mr-2"/> {t('profile.mySubscription')}
-                        </Link>
-                    )}
-                    <button 
+                    <button
                         onClick={handleLogoutClick}
                         className="text-sm text-gray-600 hover:text-gray-800 py-1 px-2 rounded-md hover:bg-gray-50 flex items-center transition-colors"
                     >
@@ -705,36 +640,6 @@ const ProfilePage: React.FC = () => {
             </div>
         )}
       </div>
-
-      {canAdminManageSubscription && (
-          <div className="mt-8 pt-6 border-t border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('profile.subscriptionDetails')}</h3>
-              <div className="bg-purple-50 p-4 rounded-lg border border-purple-200 space-y-3">
-                  <div className="flex justify-between items-center">
-                      <p className="text-sm font-medium text-gray-700">Plan:</p>
-                      <p className="font-semibold text-purple-800">{planForPersonalOrg?.name || 'Unknown'}</p>
-                  </div>
-                  <div className="flex justify-between items-center">
-                      <p className="text-sm font-medium text-gray-700">Status:</p>
-                      <span className={`px-2 py-0.5 text-xs font-bold rounded-full ${
-                          (personalOrg as any)?.subscriptionStatus === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}>{ (personalOrg as any)?.subscriptionStatus || 'N/A'}</span>
-                  </div>
-                  {(personalOrg as any)?.subscriptionStatus === 'active' && (
-                      <div className="pt-3 border-t border-purple-200">
-                           <button
-                              onClick={() => setShowAdminCancelConfirm(true)}
-                              disabled={isProcessingAction}
-                              className="text-sm text-red-600 hover:text-red-800 py-1 px-2 rounded-md hover:bg-red-50 flex items-center transition-colors disabled:opacity-50"
-                          >
-                              <FiUserMinus className="mr-2" /> 
-                              Cancel User's Subscription
-                          </button>
-                      </div>
-                  )}
-              </div>
-          </div>
-      )}
 
       {isOwnProfile && isLanguageSettingsOpen && ReactDOM.createPortal(
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="language-settings-title">
@@ -782,59 +687,6 @@ const ProfilePage: React.FC = () => {
                     >
                         {isLanguageSaving ? t('common.saving') : t('common.done')}
                     </button>
-                </div>
-            </div>
-        </div>,
-        document.getElementById('modal-root')!
-      )}
-
-      {isOwnProfile && isChatSettingsOpen && ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md animate-fade-in-up">
-                <div className="flex justify-between items-center mb-4 border-b pb-3">
-                    <h3 className="text-xl font-semibold text-gray-800 flex items-center">
-                        <FiMessageSquare className="mr-2 text-indigo-500" />
-                        {t('profile.chatSettings')}
-                    </h3>
-                    <button onClick={() => setIsChatSettingsOpen(false)} className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100" aria-label={t('common.close')}>
-                        <FiX size={24} />
-                    </button>
-                </div>
-                
-                <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                        <span className="text-md font-medium text-gray-700">{t('profile.saveChatHistory')}</span>
-                        <label htmlFor="save-history-toggle" className="flex items-center cursor-pointer">
-                            <div className="relative">
-                                <input 
-                                    id="save-history-toggle" 
-                                    type="checkbox" 
-                                    className="sr-only peer" 
-                                    checked={saveChatHistoryEnabled} 
-                                    onChange={handleToggleChatHistory}
-                                />
-                                <div className="block w-12 h-7 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors duration-300 ease-in-out"></div>
-                                <div className="dot absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition-transform duration-300 ease-in-out transform peer-checked:translate-x-5 shadow-sm"></div>
-                            </div>
-                        </label>
-                    </div>
-                    
-                    <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm text-gray-600 leading-relaxed">
-                            When enabled, your conversation history with AI Mentors will be saved to your profile. This allows the AI to remember context and generate better insights. Your data is private and secure - no one else has access to it, and it is not used by the AI model.
-                        </p>
-                        <p className="text-sm text-gray-600 leading-relaxed mt-2 font-medium">
-                            {saveChatHistoryEnabled
-                                ? t('profile.chatHistoryEnabled')
-                                : t('profile.chatHistoryDisabled')}
-                        </p>
-                    </div>
-
-                    <div className="flex justify-end pt-2">
-                        <button onClick={() => setIsChatSettingsOpen(false)} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium transition-colors">
-                            {t('common.done')}
-                        </button>
-                    </div>
                 </div>
             </div>
         </div>,
@@ -995,31 +847,6 @@ const ProfilePage: React.FC = () => {
         document.getElementById('modal-root')!
       )}
       
-      {showAdminCancelConfirm && profileUser && ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
-            <div className="flex items-start mb-4">
-                <FiAlertTriangle className="text-orange-500 h-8 w-8 mr-3 flex-shrink-0 mt-1"/>
-                <div>
-                    <h3 className="text-xl font-semibold text-gray-800">{t('profile.cancelUserSubscription')}</h3>
-                </div>
-            </div>
-            <p className="text-gray-600 mb-6">
-                {t('profile.confirmCancelSubscription', { name: profileUser.name })}
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button onClick={() => setShowAdminCancelConfirm(false)} disabled={isProcessingAction} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300">
-                {t('common.cancel')}
-              </button>
-              <button onClick={handleAdminCancelSubscription} disabled={isProcessingAction} className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 flex items-center disabled:opacity-50">
-                {isProcessingAction && <FiLoader className="animate-spin mr-2" />}
-                {isProcessingAction ? t('profile.cancelling') : t('profile.confirmCancellation')}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.getElementById('modal-root')!
-      )}
     </div>
   );
 };

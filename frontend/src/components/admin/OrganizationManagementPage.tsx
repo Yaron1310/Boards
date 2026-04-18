@@ -338,11 +338,10 @@ const WorkspaceManagementPage: React.FC = () => {
     if (newOrgName.trim()) {
       setIsSaving(true);
       // New orgs default to manual, admin can change it in edit
-      const newOrg = await addWorkspace(newOrgName.trim(), user!.orgId, newOrgPlanId);
+      const newOrg = await addWorkspace(newOrgName.trim(), user!.orgId);
       setIsSaving(true); // Keep spinner until modal closes or error shows
       if (newOrg) {
         setNewOrgName('');
-        setNewOrgPlanId('');
         setIsSaving(false);
         setIsAddModalOpen(false);
         setFeedbackMessage({ type: 'success', text: `Workspace "${newOrg.name}" added successfully.` });
@@ -465,7 +464,7 @@ const WorkspaceManagementPage: React.FC = () => {
             'Type': org.isPersonal ? 'Individual Subscriber' : 'Corporate Client',
         }));
 
-        exportToCSV(dataForExport, "Gymind_Workspaces_Export.csv");
+        exportToCSV(dataForExport, "Logyx_Workspaces_Export.csv");
     };
 
   if (user?.role !== UserRole.ORGANIZATION_ADMIN && user?.role !== UserRole.SYSTEM_ADMIN) {
@@ -629,7 +628,6 @@ const WorkspaceManagementPage: React.FC = () => {
         <WorkspaceModal
           org={orgToEdit}
           editData={editOrgData}
-          plans={activePlans}
           onClose={() => setOrgToEdit(null)}
           onSave={handleSaveEdit}
           isSaving={isSaving}
@@ -737,11 +735,8 @@ const WorkspaceManagementPage: React.FC = () => {
         onClose={() => { setIsAddModalOpen(false); setModalError(null); }}
         onSave={handleAddWorkspace}
         isSaving={isSaving}
-        plans={activePlans}
         name={newOrgName}
         setName={setNewOrgName}
-        planId={newOrgPlanId}
-        setPlanId={setNewOrgPlanId}
         error={modalError}
       />
     </div>
