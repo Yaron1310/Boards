@@ -10,7 +10,7 @@ const AccessibilityContent: React.FC = () => {
             <div>
                 <h2 className="text-xl font-semibold text-gray-800 mb-3">{t('legal.accessibility.section1')}</h2>
                 <p>
-                    Gymind is committed to providing an accessible digital learning experience for all users. We design our
+                    Logyx is committed to providing an accessible digital learning experience for all users. We design our
                     platform and interface to meet recognized accessibility standards and to remove barriers that could prevent
                     people with disabilities from using our services.
                 </p>
@@ -87,7 +87,7 @@ const AccessibilityContent: React.FC = () => {
                 <ul className="list-disc list-inside mt-2 space-y-1">
                     <li>
                         We produce, curate, certify, or sell a course or learning package as part of our official product
-                        offering (i.e., content presented or endorsed by Gymind).
+                        offering (i.e., content presented or endorsed by Logyx).
                     </li>
                     <li>
                         A customer has a contractual arrangement that includes delivery of accessible content (e.g., a paid
@@ -138,7 +138,7 @@ const AccessibilityContent: React.FC = () => {
                 <ul className="list-disc list-inside space-y-2">
                     <li>
                         <strong>Platform model:</strong> Because most instructional content on our platform is uploaded,
-                        embedded, or controlled by third parties (UGC or external hosts), Gymind cannot guarantee that every
+                        embedded, or controlled by third parties (UGC or external hosts), Logyx cannot guarantee that every
                         piece of content will be fully accessible at all times. That said, we require content creators and
                         partners to follow our accessibility policy (see "Creator requirements" below) when using the platform
                         to deliver courses to learners.
@@ -208,11 +208,11 @@ const AccessibilityContent: React.FC = () => {
                     <li>Preferred contact method and any reasonable accommodation you request</li>
                 </ul>
                 <p className="mt-3">
-                    <strong>Contact:</strong> Gymind's accessibility manager.
+                    <strong>Contact:</strong> Logyx's accessibility manager.
                     <br />
                     <strong>Email:</strong>{' '}
-                    <a href="mailto:info@gymind.app" className="text-blue-600 hover:underline">
-                        info@gymind.app
+                    <a href="mailto:info@logyx.co" className="text-blue-600 hover:underline">
+                        info@logyx.co
                     </a>
                 </p>
                 <p className="mt-2">When we receive a request we will:</p>

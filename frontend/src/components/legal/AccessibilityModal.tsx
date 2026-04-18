@@ -12,7 +12,7 @@ interface AccessibilityModalProps {
 const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
   const [isDarkContrast, setIsDarkContrast] = useState<boolean>(() => {
-    return localStorage.getItem('gymind-dark-contrast') === 'true';
+    return localStorage.getItem('logyx-dark-contrast') === 'true';
   });
 
   useEffect(() => {
@@ -22,7 +22,7 @@ const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, onClose
     } else {
       html.classList.remove('dark-contrast');
     }
-    localStorage.setItem('gymind-dark-contrast', String(isDarkContrast));
+    localStorage.setItem('logyx-dark-contrast', String(isDarkContrast));
   }, [isDarkContrast]);
 
   if (!isOpen) return null;

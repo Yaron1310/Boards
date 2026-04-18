@@ -5,8 +5,8 @@ import { useTranslation } from 'react-i18next';
 const LegalContent: React.FC = () => {
     const { t } = useTranslation();
     const companyName = "Logyx innovative solutions"; // Main legal entity
-    const serviceName = "Gymind";
-    const contactEmail = "info@gymind.app";
+    const serviceName = "Logyx";
+    const contactEmail = "info@logyx.co";
     const effectiveDateToS = "March 6, 2025";
     const effectiveDatePrivacy = "October 22, 2024";
 
@@ -21,7 +21,7 @@ const LegalContent: React.FC = () => {
                     <p>By accessing and using {serviceName}’s application programming interfaces, software, tools, data, documentation, or website (collectively, “Services”), you expressly agree that you have read and agreed to be bound by the following terms and conditions (the “Terms”) as well as all applicable laws and regulations, and any future updates. You also agree that you are 18 years or older and legally able to enter into a binding contract.</p>
                     <p>Unless otherwise specified, terms used below and in any of our other agreements or notices, including our Privacy Policy, have the following meanings:</p>
                     <ul className="list-disc pl-5 space-y-1">
-                        <li><strong>"Gymind"</strong> (or "The Platform"): Refers to the software technology, infrastructure, and application hosting provider. We provide the tools for content delivery but do not create the educational curriculum.</li>
+                        <li><strong>"Logyx"</strong> (or "The Platform"): Refers to the software technology, infrastructure, and application hosting provider. We provide the tools for content delivery but do not create the educational curriculum.</li>
                         <li><strong>"Workspace"</strong>: Refers to the content creator, educator, or entity responsible for designing courses, configuring AI mentors, and managing educational material hosted on the Platform.</li>
                         <li><strong>"Workspace"</strong>: Refers to the business customer or entity that subscribes to an Workspace's content to provide access to its members/employees.</li>
                         <li><strong>"User"</strong> (or "You"): Refers to the individual end-user accessing the Platform to consume content, complete assignments, and interact with AI tools.</li>
@@ -70,11 +70,11 @@ const LegalContent: React.FC = () => {
                     <p>{serviceName} takes no responsibility and assumes no liability for any content that you, another user, or a third party creates, uploads, posts, sends, receives, or stores on or through our services. It is your responsibility to evaluate whether User Outputs are appropriate for your use case. You acknowledge that factual assertions in User Outputs should not be relied upon without independently checking their accuracy, as they may be false, incomplete, or misleading.</p>
 
                     <h3>7. Workspace Content and Platform Neutrality</h3>
-                    <p>Gymind serves strictly as the technological infrastructure and hosting provider. We do not create, verify, endorse, or control the educational content, AI persona configurations, advice, or assignments provided within the app.</p>
+                    <p>Logyx serves strictly as the technological infrastructure and hosting provider. We do not create, verify, endorse, or control the educational content, AI persona configurations, advice, or assignments provided within the app.</p>
                     <ul className="list-disc pl-5 space-y-1">
                         <li><strong>Content Responsibility:</strong> All courses, materials, and specific AI behavior instructions are created and managed solely by the <strong>Workspace</strong>. The Workspace is solely responsible for the accuracy, legality, and safety of their content.</li>
-                        <li><strong>No Liability:</strong> Gymind is not liable for any misinformation, harmful advice, or offensive material resulting from an Workspace's configuration of the AI or their course content. Any reliance on such content is at your own risk.</li>
-                        <li><strong>Disputes & Reporting:</strong> Any disputes regarding course material, grading, or specific AI interactions should be directed to the administrator of your specific Workspace or Workspace. However, if you believe any content hosted on our platform is harmful, illegal, or violates copyright laws, please send a detailed report to <a href="mailto:support@gymind.app" className="text-blue-600 hover:underline">support@gymind.app</a> so we may investigate in accordance with our policies.</li>
+                        <li><strong>No Liability:</strong> Logyx is not liable for any misinformation, harmful advice, or offensive material resulting from an Workspace's configuration of the AI or their course content. Any reliance on such content is at your own risk.</li>
+                        <li><strong>Disputes & Reporting:</strong> Any disputes regarding course material, grading, or specific AI interactions should be directed to the administrator of your specific Workspace or Workspace. However, if you believe any content hosted on our platform is harmful, illegal, or violates copyright laws, please send a detailed report to <a href="mailto:support@logyx.co" className="text-blue-600 hover:underline">support@logyx.co</a> so we may investigate in accordance with our policies.</li>
                     </ul>
 
                     <h3>8. Third-Party Material in the Services</h3>

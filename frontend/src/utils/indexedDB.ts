@@ -1,7 +1,7 @@
 
 export const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('GymindDB', 1);
+    const request = indexedDB.open('LogyxDB', 1);
     request.onupgradeneeded = (event: any) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains('chatMessages')) {
