@@ -75,8 +75,6 @@ export const configurePassport = (passport: PassportStatic) => {
           email: email,
           profileImageUrl: profile.photos?.[0]?.value,
           status: 'pending', // Always pending until payment is complete or admin approval
-          hasSeenChatPrivacyNotice: false,
-          registrationType: isCheckoutFlow ? 'payment' : 'standard'
         };
         await newUserRef.set({ 
           ...newUserData, 
@@ -142,7 +140,6 @@ export const configurePassport = (passport: PassportStatic) => {
             email: email,
             profileImageUrl: profile.photos?.[0]?.value,
             status: 'pending',
-            hasSeenChatPrivacyNotice: false,
           };
           await newUserRef.set({ 
             ...newUserData, 

@@ -402,7 +402,6 @@ export const register = async (req: Request, res: Response) => {
             id: newUserRef.id, email, name, passwordHash,
             status: 'pending',
             profileImageUrl: '/default_user.webp',
-            registrationType: 'standard'
         };
 
         const batch = db.batch();
@@ -474,8 +473,6 @@ export const registerAcademyAdmin = async (req: Request, res: Response) => {
             passwordHash,
             status: 'pending', // Change status to 'pending' for verification
             profileImageUrl: '/default_user.webp',
-            hasSeenChatPrivacyNotice: false,
-            registrationType: 'standard'
         };
         await newUserRef.set({ ...newUser, createdAt: new Date() });
 
@@ -852,11 +849,6 @@ export const googleCallback = async (req: Request, res: Response) => {
         const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedQuery.docs[0])!;
         const organizationId = preapprovedData.organizationId;
         
-        const limitCheck = await checkOrganizationUserLimit(organizationId);
-        if (limitCheck.limitExceeded) {
-            return res.redirect(`${env.FRONTEND_URL}/login?google_auth_failed=true&error_message=${encodeURIComponent(limitCheck.message)}`);
-        }
-
         const batch = db.batch();
 
         // Look up orgId from the org for denormalization
@@ -996,15 +988,14 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                 profileImageUrl: picture,
                 status: 'active',
                 emailVerified: true,
-                registrationType: 'standard',
             };
-            
+
             const batch = db.batch();
-            batch.set(newUserRef, { 
-                ...newUserData, 
-                createdAt: admin.firestore.FieldValue.serverTimestamp() 
+            batch.set(newUserRef, {
+                ...newUserData,
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
-            
+
             // Look up orgId from the org for denormalization
             const orgDocForAcademy = await organizationsCollection.doc(organizationId).get();
             const orgAcademyId = orgDocForAcademy.exists ? orgDocForAcademy.data()?.orgId || '' : '';
@@ -1156,9 +1147,8 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                 email: email,
                 status: 'active',
                 emailVerified: true,
-                registrationType: 'standard'
             };
-            
+
             // Look up orgId from the org for denormalization
             const orgDocForAcademy = await organizationsCollection.doc(organizationId).get();
             const msOrgAcademyId = orgDocForAcademy.exists ? orgDocForAcademy.data()?.orgId || '' : '';

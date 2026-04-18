@@ -53,8 +53,6 @@ export const createOrganization = async (req: Request, res: Response) => {
             id: newDocRef.id,
             name: sanitizeText(name),
             orgId: targetAcademyId,
-            subscriptionProvider: 'manual',
-            subscriptionStatus: 'incomplete',
             status: 'active',
         };
         const timestamp = admin.firestore.FieldValue.serverTimestamp();
@@ -234,7 +232,6 @@ export const addOrganizationManager = async (req: Request, res: Response) => {
                 email: email.toLowerCase(),
                 name: email.split('@')[0],
                 status: 'pending',
-                hasSeenChatPrivacyNotice: false,
             };
             await newUserRef.set({ ...newAdminUser, createdAt: new Date() });
             await addManagerRole(newAdminUser.id);

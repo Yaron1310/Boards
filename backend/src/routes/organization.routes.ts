@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import * as orgController from '../controllers/workspace.controller.js';
+import * as orgController from '../controllers/organization.controller.js';
 import { requireRole } from '../middleware/auth.middleware.js';
 import { UserRole } from '../types/index.js';
 

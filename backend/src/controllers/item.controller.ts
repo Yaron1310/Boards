@@ -461,7 +461,6 @@ export const reorderItems = async (req: Request, res: Response) => {
 
     await batch.commit();
 
-    const firstItem = snapshotToData<DBItem>(fetchResults[0]);
     if (firstItem) touchBoardVersion(user.orgId, firstItem.boardId);
 
     res.json({ message: 'Items reordered.' });

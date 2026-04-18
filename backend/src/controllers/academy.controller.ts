@@ -176,7 +176,6 @@ export const addAcademyAdmin = async (req: Request, res: Response) => {
                 email: email.toLowerCase(),
                 name: email.split('@')[0],
                 status: 'pending',
-                hasSeenChatPrivacyNotice: false,
             };
             await newUserRef.set({ ...newAdminUser, createdAt: new Date() });
             await addAdminRole(newAdminUser.id, newAdminUser.email, newAdminUser.name);

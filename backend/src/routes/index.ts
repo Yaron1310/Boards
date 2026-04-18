@@ -5,8 +5,8 @@ import { authenticateToken } from '../middleware/auth.middleware.js';
 import { authenticatedLimiter } from '../middleware/rateLimit.middleware.js';
 
 import { authRouter } from './auth.routes.js';
-import { organizationRouter } from './workspace.routes.js';
-import { academyRouter } from './workspace.routes.js';
+import { organizationRouter } from './organization.routes.js';
+import { academyRouter } from './academy.routes.js';
 import { userRouter } from './user.routes.js';
 import { appConfigRouter } from './appConfig.routes.js';
 import { provisionRouter } from './provision.routes.js';

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import * as academyController from '../controllers/workspace.controller.js';
+import * as academyController from '../controllers/academy.controller.js';
 import { requireRole } from '../middleware/auth.middleware.js';
 import { authenticateToken, authenticatePartialToken } from '../middleware/auth.middleware.js';
 import { UserRole } from '../types/index.js';
