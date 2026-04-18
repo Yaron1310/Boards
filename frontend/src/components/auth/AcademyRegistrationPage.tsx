@@ -10,7 +10,7 @@ import { BACKEND_API_URL } from '../../constants';
 import { useTranslation } from 'react-i18next';
 import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 
-const AcademyRegistrationPage: React.FC = () => {
+const OrganizationRegistrationPage: React.FC = () => {
   const { i18n } = useTranslation();
   const t = i18n.getFixedT('en');
   useForceDocumentLang();
@@ -29,7 +29,7 @@ const AcademyRegistrationPage: React.FC = () => {
   const [registrationState, setRegistrationState] = useState<'form' | 'pending'>('form');
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
-  const { registerAcademyAdmin, loading: authLoading, authError, clearAuthError, user } = useAuth();
+  const { registerOrganizationAdmin, loading: authLoading, authError, clearAuthError, user } = useAuth();
   const { executeRecaptcha } = useRecaptcha();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -90,8 +90,8 @@ const AcademyRegistrationPage: React.FC = () => {
         return;
     }
 
-    const recaptchaToken = await executeRecaptcha('register_academy_admin');
-    const result = await registerAcademyAdmin({ name, email, password }, planId, recaptchaToken);
+    const recaptchaToken = await executeRecaptcha('register_organization_admin');
+    const result = await registerOrganizationAdmin({ name, email, password }, planId, recaptchaToken);
     if (result.success) {
         setPendingMessage(result.message);
         setRegistrationState('pending');
@@ -155,7 +155,7 @@ const AcademyRegistrationPage: React.FC = () => {
 
         {/* Right Section: Form */}
         <div className="md:w-1/2 p-8 md:p-12 flex flex-col justify-center">
-            <h2 className="text-2xl font-bold text-gray-800 text-center mb-2">{t('auth.createYourAcademy')}</h2>
+            <h2 className="text-2xl font-bold text-gray-800 text-center mb-2">{t('auth.createYourOrganization')}</h2>
             <p className="text-gray-600 text-center mb-6">{t('auth.setUpAdminAccount')}</p>
 
           {displayError && (
@@ -168,18 +168,18 @@ const AcademyRegistrationPage: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             <p className="text-xs text-gray-500">{t('common.mandatoryFields')}</p>
             <div>
-              <label htmlFor="name_reg_academy" className="block text-sm font-medium text-gray-700">{t('common.fullName')} <span aria-hidden="true">*</span></label>
-              <input id="name_reg_academy" type="text" value={name} onChange={(e) => setName(e.target.value)} required aria-required="true" aria-describedby={displayError ? "workspace-reg-form-error" : undefined} className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('common.fullNamePlaceholder')}/>
+              <label htmlFor="name_reg_organization" className="block text-sm font-medium text-gray-700">{t('common.fullName')} <span aria-hidden="true">*</span></label>
+              <input id="name_reg_organization" type="text" value={name} onChange={(e) => setName(e.target.value)} required aria-required="true" aria-describedby={displayError ? "workspace-reg-form-error" : undefined} className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('common.fullNamePlaceholder')}/>
             </div>
             <div>
-              <label htmlFor="email_reg_academy" className="block text-sm font-medium text-gray-700">{t('common.emailAddress')} <span aria-hidden="true">*</span></label>
-              <input id="email_reg_academy" type="email" value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} required aria-required="true" aria-describedby={displayError ? "workspace-reg-form-error" : undefined} className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('common.emailPlaceholder')}/>
+              <label htmlFor="email_reg_organization" className="block text-sm font-medium text-gray-700">{t('common.emailAddress')} <span aria-hidden="true">*</span></label>
+              <input id="email_reg_organization" type="email" value={email} onChange={(e) => setEmail(e.target.value.toLowerCase())} required aria-required="true" aria-describedby={displayError ? "workspace-reg-form-error" : undefined} className="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder={t('common.emailPlaceholder')}/>
             </div>
 
             <div>
-              <label htmlFor="password_reg_academy" className="block text-sm font-medium text-gray-700">{t('common.password')} <span aria-hidden="true">*</span></label>
+              <label htmlFor="password_reg_organization" className="block text-sm font-medium text-gray-700">{t('common.password')} <span aria-hidden="true">*</span></label>
                <div className="mt-1 relative">
-                  <input id="password_reg_academy" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required aria-required="true" aria-describedby={displayError ? "workspace-reg-form-error" : undefined} className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••"/>
+                  <input id="password_reg_organization" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required aria-required="true" aria-describedby={displayError ? "workspace-reg-form-error" : undefined} className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••"/>
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500" aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}>
                       {showPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
                   </button>
@@ -187,9 +187,9 @@ const AcademyRegistrationPage: React.FC = () => {
               <p className="mt-1 text-xs text-gray-500">{t('auth.passwordHint')}</p>
             </div>
             <div>
-              <label htmlFor="confirmPassword_reg_academy" className="block text-sm font-medium text-gray-700">{t('common.confirmPassword')} <span aria-hidden="true">*</span></label>
+              <label htmlFor="confirmPassword_reg_organization" className="block text-sm font-medium text-gray-700">{t('common.confirmPassword')} <span aria-hidden="true">*</span></label>
               <div className="mt-1 relative">
-                  <input id="confirmPassword_reg_academy" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required aria-required="true" aria-describedby={displayError ? "workspace-reg-form-error" : undefined} className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••"/>
+                  <input id="confirmPassword_reg_organization" type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required aria-required="true" aria-describedby={displayError ? "workspace-reg-form-error" : undefined} className="block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="••••••••"/>
                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500" aria-label={showConfirmPassword ? t('common.hideConfirmPassword') : t('common.showConfirmPassword')}>
                       {showConfirmPassword ? <FiEyeOff size={20} /> : <FiEye size={20} />}
                   </button>
@@ -210,7 +210,7 @@ const AcademyRegistrationPage: React.FC = () => {
             <div>
               <button type="submit" disabled={authLoading} className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-70">
                 {authLoading ? <FiLoader className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" /> : <FiMail className="mr-2 h-5 w-5" /> }
-                {authLoading ? t('auth.creatingAccount') : t('auth.createAcademyAdmin')}
+                {authLoading ? t('auth.creatingAccount') : t('auth.createOrganizationAdmin')}
               </button>
             </div>
           </form>
@@ -282,4 +282,4 @@ const AcademyRegistrationPage: React.FC = () => {
   );
 };
 
-export default AcademyRegistrationPage;
+export default OrganizationRegistrationPage;

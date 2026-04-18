@@ -16,8 +16,8 @@ const BoardListPage: React.FC = () => {
   const { data: boards = [], isLoading, error } = useBoards(workspaceId, includeArchived, !!workspaceId);
 
   const canManageBoards =
+    user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
-    user?.role === UserRole.ACADEMY_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN;
 
   if (isLoading) {

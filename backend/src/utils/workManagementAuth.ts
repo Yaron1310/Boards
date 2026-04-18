@@ -17,8 +17,8 @@ import { boardsCollection, groupsCollection } from '../db/collections.js';
 
 const ROLE_LEVEL: Record<UserRole, number> = {
   [UserRole.REGULAR_USER]: 0,
-  [UserRole.ORGANIZATION_ADMIN]: 1,
-  [UserRole.ACADEMY_ADMIN]: 2,
+  [UserRole.WORKSPACE_ADMIN]: 1,
+  [UserRole.ORGANIZATION_ADMIN]: 2,
   [UserRole.SYSTEM_ADMIN]: 3,
 };
 
@@ -47,8 +47,8 @@ function boardRoleAtLeast(effective: BoardRole | 'full_access' | null, min: Boar
 /**
  * Merges workspace role and explicit board membership into a single effective role.
  *
- * - SYSTEM_ADMIN / ACADEMY_ADMIN → full_access (bypasses board restrictions)
- * - ORGANIZATION_ADMIN in own workspace → full_access
+ * - SYSTEM_ADMIN / ORGANIZATION_ADMIN → full_access (bypasses board restrictions)
+ * - WORKSPACE_ADMIN in own workspace → full_access
  * - Board creator → ADMIN
  * - Explicit board member → member.role
  * - Everyone else → null (no access)
@@ -59,10 +59,10 @@ export function effectiveBoardRole(
   member: DBBoardMember | null,
 ): BoardRole | 'full_access' | null {
   if (user.role === UserRole.SYSTEM_ADMIN) return 'full_access';
-  if (isAtLeast(user.role, UserRole.ACADEMY_ADMIN)) return 'full_access';
+  if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) return 'full_access';
   if (
-    user.role === UserRole.ORGANIZATION_ADMIN &&
-    user.selectedOrganizationId === board.workspaceId
+    user.role === UserRole.WORKSPACE_ADMIN &&
+    user.selectedWorkspaceId === board.workspaceId
   ) return 'full_access';
   if (board.createdBy === user.id) return BoardRole.ADMIN;
   return member?.role ?? null;
@@ -77,10 +77,10 @@ export function effectiveBoardRole(
  *
  * Rules (Phase 9A — board-role aware):
  *   read   — effectiveBoardRole >= viewer (or full_access)
- *   create — ORGANIZATION_ADMIN+ in their workspace (pre-membership; no board exists yet)
+ *   create — WORKSPACE_ADMIN+ in their workspace (pre-membership; no board exists yet)
  *   update — effectiveBoardRole = admin (or full_access)
  *   archive— effectiveBoardRole = admin (or full_access)
- *   delete — full_access only (ACADEMY_ADMIN+ or SYSTEM_ADMIN)
+ *   delete — full_access only (ORGANIZATION_ADMIN+ or SYSTEM_ADMIN)
  *
  * The `member` parameter defaults to null (backwards-compatible with Phase 5/6 callers).
  */
@@ -92,7 +92,7 @@ export function canAccessBoard(
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
-  if (user.orgId !== board.organizationId) return false;
+  if (user.orgId !== board.workspaceId) return false;
 
   const effective = effectiveBoardRole(user, board, member);
 
@@ -103,8 +103,8 @@ export function canAccessBoard(
     case 'create':
       // Creating a board has no prior membership; keep workspace-admin gate
       return (
-        isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN) &&
-        user.selectedOrganizationId === board.workspaceId
+        isAtLeast(user.role, UserRole.WORKSPACE_ADMIN) &&
+        user.selectedWorkspaceId === board.workspaceId
       );
 
     case 'update':
@@ -145,8 +145,8 @@ export function assertBoardAccess(
  *
  * Rules (Phase 9A — board-role aware):
  *   read   — any org member OR board member with viewer+
- *   create/update — ORGANIZATION_ADMIN+ OR board creator OR board member with editor+
- *   delete — ORGANIZATION_ADMIN+ OR board member with admin
+ *   create/update — WORKSPACE_ADMIN+ OR board creator OR board member with editor+
+ *   delete — WORKSPACE_ADMIN+ OR board member with admin
  *
  * `member` defaults to null (backwards-compatible).
  */
@@ -159,9 +159,9 @@ export function canAccessGroup(
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
-  if (user.orgId !== group.organizationId) return false;
+  if (user.orgId !== group.workspaceId) return false;
 
-  const isOrgAdmin = isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN);
+  const isOrgAdmin = isAtLeast(user.role, UserRole.WORKSPACE_ADMIN);
   const isBoardCreator = boardCreatedBy !== undefined && boardCreatedBy === user.id;
   const boardMemberRole = member?.role ?? null;
 
@@ -216,7 +216,7 @@ export function assertGroupAccess(
  *   delete — effectiveBoardRole = admin
  *
  * Effective role computed without board.createdBy (not available here); board
- * creators are always ORGANIZATION_ADMIN+ and receive full_access that way.
+ * creators are always WORKSPACE_ADMIN+ and receive full_access that way.
  *
  * `member` defaults to null (backwards-compatible).
  */
@@ -228,16 +228,16 @@ export function canAccessItem(
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
-  const isOrgMember = user.orgId === item.organizationId;
+  const isOrgMember = user.orgId === item.workspaceId;
   const isAssignee = Array.isArray(item.assignees) && item.assignees.includes(user.id);
   const isCreator = item.createdBy === user.id;
-  const isWorkspaceMember = isOrgMember && user.selectedOrganizationId === item.workspaceId;
+  const isWorkspaceMember = isOrgMember && user.selectedWorkspaceId === item.workspaceId;
 
   // Compute effective board role (simplified — no board.createdBy available)
   let effective: BoardRole | 'full_access' | null = null;
-  if (isAtLeast(user.role, UserRole.ACADEMY_ADMIN)) {
+  if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) {
     effective = 'full_access';
-  } else if (user.role === UserRole.ORGANIZATION_ADMIN && isWorkspaceMember) {
+  } else if (user.role === UserRole.WORKSPACE_ADMIN && isWorkspaceMember) {
     effective = 'full_access';
   } else {
     effective = member?.role ?? null;
@@ -287,7 +287,7 @@ export function assertItemAccess(
  *
  * Rules (Phase 9A — board-role aware):
  *   read   — any org member.
- *   create/update/delete — ORGANIZATION_ADMIN+ OR board member with editor+
+ *   create/update/delete — WORKSPACE_ADMIN+ OR board member with editor+
  *
  * Columns are org-level; `member` allows editors to manage columns when passed.
  * `member` defaults to null (backwards-compatible).
@@ -300,7 +300,7 @@ export function canAccessColumn(
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
-  if (user.orgId !== column.organizationId) return false;
+  if (user.orgId !== column.workspaceId) return false;
 
   switch (op) {
     case 'read':
@@ -310,7 +310,7 @@ export function canAccessColumn(
     case 'update':
     case 'delete':
       return (
-        isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN) ||
+        isAtLeast(user.role, UserRole.WORKSPACE_ADMIN) ||
         boardRoleAtLeast(member?.role ?? null, BoardRole.EDITOR)
       );
 
@@ -343,23 +343,23 @@ export interface OwnershipChainResult {
 
 /**
  * Verifies the full ownership chain for an item write:
- *   1. boardId exists under boardsCollection(organizationId)
- *   2. groupId exists under groupsCollection(organizationId, boardId)
+ *   1. boardId exists under boardsCollection(workspaceId)
+ *   2. groupId exists under groupsCollection(workspaceId, boardId)
  *   3. board.workspaceId matches the provided workspaceId
  *
  * Prevents cross-tenant and cross-workspace item injection.
  * Call this before creating or updating an item.
  */
 export async function validateItemOwnershipChain(
-  organizationId: string,
+  workspaceId: string,
   workspaceId: string,
   boardId: string,
   groupId: string,
 ): Promise<OwnershipChainResult> {
   // 1. Board must exist under this org
-  const boardDoc = await boardsCollection(organizationId).doc(boardId).get();
+  const boardDoc = await boardsCollection(workspaceId).doc(boardId).get();
   if (!boardDoc.exists) {
-    return { valid: false, error: `Board "${boardId}" not found in this organization.` };
+    return { valid: false, error: `Board "${boardId}" not found in this workspace.` };
   }
 
   const boardData = boardDoc.data()!;
@@ -373,7 +373,7 @@ export async function validateItemOwnershipChain(
   }
 
   // 3. Group must exist under this board
-  const groupDoc = await groupsCollection(organizationId, boardId).doc(groupId).get();
+  const groupDoc = await groupsCollection(workspaceId, boardId).doc(groupId).get();
   if (!groupDoc.exists) {
     return {
       valid: false,
@@ -385,16 +385,16 @@ export async function validateItemOwnershipChain(
 }
 
 /**
- * Verifies that a group's boardId is valid within the organization.
+ * Verifies that a group's boardId is valid within the workspace.
  * Call this before creating or updating a group.
  */
 export async function validateGroupOwnershipChain(
-  organizationId: string,
+  workspaceId: string,
   boardId: string,
 ): Promise<{ valid: boolean; error?: string }> {
-  const boardDoc = await boardsCollection(organizationId).doc(boardId).get();
+  const boardDoc = await boardsCollection(workspaceId).doc(boardId).get();
   if (!boardDoc.exists) {
-    return { valid: false, error: `Board "${boardId}" not found in this organization.` };
+    return { valid: false, error: `Board "${boardId}" not found in this workspace.` };
   }
   return { valid: true };
 }

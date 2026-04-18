@@ -5,33 +5,33 @@ import bcrypt from 'bcryptjs';
 import { db } from '../services/firestore.service.js';
 import {
     academiesCollection,
-    academySettingsCollection,
-    organizationsCollection,
+    organizationSettingsCollection,
+    workspacesCollection,
     usersCollection,
     systemSettingsCollection,
     membershipsCollection,
 } from './collections.js';
-import { DBAcademy, DBOrganization, DBUser, UserRole, DBAcademySettings, DBMembership } from '../types/index.js';
+import { DBOrganization, DBWorkspace, DBUser, UserRole, DBOrganizationSettings, DBMembership } from '../types/index.js';
 
 export const seedDefaultData = async () => {
   const batch = db.batch();
 
   // --- 1. Seed Default Workspace ---
   let orgId: string;
-  const academyDocRef = academiesCollection.doc('default_academy');
-  const academyDoc = await academyDocRef.get();
+  const organizationDocRef = academiesCollection.doc('default_organization');
+  const organizationDoc = await organizationDocRef.get();
 
-  if (!academyDoc.exists) {
+  if (!organizationDoc.exists) {
     logger.info('Seeding initial Default Workspace...');
-    const defaultAcademy: DBAcademy = {
-      id: academyDocRef.id,
+    const defaultOrganization: DBOrganization = {
+      id: organizationDocRef.id,
       name: 'Default Workspace',
       createdAt: new Date(),
     };
-    batch.set(academyDocRef, defaultAcademy);
-    orgId = defaultAcademy.id;
+    batch.set(organizationDocRef, defaultOrganization);
+    orgId = defaultOrganization.id;
   } else {
-    orgId = academyDoc.id;
+    orgId = organizationDoc.id;
   }
 
   // --- 2. Seed Default System Settings ---
@@ -43,11 +43,11 @@ export const seedDefaultData = async () => {
   }
 
   // --- 3. Seed Default Workspace Settings (Theme) ---
-  const settingsDocRef = academySettingsCollection.doc(orgId);
-  const academySettingsDoc = await settingsDocRef.get();
-  if (!academySettingsDoc.exists) {
+  const settingsDocRef = organizationSettingsCollection.doc(orgId);
+  const organizationSettingsDoc = await settingsDocRef.get();
+  if (!organizationSettingsDoc.exists) {
     logger.info(`Seeding initial settings for Workspace ID: ${orgId}`);
-    const defaultSettings: Omit<DBAcademySettings, 'updatedAt'> = {
+    const defaultSettings: Omit<DBOrganizationSettings, 'updatedAt'> = {
       id: orgId,
       sidebarColor: '#004e89',
       enableSidebarGradient: true,
@@ -62,23 +62,23 @@ export const seedDefaultData = async () => {
   }
 
   // --- 4. Seed Default Workspace ---
-  let defaultOrganizationId: string;
-  const orgDocRef = organizationsCollection.doc('default_org');
+  let defaultWorkspaceId: string;
+  const orgDocRef = workspacesCollection.doc('default_org');
   const orgDoc = await orgDocRef.get();
 
   if (!orgDoc.exists) {
     logger.info(`Seeding initial default workspace for Workspace ID: ${orgId}`);
-    const defaultOrganization: DBOrganization = {
+    const defaultWorkspace: DBWorkspace = {
       id: orgDocRef.id,
       name: 'Default Workspace',
       orgId: orgId,
       createdAt: new Date(),
       status: 'active',
     };
-    batch.set(orgDocRef, defaultOrganization);
-    defaultOrganizationId = defaultOrganization.id;
+    batch.set(orgDocRef, defaultWorkspace);
+    defaultWorkspaceId = defaultWorkspace.id;
   } else {
-    defaultOrganizationId = orgDoc.id;
+    defaultWorkspaceId = orgDoc.id;
   }
 
   // --- 5. Seed System Admin User ---
@@ -93,8 +93,8 @@ export const seedDefaultData = async () => {
       passwordHash: await bcrypt.hash('password', 10),
       status: 'active',
       profileImageUrl: '/default_user.webp',
-      primaryAcademyId: orgId,
-      defaultOrganizationId: defaultOrganizationId,
+      primaryOrganizationId: orgId,
+      defaultWorkspaceId: defaultWorkspaceId,
     };
     const adminDocData = { ...systemAdmin, createdAt: admin.firestore.Timestamp.now() };
     batch.set(adminDocRef, adminDocData);
@@ -103,7 +103,7 @@ export const seedDefaultData = async () => {
     const adminMembership: DBMembership = {
       id: membershipRef.id,
       userId: systemAdmin.id,
-      entityId: defaultOrganizationId,
+      entityId: defaultWorkspaceId,
       entityType: 'workspace',
       role: UserRole.SYSTEM_ADMIN,
       orgId,

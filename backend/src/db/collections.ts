@@ -2,9 +2,9 @@
 import { db } from '../services/firestore.service.js';
 
 export const usersCollection = db.collection('users');
-export const organizationsCollection = db.collection('workspaces');
+export const workspacesCollection = db.collection('workspaces');
 export const academiesCollection = db.collection('workspaces');
-export const academySettingsCollection = db.collection('academySettings');
+export const organizationSettingsCollection = db.collection('organizationSettings');
 export const preapprovedUsersCollection = db.collection('preapprovedUsers');
 export const systemSettingsCollection = db.collection('systemSettings');
 export const userAccessStatusCollection = db.collection('userAccessStatus');
@@ -13,35 +13,35 @@ export const emailTemplatesCollection = db.collection('emailTemplates');
 export const auditLogsCollection = db.collection('auditLogs');
 
 // --- PHASE 4: Work Management Collections ---
-// Boards: /workspaces/{organizationId}/boards/{boardId}
-export const boardsCollection = (organizationId: string) =>
-  db.collection('workspaces').doc(organizationId).collection('boards');
+// Boards: /workspaces/{workspaceId}/boards/{boardId}
+export const boardsCollection = (workspaceId: string) =>
+  db.collection('workspaces').doc(workspaceId).collection('boards');
 
-// Groups: /workspaces/{organizationId}/boards/{boardId}/groups/{groupId}
-export const groupsCollection = (organizationId: string, boardId: string) =>
-  boardsCollection(organizationId).doc(boardId).collection('groups');
+// Groups: /workspaces/{workspaceId}/boards/{boardId}/groups/{groupId}
+export const groupsCollection = (workspaceId: string, boardId: string) =>
+  boardsCollection(workspaceId).doc(boardId).collection('groups');
 
 // Items (flat, org-level for cross-board dashboards):
-// /workspaces/{organizationId}/items/{itemId}
-export const itemsCollection = (organizationId: string) =>
-  db.collection('workspaces').doc(organizationId).collection('items');
+// /workspaces/{workspaceId}/items/{itemId}
+export const itemsCollection = (workspaceId: string) =>
+  db.collection('workspaces').doc(workspaceId).collection('items');
 
-// Column definitions (global to organization):
-// /workspaces/{organizationId}/columns/{columnId}
-export const columnsCollection = (organizationId: string) =>
-  db.collection('workspaces').doc(organizationId).collection('columns');
+// Column definitions (global to workspace):
+// /workspaces/{workspaceId}/columns/{columnId}
+export const columnsCollection = (workspaceId: string) =>
+  db.collection('workspaces').doc(workspaceId).collection('columns');
 
 // Board version stamps (one doc per board, touched on every item/group mutation):
-// /workspaces/{organizationId}/boardVersions/{boardId}
-export const boardVersionsCollection = (organizationId: string) =>
-  db.collection('workspaces').doc(organizationId).collection('boardVersions');
+// /workspaces/{workspaceId}/boardVersions/{boardId}
+export const boardVersionsCollection = (workspaceId: string) =>
+  db.collection('workspaces').doc(workspaceId).collection('boardVersions');
 
 // Board members subcollection (Phase 9):
-// /workspaces/{organizationId}/boards/{boardId}/members/{userId}
-export const boardMembersCollection = (organizationId: string, boardId: string) =>
-  boardsCollection(organizationId).doc(boardId).collection('members');
+// /workspaces/{workspaceId}/boards/{boardId}/members/{userId}
+export const boardMembersCollection = (workspaceId: string, boardId: string) =>
+  boardsCollection(workspaceId).doc(boardId).collection('members');
 
 // Notifications (Phase 9):
-// /workspaces/{organizationId}/notifications/{notificationId}
-export const notificationsCollection = (organizationId: string) =>
-  db.collection('workspaces').doc(organizationId).collection('notifications');
+// /workspaces/{workspaceId}/notifications/{notificationId}
+export const notificationsCollection = (workspaceId: string) =>
+  db.collection('workspaces').doc(workspaceId).collection('notifications');

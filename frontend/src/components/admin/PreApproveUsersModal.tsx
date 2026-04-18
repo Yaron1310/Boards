@@ -68,7 +68,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
 
     const orgPreApprovedUsers = useMemo(() => {
         if (!workspace) return [];
-        const filtered = preApprovedUsers.filter(paUser => paUser.organizationId === workspace.id);
+        const filtered = preApprovedUsers.filter(paUser => paUser.workspaceId === workspace.id);
         console.log('%c[DEBUG] PreApproveUsersModal: Filtered list for this org:', 'color: purple;', { orgId: workspace.id, count: filtered.length, data: filtered });
         return filtered;
     }, [preApprovedUsers, workspace]);

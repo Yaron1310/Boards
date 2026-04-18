@@ -123,7 +123,7 @@ export const sendAccountVerificationEmail = async (
     userEmail: string,
     userName: string,
     verificationLink: string,
-    academyName: string,
+    organizationName: string,
     inviteRole?: 'org_admin' | 'org_manager',
     orgName?: string
 ) => {
@@ -140,19 +140,19 @@ export const sendAccountVerificationEmail = async (
     let vars: Record<string, string>;
 
     if (inviteRole === 'org_admin') {
-        templateId = 'invite_academy_admin';
-        vars = { userName, academyName, verificationLink };
+        templateId = 'invite_organization_admin';
+        vars = { userName, organizationName, verificationLink };
     } else if (inviteRole === 'org_manager') {
         templateId = 'invite_org_manager';
-        vars = { userName, entityName: orgName || academyName, verificationLink };
+        vars = { userName, entityName: orgName || organizationName, verificationLink };
     } else {
         templateId = 'email_verification';
-        vars = { userName, academyName, verificationLink };
+        vars = { userName, organizationName, verificationLink };
     }
 
     const tpl = await fetchTemplate(templateId);
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : buildFallbackVerificationSubject(inviteRole, academyName, orgName);
-    const html = tpl ? renderTemplate(tpl.html, vars) : buildFallbackVerificationHtml(userName, inviteRole, academyName, orgName, verificationLink);
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : buildFallbackVerificationSubject(inviteRole, organizationName, orgName);
+    const html = tpl ? renderTemplate(tpl.html, vars) : buildFallbackVerificationHtml(userName, inviteRole, organizationName, orgName, verificationLink);
 
     try {
         await transporter!.sendMail({
@@ -170,22 +170,22 @@ export const sendAccountVerificationEmail = async (
     }
 };
 
-const buildFallbackVerificationSubject = (inviteRole?: string, academyName?: string, orgName?: string): string => {
-    if (inviteRole === 'org_admin') return `You've been invited as an Workspace Admin for ${academyName}`;
-    if (inviteRole === 'org_manager') return `You've been invited as an Workspace Manager for ${orgName || academyName}`;
-    return `Verify Your Email for ${academyName}`;
+const buildFallbackVerificationSubject = (inviteRole?: string, organizationName?: string, orgName?: string): string => {
+    if (inviteRole === 'org_admin') return `You've been invited as an Workspace Admin for ${organizationName}`;
+    if (inviteRole === 'org_manager') return `You've been invited as an Workspace Manager for ${orgName || organizationName}`;
+    return `Verify Your Email for ${organizationName}`;
 };
 
 const buildFallbackVerificationHtml = (
-    userName: string, inviteRole?: string, academyName?: string, orgName?: string, verificationLink?: string
+    userName: string, inviteRole?: string, organizationName?: string, orgName?: string, verificationLink?: string
 ): string => {
     let introLine: string;
     let ignoreNote: string;
     if (inviteRole === 'org_admin') {
-        introLine = `You've been invited to join <strong>${academyName}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+        introLine = `You've been invited to join <strong>${organizationName}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else if (inviteRole === 'org_manager') {
-        const entityName = orgName || academyName;
+        const entityName = orgName || organizationName;
         introLine = `You've been invited to join <strong>${entityName}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else {
@@ -275,7 +275,7 @@ export const sendPasswordResetEmail = async (
     userEmail: string,
     userName: string,
     resetLink: string,
-    academyName: string
+    organizationName: string
 ) => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
@@ -285,10 +285,10 @@ export const sendPasswordResetEmail = async (
 
     const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
     const fromEmail = process.env.SMTP_USER!;
-    const vars = { userName, academyName, resetLink };
+    const vars = { userName, organizationName, resetLink };
 
     const tpl = await fetchTemplate('password_reset');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Reset Your Password for ${academyName}`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Reset Your Password for ${organizationName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
         : `<p>Hello ${userName},</p><p>We received a request to reset your password. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p><p><a href="${resetLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p><p>If you did not request a password reset, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
@@ -313,12 +313,12 @@ export const sendPasswordResetEmail = async (
 
 export const sendUsageNotificationEmail = async (
     adminEmails: string[],
-    academyName: string,
+    organizationName: string,
     usagePercentage: number
 ) => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
-        logger.error(`Could not send usage notification for ${academyName} because email service is not initialized.`);
+        logger.error(`Could not send usage notification for ${organizationName} because email service is not initialized.`);
         return { success: false, error: 'Email service not available' };
     }
     if (adminEmails.length === 0) {
@@ -328,13 +328,13 @@ export const sendUsageNotificationEmail = async (
     const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
     const fromEmail = process.env.SMTP_USER!;
     const warningLevel = usagePercentage >= 95 ? 'critical' : 'high';
-    const vars = { academyName, usagePercentage: String(usagePercentage), warningLevel };
+    const vars = { organizationName, usagePercentage: String(usagePercentage), warningLevel };
 
     const tpl = await fetchTemplate('usage_alert');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Usage Alert for ${academyName}`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Usage Alert for ${organizationName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>This is a notification that your workspace, <strong>${academyName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>This is a notification that your workspace, <strong>${organizationName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Gymind Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -342,12 +342,12 @@ export const sendUsageNotificationEmail = async (
             to: adminEmails.join(','),
             subject,
             html,
-            text: `Your workspace, ${academyName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
+            text: `Your workspace, ${organizationName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
         });
-        logger.info(`Usage notification email sent successfully to admins of ${academyName}`);
+        logger.info(`Usage notification email sent successfully to admins of ${organizationName}`);
         return { success: true };
     } catch (error) {
-        logger.error(`Failed to send usage notification email for ${academyName}`, error);
+        logger.error(`Failed to send usage notification email for ${organizationName}`, error);
         return { success: false, error };
     }
 };
@@ -428,7 +428,7 @@ export const sendNewsletterEmail = async (
     to: string,
     subject: string,
     htmlContent: string,
-    academyName: string
+    organizationName: string
 ): Promise<{ success: boolean; error?: any }> => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
@@ -436,11 +436,11 @@ export const sendNewsletterEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || academyName;
+    const fromName = process.env.SMTP_FROM_NAME || organizationName;
     const fromEmail = process.env.SMTP_USER!;
 
     try {
-        await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to, subject, html: htmlContent, text: `Newsletter from ${academyName}: ${subject}` });
+        await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to, subject, html: htmlContent, text: `Newsletter from ${organizationName}: ${subject}` });
         return { success: true };
     } catch (error) {
         logger.error(`Failed to send newsletter email to ${to}`, error);
@@ -461,7 +461,7 @@ export const retryEmailServiceInitialization = () => {
 export const sendWoocommerceWelcomeEmail = async (
     userEmail: string,
     userName: string,
-    academyName: string,
+    organizationName: string,
     isNewUser: boolean
 ) => {
     await ensureTransporter();
@@ -479,7 +479,7 @@ export const sendWoocommerceWelcomeEmail = async (
     const templateId = isNewUser ? 'woocommerce_welcome_new' : 'woocommerce_welcome_existing';
     const vars: Record<string, string> = {
         userName,
-        academyName,
+        organizationName,
         currentYear: String(new Date().getFullYear()),
         ...(isNewUser
             ? { registrationLink: `${frontendUrl}/register`, userEmail }
@@ -487,10 +487,10 @@ export const sendWoocommerceWelcomeEmail = async (
     };
 
     const tpl = await fetchTemplate(templateId);
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to ${academyName} — Get Started Now`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to ${organizationName} — Get Started Now`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : buildFallbackWoocommerceHtml(userName, academyName, frontendUrl, isNewUser, userEmail, hasLogo);
+        : buildFallbackWoocommerceHtml(userName, organizationName, frontendUrl, isNewUser, userEmail, hasLogo);
 
     try {
         const mailOptions: nodemailer.SendMailOptions = {
@@ -515,7 +515,7 @@ export const sendWoocommerceWelcomeEmail = async (
 };
 
 const buildFallbackWoocommerceHtml = (
-    userName: string, academyName: string, frontendUrl: string, isNewUser: boolean, userEmail: string, hasLogo: boolean
+    userName: string, organizationName: string, frontendUrl: string, isNewUser: boolean, userEmail: string, hasLogo: boolean
 ): string => {
     const actionUrl = isNewUser ? `${frontendUrl}/register` : `${frontendUrl}/login`;
     const buttonLabel = isNewUser ? 'Complete Your Registration' : 'Log In to Your Account';
@@ -534,14 +534,14 @@ const buildFallbackWoocommerceHtml = (
     .button{background-color:#2563eb;color:#ffffff!important;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block}
     </style></head><body><div class="container">
     <div class="header"><span class="welcome-text">Welcome to</span>
-    ${hasLogo ? '<img src="cid:logo" alt="Gymind Logo" class="logo">' : `<span class="welcome-text" style="color:#2563eb;">${academyName}</span>`}</div>
+    ${hasLogo ? '<img src="cid:logo" alt="Gymind Logo" class="logo">' : `<span class="welcome-text" style="color:#2563eb;">${organizationName}</span>`}</div>
     <div class="content"><p>Hello ${userName},</p>
-    <p>Thank you for your purchase! We're thrilled to have you join <strong>${academyName}</strong>.</p>
+    <p>Thank you for your purchase! We're thrilled to have you join <strong>${organizationName}</strong>.</p>
     <p>${actionInstruction}</p>
     <div class="button-container"><a href="${actionUrl}" class="button">${buttonLabel}</a></div>
     <p>If you have any questions or need help getting started, we're here for you.</p>
-    <p>Best regards,<br/>The ${academyName} Team</p></div>
-    <div class="footer">&copy; ${new Date().getFullYear()} ${academyName}. All rights reserved.</div>
+    <p>Best regards,<br/>The ${organizationName} Team</p></div>
+    <div class="footer">&copy; ${new Date().getFullYear()} ${organizationName}. All rights reserved.</div>
     </div></body></html>`;
 };
 
@@ -550,7 +550,7 @@ const buildFallbackWoocommerceHtml = (
 export const sendUserInvitationEmail = async (
     userEmail: string,
     orgName: string,
-    academyName: string,
+    organizationName: string,
     registrationLink: string
 ) => {
     await ensureTransporter();
@@ -561,13 +561,13 @@ export const sendUserInvitationEmail = async (
 
     const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
     const fromEmail = process.env.SMTP_USER!;
-    const vars = { orgName, academyName, registrationLink };
+    const vars = { orgName, organizationName, registrationLink };
 
     const tpl = await fetchTemplate('user_invitation');
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `You've been invited to join ${orgName} on Gymind`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong> (part of <strong>${academyName}</strong>) on Gymind.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong> (part of <strong>${organizationName}</strong>) on Gymind.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -590,7 +590,7 @@ export const sendUserInvitationEmail = async (
 export const sendNewsletterReminder3DayEmail = async (
     adminEmail: string,
     campaignName: string,
-    academyName: string
+    organizationName: string
 ) => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
@@ -600,7 +600,7 @@ export const sendNewsletterReminder3DayEmail = async (
 
     const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
     const fromEmail = process.env.SMTP_USER!;
-    const vars = { campaignName, academyName };
+    const vars = { campaignName, organizationName };
 
     const tpl = await fetchTemplate('newsletter_reminder_3day');
     const subject = tpl
@@ -608,7 +608,7 @@ export const sendNewsletterReminder3DayEmail = async (
         : `Reminder: Your newsletter "${campaignName}" is due in 3 days`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hi,</p><p>Your newsletter campaign <strong>${campaignName}</strong> has a scheduled edition due in <strong>3 days</strong>, but the content is still empty.</p><p>Please log in and write your newsletter content to ensure it's sent on time.</p><p>Best,<br>${academyName}</p>`;
+        : `<p>Hi,</p><p>Your newsletter campaign <strong>${campaignName}</strong> has a scheduled edition due in <strong>3 days</strong>, but the content is still empty.</p><p>Please log in and write your newsletter content to ensure it's sent on time.</p><p>Best,<br>${organizationName}</p>`;
 
     try {
         await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to: adminEmail, subject, html });
@@ -623,7 +623,7 @@ export const sendNewsletterReminder3DayEmail = async (
 export const sendNewsletterReminder1DayEmail = async (
     adminEmail: string,
     campaignName: string,
-    academyName: string
+    organizationName: string
 ) => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
@@ -633,7 +633,7 @@ export const sendNewsletterReminder1DayEmail = async (
 
     const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
     const fromEmail = process.env.SMTP_USER!;
-    const vars = { campaignName, academyName };
+    const vars = { campaignName, organizationName };
 
     const tpl = await fetchTemplate('newsletter_reminder_1day');
     const subject = tpl
@@ -641,7 +641,7 @@ export const sendNewsletterReminder1DayEmail = async (
         : `Urgent: Your newsletter "${campaignName}" is due tomorrow`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hi,</p><p><strong>Warning:</strong> Your newsletter campaign <strong>${campaignName}</strong> has a scheduled edition due <strong>tomorrow</strong>, but the content is still empty.</p><p>If the content is not added before the scheduled send time, the edition will be skipped automatically.</p><p>Please log in now and add your newsletter content.</p><p>Best,<br>${academyName}</p>`;
+        : `<p>Hi,</p><p><strong>Warning:</strong> Your newsletter campaign <strong>${campaignName}</strong> has a scheduled edition due <strong>tomorrow</strong>, but the content is still empty.</p><p>If the content is not added before the scheduled send time, the edition will be skipped automatically.</p><p>Please log in now and add your newsletter content.</p><p>Best,<br>${organizationName}</p>`;
 
     try {
         await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to: adminEmail, subject, html });

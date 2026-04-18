@@ -7,7 +7,7 @@ import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevrons
 import { useTranslation } from 'react-i18next';
 import { useBoards } from '../../hooks/queries/useBoardQueries';
 
-import AcademyHubIcon from '../common/AcademyHubIcon';
+import OrganizationHubIcon from '../common/OrganizationHubIcon';
 import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
 import CookieConsent from '../legal/CookieConsent';
@@ -131,7 +131,7 @@ interface SidebarContentProps {
   setIsSidebarOpen: (isOpen: boolean) => void;
   userImageSidebar: string;
   user: User | null;
-  selectedOrganizationIsPersonal: boolean;
+  selectedWorkspaceIsPersonal: boolean;
   selectedWorkspaceId: string;
   canCreateBoard: boolean;
   onOpenLegal: () => void;
@@ -246,7 +246,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     setIsSidebarOpen,
     userImageSidebar,
     user,
-    selectedOrganizationIsPersonal,
+    selectedWorkspaceIsPersonal,
     selectedWorkspaceId,
     canCreateBoard,
     onOpenLegal,
@@ -256,7 +256,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     const isHebrewLanguage = i18n.language.startsWith('he');
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const sidebarNavigate = useNavigate();
-    const isAcademyAdmin = user?.role === UserRole.ACADEMY_ADMIN;
+    const isOrganizationAdmin = user?.role === UserRole.ORGANIZATION_ADMIN;
     // We use a semi-transparent white overlay (rgba 255,255,255, 0.15) instead of a solid color
     // to ensure the gradient behind the link shows through while being "brightened".
     const hoverEffectStyle = `
@@ -323,7 +323,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <FiX size={24} />
             </button>
             <div className="flex flex-row items-center justify-center mb-6">
-              {isAcademyAdmin ? (
+              {isOrganizationAdmin ? (
                 <div
                   className="relative mr-4 group cursor-pointer"
                   onClick={() => {
@@ -350,7 +350,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               ) : (
                 <img src={logoUrl} alt={t('common.appLogoAlt')} className="h-12 w-auto rounded-full object-cover shadow-sm mr-4" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} />
               )}
-              {isAcademyAdmin ? (
+              {isOrganizationAdmin ? (
                 <div
                   className="relative group cursor-pointer"
                   onClick={() => {
@@ -428,7 +428,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       `sidebar-nav-item flex items-center px-4 py-3 rounded-lg text-base transition-colors duration-150 ${isActive ? 'active font-semibold' : 'hover:text-white'}`
                   }
                 >
-                  <AcademyHubIcon className={iconClassName} /> {t('layout.academyHub')}
+                  <OrganizationHubIcon className={iconClassName} /> {t('layout.organizationHub')}
                 </NavLink>
               </div>
 
@@ -541,8 +541,8 @@ const ContentLoader: React.FC = () => (
 
 const MainLayout: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { user, logout, selectedOrganization, loading: authLoading } = useAuth();
-  const { academySettings } = useData();
+  const { user, logout, selectedWorkspace, loading: authLoading } = useAuth();
+  const { organizationSettings } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -595,11 +595,11 @@ const MainLayout: React.FC = () => {
     previousPathnameRef.current = location.pathname;
   }, [location.pathname]);
   
-  const isThemeMissing = user && user.role !== UserRole.SYSTEM_ADMIN && !academySettings;
-  const isThemeMismatched = user && user.role !== UserRole.SYSTEM_ADMIN && selectedOrganization && academySettings && academySettings.id !== selectedOrganization.orgId;
+  const isThemeMissing = user && user.role !== UserRole.SYSTEM_ADMIN && !organizationSettings;
+  const isThemeMismatched = user && user.role !== UserRole.SYSTEM_ADMIN && selectedWorkspace && organizationSettings && organizationSettings.id !== selectedWorkspace.orgId;
 
-  // isThemeMissing (academySettings not yet loaded) is intentionally excluded here.
-  // The layout renders fine with default theme fallbacks while academySettings loads
+  // isThemeMissing (organizationSettings not yet loaded) is intentionally excluded here.
+  // The layout renders fine with default theme fallbacks while organizationSettings loads
   // in the background — blocking the entire UI causes blank content after tab restore.
   if (authLoading || isThemeMismatched) {
     return (
@@ -609,7 +609,7 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  if (!user || !selectedOrganization) {
+  if (!user || !selectedWorkspace) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
@@ -660,20 +660,20 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // --- REGULAR, ORG_ADMIN, ACADEMY_ADMIN LAYOUT ---
+  // --- REGULAR, ORG_ADMIN, ORGANIZATION_ADMIN LAYOUT ---
 
-  const appName = academySettings?.appName || 'Gymind';
+  const appName = organizationSettings?.appName || 'Gymind';
   // Use /default_user.webp as fallback if logoUrl is missing or is the old hardcoded default
-  const logoUrl = (!academySettings?.logoUrl || academySettings.logoUrl === '/logo_gym.webp') ? '/default_user.webp' : academySettings.logoUrl;
+  const logoUrl = (!organizationSettings?.logoUrl || organizationSettings.logoUrl === '/logo_gym.webp') ? '/default_user.webp' : organizationSettings.logoUrl;
   // dark-contrast applies CSS invert(1) hue-rotate(180deg) to the whole page.
   // To get a dark sidebar with bright text after inversion, we must set the opposite: light bg, dark text.
-  const sidebarColor = isDarkContrast ? '#f5f5f5' : (academySettings?.sidebarColor || '#004e89');
-  const enableSidebarGradient = isDarkContrast ? false : (academySettings?.enableSidebarGradient ?? true);
-  const sidebarHueRotation = academySettings?.sidebarHueRotation ?? 270;
-  const sidebarGradientHeight = academySettings?.sidebarGradientHeight ?? 85;
-  const sidebarGradientMaskOpacity = academySettings?.sidebarGradientMaskOpacity ?? 40;
-  const displayNameColor = isDarkContrast ? '#000000' : (academySettings?.displayNameColor || '#ffffff');
-  const sidebarLinkColor = isDarkContrast ? '#111111' : (academySettings?.sidebarLinkColor || '#e5e7eb');
+  const sidebarColor = isDarkContrast ? '#f5f5f5' : (organizationSettings?.sidebarColor || '#004e89');
+  const enableSidebarGradient = isDarkContrast ? false : (organizationSettings?.enableSidebarGradient ?? true);
+  const sidebarHueRotation = organizationSettings?.sidebarHueRotation ?? 270;
+  const sidebarGradientHeight = organizationSettings?.sidebarGradientHeight ?? 85;
+  const sidebarGradientMaskOpacity = organizationSettings?.sidebarGradientMaskOpacity ?? 40;
+  const displayNameColor = isDarkContrast ? '#000000' : (organizationSettings?.displayNameColor || '#ffffff');
+  const sidebarLinkColor = isDarkContrast ? '#111111' : (organizationSettings?.sidebarLinkColor || '#e5e7eb');
   
   // Add margin-top for Hebrew language to align icons properly
   const isHebrewLanguage = i18n.language.startsWith('he');
@@ -681,22 +681,22 @@ const MainLayout: React.FC = () => {
   const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
 
   const navItems: NavItem[] = [
-    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
+    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
   ];
 
   const adminNavItems: AdminNavItem[] = [
-     { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN] },
-     { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN] },
-     { name: t('layout.workspaces'), path: '/admin/workspaces', icon: <FiBriefcase className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
+     { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
+     { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
+     { name: t('layout.workspaces'), path: '/admin/workspaces', icon: <FiBriefcase className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN] },
   ];
 
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);
   const availableAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role) && (item.show !== false));
 
-  const selectedWorkspaceId = selectedOrganization?.id ?? '';
+  const selectedWorkspaceId = selectedWorkspace?.id ?? '';
   const canCreateBoard =
+    user.role === UserRole.WORKSPACE_ADMIN ||
     user.role === UserRole.ORGANIZATION_ADMIN ||
-    user.role === UserRole.ACADEMY_ADMIN ||
     user.role === UserRole.SYSTEM_ADMIN;
 
   return (
@@ -721,7 +721,7 @@ const MainLayout: React.FC = () => {
             setIsSidebarOpen={setIsSidebarOpen}
             userImageSidebar={userImageSidebar}
             user={user}
-            selectedOrganizationIsPersonal={selectedOrganization.isPersonal || false}
+            selectedWorkspaceIsPersonal={selectedWorkspace.isPersonal || false}
             selectedWorkspaceId={selectedWorkspaceId}
             canCreateBoard={canCreateBoard}
             onOpenLegal={() => setShowLegalModal(true)}
@@ -747,7 +747,7 @@ const MainLayout: React.FC = () => {
                 setIsSidebarOpen={setIsSidebarOpen}
                 userImageSidebar={userImageSidebar}
                 user={user}
-                selectedOrganizationIsPersonal={selectedOrganization.isPersonal || false}
+                selectedWorkspaceIsPersonal={selectedWorkspace.isPersonal || false}
                 selectedWorkspaceId={selectedWorkspaceId}
                 canCreateBoard={canCreateBoard}
                 onOpenLegal={() => setShowLegalModal(true)}

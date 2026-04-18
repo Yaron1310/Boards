@@ -9,7 +9,7 @@ import { UserRole } from '../../types';
 import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
 import TutorialSection from '../common/TutorialSection';
-import AcademyAdminsModal from './AcademyAdminsModal';
+import OrganizationAdminsModal from './OrganizationAdminsModal';
 import { useUsersInfiniteQuery } from '../../hooks/queries/useUserQueries';
 import { List } from 'react-window';
 import { InfiniteLoader } from 'react-window-infinite-loader';
@@ -32,7 +32,7 @@ const exportToCSV = (rows: Record<string, unknown>[], filename: string) => {
 
 const UserManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user: authUser, selectedOrganization } = useAuth();
+  const { user: authUser, selectedWorkspace } = useAuth();
   const {
     workspaces,
     preApprovedUsers,
@@ -46,7 +46,7 @@ const UserManagementPage: React.FC = () => {
   const [filterRole, setFilterRole] = useState<string>('');
 
   const [showPreApproveModal, setShowPreApproveModal] = useState(false);
-  const [showAcademyAdminsModal, setShowAcademyAdminsModal] = useState(false);
+  const [showOrganizationAdminsModal, setShowOrganizationAdminsModal] = useState(false);
 
   const [feedback, setFeedback] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
@@ -67,7 +67,7 @@ const UserManagementPage: React.FC = () => {
     isError: isUsersError,
   } = useUsersInfiniteQuery({
     search: debouncedSearch,
-    organizationId: filterOrg,
+    workspaceId: filterOrg,
     role: filterRole
   }, !!authUser);
 
@@ -85,38 +85,38 @@ const UserManagementPage: React.FC = () => {
   }, [feedback]);
 
   const orgForPreApproval = useMemo(() => {
-    if (authUser?.role === UserRole.ORGANIZATION_ADMIN) {
-        return selectedOrganization;
+    if (authUser?.role === UserRole.WORKSPACE_ADMIN) {
+        return selectedWorkspace;
     }
     return null;
-  }, [authUser, selectedOrganization]);
+  }, [authUser, selectedWorkspace]);
 
   const handleOpenPreApproveModal = () => {
     if (orgForPreApproval) setShowPreApproveModal(true);
   };
 
   const { currentRegularUsersCount, pendingInvitesCount } = useMemo(() => {
-    if (authUser?.role !== UserRole.ORGANIZATION_ADMIN || !selectedOrganization || !allUsers || !preApprovedUsers) {
+    if (authUser?.role !== UserRole.WORKSPACE_ADMIN || !selectedWorkspace || !allUsers || !preApprovedUsers) {
         return { currentRegularUsersCount: 0, pendingInvitesCount: 0 };
     }
 
     const regularUsers = allUsers.filter((u: User) => {
-        if (u.dbRoles?.organizationAdmin?.includes(selectedOrganization.id)) return false;
-        if (u.dbRoles?.academyAdmin?.includes(selectedOrganization.orgId)) return false;
+        if (u.dbRoles?.workspaceAdmin?.includes(selectedWorkspace.id)) return false;
+        if (u.dbRoles?.organizationAdmin?.includes(selectedWorkspace.orgId)) return false;
         if (u.dbRoles?.systemAdmin) return false;
         return true;
     });
 
-    const pendingCount = preApprovedUsers.filter(p => p.organizationId === selectedOrganization.id).length;
+    const pendingCount = preApprovedUsers.filter(p => p.workspaceId === selectedWorkspace.id).length;
 
     return {
         currentRegularUsersCount: regularUsers.length,
         pendingInvitesCount: pendingCount
     };
-  }, [authUser, selectedOrganization, allUsers, preApprovedUsers]);
+  }, [authUser, selectedWorkspace, allUsers, preApprovedUsers]);
 
 
-  if (!authUser || (authUser.role !== UserRole.ACADEMY_ADMIN && authUser.role !== UserRole.ORGANIZATION_ADMIN && authUser.role !== UserRole.SYSTEM_ADMIN)) {
+  if (!authUser || (authUser.role !== UserRole.ORGANIZATION_ADMIN && authUser.role !== UserRole.WORKSPACE_ADMIN && authUser.role !== UserRole.SYSTEM_ADMIN)) {
     navigate('/chat');
     return null;
   }
@@ -174,7 +174,7 @@ const UserManagementPage: React.FC = () => {
                 </div>
             </div>
             <div className="flex-[1.5] px-6 py-4 text-sm text-gray-700 flex items-center truncate">
-                {u.organizationName || 'N/A'}
+                {u.workspaceName || 'N/A'}
             </div>
             <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center truncate">
                 {u.email}
@@ -198,7 +198,7 @@ const UserManagementPage: React.FC = () => {
                     <FiUsers className="mr-3 text-blue-500"/>{t('admin.userManagement')}
                 </h1>
                 <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                    {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                    {authUser.role === UserRole.WORKSPACE_ADMIN && (
                         <button
                         onClick={handleOpenPreApproveModal}
                         className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
@@ -208,14 +208,14 @@ const UserManagementPage: React.FC = () => {
                         <FiUserPlus className="mr-2" /> {t('admin.preApproveUsers')}
                         </button>
                     )}
-                    {authUser.role === UserRole.ACADEMY_ADMIN && (
+                    {authUser.role === UserRole.ORGANIZATION_ADMIN && (
                         <button
-                        onClick={() => setShowAcademyAdminsModal(true)}
+                        onClick={() => setShowOrganizationAdminsModal(true)}
                         className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
                         aria-label="Manage admins for your workspace"
                         title="Manage admins for your workspace"
                         >
-                        <FiShield className="mr-2" /> {t('admin.manageAcademyAdmins')}
+                        <FiShield className="mr-2" /> {t('admin.manageOrganizationAdmins')}
                         </button>
                     )}
                     <button
@@ -272,7 +272,7 @@ const UserManagementPage: React.FC = () => {
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {(authUser.role === UserRole.ACADEMY_ADMIN || authUser.role === UserRole.SYSTEM_ADMIN) && (
+                        {(authUser.role === UserRole.ORGANIZATION_ADMIN || authUser.role === UserRole.SYSTEM_ADMIN) && (
                             <div className="relative">
                                 <label htmlFor="org-filter-users" className="sr-only">Filter by workspace</label>
                                 <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -285,7 +285,7 @@ const UserManagementPage: React.FC = () => {
                                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
                                     aria-label="Filter by workspace"
                                 >
-                                    <option value="">{t('admin.allOrganizations')}</option>
+                                    <option value="">{t('admin.allWorkspaces')}</option>
                                     {workspaces.map(org => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
                                     ))}
@@ -381,10 +381,10 @@ const UserManagementPage: React.FC = () => {
         />
       )}
 
-      {showAcademyAdminsModal && (
-        <AcademyAdminsModal
-            isOpen={showAcademyAdminsModal}
-            onClose={() => setShowAcademyAdminsModal(false)}
+      {showOrganizationAdminsModal && (
+        <OrganizationAdminsModal
+            isOpen={showOrganizationAdminsModal}
+            onClose={() => setShowOrganizationAdminsModal(false)}
             onActionSuccess={() => {}}
         />
       )}

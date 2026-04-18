@@ -4,9 +4,9 @@ import admin from 'firebase-admin';
 import * as logger from 'firebase-functions/logger';
 import crypto from 'crypto';
 
-import { academySettingsCollection } from '../db/collections.js';
+import { organizationSettingsCollection } from '../db/collections.js';
 import { snapshotToData, storage } from '../services/firestore.service.js';
-import { JwtUserPayload, DBAcademySettings } from '../types/index.js';
+import { JwtUserPayload, DBOrganizationSettings } from '../types/index.js';
 import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../utils/sanitizer.js';
 
 /**
@@ -18,7 +18,7 @@ async function uploadLogoToStorage(dataUri: string, orgId: string): Promise<stri
 
     const buffer = Buffer.from(match[2], 'base64');
     const bucket = storage.bucket();
-    const filePath = `academyLogos/${orgId}/logo.png`;
+    const filePath = `organizationLogos/${orgId}/logo.png`;
     const file = bucket.file(filePath);
 
     await file.save(buffer, {
@@ -32,7 +32,7 @@ async function uploadLogoToStorage(dataUri: string, orgId: string): Promise<stri
 export const getThemeSettings = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     try {
-        const doc = await academySettingsCollection.doc(user.orgId).get();
+        const doc = await organizationSettingsCollection.doc(user.orgId).get();
         if (!doc.exists) {
             return res.status(200).json({
                 id: user.orgId,
@@ -47,7 +47,7 @@ export const getThemeSettings = async (req: Request, res: Response) => {
                 sidebarLinkColor: '#e5e7eb',
             });
         }
-        const settings = snapshotToData<DBAcademySettings>(doc)!;
+        const settings = snapshotToData<DBOrganizationSettings>(doc)!;
         res.json({
             ...settings,
             enableSidebarGradient: settings.enableSidebarGradient ?? true,
@@ -84,7 +84,7 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
     } = req.body;
 
     try {
-        const docRef = academySettingsCollection.doc(user.orgId);
+        const docRef = organizationSettingsCollection.doc(user.orgId);
         const dataToUpdate: {[key: string]: any} = {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
@@ -136,7 +136,7 @@ export const regenerateApiKey = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     try {
         const newApiKey = `sk_${crypto.randomBytes(24).toString('hex')}`;
-        const docRef = academySettingsCollection.doc(user.orgId);
+        const docRef = organizationSettingsCollection.doc(user.orgId);
         await docRef.set({
             apiKey: newApiKey,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),

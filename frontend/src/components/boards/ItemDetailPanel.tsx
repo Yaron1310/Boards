@@ -32,15 +32,15 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   useFocusTrap(panelRef);
 
   const canManage =
+    user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
-    user?.role === UserRole.ACADEMY_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
     item.createdBy === user?.id ||
     (item.assignees ?? []).includes(user?.id ?? '');
 
   const canDelete =
+    user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
-    user?.role === UserRole.ACADEMY_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN;
 
   useEffect(() => {

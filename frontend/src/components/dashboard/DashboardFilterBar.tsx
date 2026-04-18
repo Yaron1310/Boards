@@ -192,7 +192,7 @@ const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispat
 
   const { data: usersData } = useQuery({
     queryKey: ['users', 'workspace', filters.workspaceId],
-    queryFn: () => getUsers({ organizationId: filters.workspaceId, limit: 100 }),
+    queryFn: () => getUsers({ workspaceId: filters.workspaceId, limit: 100 }),
     enabled: !!filters.workspaceId,
     staleTime: 5 * 60 * 1000,
   });

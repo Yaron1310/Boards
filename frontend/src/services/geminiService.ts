@@ -1,4 +1,4 @@
-import type { User, Workspace, PreApprovedUser, AcademySettings, Workspace, UserRole, SystemSettings, TutorialSettings, PaginatedResponse } from '../types';
+import type { User, Workspace, PreApprovedUser, OrganizationSettings, Workspace, UserRole, SystemSettings, TutorialSettings, PaginatedResponse } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const handleAuthError = () => {
@@ -90,7 +90,7 @@ export const initiateCheckoutRegistration = async (formData: any): Promise<{ suc
     return data;
 };
 
-export const registerAcademyAdmin = async (userData: any, planId: string, recaptchaToken?: string | null): Promise<{ success: boolean; message: string; }> => {
+export const registerOrganizationAdmin = async (userData: any, planId: string, recaptchaToken?: string | null): Promise<{ success: boolean; message: string; }> => {
     const response = await fetch(`${BACKEND_API_URL}/api/auth/register-workspace-admin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,17 +123,17 @@ export const resetPassword = async (token: string, newPassword: string): Promise
     return data;
 };
 
-export const selectContextOnBackend = async (partialToken: string, organizationId: string, role: UserRole) => {
+export const selectContextOnBackend = async (partialToken: string, workspaceId: string, role: UserRole) => {
     const authHeader = partialToken ? { 'Authorization': `Bearer ${partialToken}` } : {};
-    return fetchWithAuth('/api/auth/select-context', { method: 'POST', body: JSON.stringify({ organizationId, role }), headers: authHeader });
+    return fetchWithAuth('/api/auth/select-context', { method: 'POST', body: JSON.stringify({ workspaceId, role }), headers: authHeader });
 };
-export const switchContextOnBackend = async (organizationId: string, role: UserRole) => fetchWithAuth('/api/auth/switch-context', { method: 'PUT', body: JSON.stringify({ organizationId, role }) });
+export const switchContextOnBackend = async (workspaceId: string, role: UserRole) => fetchWithAuth('/api/auth/switch-context', { method: 'PUT', body: JSON.stringify({ workspaceId, role }) });
 export const getGoogleLoginFinalization = async (partialToken: string) => {
     const authHeader = partialToken ? { 'Authorization': `Bearer ${partialToken}` } : {};
     return fetchWithAuth('/api/auth/google/finalize', { headers: authHeader });
 };
 
-export const finalizeAcademySetup = async (partialToken: string) => {
+export const finalizeOrganizationSetup = async (partialToken: string) => {
     const authHeader = partialToken ? { 'Authorization': `Bearer ${partialToken}` } : {};
     return fetchWithAuth('/api/auth/workspace/finalize', { headers: authHeader });
 };
@@ -170,68 +170,68 @@ export const logoutFromBackend = async (): Promise<void> => {
 };
 
 // --- Workspace Setup ---
-export const setupAcademy = async (academyName: string): Promise<{ message: string }> => {
+export const setupOrganization = async (organizationName: string): Promise<{ message: string }> => {
     return fetchWithAuth('/api/workspaces/setup', {
         method: 'POST',
-        body: JSON.stringify({ academyName }),
+        body: JSON.stringify({ organizationName }),
     });
 };
 
-export const activateAcademySubscription = async (): Promise<{ user: User, selectedOrganization: Workspace, accessToken: string }> => {
+export const activateOrganizationSubscription = async (): Promise<{ user: User, selectedWorkspace: Workspace, accessToken: string }> => {
     return fetchWithAuth('/api/workspaces/activate-subscription', {
         method: 'POST',
     });
 };
 
-export const checkAcademyNameUniqueness = async (name: string): Promise<{ isUnique: boolean }> => {
+export const checkOrganizationNameUniqueness = async (name: string): Promise<{ isUnique: boolean }> => {
     return fetchWithAuth(`/api/workspaces/check-name?name=${encodeURIComponent(name)}`);
 };
 
 
 // --- Workspaces ---
 export const getAcademies = async (): Promise<Workspace[]> => fetchWithAuth('/api/workspaces');
-export const createAcademy = async (name: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name }) });
-export const updateAcademy = async (id: string, name: string): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
-export const deleteAcademy = async (id: string): Promise<null> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'DELETE' });
-export const addAcademyAdmin = async (orgId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${orgId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
-export const removeAcademyAdmin = async (orgId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${orgId}/admins/${userId}`, { method: 'DELETE' });
+export const createOrganization = async (name: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name }) });
+export const updateOrganization = async (id: string, name: string): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+export const deleteOrganization = async (id: string): Promise<null> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'DELETE' });
+export const addOrganizationAdmin = async (orgId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${orgId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
+export const removeOrganizationAdmin = async (orgId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${orgId}/admins/${userId}`, { method: 'DELETE' });
 
 
 // --- Workspaces ---
-export const getOrganizations = async (filterType?: 'corporate' | 'individual' | 'all'): Promise<Workspace[]> => {
+export const getWorkspaces = async (filterType?: 'corporate' | 'individual' | 'all'): Promise<Workspace[]> => {
     let url = '/api/workspaces';
     if (filterType && filterType !== 'all') {
         url += `?type=${filterType}`;
     }
     return fetchWithAuth(url);
 };
-export const getArchivedOrganizations = async (): Promise<Workspace[]> => fetchWithAuth('/api/workspaces/archived');
-export const restoreOrganization = async (id: string): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}/restore`, { method: 'PUT' });
-export const addOrganizationToBackend = async (name: string, orgId: string, planId?: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name, orgId, planId }) });
-export const updateOrganizationOnBackend = async (id: string, data: { name?: string, planId?: string, subscriptionProvider?: string }): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-export const deleteOrganizationFromBackend = async (id: string, force = false): Promise<null> => {
+export const getArchivedWorkspaces = async (): Promise<Workspace[]> => fetchWithAuth('/api/workspaces/archived');
+export const restoreWorkspace = async (id: string): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}/restore`, { method: 'PUT' });
+export const addWorkspaceToBackend = async (name: string, orgId: string, planId?: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name, orgId, planId }) });
+export const updateWorkspaceOnBackend = async (id: string, data: { name?: string, planId?: string, subscriptionProvider?: string }): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteWorkspaceFromBackend = async (id: string, force = false): Promise<null> => {
     return fetchWithAuth(`/api/workspaces/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' });
 };
-export const confirmArchiveOrganization = async (id: string): Promise<null> => fetchWithAuth(`/api/workspaces/${id}/archive`, { method: 'PUT' });
-export const addOrganizationManager = async (organizationId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${organizationId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
-export const removeOrganizationManager = async (organizationId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${organizationId}/admins/${userId}`, { method: 'DELETE' });
-export const removeUserFromOrganization = async (organizationId: string, userId: string): Promise<null> => fetchWithAuth(`/api/workspaces/${organizationId}/users/${userId}`, { method: 'DELETE' });
+export const confirmArchiveWorkspace = async (id: string): Promise<null> => fetchWithAuth(`/api/workspaces/${id}/archive`, { method: 'PUT' });
+export const addWorkspaceManager = async (workspaceId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${workspaceId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
+export const removeWorkspaceManager = async (workspaceId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/workspaces/${workspaceId}/admins/${userId}`, { method: 'DELETE' });
+export const removeUserFromWorkspace = async (workspaceId: string, userId: string): Promise<null> => fetchWithAuth(`/api/workspaces/${workspaceId}/users/${userId}`, { method: 'DELETE' });
 
 
 // --- Users ---
-export const getUsers = async (params?: { limit?: number; cursor?: string; search?: string; organizationId?: string; role?: string }): Promise<PaginatedResponse<User>> => {
+export const getUsers = async (params?: { limit?: number; cursor?: string; search?: string; workspaceId?: string; role?: string }): Promise<PaginatedResponse<User>> => {
     const query = new URLSearchParams();
     if (params?.limit) query.append('limit', String(params.limit));
     if (params?.cursor) query.append('cursor', params.cursor);
     if (params?.search) query.append('search', params.search);
-    if (params?.organizationId) query.append('organizationId', params.organizationId);
+    if (params?.workspaceId) query.append('workspaceId', params.workspaceId);
     if (params?.role) query.append('role', params.role);
     const qs = query.toString();
     return fetchWithAuth(`/api/users${qs ? `?${qs}` : ''}`);
 };
 export const getUserByIdFromBackend = async (userId: string): Promise<User> => fetchWithAuth(`/api/users/${userId}`);
 export const deleteUserAccount = async (userId: string, deletionType: 'soft' | 'hard'): Promise<null> => fetchWithAuth(`/api/users/${userId}`, { method: 'DELETE', body: JSON.stringify({ deletionType }) });
-export const preApproveUsersInBulk = async (emails: string[], organizationId: string): Promise<{successCount: number; message: string;}> => fetchWithAuth('/api/users/pre-approve-bulk', { method: 'POST', body: JSON.stringify({ emails, organizationId }) });
+export const preApproveUsersInBulk = async (emails: string[], workspaceId: string): Promise<{successCount: number; message: string;}> => fetchWithAuth('/api/users/pre-approve-bulk', { method: 'POST', body: JSON.stringify({ emails, workspaceId }) });
 
 export const getPreApprovedUsersFromBackend = async (params?: { limit?: number; cursor?: string; search?: string }): Promise<PaginatedResponse<PreApprovedUser>> => {
     const query = new URLSearchParams();
@@ -244,15 +244,15 @@ export const getPreApprovedUsersFromBackend = async (params?: { limit?: number; 
 export const deletePreApprovedUserFromBackend = async (preApprovedUserId: string): Promise<null> => fetchWithAuth(`/api/users/pre-approved/${preApprovedUserId}`, { method: 'DELETE' });
 
 // User's own profile updates
-export const getMyUserDetails = async (): Promise<{ user: User, selectedOrganization: Workspace }> => fetchWithAuth('/api/users/me/details');
+export const getMyUserDetails = async (): Promise<{ user: User, selectedWorkspace: Workspace }> => fetchWithAuth('/api/users/me/details');
 export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
 export const updateMyPassword = async (passwords: { currentPassword?: string; newPassword: string }): Promise<{ message: string }> => fetchWithAuth('/api/users/me/password', { method: 'PUT', body: JSON.stringify(passwords) });
 export const updateMyProfileImage = async (imageUrl: string): Promise<User> => fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: JSON.stringify({ imageUrl }) });
 
 // --- Workspace Settings / Theme ---
-export const getThemeSettingsFromBackend = async (): Promise<AcademySettings> => fetchWithAuth('/api/app-config/theme');
-export const updateThemeSettingsOnBackend = async (settings: Partial<AcademySettings> & { logoUpload?: string; }): Promise<AcademySettings> => fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify(settings) });
-export const regenerateApiKey = async (): Promise<AcademySettings> => fetchWithAuth('/api/app-config/api-key/regenerate', { method: 'POST' });
+export const getThemeSettingsFromBackend = async (): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/theme');
+export const updateThemeSettingsOnBackend = async (settings: Partial<OrganizationSettings> & { logoUpload?: string; }): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify(settings) });
+export const regenerateApiKey = async (): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/api-key/regenerate', { method: 'POST' });
 
 // --- System-wide Settings (System Admin only) ---
 export const getTokenLimits = async (): Promise<SystemSettings> => fetchWithAuth('/api/system-settings/settings');
@@ -263,8 +263,8 @@ export const getTutorialSettings = async (): Promise<TutorialSettings> => fetchW
 export const updateTutorialSettings = async (settings: TutorialSettings): Promise<TutorialSettings> => fetchWithAuth('/api/system-settings/tutorials', { method: 'PUT', body: JSON.stringify(settings) });
 
 // --- Public Access ---
-export const getPublicAcademyDetails = async (academyName: string): Promise<any> => {
-    const response = await fetch(`${BACKEND_API_URL}/api/public/workspace/${encodeURIComponent(academyName)}`);
+export const getPublicOrganizationDetails = async (organizationName: string): Promise<any> => {
+    const response = await fetch(`${BACKEND_API_URL}/api/public/workspace/${encodeURIComponent(organizationName)}`);
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({ message: 'Failed to fetch public details' }));
         throw new Error(errorData.message || 'Failed to fetch public details');

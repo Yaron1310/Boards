@@ -1,7 +1,7 @@
 export enum UserRole {
   REGULAR_USER = 'regular_user',
-  ORGANIZATION_ADMIN = 'workspace_admin',
-  ACADEMY_ADMIN = 'org_admin',
+  WORKSPACE_ADMIN = 'workspace_admin',
+  ORGANIZATION_ADMIN = 'org_admin',
   SYSTEM_ADMIN = 'system_admin',
 }
 
@@ -48,7 +48,7 @@ export interface Workspace {
   id: string;
   name: string;
   orgId: string;
-  academyName?: string; 
+  organizationName?: string; 
   planId?: string;
   planName?: string;
   planType?: 'subscription' | 'one-time';
@@ -93,7 +93,7 @@ export interface PublicPlanConfig {
   tagTextColor?: string; // New field
 }
 
-export interface AcademySettings {
+export interface OrganizationSettings {
   id: string; 
   sidebarColor: string;
   enableSidebarGradient?: boolean;
@@ -207,11 +207,11 @@ export interface User {
   role: UserRole; 
   dbRoles?: {
     systemAdmin?: boolean;
-    academyAdmin?: string[];
     organizationAdmin?: string[];
+    workspaceAdmin?: string[];
   };
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
-  workspaces: Pick<Workspace, 'id' | 'name' | 'orgId' | 'academyName' | 'isPersonal'>[]; 
+  workspaces: Pick<Workspace, 'id' | 'name' | 'orgId' | 'organizationName' | 'isPersonal'>[]; 
   profileImageUrl?: string; 
   hasSeenChatPrivacyNotice?: boolean;
   conversationSavingEnabled?: boolean;
@@ -221,9 +221,9 @@ export interface User {
     used: number;
     limit: number | null;
   };
-  organizationId?: string; 
-  organizationName?: string; 
-  organizationHasMindPatternsAccess?: boolean;
+  workspaceId?: string; 
+  workspaceName?: string; 
+  workspaceHasMindPatternsAccess?: boolean;
   completedQuestionnairesCount?: number;
   conversationCount?: number;
   completedCourseCount?: number;
@@ -279,7 +279,7 @@ export interface TriggerPhrase {
 export interface PreApprovedUser {
   id: string;
   email: string;
-  organizationId: string;
+  workspaceId: string;
   addedBy: string;
   createdAt: Date;
 }
@@ -291,7 +291,7 @@ export interface TokenUsageData {
   };
 }
 
-export interface AcademyBillingCycle {
+export interface OrganizationBillingCycle {
     id: string;
     orgId: string;
     billingCycleStart: Date;
@@ -476,7 +476,7 @@ export interface UserCourseProgress {
   id: string; 
   userId: string;
   courseId: string;
-  organizationId?: string;
+  workspaceId?: string;
   orgId: string;
   status: 'not-started' | 'in-progress' | 'completed';
   completedLessons: string[]; 
@@ -541,12 +541,12 @@ export interface PaginatedResponse<T> {
 export type SystemPrompts = {
     chatSystemPrompt: string;
 };
-export type ThemeSettings = Pick<AcademySettings, 'sidebarColor' | 'appName' | 'logoUrl'>;
+export type ThemeSettings = Pick<OrganizationSettings, 'sidebarColor' | 'appName' | 'logoUrl'>;
 
 // New Interface for Payment Payouts
-export interface AcademyPayoutData {
+export interface OrganizationPayoutData {
     orgId: string;
-    academyName: string;
+    organizationName: string;
     activeGymindOrgs: number;
     totalRevenue: number; // Org Payments
     totalTokenCost: number; // Gymind Cost
@@ -640,7 +640,7 @@ export type ColumnSettings =
 
 export interface Column {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
@@ -665,7 +665,7 @@ export type ColumnValueMap = Record<string, unknown>;
 
 export interface Board {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   workspaceId: string;
   name: string;
   description?: string;
@@ -680,7 +680,7 @@ export interface Board {
 
 export interface Group {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   boardId: string;
   name: string;
   color?: string;
@@ -690,11 +690,11 @@ export interface Group {
   updatedAt: Date | string;
 }
 
-// --- Item (flat, stored at organization level) ---
+// --- Item (flat, stored at workspace level) ---
 
 export interface Item {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   workspaceId: string;
   boardId: string;
   groupId: string;
@@ -771,7 +771,7 @@ export enum BoardRole {
 export interface BoardMember {
   userId: string;
   boardId: string;
-  organizationId: string;
+  workspaceId: string;
   role: BoardRole;
   addedBy: string;
   createdAt: Date | string;

@@ -4,11 +4,11 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { FiLoader, FiAlertCircle, FiHome } from 'react-icons/fi';
 
-const AcademyAuthCallbackPage: React.FC = () => {
+const OrganizationAuthCallbackPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { completeAcademySetupLogin, authError } = useAuth();
+  const { completeOrganizationSetupLogin, authError } = useAuth();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -16,7 +16,7 @@ const AcademyAuthCallbackPage: React.FC = () => {
     if (token) {
       const authenticate = async () => {
         try {
-            const success = await completeAcademySetupLogin(token);
+            const success = await completeOrganizationSetupLogin(token);
             if (success) {
               navigate('/setup-workspace', { replace: true });
             }
@@ -29,7 +29,7 @@ const AcademyAuthCallbackPage: React.FC = () => {
     } else {
       setError('Invalid setup link. Token is missing.');
     }
-  }, [searchParams, navigate, completeAcademySetupLogin]);
+  }, [searchParams, navigate, completeOrganizationSetupLogin]);
 
   const displayError = error || authError;
 
@@ -52,10 +52,10 @@ const AcademyAuthCallbackPage: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-4 text-center">
       <FiLoader className="animate-spin h-12 w-12 text-blue-500 mb-4" />
-      <h1 className="text-2xl font-semibold text-gray-700">{t('auth.initializingAcademySetup')}</h1>
+      <h1 className="text-2xl font-semibold text-gray-700">{t('auth.initializingOrganizationSetup')}</h1>
       <p className="text-gray-500">{t('auth.pleaseWaitMoment')}</p>
     </div>
   );
 };
 
-export default AcademyAuthCallbackPage;
+export default OrganizationAuthCallbackPage;

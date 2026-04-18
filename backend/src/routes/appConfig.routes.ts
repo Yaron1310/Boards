@@ -8,7 +8,7 @@ export const appConfigRouter = Router();
 
 appConfigRouter.use(authenticateToken);
 
-const adminRoles = [UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN];
+const adminRoles = [UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN];
 
 appConfigRouter.get('/theme', appConfigController.getThemeSettings);
 appConfigRouter.put('/theme', requireRole(adminRoles), appConfigController.updateThemeSettings);

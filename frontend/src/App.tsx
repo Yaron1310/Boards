@@ -9,13 +9,13 @@ import { debugLog } from './config';
 // -- Static imports: public/auth pages render immediately with no loading spinner --
 import LanguageSelectionModal from './components/common/LanguageSelectionModal';
 import SelectContextPage from './components/auth/SelectContextPage';
-import AcademySetupWizard from './components/auth/AcademySetupWizard';
+import OrganizationSetupWizard from './components/auth/OrganizationSetupWizard';
 import LoginPage from './components/auth/LoginPage';
 import RegistrationPage from './components/auth/RegistrationPage';
-import AcademyRegistrationPage from './components/auth/AcademyRegistrationPage';
+import OrganizationRegistrationPage from './components/auth/OrganizationRegistrationPage';
 import ResetPasswordPage from './components/auth/ResetPasswordPage';
 import GoogleAuthCallbackPage from './components/auth/GoogleAuthCallbackPage';
-import AcademyAuthCallbackPage from './components/auth/AcademyAuthCallbackPage';
+import OrganizationAuthCallbackPage from './components/auth/OrganizationAuthCallbackPage';
 import VerifyAccountPage from './components/auth/VerifyAccountPage';
 import UserApprovalPage from './components/auth/UserApprovalPage';
 import LandingPage from './components/public/LandingPage';
@@ -31,7 +31,7 @@ const ProfilePage = React.lazy(() => import('./components/profile/ProfilePage'))
 // -- Workspace/org-admin chunk --
 const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'));
 const UserManagementPage = React.lazy(() => import('./components/admin/UserManagementPage'));
-const OrganizationManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));
+const WorkspaceManagementPage = React.lazy(() => import('./components/admin/WorkspaceManagementPage'));
 const ThemeSettingsPage = React.lazy(() => import('./components/admin/ThemeSettingsPage'));
 
 // -- Work management chunk --
@@ -42,7 +42,7 @@ const ColumnManagementPage = React.lazy(() => import('./components/boards/Column
 const DashboardPage = React.lazy(() => import('./components/dashboard/DashboardPage'));
 
 // -- System-admin chunk --
-const AcademyManagementPage = React.lazy(() => import('./components/admin/AcademyManagementPage'));
+const OrganizationManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));
 const TutorialSettingsPage = React.lazy(() => import('./components/admin/TutorialSettingsPage'));
 const EmailTemplatesPage = React.lazy(() => import('./components/admin/EmailTemplatesPage'));
 
@@ -63,20 +63,20 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!userRole) return;
     if (
-      userRole === UserRole.ORGANIZATION_ADMIN ||
-      userRole === UserRole.ACADEMY_ADMIN      ||
+      userRole === UserRole.WORKSPACE_ADMIN ||
+      userRole === UserRole.ORGANIZATION_ADMIN      ||
       userRole === UserRole.SYSTEM_ADMIN
     ) {
       void import('./components/admin/AdminDashboardPage');
     }
     if (
-      userRole === UserRole.ACADEMY_ADMIN ||
+      userRole === UserRole.ORGANIZATION_ADMIN ||
       userRole === UserRole.SYSTEM_ADMIN
     ) {
-      void import('./components/admin/OrganizationManagementPage');
+      void import('./components/admin/WorkspaceManagementPage');
     }
     if (userRole === UserRole.SYSTEM_ADMIN) {
-      void import('./components/admin/AcademyManagementPage');
+      void import('./components/admin/OrganizationManagementPage');
     }
   }, [userRole]);
 
@@ -181,7 +181,7 @@ const App: React.FC = () => {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="/setup-workspace" element={<AcademySetupWizard />} />
+          <Route path="/setup-workspace" element={<OrganizationSetupWizard />} />
           <Route path="*" element={<Navigate to="/setup-workspace" replace />} />
         </Routes>
       </BrowserRouter>
@@ -199,10 +199,10 @@ const App: React.FC = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={user ? <Navigate to={redirectPath} /> : <LoginPage />} />
         <Route path="/register" element={user ? <Navigate to={redirectPath} /> : <RegistrationPage />} />
-        <Route path="/register-workspace" element={user ? <Navigate to={redirectPath} /> : <AcademyRegistrationPage />} />
+        <Route path="/register-workspace" element={user ? <Navigate to={redirectPath} /> : <OrganizationRegistrationPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/google/callback" element={<GoogleAuthCallbackPage />} />
-        <Route path="/auth/workspace/callback" element={<AcademyAuthCallbackPage />} />
+        <Route path="/auth/workspace/callback" element={<OrganizationAuthCallbackPage />} />
         <Route path="/verify-account" element={<VerifyAccountPage />} />
         <Route path="/approve-user" element={<UserApprovalPage />} />
         <Route path="/legal" element={<LegalPage />} />
@@ -213,7 +213,7 @@ const App: React.FC = () => {
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <DashboardPage />
                 </ProtectedRoute>
               }
@@ -222,7 +222,7 @@ const App: React.FC = () => {
             <Route
               path="/workspaces"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <WorkspaceHomePage />
                 </ProtectedRoute>
               }
@@ -230,7 +230,7 @@ const App: React.FC = () => {
             <Route
               path="/workspaces/:workspaceId/boards"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <BoardListPage />
                 </ProtectedRoute>
               }
@@ -238,7 +238,7 @@ const App: React.FC = () => {
             <Route
               path="/boards/:boardId"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <BoardViewPage />
                 </ProtectedRoute>
               }
@@ -246,7 +246,7 @@ const App: React.FC = () => {
             <Route
               path="/admin/columns"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <ColumnManagementPage />
                 </ProtectedRoute>
               }
@@ -254,7 +254,7 @@ const App: React.FC = () => {
             <Route
               path="/profile"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <ProfilePage />
                 </ProtectedRoute>
               }
@@ -263,7 +263,7 @@ const App: React.FC = () => {
             <Route
               path="/admin"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <AdminDashboardPage />
                 </ProtectedRoute>
               }
@@ -271,7 +271,7 @@ const App: React.FC = () => {
             <Route
               path="/admin/users"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN]}>
                   <UserManagementPage />
                 </ProtectedRoute>
               }
@@ -279,7 +279,7 @@ const App: React.FC = () => {
             <Route
               path="/admin/users/:userId"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN]}>
                   <ProfilePage />
                 </ProtectedRoute>
               }
@@ -287,15 +287,15 @@ const App: React.FC = () => {
             <Route
               path="/admin/workspaces"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ACADEMY_ADMIN]}>
-                  <OrganizationManagementPage />
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN]}>
+                  <WorkspaceManagementPage />
                 </ProtectedRoute>
               }
             />
             <Route
               path="/admin/theme-settings"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ACADEMY_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN]}>
                   <ThemeSettingsPage />
                 </ProtectedRoute>
               }
@@ -304,7 +304,7 @@ const App: React.FC = () => {
               path="/admin/workspaces"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]}>
-                  <AcademyManagementPage />
+                  <OrganizationManagementPage />
                 </ProtectedRoute>
               }
             />

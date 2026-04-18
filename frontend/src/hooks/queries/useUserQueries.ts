@@ -13,7 +13,7 @@ export const useUsersQuery = (params?: { limit?: number; cursor?: string; search
   });
 };
 
-export const useUsersInfiniteQuery = (params?: { limit?: number; search?: string; organizationId?: string; role?: string }, enabled = true) => {
+export const useUsersInfiniteQuery = (params?: { limit?: number; search?: string; workspaceId?: string; role?: string }, enabled = true) => {
   return useInfiniteQuery({
     queryKey: [...queryKeys.users.all, 'infinite', params],
     queryFn: ({ pageParam }) => apiService.getUsers({ ...params, cursor: pageParam as string }),

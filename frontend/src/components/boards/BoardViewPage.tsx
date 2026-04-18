@@ -69,8 +69,8 @@ const BoardViewPage: React.FC = () => {
   const activeItemOriginalGroupRef = useRef<string | null>(null);
 
   const canManage =
+    user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
-    user?.role === UserRole.ACADEMY_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN;
 
   // Build items-by-group map from server data

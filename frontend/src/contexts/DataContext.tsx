@@ -1,11 +1,11 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Workspace, User, PreApprovedUser, AcademySettings, Workspace, SystemSettings, TutorialSettings } from '../types';
+import type { Workspace, User, PreApprovedUser, OrganizationSettings, Workspace, SystemSettings, TutorialSettings } from '../types';
 import { UserRole } from '../types';
 import { useAuth } from '../hooks/useAuth';
 import { queryKeys } from '../hooks/queries/queryKeys';
-import { useAcademiesQuery, useAcademySettingsQuery } from '../hooks/queries/useAcademyQueries';
-import { useOrganizationsQuery, useArchivedOrganizationsQuery } from '../hooks/queries/useOrganizationQueries';
+import { useAcademiesQuery, useOrganizationSettingsQuery } from '../hooks/queries/useOrganizationQueries';
+import { useWorkspacesQuery, useArchivedWorkspacesQuery } from '../hooks/queries/useWorkspaceQueries';
 import { useUsersQuery, usePreApprovedUsersQuery } from '../hooks/queries/useUserQueries';
 import { useSystemSettingsQuery, useTutorialSettingsQuery } from '../hooks/queries/useSettingsQueries';
 
@@ -40,37 +40,37 @@ const api = () => import('../services/geminiService');
 interface DataContextType {
   workspaces: Workspace[];
   fetchAcademies: () => Promise<void>;
-  addAcademy: (name: string) => Promise<Workspace | null>;
-  updateAcademy: (id: string, name: string) => Promise<boolean>;
-  deleteAcademy: (id: string) => Promise<boolean>;
-  addAcademyAdmin: (orgId: string, email: string) => Promise<{message: string} | null>;
-  removeAcademyAdmin: (orgId: string, userId: string) => Promise<{message: string} | null>;
+  addOrganization: (name: string) => Promise<Workspace | null>;
+  updateOrganization: (id: string, name: string) => Promise<boolean>;
+  deleteOrganization: (id: string) => Promise<boolean>;
+  addOrganizationAdmin: (orgId: string, email: string) => Promise<{message: string} | null>;
+  removeOrganizationAdmin: (orgId: string, userId: string) => Promise<{message: string} | null>;
 
   workspaces: Workspace[];
-  archivedOrganizations: Workspace[];
-  fetchOrganizations: (filterType?: 'corporate' | 'individual' | 'all') => Promise<void>;
-  fetchArchivedOrganizations: () => Promise<void>;
-  addOrganization: (name: string, orgId: string, planId?: string) => Promise<Workspace | null>;
-  updateOrganization: (id: string, data: { name?: string; planId?: string }) => Promise<boolean>;
-  deleteOrganization: (id: string, force?: boolean) => Promise<{ isConflict: boolean; dependencies?: any }>;
-  confirmArchiveOrganization: (id: string) => Promise<boolean>;
-  restoreOrganization: (id: string) => Promise<boolean>;
-  addOrganizationManager: (organizationId: string, email: string) => Promise<{message: string} | null>;
-  removeOrganizationManager: (organizationId: string, userId: string) => Promise<{message: string} | null>;
-  removeUserFromOrganization: (organizationId: string, userId: string) => Promise<boolean>;
+  archivedWorkspaces: Workspace[];
+  fetchWorkspaces: (filterType?: 'corporate' | 'individual' | 'all') => Promise<void>;
+  fetchArchivedWorkspaces: () => Promise<void>;
+  addWorkspace: (name: string, orgId: string, planId?: string) => Promise<Workspace | null>;
+  updateWorkspace: (id: string, data: { name?: string; planId?: string }) => Promise<boolean>;
+  deleteWorkspace: (id: string, force?: boolean) => Promise<{ isConflict: boolean; dependencies?: any }>;
+  confirmArchiveWorkspace: (id: string) => Promise<boolean>;
+  restoreWorkspace: (id: string) => Promise<boolean>;
+  addWorkspaceManager: (workspaceId: string, email: string) => Promise<{message: string} | null>;
+  removeWorkspaceManager: (workspaceId: string, userId: string) => Promise<{message: string} | null>;
+  removeUserFromWorkspace: (workspaceId: string, userId: string) => Promise<boolean>;
 
   users: User[];
   fetchUsers: () => Promise<void>;
   deleteUser: (userId: string, deletionType: 'soft' | 'hard') => Promise<boolean>;
 
   preApprovedUsers: PreApprovedUser[];
-  preApproveUsersInBulk: (emails: string[], organizationId: string) => Promise<{successCount: number} | null>;
+  preApproveUsersInBulk: (emails: string[], workspaceId: string) => Promise<{successCount: number} | null>;
   revokePreApprovedUser: (preApprovedUserId: string) => Promise<boolean>;
 
-  academySettings: AcademySettings | null;
-  updateAcademySettings: (settings: Partial<AcademySettings> & { logoUpload?: string }) => Promise<AcademySettings | null>;
-  setAcademySettingsLocal: (settings: AcademySettings | null) => void;
-  regenerateApiKey: () => Promise<AcademySettings | null>;
+  organizationSettings: OrganizationSettings | null;
+  updateOrganizationSettings: (settings: Partial<OrganizationSettings> & { logoUpload?: string }) => Promise<OrganizationSettings | null>;
+  setOrganizationSettingsLocal: (settings: OrganizationSettings | null) => void;
+  regenerateApiKey: () => Promise<OrganizationSettings | null>;
 
   systemSettings: SystemSettings | null;
   fetchSystemSettings: () => Promise<void>;
@@ -89,35 +89,35 @@ interface DataContextType {
 export const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, selectedOrganization, logout } = useAuth();
+  const { user, selectedWorkspace, logout } = useAuth();
   const queryClient = useQueryClient();
 
   // --- Role-based query enablement ---
-  const isLoggedIn = !!user && !!selectedOrganization;
+  const isLoggedIn = !!user && !!selectedWorkspace;
   const role = user?.role;
   const isSystemAdmin = role === UserRole.SYSTEM_ADMIN;
-  const isAcademyAdmin = role === UserRole.ACADEMY_ADMIN;
-  const isOrgAdmin = role === UserRole.ORGANIZATION_ADMIN;
-  const isAdminRole = isSystemAdmin || isAcademyAdmin || isOrgAdmin;
-  const isNonSystemUser = isAcademyAdmin || isOrgAdmin || role === UserRole.REGULAR_USER;
+  const isOrganizationAdmin = role === UserRole.ORGANIZATION_ADMIN;
+  const isOrgAdmin = role === UserRole.WORKSPACE_ADMIN;
+  const isAdminRole = isSystemAdmin || isOrganizationAdmin || isOrgAdmin;
+  const isNonSystemUser = isOrganizationAdmin || isOrgAdmin || role === UserRole.REGULAR_USER;
 
   // --- React Query hooks (enabled per role — data loads lazily) ---
   const academiesQuery = useAcademiesQuery(isLoggedIn && isSystemAdmin);
-  const organizationsQuery = useOrganizationsQuery(undefined, isLoggedIn && (isSystemAdmin || isAcademyAdmin));
-  const archivedOrganizationsQuery = useArchivedOrganizationsQuery(false);
+  const workspacesQuery = useWorkspacesQuery(undefined, isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
+  const archivedWorkspacesQuery = useArchivedWorkspacesQuery(false);
   const usersQuery = useUsersQuery(undefined, isLoggedIn && isAdminRole);
-  const preApprovedUsersQuery = usePreApprovedUsersQuery(isLoggedIn && (isAcademyAdmin || isOrgAdmin));
-  const academySettingsQuery = useAcademySettingsQuery(isLoggedIn && isNonSystemUser);
-  const systemSettingsQuery = useSystemSettingsQuery(isLoggedIn && (isSystemAdmin || isAcademyAdmin));
-  const tutorialSettingsQuery = useTutorialSettingsQuery(isLoggedIn && (isSystemAdmin || isAcademyAdmin));
+  const preApprovedUsersQuery = usePreApprovedUsersQuery(isLoggedIn && (isOrganizationAdmin || isOrgAdmin));
+  const organizationSettingsQuery = useOrganizationSettingsQuery(isLoggedIn && isNonSystemUser);
+  const systemSettingsQuery = useSystemSettingsQuery(isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
+  const tutorialSettingsQuery = useTutorialSettingsQuery(isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
 
   // --- Derived state from React Query ---
   const workspaces = academiesQuery.data ?? [];
-  const workspaces = organizationsQuery.data ?? [];
-  const archivedOrganizations = archivedOrganizationsQuery.data ?? [];
+  const workspaces = workspacesQuery.data ?? [];
+  const archivedWorkspaces = archivedWorkspacesQuery.data ?? [];
   const users = usersQuery.data ?? [];
   const preApprovedUsers = preApprovedUsersQuery.data ?? [];
-  const academySettings = academySettingsQuery.data ?? null;
+  const organizationSettings = organizationSettingsQuery.data ?? null;
   const systemSettings = systemSettingsQuery.data ?? null;
   const tutorialSettings = tutorialSettingsQuery.data ?? null;
 
@@ -126,8 +126,8 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Composite loading: true while any role-enabled query is loading for the first time
   const isLoading = [
-    academiesQuery, organizationsQuery, usersQuery,
-    academySettingsQuery, systemSettingsQuery, tutorialSettingsQuery,
+    academiesQuery, workspacesQuery, usersQuery,
+    organizationSettingsQuery, systemSettingsQuery, tutorialSettingsQuery,
     preApprovedUsersQuery,
   ].some(q => q.isLoading && q.fetchStatus !== 'idle');
 
@@ -144,10 +144,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Clear all query cache on logout
   useEffect(() => {
-    if (!user || !selectedOrganization) {
+    if (!user || !selectedWorkspace) {
       queryClient.clear();
     }
-  }, [user, selectedOrganization, queryClient]);
+  }, [user, selectedWorkspace, queryClient]);
 
   const handleApiCall = useCallback(async <T,>(apiCall: () => Promise<T>, onSuccess?: (data: T) => void, errorMessage?: string): Promise<T | null> => {
     setDataError(null);
@@ -173,7 +173,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all });
   }, [queryClient]);
 
-  const fetchOrganizations = useCallback(async (filterType?: 'corporate' | 'individual' | 'all') => {
+  const fetchWorkspaces = useCallback(async (filterType?: 'corporate' | 'individual' | 'all') => {
     if (filterType && filterType !== 'all') {
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.filtered(filterType) });
     }
@@ -182,9 +182,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all });
   }, [queryClient]);
 
-  const fetchArchivedOrganizations = useCallback(async () => {
-    const { getArchivedOrganizations } = await api();
-    await queryClient.fetchQuery({ queryKey: queryKeys.workspaces.archived, queryFn: () => getArchivedOrganizations() });
+  const fetchArchivedWorkspaces = useCallback(async () => {
+    const { getArchivedWorkspaces } = await api();
+    await queryClient.fetchQuery({ queryKey: queryKeys.workspaces.archived, queryFn: () => getArchivedWorkspaces() });
   }, [queryClient]);
 
   const fetchUsers = useCallback(async () => {
@@ -195,7 +195,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await queryClient.invalidateQueries({ queryKey: queryKeys.users.preApproved });
   }, [queryClient]);
 
-  const fetchAcademySettings = useCallback(async () => {
+  const fetchOrganizationSettings = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: queryKeys.settings.workspace });
   }, [queryClient]);
 
@@ -217,44 +217,44 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- Create/Update/Delete Logic (mutations) ---
 
   // Workspaces
-  const addAcademy = async (name: string) => {
-    const { createAcademy } = await api();
-    return handleApiCall(() => createAcademy(name), () => fetchAcademies(), 'Failed to add workspace.');
+  const addOrganization = async (name: string) => {
+    const { createOrganization } = await api();
+    return handleApiCall(() => createOrganization(name), () => fetchAcademies(), 'Failed to add workspace.');
   };
-  const updateAcademy = async (id: string, name: string) => {
-    const { updateAcademy: updateAcademyApi } = await api();
-    const updated = await handleApiCall(() => updateAcademyApi(id, name), () => fetchAcademies(), 'Failed to update workspace.');
+  const updateOrganization = async (id: string, name: string) => {
+    const { updateOrganization: updateOrganizationApi } = await api();
+    const updated = await handleApiCall(() => updateOrganizationApi(id, name), () => fetchAcademies(), 'Failed to update workspace.');
     return !!updated;
   };
-  const deleteAcademy = async (id: string) => {
-    const { deleteAcademy: deleteAcademyApi } = await api();
-    const success = await handleApiCall(() => deleteAcademyApi(id), () => fetchAcademies(), 'Failed to delete workspace.');
+  const deleteOrganization = async (id: string) => {
+    const { deleteOrganization: deleteOrganizationApi } = await api();
+    const success = await handleApiCall(() => deleteOrganizationApi(id), () => fetchAcademies(), 'Failed to delete workspace.');
     return success === null;
   };
-  const addAcademyAdmin = async (orgId: string, email: string) => {
-    const { addAcademyAdmin: addAcademyAdminApi } = await api();
-    return handleApiCall(() => addAcademyAdminApi(orgId, email), () => fetchUsers(), 'Failed to add workspace admin.');
+  const addOrganizationAdmin = async (orgId: string, email: string) => {
+    const { addOrganizationAdmin: addOrganizationAdminApi } = await api();
+    return handleApiCall(() => addOrganizationAdminApi(orgId, email), () => fetchUsers(), 'Failed to add workspace admin.');
   };
-  const removeAcademyAdmin = async (orgId: string, userId: string) => {
-    const { removeAcademyAdmin: removeAcademyAdminApi } = await api();
-    return handleApiCall(() => removeAcademyAdminApi(orgId, userId), () => fetchUsers(), 'Failed to remove admin.');
+  const removeOrganizationAdmin = async (orgId: string, userId: string) => {
+    const { removeOrganizationAdmin: removeOrganizationAdminApi } = await api();
+    return handleApiCall(() => removeOrganizationAdminApi(orgId, userId), () => fetchUsers(), 'Failed to remove admin.');
   };
 
   // Workspaces
-  const addOrganization = async (name: string, orgId: string, planId?: string) => {
-    const { addOrganizationToBackend } = await api();
-    return handleApiCall(() => addOrganizationToBackend(name, orgId, planId), () => fetchOrganizations(), 'Failed to add workspace.');
+  const addWorkspace = async (name: string, orgId: string, planId?: string) => {
+    const { addWorkspaceToBackend } = await api();
+    return handleApiCall(() => addWorkspaceToBackend(name, orgId, planId), () => fetchWorkspaces(), 'Failed to add workspace.');
   };
-  const updateOrganization = async (id: string, data: { name?: string; planId?: string; subscriptionProvider?: string; isPersonal?: boolean }) => {
-    const { updateOrganizationOnBackend } = await api();
-    const updated = await handleApiCall(() => updateOrganizationOnBackend(id, data), () => fetchOrganizations(), 'Failed to update workspace.');
+  const updateWorkspace = async (id: string, data: { name?: string; planId?: string; subscriptionProvider?: string; isPersonal?: boolean }) => {
+    const { updateWorkspaceOnBackend } = await api();
+    const updated = await handleApiCall(() => updateWorkspaceOnBackend(id, data), () => fetchWorkspaces(), 'Failed to update workspace.');
     return !!updated;
   };
-  const deleteOrganization = async (id: string, force = false): Promise<{ isConflict: boolean; dependencies?: any }> => {
+  const deleteWorkspace = async (id: string, force = false): Promise<{ isConflict: boolean; dependencies?: any }> => {
     try {
-      const { deleteOrganizationFromBackend } = await api();
-      await deleteOrganizationFromBackend(id, force);
-      await fetchOrganizations();
+      const { deleteWorkspaceFromBackend } = await api();
+      await deleteWorkspaceFromBackend(id, force);
+      await fetchWorkspaces();
       return { isConflict: false };
     } catch (error: any) {
       if (error.isConflict) {
@@ -264,31 +264,31 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { isConflict: false };
     }
   };
-  const confirmArchiveOrganization = async (id: string): Promise<boolean> => {
-    const { deleteOrganizationFromBackend } = await api();
-    const success = await handleApiCall(() => deleteOrganizationFromBackend(id, true), () => fetchOrganizations(), 'Failed to archive workspace.');
+  const confirmArchiveWorkspace = async (id: string): Promise<boolean> => {
+    const { deleteWorkspaceFromBackend } = await api();
+    const success = await handleApiCall(() => deleteWorkspaceFromBackend(id, true), () => fetchWorkspaces(), 'Failed to archive workspace.');
     return success === null;
   };
-  const restoreOrganization = async (id: string) => {
-    const { restoreOrganization: restoreOrganizationApi } = await api();
-    const success = await handleApiCall(() => restoreOrganizationApi(id), undefined, 'Failed to restore workspace.');
+  const restoreWorkspace = async (id: string) => {
+    const { restoreWorkspace: restoreWorkspaceApi } = await api();
+    const success = await handleApiCall(() => restoreWorkspaceApi(id), undefined, 'Failed to restore workspace.');
     if (success) {
-      await fetchOrganizations();
-      await fetchArchivedOrganizations();
+      await fetchWorkspaces();
+      await fetchArchivedWorkspaces();
     }
     return !!success;
   };
-  const addOrganizationManager = async (organizationId: string, email: string) => {
-    const { addOrganizationManager: addOrgManagerApi } = await api();
-    return handleApiCall(() => addOrgManagerApi(organizationId, email), () => fetchUsers(), 'Failed to add manager.');
+  const addWorkspaceManager = async (workspaceId: string, email: string) => {
+    const { addWorkspaceManager: addOrgManagerApi } = await api();
+    return handleApiCall(() => addOrgManagerApi(workspaceId, email), () => fetchUsers(), 'Failed to add manager.');
   };
-  const removeOrganizationManager = async (organizationId: string, userId: string) => {
-    const { removeOrganizationManager: removeOrgManagerApi } = await api();
-    return handleApiCall(() => removeOrgManagerApi(organizationId, userId), () => fetchUsers(), 'Failed to remove manager.');
+  const removeWorkspaceManager = async (workspaceId: string, userId: string) => {
+    const { removeWorkspaceManager: removeOrgManagerApi } = await api();
+    return handleApiCall(() => removeOrgManagerApi(workspaceId, userId), () => fetchUsers(), 'Failed to remove manager.');
   };
-  const removeUserFromOrganization = async (organizationId: string, userId: string): Promise<boolean> => {
-    const { removeUserFromOrganization: removeUserApi } = await api();
-    const result = await handleApiCall(() => removeUserApi(organizationId, userId), () => fetchUsers(), 'Failed to remove user from workspace.');
+  const removeUserFromWorkspace = async (workspaceId: string, userId: string): Promise<boolean> => {
+    const { removeUserFromWorkspace: removeUserApi } = await api();
+    const result = await handleApiCall(() => removeUserApi(workspaceId, userId), () => fetchUsers(), 'Failed to remove user from workspace.');
     return result === null;
   };
 
@@ -306,9 +306,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
     return success === null;
   };
-  const preApproveUsersInBulk = async (emails: string[], organizationId: string) => {
+  const preApproveUsersInBulk = async (emails: string[], workspaceId: string) => {
     const { preApproveUsersInBulk: preApproveApi } = await api();
-    return handleApiCall(() => preApproveApi(emails, organizationId), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
+    return handleApiCall(() => preApproveApi(emails, workspaceId), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
   };
   const revokePreApprovedUser = async (preApprovedUserId: string) => {
     const { deletePreApprovedUserFromBackend } = await api();
@@ -325,24 +325,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Workspace Settings
-  const updateAcademySettings = async (settings: Partial<AcademySettings> & { logoUpload?: string }) => {
+  const updateOrganizationSettings = async (settings: Partial<OrganizationSettings> & { logoUpload?: string }) => {
     const { updateThemeSettingsOnBackend } = await api();
     const result = await handleApiCall(() => updateThemeSettingsOnBackend(settings), undefined, 'Failed to update workspace settings.');
     if (result) {
-      await fetchAcademySettings();
+      await fetchOrganizationSettings();
     }
     return result;
   };
 
-  const setAcademySettingsLocal = (settings: AcademySettings | null) => {
+  const setOrganizationSettingsLocal = (settings: OrganizationSettings | null) => {
     queryClient.setQueryData(queryKeys.settings.workspace, settings);
   };
 
   const regenerateApiKey = async () => {
     const { regenerateApiKey: regenerateApiKeyApi } = await api();
     return handleApiCall(() => regenerateApiKeyApi(), (updatedSettings) => {
-      queryClient.setQueryData(queryKeys.settings.workspace, (prev: AcademySettings | null | undefined) =>
-        ({ ...(prev as AcademySettings), ...updatedSettings })
+      queryClient.setQueryData(queryKeys.settings.workspace, (prev: OrganizationSettings | null | undefined) =>
+        ({ ...(prev as OrganizationSettings), ...updatedSettings })
       );
     }, 'Failed to regenerate API key.');
   };
@@ -366,11 +366,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   return (
     <DataContext.Provider value={{
-      workspaces, fetchAcademies, addAcademy, updateAcademy, deleteAcademy, addAcademyAdmin, removeAcademyAdmin,
-      workspaces, archivedOrganizations, fetchOrganizations, fetchArchivedOrganizations, addOrganization, updateOrganization, deleteOrganization, confirmArchiveOrganization, restoreOrganization, addOrganizationManager, removeOrganizationManager, removeUserFromOrganization,
+      workspaces, fetchAcademies, addOrganization, updateOrganization, deleteOrganization, addOrganizationAdmin, removeOrganizationAdmin,
+      workspaces, archivedWorkspaces, fetchWorkspaces, fetchArchivedWorkspaces, addWorkspace, updateWorkspace, deleteWorkspace, confirmArchiveWorkspace, restoreWorkspace, addWorkspaceManager, removeWorkspaceManager, removeUserFromWorkspace,
       users, fetchUsers, deleteUser,
       preApprovedUsers, preApproveUsersInBulk, revokePreApprovedUser,
-      academySettings, updateAcademySettings, setAcademySettingsLocal, regenerateApiKey,
+      organizationSettings, updateOrganizationSettings, setOrganizationSettingsLocal, regenerateApiKey,
       systemSettings, fetchSystemSettings, updateSystemSettings,
       tutorialSettings, fetchTutorialSettings, updateTutorialSettings,
       isLoading, dataError, clearDataError, fetchAllData,

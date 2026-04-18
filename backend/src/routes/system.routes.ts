@@ -5,7 +5,7 @@ import { UserRole } from '../types/index.js';
 
 export const systemRouter = Router();
 
-const adminRoles = [UserRole.SYSTEM_ADMIN, UserRole.ACADEMY_ADMIN];
+const adminRoles = [UserRole.SYSTEM_ADMIN, UserRole.ORGANIZATION_ADMIN];
 
 systemRouter.get('/settings', requireRole(adminRoles), systemController.getSystemSettings);
 systemRouter.put('/settings', requireRole([UserRole.SYSTEM_ADMIN]), systemController.updateSystemSettings);

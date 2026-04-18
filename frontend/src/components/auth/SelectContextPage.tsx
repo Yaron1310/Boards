@@ -46,11 +46,11 @@ const SelectContextPage: React.FC = () => {
     if (!selectedValue) return;
 
     try {
-        const { organizationId, role } = JSON.parse(selectedValue);
+        const { workspaceId, role } = JSON.parse(selectedValue);
         if (contextSelectionMode === 'login') {
-            await completeLoginWithContext(organizationId, role);
+            await completeLoginWithContext(workspaceId, role);
         } else if (contextSelectionMode === 'switch') {
-            await switchContext(organizationId, role);
+            await switchContext(workspaceId, role);
         }
     } catch (error) {
         console.error("Failed to complete login with context:", error);

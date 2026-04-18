@@ -11,7 +11,7 @@ export const useAcademiesQuery = (enabled = true) => {
   });
 };
 
-export const useAcademySettingsQuery = (enabled = true) => {
+export const useOrganizationSettingsQuery = (enabled = true) => {
   return useQuery({
     queryKey: queryKeys.settings.workspace,
     queryFn: () => apiService.getThemeSettingsFromBackend(),

@@ -3,13 +3,13 @@ import admin from 'firebase-admin';
 
 // --- HIERARCHY & TENANCY ---
 
-export interface DBAcademy {
+export interface DBOrganization {
   id: string;
   name: string;
   createdAt: admin.firestore.Timestamp | Date | any;
 }
 
-export interface DBOrganization {
+export interface DBWorkspace {
   id: string;
   name: string;
   orgId: string;
@@ -19,7 +19,7 @@ export interface DBOrganization {
   status?: 'active' | 'archived';
 }
 
-export interface DBAcademySettings {
+export interface DBOrganizationSettings {
   id: string;
   sidebarColor: string;
   enableSidebarGradient?: boolean;
@@ -54,8 +54,8 @@ export interface DBTutorialSettings {
 
 export enum UserRole {
   REGULAR_USER = 'regular_user',
-  ORGANIZATION_ADMIN = 'workspace_admin',
-  ACADEMY_ADMIN = 'org_admin',
+  WORKSPACE_ADMIN = 'workspace_admin',
+  ORGANIZATION_ADMIN = 'org_admin',
   SYSTEM_ADMIN = 'system_admin',
 }
 
@@ -74,8 +74,8 @@ export interface DBUser {
   passwordResetId?: string;
   failedLoginAttempts?: number;
   lockoutUntil?: admin.firestore.Timestamp | Date | null | any;
-  primaryAcademyId?: string;
-  defaultOrganizationId?: string;
+  primaryOrganizationId?: string;
+  defaultWorkspaceId?: string;
 }
 
 export interface DBMembership {
@@ -98,7 +98,7 @@ export interface DBMembership {
 export interface DBPreapprovedUser {
   id: string;
   email: string;
-  organizationId: string;
+  workspaceId: string;
   orgId: string;
   addedBy: string;
   createdAt: admin.firestore.Timestamp | Date | any;
@@ -106,7 +106,7 @@ export interface DBPreapprovedUser {
 
 export interface DBUserAccessStatus {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   hasAccess: boolean;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
@@ -116,7 +116,7 @@ export interface DBUserAccessStatus {
 export interface JwtUserPayload {
   id: string;
   role: UserRole;
-  selectedOrganizationId: string;
+  selectedWorkspaceId: string;
   orgId: string;
 }
 
@@ -132,7 +132,7 @@ export interface JwtApprovalPayload {
 
 export interface JwtVerificationPayload {
   userId: string;
-  action: 'verify_email' | 'verify_academy_admin';
+  action: 'verify_email' | 'verify_organization_admin';
 }
 
 export interface JwtPasswordResetPayload {
@@ -241,7 +241,7 @@ export type ColumnSettings =
 
 export interface DBColumn {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
@@ -267,7 +267,7 @@ export type ColumnValueMap = Record<string, unknown>;
 
 export interface DBBoard {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   workspaceId: string;
   name: string;
   description?: string;
@@ -282,7 +282,7 @@ export interface DBBoard {
 
 export interface DBGroup {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   boardId: string;
   name: string;
   color?: string;
@@ -292,11 +292,11 @@ export interface DBGroup {
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
 
-// --- Item (flat, stored at organization level) ---
+// --- Item (flat, stored at workspace level) ---
 
 export interface DBItem {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   workspaceId: string;
   boardId: string;
   groupId: string;
@@ -332,7 +332,7 @@ export interface DBAuditLog {
   action: AuditAction;
   resourceType: AuditResourceType;
   resourceId: string;
-  organizationId?: string;
+  workspaceId?: string;
   orgId?: string;
   changes?: { before: unknown; after: unknown };
   ipAddress?: string;
@@ -402,7 +402,7 @@ export enum BoardRole {
 export interface DBBoardMember {
   userId: string;
   boardId: string;
-  organizationId: string;
+  workspaceId: string;
   role: BoardRole;
   addedBy: string;
   createdAt: admin.firestore.Timestamp;
@@ -416,7 +416,7 @@ export type NotificationType = 'assignment' | 'mention';
 
 export interface DBNotification {
   id: string;
-  organizationId: string;
+  workspaceId: string;
   recipientId: string;
   actorId: string;
   actorName: string;

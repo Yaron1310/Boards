@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { boardsCollection, boardVersionsCollection, groupsCollection, organizationsCollection, boardMembersCollection } from '../db/collections.js';
+import { boardsCollection, boardVersionsCollection, groupsCollection, workspacesCollection, boardMembersCollection } from '../db/collections.js';
 import { JwtUserPayload, DBBoard, DBBoardMember } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -27,16 +27,16 @@ export const createBoard = async (req: Request, res: Response) => {
   }
 
   try {
-    // Validate workspaceId belongs to this organization (tenant boundary)
-    const workspaceDoc = await organizationsCollection.doc(workspaceId).get();
+    // Validate workspaceId belongs to this workspace (tenant boundary)
+    const workspaceDoc = await workspacesCollection.doc(workspaceId).get();
     if (!workspaceDoc.exists || workspaceDoc.data()?.orgId !== user.orgId) {
-      return res.status(400).json({ message: 'Invalid workspaceId: workspace not found in this organization.' });
+      return res.status(400).json({ message: 'Invalid workspaceId: workspace not found in this workspace.' });
     }
 
     // Build a provisional board to check create permission before writing
     const provisionalBoard: DBBoard = {
       id: '',
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       workspaceId,
       name: sanitizeText(name),
       order: typeof order === 'number' ? order : 0,
@@ -58,7 +58,7 @@ export const createBoard = async (req: Request, res: Response) => {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     await docRef.set({
       id: docRef.id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       workspaceId,
       name: sanitizeText(name),
       description: description ? sanitizeText(description) : null,
@@ -77,7 +77,7 @@ export const createBoard = async (req: Request, res: Response) => {
       action: 'CREATE',
       resourceType: 'board',
       resourceId: docRef.id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -120,7 +120,7 @@ export const getBoards = async (req: Request, res: Response) => {
       action: 'READ',
       resourceType: 'board',
       resourceId: 'list',
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -156,7 +156,7 @@ export const getBoardById = async (req: Request, res: Response) => {
       action: 'READ',
       resourceType: 'board',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -202,7 +202,7 @@ export const updateBoard = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'board',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -241,7 +241,7 @@ export const archiveBoard = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'board',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -280,7 +280,7 @@ export const restoreBoard = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'board',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -295,7 +295,7 @@ export const restoreBoard = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// DELETE /boards/:id   (hard-delete — ACADEMY_ADMIN+ only)
+// DELETE /boards/:id   (hard-delete — ORGANIZATION_ADMIN+ only)
 // ---------------------------------------------------------------------------
 export const deleteBoard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
@@ -321,7 +321,7 @@ export const deleteBoard = async (req: Request, res: Response) => {
       action: 'DELETE',
       resourceType: 'board',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,

@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
-import { AcademySettings } from '../../types';
+import { OrganizationSettings } from '../../types';
 import { useData } from '../../hooks/useData';
 
-interface AcademyProfileEditModalProps {
+interface OrganizationProfileEditModalProps {
   isOpen: boolean;
   onClose: () => void;
-  settings: AcademySettings | null;
+  settings: OrganizationSettings | null;
 }
 
-const AcademyProfileEditModal: React.FC<AcademyProfileEditModalProps> = ({ isOpen, onClose, settings }) => {
+const OrganizationProfileEditModal: React.FC<OrganizationProfileEditModalProps> = ({ isOpen, onClose, settings }) => {
   const { t } = useTranslation();
-  const { updateAcademySettings } = useData();
-  const [formData, setFormData] = useState<Partial<AcademySettings>>({});
+  const { updateOrganizationSettings } = useData();
+  const [formData, setFormData] = useState<Partial<OrganizationSettings>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
@@ -58,7 +58,7 @@ const AcademyProfileEditModal: React.FC<AcademyProfileEditModalProps> = ({ isOpe
     setSaveError(null);
     setIsSaving(true);
     try {
-      await updateAcademySettings(formData);
+      await updateOrganizationSettings(formData);
       onClose();
     } catch (error) {
       setSaveError('Failed to save changes. Please try again.');
@@ -82,7 +82,7 @@ const AcademyProfileEditModal: React.FC<AcademyProfileEditModalProps> = ({ isOpe
           <p className="text-xs text-gray-500 mb-4">{t('checkout.requiredFieldsNote')}</p>
           <div className="space-y-4">
             <div>
-              <label htmlFor="appName" className="block text-sm font-medium text-gray-700">{t('admin.academyDisplayName')} <span aria-hidden="true">*</span></label>
+              <label htmlFor="appName" className="block text-sm font-medium text-gray-700">{t('admin.organizationDisplayName')} <span aria-hidden="true">*</span></label>
               <input
                 type="text"
                 id="appName"
@@ -176,4 +176,4 @@ const AcademyProfileEditModal: React.FC<AcademyProfileEditModalProps> = ({ isOpe
   );
 };
 
-export default AcademyProfileEditModal;
+export default OrganizationProfileEditModal;

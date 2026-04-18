@@ -31,7 +31,7 @@ export const APP_NAME = 'Gymind';
 
 // Default workspaces can still be defined here if needed for frontend fallbacks or initial setup,
 // but primary source should be the backend.
-export const DEFAULT_ORGANIZATIONS = [
+export const DEFAULT_WORKSPACES = [
   { id: 'org1', name: 'Mindful Solutions Inc.' },
   { id: 'org2', name: 'Wellness Hub Co.' },
   { id: 'org3', name: 'Serene Paths LLC' },

@@ -22,7 +22,7 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
         const payload = user as JwtUserPayload;
         
         // Allow full user tokens
-        if (payload.id && payload.role && payload.selectedOrganizationId && payload.orgId) {
+        if (payload.id && payload.role && payload.selectedWorkspaceId && payload.orgId) {
             req.user = payload as Express.User;
             return next();
         }

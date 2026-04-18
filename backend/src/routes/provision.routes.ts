@@ -5,4 +5,4 @@ import { provisionLimiter } from '../middleware/rateLimit.middleware.js';
 
 export const provisionRouter = Router();
 
-provisionRouter.get('/check-org-name', provisionLimiter, authenticateApiKey, provisionController.checkOrganizationName);
+provisionRouter.get('/check-org-name', provisionLimiter, authenticateApiKey, provisionController.checkWorkspaceName);

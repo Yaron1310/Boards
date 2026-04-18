@@ -5,11 +5,11 @@ import * as apiService from '../../services/geminiService';
 import { FiHexagon, FiCheckCircle, FiLoader, FiAlertCircle, FiCheck, FiX, FiCreditCard } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 
-const AcademySetupWizard: React.FC = () => {
+const OrganizationSetupWizard: React.FC = () => {
   const { i18n } = useTranslation();
   const t = i18n.getFixedT('en');
   const [step, setStep] = useState(1);
-  const [academyName, setAcademyName] = useState('');
+  const [organizationName, setOrganizationName] = useState('');
 
   const [isCheckingName, setIsCheckingName] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -24,18 +24,18 @@ const AcademySetupWizard: React.FC = () => {
   // Debounced name check
   const checkName = useCallback(async (name: string) => {
     if (name.length < 3) {
-      setNameError(t('auth.academyNameTooShort'));
+      setNameError(t('auth.organizationNameTooShort'));
       setNameAvailable(false);
       setIsCheckingName(false);
       return;
     }
     try {
-      const { isUnique } = await apiService.checkAcademyNameUniqueness(name);
+      const { isUnique } = await apiService.checkOrganizationNameUniqueness(name);
       if (isUnique) {
         setNameError(null);
         setNameAvailable(true);
       } else {
-        setNameError(t('auth.academyNameTaken'));
+        setNameError(t('auth.organizationNameTaken'));
         setNameAvailable(false);
       }
     } catch (err: any) {
@@ -47,7 +47,7 @@ const AcademySetupWizard: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    if (!academyName) {
+    if (!organizationName) {
         setIsCheckingName(false);
         setNameError(null);
         setNameAvailable(false);
@@ -56,13 +56,13 @@ const AcademySetupWizard: React.FC = () => {
 
     setIsCheckingName(true);
     const handler = setTimeout(() => {
-        checkName(academyName);
+        checkName(organizationName);
     }, 500); // 500ms debounce
 
     return () => {
       clearTimeout(handler);
     };
-  }, [academyName, checkName]);
+  }, [organizationName, checkName]);
 
   const handleNameSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,10 +71,10 @@ const AcademySetupWizard: React.FC = () => {
     setIsActivating(true);
     setActivationError(null);
     try {
-      await apiService.setupAcademy(academyName);
+      await apiService.setupOrganization(organizationName);
       setStep(2);
     } catch (err: any) {
-      setActivationError(err.message || t('auth.failedToCreateAcademy'));
+      setActivationError(err.message || t('auth.failedToCreateOrganization'));
     } finally {
       setIsActivating(false);
     }
@@ -91,7 +91,7 @@ const AcademySetupWizard: React.FC = () => {
     setIsActivating(true);
     setActivationError(null);
     try {
-        const loginResponse = await apiService.activateAcademySubscription();
+        const loginResponse = await apiService.activateOrganizationSubscription();
         finalizeLoginSession(loginResponse);
         // The App.tsx router will now render the main app.
         navigate('/admin');
@@ -122,8 +122,8 @@ const AcademySetupWizard: React.FC = () => {
         <div className="p-8">
           <div className="text-center mb-8">
             <img src={logoUrl} alt={t('common.appLogoAlt')} className="h-16 w-auto mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-gray-800">{t('auth.academySetup')}</h1>
-            <p className="text-gray-500">{t('auth.academySetupSubtitle')}</p>
+            <h1 className="text-2xl font-bold text-gray-800">{t('auth.organizationSetup')}</h1>
+            <p className="text-gray-500">{t('auth.organizationSetupSubtitle')}</p>
           </div>
 
           {/* Step Indicator */}
@@ -150,9 +150,9 @@ const AcademySetupWizard: React.FC = () => {
             <form onSubmit={handleNameSubmit} className="space-y-6 animate-fade-in-up">
               <p className="text-xs text-gray-500">{t('common.mandatoryFields')}</p>
               <div>
-                <label htmlFor="academyName" className="block text-sm font-medium text-gray-700 mb-1">{t('auth.academyNameLabel')} <span aria-hidden="true">*</span></label>
+                <label htmlFor="organizationName" className="block text-sm font-medium text-gray-700 mb-1">{t('auth.organizationNameLabel')} <span aria-hidden="true">*</span></label>
                 <div className="relative">
-                    <input id="academyName" type="text" value={academyName} onChange={(e) => setAcademyName(e.target.value)} className={`w-full p-3 pr-10 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${nameError ? 'border-red-500 ring-red-300' : nameAvailable ? 'border-green-500 ring-green-300' : 'border-gray-300 focus:ring-blue-500'}`} placeholder="e.g., Stark Industries Training" required aria-required="true" autoFocus />
+                    <input id="organizationName" type="text" value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} className={`w-full p-3 pr-10 border rounded-lg shadow-sm focus:outline-none focus:ring-2 ${nameError ? 'border-red-500 ring-red-300' : nameAvailable ? 'border-green-500 ring-green-300' : 'border-gray-300 focus:ring-blue-500'}`} placeholder="e.g., Stark Industries Training" required aria-required="true" autoFocus />
                     {renderNameStatus()}
                 </div>
                 {nameError && <p className="text-xs text-red-600 mt-1">{nameError}</p>}
@@ -196,7 +196,7 @@ const AcademySetupWizard: React.FC = () => {
               <h2 className="text-xl font-semibold text-gray-800">{t('auth.finalStepActivate')}</h2>
               <p className="text-gray-600">{t('auth.finalStepSubtitle')}</p>
               <button onClick={handleActivate} disabled={isActivating} className="w-full bg-green-600 text-white font-semibold py-3 px-4 rounded-lg shadow-sm hover:bg-green-700 disabled:opacity-50 transition-colors">
-                {isActivating ? <FiLoader className="animate-spin h-5 w-5 mx-auto" /> : t('auth.activateMyAcademy')}
+                {isActivating ? <FiLoader className="animate-spin h-5 w-5 mx-auto" /> : t('auth.activateMyOrganization')}
               </button>
               <button onClick={() => setStep(2)} disabled={isActivating} className="text-sm text-gray-500 hover:text-gray-700">{t('common.back')}</button>
             </div>
@@ -207,4 +207,4 @@ const AcademySetupWizard: React.FC = () => {
   );
 };
 
-export default AcademySetupWizard;
+export default OrganizationSetupWizard;

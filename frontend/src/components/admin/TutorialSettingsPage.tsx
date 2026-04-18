@@ -56,7 +56,7 @@ const TutorialSettingsPage: React.FC = () => {
         { key: 'aiMentor', label: t('admin.aiMentorSettings') },
         { key: 'courses', label: t('admin.courseManagement') },
         { key: 'questionnaires', label: t('admin.questionnaireSettings') },
-        { key: 'workspaces', label: t('admin.organizationManagement') },
+        { key: 'workspaces', label: t('admin.workspaceManagement') },
         { key: 'users', label: t('admin.userManagement') },
         { key: 'theme', label: t('admin.themeSettings') },
         { key: 'plansBilling', label: t('admin.plansBilling') },

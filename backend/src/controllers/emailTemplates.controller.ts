@@ -15,8 +15,8 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'email_verification',
         name: 'Email Verification',
         description: 'Sent to new users to verify their email address before they can log in.',
-        subject: 'Verify Your Email for {{academyName}}',
-        variables: ['userName', 'academyName', 'verificationLink'],
+        subject: 'Verify Your Email for {{organizationName}}',
+        variables: ['userName', 'organizationName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
 <p>Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
@@ -24,13 +24,13 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>Thanks,<br/>The Gymind Team</p>`,
     },
     {
-        id: 'invite_academy_admin',
+        id: 'invite_organization_admin',
         name: 'Workspace Admin Invitation',
         description: 'Sent when a new Workspace Admin is invited to set up their account.',
-        subject: "You've been invited as an Workspace Admin for {{academyName}}",
-        variables: ['userName', 'academyName', 'verificationLink'],
+        subject: "You've been invited as an Workspace Admin for {{organizationName}}",
+        variables: ['userName', 'organizationName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
-<p>You've been invited to join <strong>{{academyName}}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
+<p>You've been invited to join <strong>{{organizationName}}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
 <p>Thanks,<br/>The Gymind Team</p>`,
@@ -77,10 +77,10 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'password_reset',
         name: 'Password Reset',
         description: "Sent when a user requests a password reset.",
-        subject: 'Reset Your Password for {{academyName}}',
-        variables: ['userName', 'academyName', 'resetLink'],
+        subject: 'Reset Your Password for {{organizationName}}',
+        variables: ['userName', 'organizationName', 'resetLink'],
         html: `<p>Hello {{userName}},</p>
-<p>We received a request to reset your password for <strong>{{academyName}}</strong>. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p>
+<p>We received a request to reset your password for <strong>{{organizationName}}</strong>. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p>
 <p><a href="{{resetLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p>
 <p>If you did not request a password reset, you can safely ignore this email.</p>
 <p>Thanks,<br/>The Gymind Team</p>`,
@@ -89,10 +89,10 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'usage_alert',
         name: 'Token Usage Alert',
         description: 'Sent to workspace admins when AI token usage reaches a high threshold (75% or 95%).',
-        subject: 'Usage Alert for {{academyName}}',
-        variables: ['academyName', 'usagePercentage', 'warningLevel'],
+        subject: 'Usage Alert for {{organizationName}}',
+        variables: ['organizationName', 'usagePercentage', 'warningLevel'],
         html: `<p>Hello,</p>
-<p>This is a <strong>{{warningLevel}}</strong> notification that your workspace, <strong>{{academyName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
+<p>This is a <strong>{{warningLevel}}</strong> notification that your workspace, <strong>{{organizationName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
 <p>If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p>
 <p>To prevent service interruption, you can increase your limit by visiting the Billing Settings page in your admin dashboard.</p>
 <p>Thanks,<br/>The Gymind Team</p>`,
@@ -140,8 +140,8 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'woocommerce_welcome_new',
         name: 'WooCommerce Welcome (New User)',
         description: 'Sent to a brand-new user provisioned via WooCommerce — prompts them to complete registration.',
-        subject: 'Welcome to {{academyName}} — Get Started Now',
-        variables: ['userName', 'academyName', 'registrationLink', 'userEmail', 'currentYear'],
+        subject: 'Welcome to {{organizationName}} — Get Started Now',
+        variables: ['userName', 'organizationName', 'registrationLink', 'userEmail', 'currentYear'],
         html: `<!DOCTYPE html>
 <html>
 <head>
@@ -159,18 +159,18 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 </head>
 <body>
   <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to {{academyName}}</span></div>
+    <div class="header"><span class="welcome-text">Welcome to {{organizationName}}</span></div>
     <div class="content">
       <p>Hello {{userName}},</p>
-      <p>Thank you for your purchase! We're thrilled to have you join <strong>{{academyName}}</strong>.</p>
+      <p>Thank you for your purchase! We're thrilled to have you join <strong>{{organizationName}}</strong>.</p>
       <p>To get started, please register your account using the button below. Use <strong>{{userEmail}}</strong> as your email address when registering.</p>
       <div class="button-container">
         <a href="{{registrationLink}}" class="button">Complete Your Registration</a>
       </div>
       <p>If you have any questions or need help getting started, we're here for you.</p>
-      <p>Best regards,<br/>The {{academyName}} Team</p>
+      <p>Best regards,<br/>The {{organizationName}} Team</p>
     </div>
-    <div class="footer">&copy; {{currentYear}} {{academyName}}. All rights reserved.</div>
+    <div class="footer">&copy; {{currentYear}} {{organizationName}}. All rights reserved.</div>
   </div>
 </body>
 </html>`,
@@ -179,8 +179,8 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'woocommerce_welcome_existing',
         name: 'WooCommerce Welcome (Existing User)',
         description: 'Sent to an existing user provisioned via WooCommerce — prompts them to log in.',
-        subject: 'Welcome to {{academyName}} — Get Started Now',
-        variables: ['userName', 'academyName', 'loginLink', 'currentYear'],
+        subject: 'Welcome to {{organizationName}} — Get Started Now',
+        variables: ['userName', 'organizationName', 'loginLink', 'currentYear'],
         html: `<!DOCTYPE html>
 <html>
 <head>
@@ -198,18 +198,18 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 </head>
 <body>
   <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to {{academyName}}</span></div>
+    <div class="header"><span class="welcome-text">Welcome to {{organizationName}}</span></div>
     <div class="content">
       <p>Hello {{userName}},</p>
-      <p>Thank you for your purchase! We're thrilled to have you join <strong>{{academyName}}</strong>.</p>
+      <p>Thank you for your purchase! We're thrilled to have you join <strong>{{organizationName}}</strong>.</p>
       <p>Your account is ready. Click the button below to log in and start exploring.</p>
       <div class="button-container">
         <a href="{{loginLink}}" class="button">Log In to Your Account</a>
       </div>
       <p>If you have any questions or need help getting started, we're here for you.</p>
-      <p>Best regards,<br/>The {{academyName}} Team</p>
+      <p>Best regards,<br/>The {{organizationName}} Team</p>
     </div>
-    <div class="footer">&copy; {{currentYear}} {{academyName}}. All rights reserved.</div>
+    <div class="footer">&copy; {{currentYear}} {{organizationName}}. All rights reserved.</div>
   </div>
 </body>
 </html>`,
@@ -219,9 +219,9 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         name: 'User Invitation',
         description: 'Sent to pre-approved users who have been invited to join an workspace.',
         subject: "You've been invited to join {{orgName}} on Gymind",
-        variables: ['orgName', 'academyName', 'registrationLink'],
+        variables: ['orgName', 'organizationName', 'registrationLink'],
         html: `<p>Hello,</p>
-<p>You've been invited to join <strong>{{orgName}}</strong> (part of <strong>{{academyName}}</strong>) on Gymind.</p>
+<p>You've been invited to join <strong>{{orgName}}</strong> (part of <strong>{{organizationName}}</strong>) on Gymind.</p>
 <p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p>
 <p><a href="{{registrationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
@@ -232,23 +232,23 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         name: 'Newsletter Reminder (3 Days)',
         description: "Sent to an workspace admin when a scheduled newsletter edition is due in 3 days but its content is still empty.",
         subject: 'Reminder: Your newsletter "{{campaignName}}" is due in 3 days',
-        variables: ['campaignName', 'academyName'],
+        variables: ['campaignName', 'organizationName'],
         html: `<p>Hi,</p>
 <p>Your newsletter campaign <strong>{{campaignName}}</strong> has a scheduled edition due in <strong>3 days</strong>, but the content is still empty.</p>
 <p>Please log in and write your newsletter content to ensure it's sent on time.</p>
-<p>Best,<br/>{{academyName}}</p>`,
+<p>Best,<br/>{{organizationName}}</p>`,
     },
     {
         id: 'newsletter_reminder_1day',
         name: 'Newsletter Reminder (1 Day — Urgent)',
         description: "Sent to an workspace admin as an urgent warning when a scheduled newsletter edition is due tomorrow but its content is still empty.",
         subject: 'Urgent: Your newsletter "{{campaignName}}" is due tomorrow',
-        variables: ['campaignName', 'academyName'],
+        variables: ['campaignName', 'organizationName'],
         html: `<p>Hi,</p>
 <p><strong>Warning:</strong> Your newsletter campaign <strong>{{campaignName}}</strong> has a scheduled edition due <strong>tomorrow</strong>, but the content is still empty.</p>
 <p>If the content is not added before the scheduled send time, the edition will be skipped automatically.</p>
 <p>Please log in now and add your newsletter content.</p>
-<p>Best,<br/>{{academyName}}</p>`,
+<p>Best,<br/>{{organizationName}}</p>`,
     },
 ];
 

@@ -22,13 +22,13 @@ const ProfilePage: React.FC = () => {
     logout,
     startContextSwitch,
     availableContexts,
-    selectedOrganization,
+    selectedWorkspace,
   } = useAuth();
   const { 
     users,
     plans,
     deleteUser,
-    removeUserFromOrganization,
+    removeUserFromWorkspace,
     cancelUserSubscriptionByAdmin,
     dataError: dataCtxError,
     clearDataError: clearDataCtxError,
@@ -98,7 +98,7 @@ const ProfilePage: React.FC = () => {
   }, [personalOrg, plans]);
 
   const canAdminManageSubscription = !isOwnProfile &&
-      (authUser?.role === UserRole.ACADEMY_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN) &&
+      (authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN) &&
       personalOrg;
 
 
@@ -110,11 +110,11 @@ const ProfilePage: React.FC = () => {
   
     // Authorization check for Workspace Admins viewing another user's profile.
     if (
-      authUser?.role === UserRole.ORGANIZATION_ADMIN &&
+      authUser?.role === UserRole.WORKSPACE_ADMIN &&
       userToDisplay &&
       userToDisplay.id !== authUser.id
     ) {
-      const adminOrgId = selectedOrganization?.id;
+      const adminOrgId = selectedWorkspace?.id;
       // An org admin can only view users who are part of their workspace.
       const isUserInAdminsOrg = userToDisplay.workspaces.some(org => org.id === adminOrgId);
       if (!isUserInAdminsOrg) {
@@ -147,7 +147,7 @@ const ProfilePage: React.FC = () => {
       }
     }
     // If still loading, we do nothing and let the effect re-run when data is ready.
-  }, [authUser, routeUserId, users, navigate, authLoading, dataCtxLoading, selectedOrganization, isOwnProfile]);
+  }, [authUser, routeUserId, users, navigate, authLoading, dataCtxLoading, selectedWorkspace, isOwnProfile]);
   
   useEffect(() => { 
     const generalError = authError || dataCtxError;
@@ -392,10 +392,10 @@ const ProfilePage: React.FC = () => {
     if (!profileUser || !authUser) return;
 
     let orgToRemoveId: string | undefined;
-    if (authUser.role === UserRole.ORGANIZATION_ADMIN) {
-        orgToRemoveId = authUser.selectedOrganization?.id;
-    } else if (authUser.role === UserRole.ACADEMY_ADMIN && profileUser.organizationId) {
-        orgToRemoveId = profileUser.organizationId;
+    if (authUser.role === UserRole.WORKSPACE_ADMIN) {
+        orgToRemoveId = authUser.selectedWorkspace?.id;
+    } else if (authUser.role === UserRole.ORGANIZATION_ADMIN && profileUser.workspaceId) {
+        orgToRemoveId = profileUser.workspaceId;
     }
 
     if (!orgToRemoveId) {
@@ -404,7 +404,7 @@ const ProfilePage: React.FC = () => {
     }
 
     setIsProcessingAction(true);
-    const success = await removeUserFromOrganization(orgToRemoveId, profileUser.id);
+    const success = await removeUserFromWorkspace(orgToRemoveId, profileUser.id);
     setIsProcessingAction(false);
     setShowRemoveUserConfirmModal(false);
 
@@ -446,8 +446,8 @@ const ProfilePage: React.FC = () => {
   }
   
   const showAdminActions = !isOwnProfile && (
-    (authUser?.role === UserRole.ORGANIZATION_ADMIN && profileUser.role === UserRole.REGULAR_USER && profileUser.workspaces.some(org => org.id === authUser.selectedOrganization?.id)) ||
-    ((authUser?.role === UserRole.ACADEMY_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN) && profileUser.role !== UserRole.ACADEMY_ADMIN && profileUser.role !== UserRole.SYSTEM_ADMIN)
+    (authUser?.role === UserRole.WORKSPACE_ADMIN && profileUser.role === UserRole.REGULAR_USER && profileUser.workspaces.some(org => org.id === authUser.selectedWorkspace?.id)) ||
+    ((authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN) && profileUser.role !== UserRole.ORGANIZATION_ADMIN && profileUser.role !== UserRole.SYSTEM_ADMIN)
   );
 
   const displayProfileImageUrl = (isOwnProfile && isEditingImage && imagePreviewUrl)
@@ -644,7 +644,7 @@ const ProfilePage: React.FC = () => {
                     >
                         <FiKey className="mr-2"/> {authUser?.hasPassword ? t('profile.changePassword') : t('profile.createPassword')}
                     </button>
-                    {selectedOrganization?.hasChatAccess !== false && (
+                    {selectedWorkspace?.hasChatAccess !== false && (
                         <button
                             onClick={() => {setIsChatSettingsOpen(true); clearMessages();}}
                             className="text-sm text-indigo-600 hover:text-indigo-800 py-1 px-2 rounded-md hover:bg-indigo-50 flex items-center transition-colors"
@@ -659,7 +659,7 @@ const ProfilePage: React.FC = () => {
                     >
                         <FiGlobe className="mr-2" /> {t('profile.language')}
                     </button>
-                    {selectedOrganization?.isPersonal && authUser?.role !== UserRole.ACADEMY_ADMIN && (
+                    {selectedWorkspace?.isPersonal && authUser?.role !== UserRole.ORGANIZATION_ADMIN && (
                         <Link 
                             to="/my-subscription"
                             className="text-sm text-pink-600 hover:text-pink-800 py-1 px-2 rounded-md hover:bg-pink-50 flex items-center transition-colors"
@@ -698,7 +698,7 @@ const ProfilePage: React.FC = () => {
                         className="text-sm text-orange-600 hover:text-orange-800 py-1 px-2 rounded-md hover:bg-orange-50 flex items-center transition-colors disabled:opacity-50"
                     >
                         <FiUserMinus className="mr-2" />
-                        {t('profile.removeFromOrganization')}
+                        {t('profile.removeFromWorkspace')}
                     </button>
                     {/* Future admin actions can be added here */}
                 </div>

@@ -139,7 +139,7 @@ export const createColumn = async (req: Request, res: Response) => {
     // Build a provisional column to check permission
     const provisionalColumn: DBColumn = {
       id: '',
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       name: sanitizeText(name),
       type: type as ColumnType,
       settings: settings ?? {},
@@ -152,7 +152,7 @@ export const createColumn = async (req: Request, res: Response) => {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     await docRef.set({
       id: docRef.id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       name: sanitizeText(name),
       type: type as ColumnType,
       settings: settings ?? {},
@@ -168,7 +168,7 @@ export const createColumn = async (req: Request, res: Response) => {
       action: 'CREATE',
       resourceType: 'column',
       resourceId: docRef.id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -194,7 +194,7 @@ export const reorderColumns = async (req: Request, res: Response) => {
   }
 
   try {
-    // Verify the user has column update permission (ORGANIZATION_ADMIN+) by checking the first column
+    // Verify the user has column update permission (WORKSPACE_ADMIN+) by checking the first column
     const firstEntry = order[0] as { id: string; order: number };
     if (typeof firstEntry.id !== 'string') {
       return res.status(400).json({ message: 'Each entry must have id (string) and order (number).' });
@@ -262,7 +262,7 @@ export const updateColumn = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'column',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -299,7 +299,7 @@ export const deleteColumn = async (req: Request, res: Response) => {
       action: 'DELETE',
       resourceType: 'column',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,

@@ -68,7 +68,7 @@ export const createGroup = async (req: Request, res: Response) => {
     // Build a provisional group to check permission before writing
     const provisionalGroup: DBGroup = {
       id: '',
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       boardId,
       name: sanitizeText(name),
       color: color ?? null,
@@ -90,7 +90,7 @@ export const createGroup = async (req: Request, res: Response) => {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     await docRef.set({
       id: docRef.id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       boardId,
       name: sanitizeText(name),
       color: color ?? null,
@@ -109,7 +109,7 @@ export const createGroup = async (req: Request, res: Response) => {
       action: 'CREATE',
       resourceType: 'group',
       resourceId: docRef.id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -206,7 +206,7 @@ export const updateGroup = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'group',
       resourceId: groupId,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -249,7 +249,7 @@ export const deleteGroup = async (req: Request, res: Response) => {
       action: 'DELETE',
       resourceType: 'group',
       resourceId: groupId,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,

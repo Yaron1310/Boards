@@ -72,7 +72,7 @@ export async function logAuditAndCheckAnomaly(entry: AuditEntryInput): Promise<v
                 action: 'ANOMALY',
                 resourceType: entry.resourceType,
                 resourceId: 'bulk_read',
-                organizationId: entry.organizationId,
+                workspaceId: entry.workspaceId,
                 orgId: entry.orgId,
                 ipAddress: entry.ipAddress,
                 userAgent: entry.userAgent,

@@ -36,7 +36,7 @@ export const listMembers = async (req: Request, res: Response) => {
     const board = snapshotToData<DBBoard>(boardDoc)!;
     const callerMember = await getCallerMember(user.orgId, boardId, user.id);
 
-    // Requires board ADMIN or full_access (ORGANIZATION_ADMIN+)
+    // Requires board ADMIN or full_access (WORKSPACE_ADMIN+)
     assertBoardAccess(user, board, 'update', callerMember);
 
     const snapshot = await boardMembersCollection(user.orgId, boardId).get();
@@ -103,7 +103,7 @@ export const addMember = async (req: Request, res: Response) => {
     await boardMembersCollection(user.orgId, boardId).doc(userId).set({
       userId,
       boardId,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       role: role as BoardRole,
       addedBy: user.id,
       createdAt: timestamp,
@@ -118,7 +118,7 @@ export const addMember = async (req: Request, res: Response) => {
       action: 'CREATE',
       resourceType: 'board',
       resourceId: boardId,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -180,7 +180,7 @@ export const updateMemberRole = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'board',
       resourceId: boardId,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -232,7 +232,7 @@ export const removeMember = async (req: Request, res: Response) => {
       action: 'DELETE',
       resourceType: 'board',
       resourceId: boardId,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,

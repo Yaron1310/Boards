@@ -9,44 +9,44 @@ import { FiUsers, FiBriefcase, FiBarChart2, FiMessageSquare, FiZap, FiBookOpen, 
 
 const AdminDashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user, selectedOrganization } = useAuth();
+  const { user, selectedWorkspace } = useAuth();
   const { 
     users, 
     workspaces, 
     conversations, 
     workspaces, 
-    academySettings, 
-    academyTokenUsage, 
+    organizationSettings, 
+    organizationTokenUsage, 
     orgTokenUsage, 
     isAnalyticsLoading,
     preApprovedUsers,
-    organizationProgress,
+    workspaceProgress,
     courses
   } = useData();
 
-  const academyUsage = useMemo(() => {
-    if (user?.role !== UserRole.ACADEMY_ADMIN || !selectedOrganization?.orgId || !academyTokenUsage) {
+  const organizationUsage = useMemo(() => {
+    if (user?.role !== UserRole.ORGANIZATION_ADMIN || !selectedWorkspace?.orgId || !organizationTokenUsage) {
         return null;
     }
-    return academyTokenUsage[selectedOrganization.orgId];
-  }, [user, selectedOrganization, academyTokenUsage]);
+    return organizationTokenUsage[selectedWorkspace.orgId];
+  }, [user, selectedWorkspace, organizationTokenUsage]);
 
   const orgUsage = useMemo(() => {
-      if (user?.role !== UserRole.ORGANIZATION_ADMIN || !selectedOrganization?.id || !orgTokenUsage) {
+      if (user?.role !== UserRole.WORKSPACE_ADMIN || !selectedWorkspace?.id || !orgTokenUsage) {
           return null;
       }
-      return orgTokenUsage[selectedOrganization.id];
-  }, [user, selectedOrganization, orgTokenUsage]);
+      return orgTokenUsage[selectedWorkspace.id];
+  }, [user, selectedWorkspace, orgTokenUsage]);
 
   const tokenPercentage = useMemo(() => {
-      const usage = user?.role === UserRole.ACADEMY_ADMIN ? academyUsage : orgUsage;
+      const usage = user?.role === UserRole.ORGANIZATION_ADMIN ? organizationUsage : orgUsage;
       if (!usage || !usage.limit) return 0;
       return (usage.used / usage.limit) * 100;
-  }, [user, academyUsage, orgUsage]);
+  }, [user, organizationUsage, orgUsage]);
 
   // --- Workspace Admin Metrics ---
-  const academyMetrics = useMemo(() => {
-    if (user?.role !== UserRole.ACADEMY_ADMIN) return null;
+  const organizationMetrics = useMemo(() => {
+    if (user?.role !== UserRole.ORGANIZATION_ADMIN) return null;
 
     // 1. Active Users (Last 30 Days) - Users with conversations or progress updates
     const thirtyDaysAgo = new Date();
@@ -59,7 +59,7 @@ const AdminDashboardPage: React.FC = () => {
     );
 
     const usersWithProgress = new Set(
-        organizationProgress
+        workspaceProgress
             .filter(p => {
                 const updated = p.updatedAt ? (p.updatedAt.seconds ? new Date(p.updatedAt.seconds * 1000) : new Date(p.updatedAt)) : null;
                 return updated && updated >= thirtyDaysAgo;
@@ -85,7 +85,7 @@ const AdminDashboardPage: React.FC = () => {
         .map(org => {
             const orgId = org.id;
             const orgMembers = users.filter(u => u.workspaces?.some(o => o.id === orgId));
-            const orgProgress = organizationProgress.filter(p => p.organizationId === orgId);
+            const orgProgress = workspaceProgress.filter(p => p.workspaceId === orgId);
             
             // Average progress for this org
             let avgProgress = 0;
@@ -99,7 +99,7 @@ const AdminDashboardPage: React.FC = () => {
             }
 
             // Usage
-            const usage = academyTokenUsage && orgTokenUsage?.[orgId];
+            const usage = organizationTokenUsage && orgTokenUsage?.[orgId];
 
             return {
                 id: orgId,
@@ -113,7 +113,7 @@ const AdminDashboardPage: React.FC = () => {
         .sort((a, b) => b.usedTokens - a.usedTokens);
 
     // 4. Top Courses (Workspace-wide)
-    const courseStats = organizationProgress.reduce((acc, curr) => {
+    const courseStats = workspaceProgress.reduce((acc, curr) => {
         acc[curr.courseId] = (acc[curr.courseId] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
@@ -158,24 +158,24 @@ const AdminDashboardPage: React.FC = () => {
         topMentors,
         latestConversations
     };
-  }, [user, conversations, users, workspaces, organizationProgress, courses, academyTokenUsage, orgTokenUsage]);
+  }, [user, conversations, users, workspaces, workspaceProgress, courses, organizationTokenUsage, orgTokenUsage]);
 
   // --- Workspace Manager Metrics ---
   const orgMetrics = useMemo(() => {
-    if (user?.role !== UserRole.ORGANIZATION_ADMIN) return null;
+    if (user?.role !== UserRole.WORKSPACE_ADMIN) return null;
 
     // 1. Pending Invitations
     const pendingInvites = preApprovedUsers.length;
 
     // 2. Average Learning Progress
     let avgProgress = 0;
-    if (organizationProgress.length > 0) {
-      const totalProgress = organizationProgress.reduce((acc, curr) => {
+    if (workspaceProgress.length > 0) {
+      const totalProgress = workspaceProgress.reduce((acc, curr) => {
         const course = courses.find(c => c.id === curr.courseId);
         const lessonCount = course?.lessonCount || 1;
         return acc + (curr.completedLessons.length / lessonCount);
       }, 0);
-      avgProgress = Math.round((totalProgress / organizationProgress.length) * 100);
+      avgProgress = Math.round((totalProgress / workspaceProgress.length) * 100);
     }
 
     // 3. Active This Month (users with at least one conversation in the last 30 days)
@@ -199,7 +199,7 @@ const AdminDashboardPage: React.FC = () => {
       .slice(0, 5);
 
     // 6. Top Courses (Most completions or most progress entries)
-    const courseStats = organizationProgress.reduce((acc, curr) => {
+    const courseStats = workspaceProgress.reduce((acc, curr) => {
       acc[curr.courseId] = (acc[curr.courseId] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -233,20 +233,20 @@ const AdminDashboardPage: React.FC = () => {
       topCourses,
       topMentors
     };
-  }, [user, preApprovedUsers, organizationProgress, courses, conversations, users]);
+  }, [user, preApprovedUsers, workspaceProgress, courses, conversations, users]);
 
-  if (!user || (user.role !== UserRole.ACADEMY_ADMIN && user.role !== UserRole.ORGANIZATION_ADMIN && user.role !== UserRole.SYSTEM_ADMIN)) {
+  if (!user || (user.role !== UserRole.ORGANIZATION_ADMIN && user.role !== UserRole.WORKSPACE_ADMIN && user.role !== UserRole.SYSTEM_ADMIN)) {
     return <div className="p-6 text-red-600">{t('admin.accessDenied')}</div>;
   }
   
   const totalUsers = users.length;
-  const totalOrganizations = workspaces.filter(org => !org.isPersonal).length;
+  const totalWorkspaces = workspaces.filter(org => !org.isPersonal).length;
   const totalConversations = conversations.length;
 
   // For Workspace Admins, the `users` and `conversations` lists from useData()
   // are already scoped to their workspace by the `fetchAllData` logic.
-  const managerOrgUsers = user.role === UserRole.ORGANIZATION_ADMIN ? users.length : 0;
-  const managerOrgConversations = user.role === UserRole.ORGANIZATION_ADMIN ? conversations.length : 0;
+  const managerOrgUsers = user.role === UserRole.WORKSPACE_ADMIN ? users.length : 0;
+  const managerOrgConversations = user.role === UserRole.WORKSPACE_ADMIN ? conversations.length : 0;
 
 
   const StatCard: React.FC<{ title: string; value: string | number; icon: React.ReactNode; color: string }> = ({ title, value, icon, color }) => (
@@ -263,7 +263,7 @@ const AdminDashboardPage: React.FC = () => {
     </div>
   );
 
-  const currentUsage = user.role === UserRole.ACADEMY_ADMIN ? academyUsage : orgUsage;
+  const currentUsage = user.role === UserRole.ORGANIZATION_ADMIN ? organizationUsage : orgUsage;
 
   return (
     <div className="w-full h-full overflow-y-auto custom-scrollbar">
@@ -271,7 +271,7 @@ const AdminDashboardPage: React.FC = () => {
       <div className="sticky top-0 z-20 bg-gray-100 px-4 md:px-8 pt-4 md:pt-8 pb-4">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-3xl font-bold text-gray-800">
-            {user.role === UserRole.ACADEMY_ADMIN ? t('admin.academyAdminDashboard') : user.role === UserRole.SYSTEM_ADMIN ? t('admin.systemAdminDashboard') : t('admin.managerDashboard', { name: user.selectedOrganization?.name || t('admin.workspace') })}
+            {user.role === UserRole.ORGANIZATION_ADMIN ? t('admin.organizationAdminDashboard') : user.role === UserRole.SYSTEM_ADMIN ? t('admin.systemAdminDashboard') : t('admin.managerDashboard', { name: user.selectedWorkspace?.name || t('admin.workspace') })}
           </h1>
         </div>
       </div>
@@ -280,17 +280,17 @@ const AdminDashboardPage: React.FC = () => {
       <div className="px-4 md:px-8 pb-8 pt-4">
         <div className="max-w-6xl mx-auto">
 
-        {user.role === UserRole.ACADEMY_ADMIN && (!academySettings?.description || (!academySettings?.contactEmail && !academySettings?.contactPhone)) && (
+        {user.role === UserRole.ORGANIZATION_ADMIN && (!organizationSettings?.description || (!organizationSettings?.contactEmail && !organizationSettings?.contactPhone)) && (
             <Link to="/admin/workspace-hub">
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 cursor-pointer rounded-r-lg shadow-sm">
-                <p className="text-yellow-700">{t('admin.completeAcademyDetails')}</p>
+                <p className="text-yellow-700">{t('admin.completeOrganizationDetails')}</p>
               </div>
             </Link>
           )}
-          {(user.role === UserRole.ACADEMY_ADMIN || user.role === UserRole.ORGANIZATION_ADMIN) && (
+          {(user.role === UserRole.ORGANIZATION_ADMIN || user.role === UserRole.WORKSPACE_ADMIN) && (
             <div className="mb-8 p-4 bg-purple-50 border border-purple-200 rounded-lg shadow-md">
                 <h2 className="text-lg font-semibold text-purple-800 mb-2 flex items-center">
-                    <FiCpu className="mr-2"/> {user.role === UserRole.ACADEMY_ADMIN ? t('admin.academyMonthlyTokenUsage') : t('admin.orgMonthlyTokenUsage')}
+                    <FiCpu className="mr-2"/> {user.role === UserRole.ORGANIZATION_ADMIN ? t('admin.organizationMonthlyTokenUsage') : t('admin.orgMonthlyTokenUsage')}
                 </h2>
                 {isAnalyticsLoading && !currentUsage ? (
                     <div className="flex justify-center items-center p-4">
@@ -309,8 +309,8 @@ const AdminDashboardPage: React.FC = () => {
                             ></div>
                         </div>
                         <p className="text-xs text-gray-500 mt-2">
-                            {user.role === UserRole.ACADEMY_ADMIN
-                                ? t('admin.academyTokenUsageNote')
+                            {user.role === UserRole.ORGANIZATION_ADMIN
+                                ? t('admin.organizationTokenUsageNote')
                                 : t('admin.orgTokenUsageNote')}
                         </p>
                     </div>
@@ -325,17 +325,17 @@ const AdminDashboardPage: React.FC = () => {
               <>
                 <StatCard title={t('admin.totalAcademies')} value={workspaces.length} icon={<FiShield size={24}/>} color="border-purple-500" />
                 <StatCard title={t('admin.totalUsers')} value={totalUsers} icon={<FiUsers size={24}/>} color="border-blue-500" />
-                <StatCard title={t('admin.totalOrganizations')} value={totalOrganizations} icon={<FiBriefcase size={24}/>} color="border-green-500" />
+                <StatCard title={t('admin.totalWorkspaces')} value={totalWorkspaces} icon={<FiBriefcase size={24}/>} color="border-green-500" />
                 <StatCard title={t('admin.totalConversations')} value={totalConversations} icon={<FiBarChart2 size={24}/>} color="border-indigo-500" />
               </>
-          ) : user.role === UserRole.ACADEMY_ADMIN ? (
+          ) : user.role === UserRole.ORGANIZATION_ADMIN ? (
             <>
               <StatCard title={t('admin.totalUsers')} value={totalUsers} icon={<FiUsers size={24}/>} color="border-blue-500" />
-              <StatCard title={t('admin.active30d')} value={academyMetrics?.activeUsersCount || 0} icon={<FiActivity size={24}/>} color="border-green-500" />
-              <StatCard title={t('admin.newThisMonth')} value={academyMetrics?.newUsersMonth || 0} icon={<FiUserPlus size={24}/>} color="border-orange-500" />
-              <StatCard title={t('admin.totalOrgs')} value={totalOrganizations} icon={<FiBriefcase size={24}/>} color="border-purple-500" />
+              <StatCard title={t('admin.active30d')} value={organizationMetrics?.activeUsersCount || 0} icon={<FiActivity size={24}/>} color="border-green-500" />
+              <StatCard title={t('admin.newThisMonth')} value={organizationMetrics?.newUsersMonth || 0} icon={<FiUserPlus size={24}/>} color="border-orange-500" />
+              <StatCard title={t('admin.totalOrgs')} value={totalWorkspaces} icon={<FiBriefcase size={24}/>} color="border-purple-500" />
             </>
-          ) : ( // ORGANIZATION_ADMIN
+          ) : ( // WORKSPACE_ADMIN
             <>
               <StatCard title={t('admin.usersInOrg')} value={managerOrgUsers} icon={<FiUsers size={24}/>} color="border-blue-500" />
               <StatCard title={t('admin.pendingInvites')} value={orgMetrics?.pendingInvites || 0} icon={<FiUserPlus size={24}/>} color="border-orange-500" />
@@ -345,7 +345,7 @@ const AdminDashboardPage: React.FC = () => {
           )}
         </div>
 
-        {user.role === UserRole.ACADEMY_ADMIN && academyMetrics && (
+        {user.role === UserRole.ORGANIZATION_ADMIN && organizationMetrics && (
             <div className="space-y-8">
                 {/* Workspace Performance Table */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
@@ -368,8 +368,8 @@ const AdminDashboardPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {academyMetrics.orgPerformance.length > 0 ? (
-                                    academyMetrics.orgPerformance.map(org => (
+                                {organizationMetrics.orgPerformance.length > 0 ? (
+                                    organizationMetrics.orgPerformance.map(org => (
                                         <tr key={org.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4">
                                                 <p className="text-sm font-bold text-gray-800">{org.name}</p>
@@ -411,7 +411,7 @@ const AdminDashboardPage: React.FC = () => {
                                     ))
                                 ) : (
                                     <tr>
-                                        <td colSpan={4} className="px-6 py-10 text-center text-gray-400 italic">{t('admin.noOrganizationsFound')}</td>
+                                        <td colSpan={4} className="px-6 py-10 text-center text-gray-400 italic">{t('admin.noWorkspacesFound')}</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -423,11 +423,11 @@ const AdminDashboardPage: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                     <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
                         <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                            <FiAward className="mr-2 text-yellow-500" /> {t('admin.topCoursesAcademy')}
+                            <FiAward className="mr-2 text-yellow-500" /> {t('admin.topCoursesOrganization')}
                         </h3>
                         <div className="space-y-4">
-                            {academyMetrics.topCourses.length > 0 ? (
-                                academyMetrics.topCourses.map((course, idx) => (
+                            {organizationMetrics.topCourses.length > 0 ? (
+                                organizationMetrics.topCourses.map((course, idx) => (
                                     <div key={course.id} className="flex items-center justify-between">
                                         <div className="flex items-center">
                                             <span className="w-6 h-6 flex items-center justify-center bg-yellow-50 text-yellow-700 rounded-full text-xs font-bold mr-3">{idx + 1}</span>
@@ -449,8 +449,8 @@ const AdminDashboardPage: React.FC = () => {
                             <FiStar className="mr-2 text-purple-500" /> {t('admin.mostPopularMentors')}
                         </h3>
                         <div className="space-y-4">
-                            {academyMetrics.topMentors.length > 0 ? (
-                                academyMetrics.topMentors.map((mentor, idx) => (
+                            {organizationMetrics.topMentors.length > 0 ? (
+                                organizationMetrics.topMentors.map((mentor, idx) => (
                                     <div key={mentor.name} className="flex items-center justify-between">
                                         <div className="flex items-center">
                                             <span className="w-6 h-6 flex items-center justify-center bg-purple-50 text-purple-700 rounded-full text-xs font-bold mr-3">{idx + 1}</span>
@@ -471,11 +471,11 @@ const AdminDashboardPage: React.FC = () => {
                 {/* Third Row: Recent Activity */}
                 <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
                     <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center">
-                        <FiClock className="mr-2 text-indigo-500" /> {t('admin.recentAcademyActivity')}
+                        <FiClock className="mr-2 text-indigo-500" /> {t('admin.recentOrganizationActivity')}
                     </h3>
                     <div className="space-y-3">
-                        {academyMetrics.latestConversations.length > 0 ? (
-                            academyMetrics.latestConversations.map(conv => (
+                        {organizationMetrics.latestConversations.length > 0 ? (
+                            organizationMetrics.latestConversations.map(conv => (
                                 <div key={conv.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 border border-transparent hover:border-gray-100 transition-all">
                                     <div className="flex items-center">
                                         <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 mr-4">
@@ -499,7 +499,7 @@ const AdminDashboardPage: React.FC = () => {
             </div>
         )}
 
-        {user.role === UserRole.ORGANIZATION_ADMIN && orgMetrics && (
+        {user.role === UserRole.WORKSPACE_ADMIN && orgMetrics && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <StatCard title={t('admin.totalConversations')} value={managerOrgConversations} icon={<FiBarChart2 size={24}/>} color="border-purple-500" />
 

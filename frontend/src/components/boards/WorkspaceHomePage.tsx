@@ -31,8 +31,8 @@ const WorkspaceHomePage: React.FC = () => {
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-gray-800 truncate">{ws.name}</p>
-                {ws.academyName && (
-                  <p className="text-xs text-gray-500 truncate">{ws.academyName}</p>
+                {ws.organizationName && (
+                  <p className="text-xs text-gray-500 truncate">{ws.organizationName}</p>
                 )}
               </div>
             </Link>

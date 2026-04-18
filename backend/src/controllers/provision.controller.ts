@@ -1,8 +1,8 @@
 import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
-import { organizationsCollection } from '../db/collections.js';
+import { workspacesCollection } from '../db/collections.js';
 
-export const checkOrganizationName = async (req: Request, res: Response) => {
+export const checkWorkspaceName = async (req: Request, res: Response) => {
     const orgId = req.orgId!;
     const name = req.query.name as string;
 
@@ -11,7 +11,7 @@ export const checkOrganizationName = async (req: Request, res: Response) => {
     }
 
     try {
-        const orgSnapshot = await organizationsCollection
+        const orgSnapshot = await workspacesCollection
             .where('orgId', '==', orgId)
             .where('name', '==', name.trim())
             .limit(1)

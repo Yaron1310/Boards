@@ -24,7 +24,7 @@ function isAuthError(err: unknown): err is { status: number; message: string } {
  * Returns an error message string if validation fails, null if all valid.
  */
 async function validateItemValues(
-  organizationId: string,
+  workspaceId: string,
   values: Record<string, unknown>,
 ): Promise<string | null> {
   const columnIds = Object.keys(values);
@@ -32,7 +32,7 @@ async function validateItemValues(
 
   // Firestore 'in' operator supports up to 30 values
   const batchIds = columnIds.slice(0, 30);
-  const columnsSnap = await columnsCollection(organizationId)
+  const columnsSnap = await columnsCollection(workspaceId)
     .where(admin.firestore.FieldPath.documentId(), 'in', batchIds)
     .get();
 
@@ -44,7 +44,7 @@ async function validateItemValues(
   for (const columnId of batchIds) {
     const column = columnMap.get(columnId);
     if (!column) {
-      return `Column "${columnId}" not found in this organization.`;
+      return `Column "${columnId}" not found in this workspace.`;
     }
     const result = validateColumnValue(column, values[columnId]);
     if (!result.valid) return result.error ?? `Invalid value for column "${columnId}".`;
@@ -60,7 +60,7 @@ async function validateItemValues(
  *   DATE    → item.dueDate (first DATE column found)
  */
 async function computeMirroredFields(
-  organizationId: string,
+  workspaceId: string,
   values: Record<string, unknown>,
 ): Promise<{ status?: string; assignees?: string[]; dueDate?: unknown }> {
   const mirrors: { status?: string; assignees?: string[]; dueDate?: unknown } = {};
@@ -68,7 +68,7 @@ async function computeMirroredFields(
   if (columnIds.length === 0) return mirrors;
 
   const batchIds = columnIds.slice(0, 30);
-  const columnsSnap = await columnsCollection(organizationId)
+  const columnsSnap = await columnsCollection(workspaceId)
     .where(admin.firestore.FieldPath.documentId(), 'in', batchIds)
     .get();
 
@@ -135,7 +135,7 @@ function triggerItemNotifications(
       boardId: item.boardId,
       boardName,
       read: false,
-      organizationId: orgId,
+      workspaceId: orgId,
       createdAt: timestamp,
     }).catch((err) => logger.warn('Failed to create assignment notification:', err));
   }
@@ -161,7 +161,7 @@ function triggerItemNotifications(
       boardId: item.boardId,
       boardName,
       read: false,
-      organizationId: orgId,
+      workspaceId: orgId,
       createdAt: timestamp,
     }).catch((err) => logger.warn('Failed to create mention notification:', err));
   }
@@ -219,7 +219,7 @@ export const createItem = async (req: Request, res: Response) => {
     // Build a provisional item to check create permission
     const provisionalItem: DBItem = {
       id: '',
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       workspaceId,
       boardId,
       groupId,
@@ -248,7 +248,7 @@ export const createItem = async (req: Request, res: Response) => {
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     const itemData: Record<string, unknown> = {
       id: docRef.id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       workspaceId,
       boardId,
       groupId,
@@ -275,7 +275,7 @@ export const createItem = async (req: Request, res: Response) => {
       action: 'CREATE',
       resourceType: 'item',
       resourceId: docRef.id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -366,7 +366,7 @@ export const getItems = async (req: Request, res: Response) => {
       action: 'READ',
       resourceType: 'item',
       resourceId: 'list',
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -399,7 +399,7 @@ export const getItemById = async (req: Request, res: Response) => {
       action: 'READ',
       resourceType: 'item',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -546,7 +546,7 @@ export const updateItem = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'item',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -597,7 +597,7 @@ export const archiveItem = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'item',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -639,7 +639,7 @@ export const restoreItem = async (req: Request, res: Response) => {
       action: 'UPDATE',
       resourceType: 'item',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
@@ -654,7 +654,7 @@ export const restoreItem = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// DELETE /items/:id   (hard-delete — ORGANIZATION_ADMIN+ only)
+// DELETE /items/:id   (hard-delete — WORKSPACE_ADMIN+ only)
 // ---------------------------------------------------------------------------
 export const deleteItem = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
@@ -678,7 +678,7 @@ export const deleteItem = async (req: Request, res: Response) => {
       action: 'DELETE',
       resourceType: 'item',
       resourceId: id,
-      organizationId: user.orgId,
+      workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
       userAgent: req.headers['user-agent'] as string | undefined,
