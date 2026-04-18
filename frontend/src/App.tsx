@@ -9,13 +9,13 @@ import { debugLog } from './config';
 // -- Static imports: public/auth pages render immediately with no loading spinner --
 import LanguageSelectionModal from './components/common/LanguageSelectionModal';
 import SelectContextPage from './components/auth/SelectContextPage';
-import OrganizationSetupWizard from './components/auth/OrganizationSetupWizard';
+import OrganizationSetupWizard from './components/auth/AcademySetupWizard';
 import LoginPage from './components/auth/LoginPage';
 import RegistrationPage from './components/auth/RegistrationPage';
-import OrganizationRegistrationPage from './components/auth/OrganizationRegistrationPage';
+import OrganizationRegistrationPage from './components/auth/AcademyRegistrationPage';
 import ResetPasswordPage from './components/auth/ResetPasswordPage';
 import GoogleAuthCallbackPage from './components/auth/GoogleAuthCallbackPage';
-import OrganizationAuthCallbackPage from './components/auth/OrganizationAuthCallbackPage';
+import OrganizationAuthCallbackPage from './components/auth/AcademyAuthCallbackPage';
 import VerifyAccountPage from './components/auth/VerifyAccountPage';
 import UserApprovalPage from './components/auth/UserApprovalPage';
 import LandingPage from './components/public/LandingPage';
@@ -31,7 +31,7 @@ const ProfilePage = React.lazy(() => import('./components/profile/ProfilePage'))
 // -- Workspace/org-admin chunk --
 const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'));
 const UserManagementPage = React.lazy(() => import('./components/admin/UserManagementPage'));
-const WorkspaceManagementPage = React.lazy(() => import('./components/admin/WorkspaceManagementPage'));
+const WorkspaceManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));
 const ThemeSettingsPage = React.lazy(() => import('./components/admin/ThemeSettingsPage'));
 
 // -- Work management chunk --
@@ -73,7 +73,7 @@ const App: React.FC = () => {
       userRole === UserRole.ORGANIZATION_ADMIN ||
       userRole === UserRole.SYSTEM_ADMIN
     ) {
-      void import('./components/admin/WorkspaceManagementPage');
+      void import('./components/admin/OrganizationManagementPage');
     }
     if (userRole === UserRole.SYSTEM_ADMIN) {
       void import('./components/admin/OrganizationManagementPage');
