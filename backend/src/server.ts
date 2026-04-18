@@ -46,12 +46,13 @@ export const createApp = async (): Promise<Application> => {
     // 4. Configure Passport Strategies
     configurePassport(passport);
 
-    // 5. Seed Default Data (idempotent)
+    // 5. Seed Default Data (idempotent — already ran in onInit, this is a fallback)
     try {
         await seedDefaultData();
         logger.info("Database seeding check completed.");
     } catch (error) {
         logger.error("Database seeding failed:", error);
+        throw error;
     }
 
     // 6. Path Normalization for Firebase Hosting

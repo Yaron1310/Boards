@@ -1,7 +1,9 @@
 
 import { onRequest } from "firebase-functions/v2/https";
+import { onInit } from "firebase-functions/v2/core";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { createApp } from "./server.js";
+import { seedDefaultData } from "./db/seed.js";
 import * as logger from "firebase-functions/logger";
 import type { Application } from 'express';
 
@@ -39,11 +41,21 @@ setGlobalOptions({
   region: 'us-central1' // Or your preferred region
 });
 
+// Run the seed on every cold start, guaranteed to complete before any request is handled.
+onInit(async () => {
+  logger.info("Cold start: running database seed check...");
+  try {
+    await seedDefaultData();
+    logger.info("Cold start: seed check complete.");
+  } catch (error) {
+    logger.error("Cold start: seed failed. Admin user may not exist.", error);
+  }
+});
+
 // A promise to ensure the app is initialized only once. This prevents race conditions.
 let appInitializationPromise: Promise<Application> | null = null;
 
 // This is the main Cloud Function entry point.
-// It will lazily initialize the Express app on the first request to a new instance.
 export const api = onRequest({ invoker: 'public', timeoutSeconds: 300 }, async (request, response) => {
   if (!appInitializationPromise) {
     logger.info("Initializing Express app instance for the first time...");
@@ -51,7 +63,6 @@ export const api = onRequest({ invoker: 'public', timeoutSeconds: 300 }, async (
   }
 
   try {
-    // Cast to Promise<Application> to ensure TypeScript knows it's not null here
     const appInstance = await (appInitializationPromise as Promise<Application>);
     logger.info("Express app instance is ready. Handling request.");
     return appInstance(request as any, response as any);
