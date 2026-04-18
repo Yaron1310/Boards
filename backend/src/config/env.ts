@@ -7,9 +7,6 @@ const REQUIRED_SECRETS = [
     "GOOGLE_CLIENT_SECRET",
     "GOOGLE_CALLBACK_URL",
     "FRONTEND_URL",
-    // "STRIPE_PUBLIC_KEY", // Removed as requested
-    // "STRIPE_SECRET_KEY", 
-    // "STRIPE_WEBHOOK_SECRET"
 ];
 
 export function validateEnvironment() {
@@ -24,18 +21,12 @@ export function validateEnvironment() {
 
 export const env = {
     // Required
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     JWT_SECRET: process.env.JWT_SECRET!,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID!,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET!,
     GOOGLE_CALLBACK_URL: process.env.GOOGLE_CALLBACK_URL!,
-    FRONTEND_URL: process.env.FRONTEND_URL || 'https://studio.gymind.app',
-    
-    // Payment Simulator Configuration
-    PAYMENT_SIMULATOR_URL: process.env.PAYMENT_SIMULATOR_URL || 'https://logyx.co.il/wp-json/payment-simulator/v1',
-    PAYMENT_SIMULATOR_TERMINAL: 'gymind_terminal',
-    PAYMENT_SIMULATOR_SECRET: 'gymind_secret_key_8823',
-    
+    FRONTEND_URL: process.env.FRONTEND_URL || 'https://app.logyx.co',
+
     // Optional for Microsoft Auth
     MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
     MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
@@ -45,10 +36,6 @@ export const env = {
     GOOGLE_IOS_CLIENT_ID: process.env.GOOGLE_IOS_CLIENT_ID,
     GOOGLE_ANDROID_CLIENT_ID: process.env.GOOGLE_ANDROID_CLIENT_ID,
 
-    // Optional with safe defaults
-    GEMINI_PRO_MODEL: process.env.GEMINI_PRO_MODEL || 'gemini-2.5-pro',
-    GEMINI_FLASH_MODEL: process.env.GEMINI_FLASH_MODEL || 'gemini-2.5-flash',
-    
     // Optional for email service
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,

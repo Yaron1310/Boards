@@ -140,8 +140,6 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
                     name: `${userName}'s Personal Workspace`,
                     orgId: orgId,
                     isPersonal: true,
-                    subscriptionProvider: 'gymind',
-                    subscriptionStatus: 'active',
                     status: 'active',
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
@@ -386,8 +384,6 @@ export const setupOrganization = async (req: Request, res: Response) => {
                 name: `${user.name}'s Personal Workspace`,
                 orgId: newOrganizationRef.id,
                 isPersonal: true,
-                subscriptionProvider: 'gymind',
-                subscriptionStatus: 'incomplete',
                 status: 'active',
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
@@ -415,7 +411,7 @@ export const setupOrganization = async (req: Request, res: Response) => {
             transaction.set(settingsRef, { ...defaultSettings, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         });
 
-        res.status(201).json({ message: 'Workspace created successfully. Proceed to payment.' });
+        res.status(201).json({ message: 'Workspace created successfully.' });
 
     } catch (error: any) {
         if (error.message === 'Workspace name is already taken.' || error.message.includes('already an administrator')) {

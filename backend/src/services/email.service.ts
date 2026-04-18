@@ -95,7 +95,7 @@ export const sendTestEmailFromTemplate = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
 
     // Render with sample values so the admin sees real-ish content
@@ -133,7 +133,7 @@ export const sendAccountVerificationEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
 
     let templateId: string;
@@ -192,7 +192,7 @@ const buildFallbackVerificationHtml = (
         introLine = 'Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.';
         ignoreNote = 'If you did not create an account, you can safely ignore this email.';
     }
-    return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Gymind Team</p>`;
+    return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Logyx Team</p>`;
 };
 
 // ---------------------------------------------------------------------------
@@ -208,7 +208,7 @@ export const sendApprovalRequestEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { newUserName: newUser.name, newUserEmail: newUser.email, approvalLink };
 
@@ -216,7 +216,7 @@ export const sendApprovalRequestEmail = async (
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `New User Registration Request: ${newUser.name}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>A new user, <strong>${newUser.name}</strong> (<em>${newUser.email}</em>), has registered and is awaiting your approval.</p><p>Please review their request and click the link below to approve their account. This link will expire in 48 hours.</p><p><a href="${approvalLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Approve User</a></p><p>If you do not recognize this request, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>A new user, <strong>${newUser.name}</strong> (<em>${newUser.email}</em>), has registered and is awaiting your approval.</p><p>Please review their request and click the link below to approve their account. This link will expire in 48 hours.</p><p><a href="${approvalLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Approve User</a></p><p>If you do not recognize this request, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -243,7 +243,7 @@ export const sendAccountApprovedEmail = async (userEmail: string, userName: stri
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { userName, loginLink };
 
@@ -251,7 +251,7 @@ export const sendAccountApprovedEmail = async (userEmail: string, userName: stri
     const subject = tpl ? renderTemplate(tpl.subject, vars) : 'Your Account Has Been Approved!';
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello ${userName},</p><p>Great news! Your account for Gymind has been approved by your workspace's administrator.</p><p>You can now log in and start using the application.</p><p><a href="${loginLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p><p>Welcome aboard!</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello ${userName},</p><p>Great news! Your account for Logyx has been approved by your workspace's administrator.</p><p>You can now log in and start using the application.</p><p><a href="${loginLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p><p>Welcome aboard!</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -283,7 +283,7 @@ export const sendPasswordResetEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { userName, organizationName, resetLink };
 
@@ -291,7 +291,7 @@ export const sendPasswordResetEmail = async (
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `Reset Your Password for ${organizationName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello ${userName},</p><p>We received a request to reset your password. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p><p><a href="${resetLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p><p>If you did not request a password reset, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello ${userName},</p><p>We received a request to reset your password. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p><p><a href="${resetLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p><p>If you did not request a password reset, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -325,7 +325,7 @@ export const sendUsageNotificationEmail = async (
         return { success: false, error: 'No admin emails provided.' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const warningLevel = usagePercentage >= 95 ? 'critical' : 'high';
     const vars = { organizationName, usagePercentage: String(usagePercentage), warningLevel };
@@ -334,7 +334,7 @@ export const sendUsageNotificationEmail = async (
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `Usage Alert for ${organizationName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>This is a notification that your workspace, <strong>${organizationName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>This is a notification that your workspace, <strong>${organizationName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -361,9 +361,9 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://studio.gymind.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://app.logyx.co';
     const logoPath = path.join(process.cwd(), 'src', 'assets', 'email_logo.png');
     const hasLogo = fs.existsSync(logoPath);
 
@@ -374,7 +374,7 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
     };
 
     const tpl = await fetchTemplate('welcome');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to Gymind, ${userName}!`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to Logyx, ${userName}!`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
         : buildFallbackWelcomeHtml(userName, frontendUrl, hasLogo);
@@ -385,7 +385,7 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
             to: userEmail,
             subject,
             html,
-            text: `Welcome to Gymind, ${userName}! Your account is now active. Log in at ${frontendUrl}/login`,
+            text: `Welcome to Logyx, ${userName}! Your account is now active. Log in at ${frontendUrl}/login`,
         };
         if (!tpl && hasLogo) {
             mailOptions.attachments = [{ filename: 'logo.png', path: logoPath, cid: 'logo' }];
@@ -412,14 +412,14 @@ const buildFallbackWelcomeHtml = (userName: string, frontendUrl: string, hasLogo
     .button{background-color:#2563eb;color:#ffffff!important;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block}
     </style></head><body><div class="container">
     <div class="header"><span class="welcome-text">Welcome to</span>
-    ${hasLogo ? '<img src="cid:logo" alt="Gymind Logo" class="logo">' : '<span class="welcome-text" style="color:#2563eb;">Gymind</span>'}</div>
+    ${hasLogo ? '<img src="cid:logo" alt="Logyx Logo" class="logo">' : '<span class="welcome-text" style="color:#2563eb;">Logyx</span>'}</div>
     <div class="content"><p>Hello ${userName},</p>
-    <p>We're excited to have you join us! Gymind is a new space to learn, grow, and transform.</p>
+    <p>We're excited to have you join us! Logyx is a new space to learn, grow, and transform.</p>
     <p>Your account is now fully active. You can start exploring our AI-powered mentors, courses, and more right away.</p>
     <div class="button-container"><a href="${frontendUrl}/login" class="button">Go to Dashboard</a></div>
     <p>If you have any questions or need a hand getting started, we're here to help.</p>
-    <p>Best regards,<br/>The Gymind Team</p></div>
-    <div class="footer">&copy; ${new Date().getFullYear()} Gymind. All rights reserved.</div>
+    <p>Best regards,<br/>The Logyx Team</p></div>
+    <div class="footer">&copy; ${new Date().getFullYear()} Logyx. All rights reserved.</div>
     </div></body></html>`;
 
 // ---------------------------------------------------------------------------
@@ -470,9 +470,9 @@ export const sendWoocommerceWelcomeEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://studio.gymind.app';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://app.logyx.co';
     const logoPath = path.join(process.cwd(), 'src', 'assets', 'email_logo.png');
     const hasLogo = fs.existsSync(logoPath);
 
@@ -534,7 +534,7 @@ const buildFallbackWoocommerceHtml = (
     .button{background-color:#2563eb;color:#ffffff!important;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block}
     </style></head><body><div class="container">
     <div class="header"><span class="welcome-text">Welcome to</span>
-    ${hasLogo ? '<img src="cid:logo" alt="Gymind Logo" class="logo">' : `<span class="welcome-text" style="color:#2563eb;">${organizationName}</span>`}</div>
+    ${hasLogo ? '<img src="cid:logo" alt="Logyx Logo" class="logo">' : `<span class="welcome-text" style="color:#2563eb;">${organizationName}</span>`}</div>
     <div class="content"><p>Hello ${userName},</p>
     <p>Thank you for your purchase! We're thrilled to have you join <strong>${organizationName}</strong>.</p>
     <p>${actionInstruction}</p>
@@ -559,15 +559,15 @@ export const sendUserInvitationEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { orgName, organizationName, registrationLink };
 
     const tpl = await fetchTemplate('user_invitation');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `You've been invited to join ${orgName} on Gymind`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `You've been invited to join ${orgName} on Logyx`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong> (part of <strong>${organizationName}</strong>) on Gymind.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong> (part of <strong>${organizationName}</strong>) on Logyx.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -575,7 +575,7 @@ export const sendUserInvitationEmail = async (
             to: userEmail,
             subject,
             html,
-            text: `You've been invited to join ${orgName} on Gymind. Create your account at: ${registrationLink}`,
+            text: `You've been invited to join ${orgName} on Logyx. Create your account at: ${registrationLink}`,
         });
         logger.info(`Invitation email sent successfully to: ${userEmail}`);
         return { success: true };
@@ -598,7 +598,7 @@ export const sendNewsletterReminder3DayEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { campaignName, organizationName };
 
@@ -631,7 +631,7 @@ export const sendNewsletterReminder1DayEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { campaignName, organizationName };
 

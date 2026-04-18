@@ -21,7 +21,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not create an account, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'invite_organization_admin',
@@ -33,7 +33,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>You've been invited to join <strong>{{organizationName}}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'invite_org_manager',
@@ -45,7 +45,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>You've been invited to join <strong>{{entityName}}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'approval_request',
@@ -58,7 +58,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>Please review their request and click the link below to approve their account. This link will expire in 48 hours.</p>
 <p><a href="{{approvalLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Approve User</a></p>
 <p>If you do not recognize this request, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'account_approved',
@@ -137,84 +137,6 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 </html>`,
     },
     {
-        id: 'woocommerce_welcome_new',
-        name: 'WooCommerce Welcome (New User)',
-        description: 'Sent to a brand-new user provisioned via WooCommerce — prompts them to complete registration.',
-        subject: 'Welcome to {{organizationName}} — Get Started Now',
-        variables: ['userName', 'organizationName', 'registrationLink', 'userEmail', 'currentYear'],
-        html: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .welcome-text { font-size: 24px; font-weight: bold; color: #1f2937; }
-    .content { padding: 0 20px; }
-    .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-    .button-container { text-align: center; margin: 30px 0; }
-    .button { background-color: #2563eb; color: #ffffff !important; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to {{organizationName}}</span></div>
-    <div class="content">
-      <p>Hello {{userName}},</p>
-      <p>Thank you for your purchase! We're thrilled to have you join <strong>{{organizationName}}</strong>.</p>
-      <p>To get started, please register your account using the button below. Use <strong>{{userEmail}}</strong> as your email address when registering.</p>
-      <div class="button-container">
-        <a href="{{registrationLink}}" class="button">Complete Your Registration</a>
-      </div>
-      <p>If you have any questions or need help getting started, we're here for you.</p>
-      <p>Best regards,<br/>The {{organizationName}} Team</p>
-    </div>
-    <div class="footer">&copy; {{currentYear}} {{organizationName}}. All rights reserved.</div>
-  </div>
-</body>
-</html>`,
-    },
-    {
-        id: 'woocommerce_welcome_existing',
-        name: 'WooCommerce Welcome (Existing User)',
-        description: 'Sent to an existing user provisioned via WooCommerce — prompts them to log in.',
-        subject: 'Welcome to {{organizationName}} — Get Started Now',
-        variables: ['userName', 'organizationName', 'loginLink', 'currentYear'],
-        html: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .welcome-text { font-size: 24px; font-weight: bold; color: #1f2937; }
-    .content { padding: 0 20px; }
-    .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-    .button-container { text-align: center; margin: 30px 0; }
-    .button { background-color: #2563eb; color: #ffffff !important; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to {{organizationName}}</span></div>
-    <div class="content">
-      <p>Hello {{userName}},</p>
-      <p>Thank you for your purchase! We're thrilled to have you join <strong>{{organizationName}}</strong>.</p>
-      <p>Your account is ready. Click the button below to log in and start exploring.</p>
-      <div class="button-container">
-        <a href="{{loginLink}}" class="button">Log In to Your Account</a>
-      </div>
-      <p>If you have any questions or need help getting started, we're here for you.</p>
-      <p>Best regards,<br/>The {{organizationName}} Team</p>
-    </div>
-    <div class="footer">&copy; {{currentYear}} {{organizationName}}. All rights reserved.</div>
-  </div>
-</body>
-</html>`,
-    },
-    {
         id: 'user_invitation',
         name: 'User Invitation',
         description: 'Sent to pre-approved users who have been invited to join an workspace.',
@@ -226,29 +148,6 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p><a href="{{registrationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
 <p>Thanks,<br/>The Gymind Team</p>`,
-    },
-    {
-        id: 'newsletter_reminder_3day',
-        name: 'Newsletter Reminder (3 Days)',
-        description: "Sent to an workspace admin when a scheduled newsletter edition is due in 3 days but its content is still empty.",
-        subject: 'Reminder: Your newsletter "{{campaignName}}" is due in 3 days',
-        variables: ['campaignName', 'organizationName'],
-        html: `<p>Hi,</p>
-<p>Your newsletter campaign <strong>{{campaignName}}</strong> has a scheduled edition due in <strong>3 days</strong>, but the content is still empty.</p>
-<p>Please log in and write your newsletter content to ensure it's sent on time.</p>
-<p>Best,<br/>{{organizationName}}</p>`,
-    },
-    {
-        id: 'newsletter_reminder_1day',
-        name: 'Newsletter Reminder (1 Day — Urgent)',
-        description: "Sent to an workspace admin as an urgent warning when a scheduled newsletter edition is due tomorrow but its content is still empty.",
-        subject: 'Urgent: Your newsletter "{{campaignName}}" is due tomorrow',
-        variables: ['campaignName', 'organizationName'],
-        html: `<p>Hi,</p>
-<p><strong>Warning:</strong> Your newsletter campaign <strong>{{campaignName}}</strong> has a scheduled edition due <strong>tomorrow</strong>, but the content is still empty.</p>
-<p>If the content is not added before the scheduled send time, the edition will be skipped automatically.</p>
-<p>Please log in now and add your newsletter content.</p>
-<p>Best,<br/>{{organizationName}}</p>`,
     },
 ];
 

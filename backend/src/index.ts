@@ -1,11 +1,9 @@
 
 import { onRequest } from "firebase-functions/v2/https";
-import { onSchedule } from "firebase-functions/v2/scheduler";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { createApp } from "./server.js";
 import * as logger from "firebase-functions/logger";
 import type { Application } from 'express';
-import { processScheduledEmailsHandler } from "./scheduled/processScheduledEmails.js";
 
 // Define secrets the function needs to run.
 // IMPORTANT: All secrets listed here MUST exist in your Google Cloud Secret Manager.
@@ -43,12 +41,6 @@ setGlobalOptions({
 
 // A promise to ensure the app is initialized only once. This prevents race conditions.
 let appInitializationPromise: Promise<Application> | null = null;
-
-// Scheduled function — runs every hour to process scheduled newsletter sends and reminders.
-export const processScheduledEmails = onSchedule(
-    { schedule: '0 * * * *', timeZone: 'UTC', secrets },
-    processScheduledEmailsHandler
-);
 
 // This is the main Cloud Function entry point.
 // It will lazily initialize the Express app on the first request to a new instance.

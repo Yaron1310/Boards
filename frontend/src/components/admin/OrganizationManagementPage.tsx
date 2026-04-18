@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import type { Workspace, Course, User, Plan } from '../../types';
+import type { Workspace, User } from '../../types';
 import { UserRole } from '../../types';
 import { FiPlusCircle, FiEdit, FiArchive, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiBriefcase, FiAlertCircle as FiErrorCircle, FiKey, FiCpu, FiLoader, FiUsers, FiUserPlus, FiList, FiInfo, FiCreditCard, FiShare } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
@@ -65,11 +65,8 @@ const AddWorkspaceModal = ({
     onClose,
     onSave,
     isSaving,
-    plans,
     name,
     setName,
-    planId,
-    setPlanId,
     error
 }: any) => {
     const { t } = useTranslation();
@@ -99,20 +96,6 @@ const AddWorkspaceModal = ({
                                 placeholder={t('admin.enterWorkspaceName')}
                             />
                         </div>
-                        <div>
-                            <label htmlFor="modalNewOrgPlan" className="block text-sm font-medium text-gray-700">{t('admin.plan')}</label>
-                            <select
-                                id="modalNewOrgPlan"
-                                value={planId}
-                                onChange={(e) => setPlanId(e.target.value)}
-                                className="mt-1 w-full p-2 border border-gray-300 rounded-md bg-white shadow-sm focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">{t('admin.noPlanAssigned')}</option>
-                                {plans.map((plan: Plan) => (
-                                    <option key={plan.id} value={plan.id}>{plan.name}</option>
-                                ))}
-                            </select>
-                        </div>
                     </form>
                 </div>
                 <div className="flex justify-end space-x-3 p-6 border-t bg-gray-50 rounded-b-lg">
@@ -127,7 +110,7 @@ const AddWorkspaceModal = ({
     );
 };
 
-const WorkspaceModal = ({ org, editData, plans, onClose, onSave, isSaving, error, setEditData, onManageAdmins, onPreApprove, onArchive }: any) => {
+const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEditData, onManageAdmins, onPreApprove, onArchive }: any) => {
     const { t } = useTranslation();
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -148,29 +131,6 @@ const WorkspaceModal = ({ org, editData, plans, onClose, onSave, isSaving, error
                         <div>
                             <label htmlFor="name" className="block text-sm font-medium text-gray-700">{t('admin.workspaceName')} <span aria-hidden="true">*</span></label>
                             <input type="text" name="name" id="name" value={editData.name} onChange={handleInputChange} className="mt-1 w-full p-2 border border-gray-300 rounded-md" required aria-required="true"/>
-                        </div>
-                        <div>
-                            <label htmlFor="planId" className="block text-sm font-medium text-gray-700">{t('admin.plan')}</label>
-                            <select name="planId" id="planId" value={editData.planId || ''} onChange={handleInputChange} className="mt-1 w-full p-2 border border-gray-300 rounded-md bg-white">
-                                <option value="">{t('admin.noPlanAssigned')}</option>
-                                {plans.map((plan: Plan) => (
-                                    <option key={plan.id} value={plan.id}>{plan.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        
-                        <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
-                            <label htmlFor="subscriptionProvider" className="block text-sm font-medium text-gray-700 mb-2">{t('billing.paymentMethod')}</label>
-                            <select name="subscriptionProvider" id="subscriptionProvider" value={editData.subscriptionProvider || 'manual'} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-md bg-white">
-                                <option value="manual">{t('admin.manualDirect')}</option>
-                                <option value="gymind">{t('admin.gymindPayment')}</option>
-                                <option value="woocommerce">{t('admin.wordpressPlugin')}</option>
-                            </select>
-                            {editData.subscriptionProvider === 'gymind' && (
-                                <p className="text-xs text-blue-600 mt-2">
-                                    {t('admin.gymindPaymentDesc')}
-                                </p>
-                            )}
                         </div>
 
                     </form>
@@ -199,17 +159,15 @@ const WorkspaceModal = ({ org, editData, plans, onClose, onSave, isSaving, error
 const WorkspaceManagementPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { 
+  const {
     workspaces,
     archivedWorkspaces,
     fetchWorkspaces,
     fetchArchivedWorkspaces,
     restoreWorkspace,
-    plans,
-    fetchPlans,
     users,
-    addWorkspace, 
-    updateWorkspace, 
+    addWorkspace,
+    updateWorkspace,
     deleteWorkspace,
     confirmArchiveWorkspace,
     addWorkspaceManager,
@@ -217,21 +175,18 @@ const WorkspaceManagementPage: React.FC = () => {
     orgTokenUsage,
     fetchOrgTokenUsage,
     isAnalyticsLoading,
-    dataError, 
-    clearDataError, 
+    dataError,
+    clearDataError,
     isLoading: isDataLoading,
     tutorialSettings
   } = useData();
   const navigate = useNavigate();
 
   const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgPlanId, setNewOrgPlanId] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  
-  const activePlans = useMemo(() => plans.filter((p: Plan) => p.status !== 'archived'), [plans]);
 
   const [orgToEdit, setOrgToEdit] = useState<OrgWithComputedData | null>(null);
-  const [editOrgData, setEditOrgData] = useState<{ name: string; planId: string, subscriptionProvider: string }>({ name: '', planId: '', subscriptionProvider: 'manual' });
+  const [editOrgData, setEditOrgData] = useState<{ name: string }>({ name: '' });
   const [isSaving, setIsSaving] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   useEffect(() => {
@@ -256,7 +211,6 @@ const WorkspaceManagementPage: React.FC = () => {
   }, [feedbackMessage]);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterPlan, setFilterPlan] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'on', 'off'
   const [filterYear, setFilterYear] = useState<string>('');
   const [filterMonth, setFilterMonth] = useState<string>('');
@@ -276,12 +230,6 @@ const WorkspaceManagementPage: React.FC = () => {
       return Array.from({length: 5}, (_, i) => currentYear - i);
   }, []);
 
-  useEffect(() => {
-    if (user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN) {
-      fetchPlans();
-    }
-  }, [user, fetchPlans]);
-  
   useEffect(() => {
     const yearNum = filterYear ? parseInt(filterYear, 10) : undefined;
     const monthNum = filterMonth ? parseInt(filterMonth, 10) : undefined;
@@ -317,17 +265,11 @@ const WorkspaceManagementPage: React.FC = () => {
     // Hide system-generated fallback orgs (isPersonal: true) from the management table
     let filteredOrgs = workspaces.filter(org => !org.isPersonal);
 
-    // Filter by view type using plan.maxUsers as the source of truth
+    // Filter by view type
     if (viewType === 'individual') {
-        filteredOrgs = filteredOrgs.filter(org => {
-            const plan = plans.find(p => p.id === org.planId);
-            return plan ? plan.maxUsers === 1 : false;
-        });
+        filteredOrgs = filteredOrgs.filter(org => (org as any).isPersonal === true);
     } else if (viewType === 'corporate') {
-        filteredOrgs = filteredOrgs.filter(org => {
-            const plan = plans.find(p => p.id === org.planId);
-            return !plan || plan.maxUsers !== 1;
-        });
+        filteredOrgs = filteredOrgs.filter(org => !(org as any).isPersonal);
     }
 
     // Filter by search term
@@ -335,11 +277,6 @@ const WorkspaceManagementPage: React.FC = () => {
         filteredOrgs = filteredOrgs.filter(org =>
             org.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }
-
-    // Filter by plan
-    if (filterPlan) {
-        filteredOrgs = filteredOrgs.filter(org => org.planId === filterPlan);
     }
 
     // Filter by status
@@ -353,7 +290,7 @@ const WorkspaceManagementPage: React.FC = () => {
     return filteredOrgs.map(org => {
         const orgUsers = users.filter(u => u.workspaces.some(userOrg => userOrg.id === org.id));
         const usageData = orgTokenUsage?.[org.id];
-        
+
         return {
             ...org,
             userCount: orgUsers.length,
@@ -361,28 +298,24 @@ const WorkspaceManagementPage: React.FC = () => {
             tokenLimit: usageData?.limit ?? null
         };
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [workspaces, users, orgTokenUsage, plans, searchTerm, filterPlan, filterStatus, viewType]);
+  }, [workspaces, users, orgTokenUsage, searchTerm, filterStatus, viewType]);
 
   const dynamicTitle = useMemo(() => {
     const filters: string[] = [];
-    
+
     if (searchTerm) {
         filters.push(`Name includes "${searchTerm}"`);
-    }
-    if (filterPlan) {
-        const planName = plans.find(p => p.id === filterPlan)?.name;
-        if (planName) filters.push(`Plan: "${planName}"`);
     }
     if (filterStatus !== 'all') {
         filters.push(`Payment Status: ${filterStatus === 'on' ? 'On' : 'Off'}`);
     }
 
     const count = `(${orgsWithComputedData.length})`;
-    
+
     if (filters.length > 0) {
         return `${filters.join(', ')} ${count}`;
     }
-    
+
     switch(viewType) {
         case 'corporate':
             return `Corporate Clients ${count}`;
@@ -391,7 +324,7 @@ const WorkspaceManagementPage: React.FC = () => {
         default:
             return `All Workspaces ${count}`;
     }
-  }, [searchTerm, filterPlan, filterStatus, viewType, plans, orgsWithComputedData.length]);
+  }, [searchTerm, filterStatus, viewType, orgsWithComputedData.length]);
 
 
   const clearFeedback = () => {
@@ -440,7 +373,7 @@ const WorkspaceManagementPage: React.FC = () => {
 
   const handleOpenEditModal = (org: OrgWithComputedData) => {
     clearFeedback();
-    setEditOrgData({ name: org.name, planId: org.planId || '', subscriptionProvider: org.subscriptionProvider || 'manual' });
+    setEditOrgData({ name: org.name });
     setOrgToEdit(org);
   };
   
@@ -448,10 +381,8 @@ const WorkspaceManagementPage: React.FC = () => {
     clearFeedback();
     if (orgToEdit && editOrgData.name.trim()) {
       setIsSaving(true);
-      const success = await updateWorkspace(orgToEdit.id, { 
-          name: editOrgData.name.trim(), 
-          planId: editOrgData.planId,
-          subscriptionProvider: editOrgData.subscriptionProvider,
+      const success = await updateWorkspace(orgToEdit.id, {
+          name: editOrgData.name.trim(),
           isPersonal: orgToEdit.isPersonal // Maintain the flag
       });
       setIsSaving(false);
@@ -589,7 +520,7 @@ const WorkspaceManagementPage: React.FC = () => {
                     <div className="flex items-center gap-6">
                         <h2 className="text-xl font-semibold text-gray-700">{t('common.filters')}</h2>
                         <button
-                            onClick={() => { setSearchTerm(''); setFilterPlan(''); setFilterStatus('all'); setFilterYear(''); setFilterMonth(''); setViewType('all'); }}
+                            onClick={() => { setSearchTerm(''); setFilterStatus('all'); setFilterYear(''); setFilterMonth(''); setViewType('all'); }}
                             className="text-sm text-blue-600 border border-blue-600 hover:bg-blue-50 font-medium px-3 py-1 rounded-md transition-colors"
                             aria-label={t('common.resetFilters')}
                         >
@@ -602,20 +533,13 @@ const WorkspaceManagementPage: React.FC = () => {
                         <button onClick={() => setViewType('individual')} className={`w-1/3 sm:w-auto px-3 py-1 text-sm font-medium rounded-md ${viewType === 'individual' ? 'bg-white shadow' : 'text-gray-600'}`}>{t('admin.individualSubscribers')}</button>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label htmlFor="org-search" className="block text-sm font-medium text-gray-700">{t('admin.searchByName')}</label>
                         <input
                             id="org-search" type="text" placeholder={t('admin.enterName')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                             className="mt-1 w-full p-2 border border-gray-300 rounded-md"
                         />
-                    </div>
-                    <div>
-                        <label htmlFor="plan-filter" className="block text-sm font-medium text-gray-700">{t('admin.filterByPlan')}</label>
-                        <select id="plan-filter" value={filterPlan} onChange={(e) => setFilterPlan(e.target.value)} className="mt-1 w-full p-2 border border-gray-300 rounded-md bg-white">
-                            <option value="">{t('admin.allPlans')}</option>
-                            {activePlans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
-                        </select>
                     </div>
                     <div>
                         <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700">{t('admin.paymentStatus')}</label>

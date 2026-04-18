@@ -7,17 +7,12 @@ const DEFAULT_MAX_LENGTH = 500;
  * Key: field name, Value: max allowed length (use Infinity for no practical limit beyond bodyParser).
  */
 const LARGE_FIELD_LIMITS: Record<string, number> = {
-    transcript:           50_000,   // Lesson transcripts (~30 min video at 500MB file limit)
     customHtml:           200_000,  // Custom code assignments — structural HTML
     customCss:            200_000,  // Custom code assignments — CSS part
     customJs:             200_000,  // Custom code assignments — JS part
-    currentHtml:          200_000,  // Current HTML sent to AI wizard for refinement
-    currentCss:           200_000,  // Current CSS sent to AI wizard for refinement
-    currentJs:            200_000,  // Current JS sent to AI wizard for refinement
     html:                 200_000,  // Email template HTML (system admin email templates)
     htmlContent:          200_000,  // Marketing email HTML
     mediaData:            Infinity, // Base64-encoded media uploads (guard is Express 10MB body limit)
-    coverImage:           Infinity, // Base64-encoded course cover image (guard is Express 10MB body limit)
     customInstructions:   2_000,    // Custom AI image generation instructions from admin (pre-populated with name+description)
     systemPrompt:         50_000,   // Chat persona AI system prompts
     aiInsightPrompt:      50_000,   // Chat persona AI insight generation prompts
@@ -26,11 +21,10 @@ const LARGE_FIELD_LIMITS: Record<string, number> = {
     message:              5_000,    // Individual chat messages
     userMessage:          5_000,    // AI chat messages
     mainText:             10_000,   // Marketing email main body text
-    description:          2_000,    // Questionnaire/course descriptions and instructions
+    description:          2_000,    // Item/board descriptions and instructions
     summaryInstructions:  2_000,    // Chat persona summary instructions
     initialMessage:       2_000,    // Chat persona initial welcome message
-    correctAnswerText:    2_000,    // Questionnaire correct answer explanations
-    text:                 2_000,    // Questionnaire question/answer text
+    text:                 2_000,    // General text field
     recaptchaToken:       Infinity, // Google reCAPTCHA Enterprise tokens — variable-length JWTs, validated by Google's API not by us
 };
 
