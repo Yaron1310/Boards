@@ -14,7 +14,6 @@ import { processScheduledEmailsHandler } from "./scheduled/processScheduledEmail
 // If the deployment fails with "Secret not found", ensure you have run:
 // firebase functions:secrets:set SECRET_NAME
 const secrets = [
-    "GEMINI_API_KEY",
     "JWT_SECRET",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
@@ -26,23 +25,14 @@ const secrets = [
     "SMTP_USER",
     "SMTP_PASS",
     "SMTP_FROM_NAME",
-    "MICROSOFT_CLIENT_ID",
-    "MICROSOFT_CLIENT_SECRET",
-    "MICROSOFT_CALLBACK_URL",
-    // Stripe secrets removed to allow deployment without setting them in Secret Manager
-    // "STRIPE_PUBLIC_KEY",
-    // "STRIPE_SECRET_KEY",
-    // "STRIPE_WEBHOOK_SECRET",
-    // Uncomment these if using native mobile apps:
-    // "GOOGLE_IOS_CLIENT_ID",
-    // "GOOGLE_ANDROID_CLIENT_ID",
-    // reCAPTCHA Enterprise — uncomment after running:
-    //   firebase functions:secrets:set RECAPTCHA_API_KEY
-    //   firebase functions:secrets:set RECAPTCHA_PROJECT_ID
-    //   firebase functions:secrets:set RECAPTCHA_SITE_KEY
-    "RECAPTCHA_API_KEY",
-    "RECAPTCHA_PROJECT_ID",
-    "RECAPTCHA_SITE_KEY",
+    // Microsoft Auth — disabled until secrets are provisioned
+    // "MICROSOFT_CLIENT_ID",
+    // "MICROSOFT_CLIENT_SECRET",
+    // "MICROSOFT_CALLBACK_URL",
+    // reCAPTCHA Enterprise — disabled until secrets are provisioned
+    // "RECAPTCHA_API_KEY",
+    // "RECAPTCHA_PROJECT_ID",
+    // "RECAPTCHA_SITE_KEY",
 ];
 
 // Set global options for the function.

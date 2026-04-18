@@ -2,7 +2,6 @@
 import * as logger from "firebase-functions/logger";
 
 const REQUIRED_SECRETS = [
-    "GEMINI_API_KEY",
     "JWT_SECRET",
     "GOOGLE_CLIENT_ID",
     "GOOGLE_CLIENT_SECRET",
@@ -25,7 +24,7 @@ export function validateEnvironment() {
 
 export const env = {
     // Required
-    GEMINI_API_KEY: process.env.GEMINI_API_KEY!,
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY,
     JWT_SECRET: process.env.JWT_SECRET!,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID!,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET!,
