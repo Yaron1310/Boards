@@ -200,7 +200,7 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
             <FiChevronsRight className="ml-2 text-white/60 rtl-flip" />
           </NavLink>
           <div className="flex items-center justify-center text-gray-400 text-xs gap-x-1.5">
-             <span className="font-semibold">Gymind</span>
+             <span className="font-semibold">Logyx</span>
              <span>© {new Date().getFullYear()}</span>
              <span>|</span>
              <button
@@ -497,7 +497,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                  <FiChevronsRight className="ml-2 rtl-flip" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }} />
             </NavLink>
             <div className="flex items-center justify-center opacity-80 text-xs gap-x-1.5" style={{ color: sidebarLinkColor }}>
-                <span className="font-semibold">Gymind</span>
+                <span className="font-semibold">Logyx</span>
                 <span>© {new Date().getFullYear()}</span>
                 <span>|</span>
                 <button
@@ -668,7 +668,7 @@ const MainLayout: React.FC = () => {
 
   // --- REGULAR, ORG_ADMIN, ORGANIZATION_ADMIN LAYOUT ---
 
-  const appName = organizationSettings?.appName || 'Gymind';
+  const appName = organizationSettings?.appName || 'Boards';
   // Use /default_user.webp as fallback if logoUrl is missing or is the old hardcoded default
   const logoUrl = (!organizationSettings?.logoUrl || organizationSettings.logoUrl === '/logo_gym.webp') ? '/default_user.webp' : organizationSettings.logoUrl;
   // dark-contrast applies CSS invert(1) hue-rotate(180deg) to the whole page.
