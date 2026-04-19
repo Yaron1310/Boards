@@ -1,17 +1,25 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
 import { FiBriefcase } from 'react-icons/fi';
+import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 
 const WorkspaceHomePage: React.FC = () => {
-  const { user } = useAuth();
-  const workspaces = user?.workspaces ?? [];
+  const { data: allWorkspaces = [], isLoading } = useWorkspacesQuery();
+  const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-64" role="status" aria-label="Loading workspaces">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Workspaces</h1>
       {workspaces.length === 0 ? (
-        <p className="text-gray-500">You are not a member of any workspace.</p>
+        <p className="text-gray-500">No workspaces found. Create one from the admin panel.</p>
       ) : (
         <div
           className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
