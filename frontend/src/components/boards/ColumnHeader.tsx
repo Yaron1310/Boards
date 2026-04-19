@@ -24,6 +24,7 @@ import {
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
   FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu,
 } from 'react-icons/fi';
+import { COLUMN_WIDTH_MAP, ITEM_NAME_WIDTH, CHECKBOX_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
 interface SortState {
   columnId: string;
@@ -102,12 +103,14 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
     opacity: isDragging ? 0.4 : 1,
   };
 
+  const widthClass = COLUMN_WIDTH_MAP[column.type];
+
   return (
     <div
       ref={setNodeRef}
       style={style}
       role="columnheader"
-      className={`flex items-center gap-1.5 min-w-[120px] px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
+      className={`flex items-center gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
     >
       {/* Drag handle */}
       {canManage && (
@@ -239,7 +242,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
         {/* Item name column — fixed */}
         <div
           role="columnheader"
-          className="flex items-center px-4 py-2 min-w-[240px] border-r border-gray-200 text-xs font-semibold text-gray-600 bg-gray-50"
+          className={`flex items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-gray-200 text-xs font-semibold text-gray-600 bg-gray-50`}
         >
           Item
         </div>

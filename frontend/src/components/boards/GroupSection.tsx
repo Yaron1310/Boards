@@ -8,8 +8,10 @@ import { CSS } from '@dnd-kit/utilities';
 import { useCreateItem } from '../../hooks/queries/useItemQueries';
 import { useUpdateGroup, useDeleteGroup } from '../../hooks/queries/useGroupQueries';
 import { useAuth } from '../../hooks/useAuth';
+import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
+import { COLUMN_WIDTH_MAP, ITEM_NAME_WIDTH } from '../../utils/columnWidths';
 
 interface GroupSectionProps {
   group: Group;
@@ -29,6 +31,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   onOpenDetail,
 }) => {
   const { user } = useAuth();
+  const { data: columns = [] } = useColumns(boardId);
 
   const isCollapsed = group.isCollapsed ?? false;
 
@@ -161,10 +164,12 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       className="rounded-lg border border-gray-200 overflow-hidden bg-white"
       aria-label={`Group: ${group.name}`}
     >
-      {/* Group header */}
+      {/* Group header with columns */}
       <div
-        className="flex items-center gap-2 px-3 py-2 bg-gray-50 border-b border-gray-200 select-none"
+        className="flex items-stretch border-b border-gray-200 bg-gray-50 select-none"
         style={{ borderLeft: `4px solid ${groupColor}` }}
+        role="row"
+        aria-label={`Group header: ${group.name}`}
       >
         {/* Group drag handle */}
         {canManage && (
@@ -200,35 +205,37 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           aria-hidden="true"
         />
 
-        {/* Group name */}
-        {editingName && canManage ? (
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={nameValue}
-            onChange={(e) => setNameValue(e.target.value)}
-            onBlur={() => void commitNameEdit()}
-            onKeyDown={handleNameKeyDown}
-            disabled={isUpdating}
-            className="flex-1 text-sm font-semibold text-gray-800 bg-transparent border-b border-indigo-500 outline-none"
-            aria-label="Edit group name"
-          />
-        ) : (
-          <h2
-            className={`flex-1 text-sm font-semibold text-gray-800 truncate ${
-              canManage ? 'cursor-pointer hover:text-indigo-600 transition-colors' : ''
-            }`}
-            onClick={() => canManage && setEditingName(true)}
-            title={canManage ? 'Click to rename' : undefined}
-          >
-            {group.name}
-          </h2>
-        )}
+        {/* Group name and info */}
+        <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0" role="rowheader">
+          {editingName && canManage ? (
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              onBlur={() => void commitNameEdit()}
+              onKeyDown={handleNameKeyDown}
+              disabled={isUpdating}
+              className="text-sm font-semibold text-gray-800 bg-transparent border-b border-indigo-500 outline-none"
+              aria-label="Edit group name"
+            />
+          ) : (
+            <h2
+              className={`text-sm font-semibold text-gray-800 truncate max-w-xs ${
+                canManage ? 'cursor-pointer hover:text-indigo-600 transition-colors' : ''
+              }`}
+              onClick={() => canManage && setEditingName(true)}
+              title={canManage ? 'Click to rename' : undefined}
+            >
+              {group.name}
+            </h2>
+          )}
 
-        {/* Item count */}
-        <span className="text-xs text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
-          {itemCount}
-        </span>
+          {/* Item count */}
+          <span className="text-xs text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
+            {itemCount}
+          </span>
+        </div>
 
         {/* Kebab menu */}
         {canManage && (
@@ -303,6 +310,21 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             )}
           </div>
         )}
+
+        {/* Column headers — direct children of flex container for alignment */}
+        {columns.map((col) => {
+          const widthClass = COLUMN_WIDTH_MAP[col.type];
+          return (
+            <div
+              key={col.id}
+              role="columnheader"
+              className={`flex items-center ${widthClass} px-3 py-2 border-r border-gray-200 text-xs font-semibold text-gray-600`}
+              title={col.name}
+            >
+              <span className="truncate">{col.name}</span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Item rows */}

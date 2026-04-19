@@ -8,6 +8,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
+import { ITEM_NAME_WIDTH, CHECKBOX_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
 interface ItemRowProps {
   item: Item;
@@ -87,7 +88,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
     >
       {/* Drag handle */}
       <div
-        className="flex items-center px-1 opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none"
+        className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}
         aria-label="Drag to reorder item"
         aria-grabbed={isDragging}
         {...attributes}
@@ -97,7 +98,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
       </div>
 
       {/* Checkbox */}
-      <div role="gridcell" className="flex items-center px-2 flex-shrink-0">
+      <div role="gridcell" className={`flex items-center justify-center ${CHECKBOX_WIDTH} flex-shrink-0`}>
         <input
           type="checkbox"
           checked={isSelected}
@@ -110,7 +111,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
       {/* Item name — fixed column */}
       <div
         role="gridcell"
-        className="flex items-center min-w-[240px] px-3 py-2 border-r border-gray-100 cursor-pointer"
+        className={`flex items-center ${ITEM_NAME_WIDTH} px-3 py-2 border-r border-gray-100 cursor-pointer`}
         onClick={() => onOpenDetail(item)}
         aria-label={`Open details for ${item.name}`}
         tabIndex={0}
