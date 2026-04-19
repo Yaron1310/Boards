@@ -174,8 +174,8 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       await createColumn({ name: trimmedName, type, settings: buildSettings() });
 
       // Refetch columns to get the new column
-      const queryResult = await qc.refetchQueries({ queryKey: queryKeys.columns.board(boardId) });
-      const updatedColumns = queryResult[0]?.data ?? [];
+      await qc.refetchQueries({ queryKey: queryKeys.columns.board(boardId) });
+      const updatedColumns = qc.getQueryData(queryKeys.columns.board(boardId)) as any[] ?? [];
 
       // Always reorder the new column to the correct position
       if (updatedColumns.length > 0) {
