@@ -365,93 +365,97 @@ const BoardViewPage: React.FC = () => {
         </div>
 
         {/* Board content area with horizontal scrolling */}
-        <div className="flex-1 overflow-x-auto overflow-y-auto" role="grid" aria-label={`Board: ${board.name}`}>
-          {/* Column header row */}
-          <ColumnHeader
-            boardId={boardId ?? ''}
-            canManage={canManage}
-            onAddColumn={() => setShowAddColumn(true)}
-          />
+        <div className="flex-1 relative min-h-0">
+          {/* Left-edge wall: sits on the page background and hides board content scrolling into the 16px gap */}
+          <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
+          <div className="h-full overflow-x-auto overflow-y-auto" role="grid" aria-label={`Board: ${board.name}`}>
+            {/* Column header row */}
+            <ColumnHeader
+              boardId={boardId ?? ''}
+              canManage={canManage}
+              onAddColumn={() => setShowAddColumn(true)}
+            />
 
-          {/* Groups area — wrapped in DnD context for both group and item DnD */}
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDragEnd={handleDragEnd}
-          >
-            <div className="p-4 space-y-4" role="region" aria-label="Board groups">
-              {groupsLoading ? (
-                <div className="flex justify-center items-center py-16" role="status" aria-label="Loading groups">
-                  <FiLoader className="animate-spin h-6 w-6 text-indigo-400" aria-hidden="true" />
-                </div>
-              ) : localGroups.length === 0 && !showAddGroup ? (
-                <div className="text-center py-16 text-gray-400 text-sm">
-                  <p>No groups yet. Add a group to start organising items.</p>
-                </div>
-              ) : (
-                <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
-                  {localGroups.map((group) => (
-                    <GroupSection
-                      key={group.id}
-                      group={group}
-                      boardId={board.id}
-                      workspaceId={board.workspaceId}
-                      canManage={canManage && !board.isArchived}
-                      items={localItemsByGroup[group.id] ?? []}
-                      onOpenDetail={setDetailItem}
-                    />
-                  ))}
-                </SortableContext>
-              )}
+            {/* Groups area — wrapped in DnD context for both group and item DnD */}
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCorners}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragEnd={handleDragEnd}
+            >
+              <div className="p-4 space-y-4" role="region" aria-label="Board groups">
+                {groupsLoading ? (
+                  <div className="flex justify-center items-center py-16" role="status" aria-label="Loading groups">
+                    <FiLoader className="animate-spin h-6 w-6 text-indigo-400" aria-hidden="true" />
+                  </div>
+                ) : localGroups.length === 0 && !showAddGroup ? (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                    <p>No groups yet. Add a group to start organising items.</p>
+                  </div>
+                ) : (
+                  <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
+                    {localGroups.map((group) => (
+                      <GroupSection
+                        key={group.id}
+                        group={group}
+                        boardId={board.id}
+                        workspaceId={board.workspaceId}
+                        canManage={canManage && !board.isArchived}
+                        items={localItemsByGroup[group.id] ?? []}
+                        onOpenDetail={setDetailItem}
+                      />
+                    ))}
+                  </SortableContext>
+                )}
 
-              {/* Add Group inline form */}
-              {canManage && !board.isArchived && showAddGroup && boardId && (
-                <AddGroupForm
-                  boardId={boardId}
-                  onClose={() => setShowAddGroup(false)}
-                />
-              )}
-            </div>
+                {/* Add Group inline form */}
+                {canManage && !board.isArchived && showAddGroup && boardId && (
+                  <AddGroupForm
+                    boardId={boardId}
+                    onClose={() => setShowAddGroup(false)}
+                  />
+                )}
+              </div>
 
-            {/* Drag overlay */}
-            <DragOverlay>
-              {activeDrag?.type === 'group' && (
-                <div
-                  className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-300 rounded-lg shadow-xl opacity-90 cursor-grabbing select-none"
-                  style={{ borderLeft: `4px solid ${activeDrag.group.color ?? '#6366f1'}` }}
-                  aria-hidden="true"
+              {/* Drag overlay */}
+              <DragOverlay>
+                {activeDrag?.type === 'group' && (
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-300 rounded-lg shadow-xl opacity-90 cursor-grabbing select-none"
+                    style={{ borderLeft: `4px solid ${activeDrag.group.color ?? '#6366f1'}` }}
+                    aria-hidden="true"
+                  >
+                    <FiMenu size={13} className="text-gray-400" />
+                    <span className="text-sm font-semibold text-gray-800">{activeDrag.group.name}</span>
+                  </div>
+                )}
+                {activeDrag?.type === 'item' && (
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-300 rounded shadow-xl opacity-90 cursor-grabbing select-none"
+                    aria-hidden="true"
+                  >
+                    <span className="text-sm text-gray-800">{activeDrag.item.name}</span>
+                  </div>
+                )}
+              </DragOverlay>
+            </DndContext>
+
+            {/* Add Group button */}
+            {canManage && !board.isArchived && !showAddGroup && (
+              <div className="px-4 pb-6">
+                <button
+                  type="button"
+                  onClick={() => setShowAddGroup(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                  aria-label="Add new group"
                 >
-                  <FiMenu size={13} className="text-gray-400" />
-                  <span className="text-sm font-semibold text-gray-800">{activeDrag.group.name}</span>
-                </div>
-              )}
-              {activeDrag?.type === 'item' && (
-                <div
-                  className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-300 rounded shadow-xl opacity-90 cursor-grabbing select-none"
-                  aria-hidden="true"
-                >
-                  <span className="text-sm text-gray-800">{activeDrag.item.name}</span>
-                </div>
-              )}
-            </DragOverlay>
-          </DndContext>
-
-          {/* Add Group button */}
-          {canManage && !board.isArchived && !showAddGroup && (
-            <div className="px-4 pb-6">
-              <button
-                type="button"
-                onClick={() => setShowAddGroup(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors"
-                aria-label="Add new group"
-              >
-                <FiPlus size={15} aria-hidden="true" />
-                Add Group
-              </button>
-            </div>
-          )}
+                  <FiPlus size={15} aria-hidden="true" />
+                  Add Group
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
