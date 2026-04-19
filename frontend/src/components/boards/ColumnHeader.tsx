@@ -370,7 +370,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
       onDragEnd={handleDragEnd}
     >
       <div
-        className="sticky top-0 z-10 flex flex-nowrap items-stretch bg-gray-50 border-b border-gray-200 select-none"
+        className="sticky top-0 z-10 flex flex-nowrap items-stretch bg-gray-50 border-b border-gray-200 select-none w-max"
         role="row"
         aria-label="Column headers"
       >

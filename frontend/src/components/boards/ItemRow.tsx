@@ -81,7 +81,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
       ref={setNodeRef}
       role="row"
       style={style}
-      className={`flex flex-nowrap items-stretch group border-b border-gray-100 last:border-b-0 hover:bg-indigo-50/40 transition-colors ${
+      className={`flex flex-nowrap items-stretch group border-b border-gray-100 last:border-b-0 hover:bg-indigo-50/40 transition-colors w-max ${
         item.isArchived ? 'opacity-60' : ''
       } ${isSelected ? 'bg-indigo-50' : 'bg-white'} ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
       aria-selected={isSelected}
