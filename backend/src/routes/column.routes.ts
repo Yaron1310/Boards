@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as columnController from '../controllers/column.controller.js';
 
-export const columnRouter = Router();
+export const columnRouter = Router({ mergeParams: true });
 
 // List & create
 columnRouter.get('/', columnController.getColumns);

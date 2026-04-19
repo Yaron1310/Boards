@@ -18,7 +18,7 @@ interface ItemRowProps {
 
 const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onOpenDetail }) => {
   const { user } = useAuth();
-  const { data: columns = [] } = useColumns();
+  const { data: columns = [] } = useColumns(item.boardId);
 
   const { mutateAsync: archiveItem, isPending: isArchiving } = useArchiveItem();
   const { mutateAsync: restoreItem, isPending: isRestoring } = useRestoreItem();

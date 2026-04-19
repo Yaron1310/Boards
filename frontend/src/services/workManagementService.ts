@@ -233,23 +233,23 @@ export interface ReorderColumnItem {
   order: number;
 }
 
-export const listColumns = (): Promise<Column[]> =>
-  fetchWithAuth('/api/columns');
+export const listColumns = (boardId: string): Promise<Column[]> =>
+  fetchWithAuth(`/api/boards/${boardId}/columns`);
 
-export const getColumn = (id: string): Promise<Column> =>
-  fetchWithAuth(`/api/columns/${id}`);
+export const getColumn = (boardId: string, id: string): Promise<Column> =>
+  fetchWithAuth(`/api/boards/${boardId}/columns/${id}`);
 
-export const createColumn = (data: CreateColumnData): Promise<Column> =>
-  fetchWithAuth('/api/columns', { method: 'POST', body: JSON.stringify(data) });
+export const createColumn = (boardId: string, data: CreateColumnData): Promise<Column> =>
+  fetchWithAuth(`/api/boards/${boardId}/columns`, { method: 'POST', body: JSON.stringify(data) });
 
-export const updateColumn = (id: string, patch: UpdateColumnData): Promise<Column> =>
-  fetchWithAuth(`/api/columns/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+export const updateColumn = (boardId: string, id: string, patch: UpdateColumnData): Promise<Column> =>
+  fetchWithAuth(`/api/boards/${boardId}/columns/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 
-export const reorderColumns = (order: ReorderColumnItem[]): Promise<void> =>
-  fetchWithAuth('/api/columns/reorder', { method: 'PATCH', body: JSON.stringify({ order }) });
+export const reorderColumns = (boardId: string, order: ReorderColumnItem[]): Promise<void> =>
+  fetchWithAuth(`/api/boards/${boardId}/columns/reorder`, { method: 'PATCH', body: JSON.stringify({ order }) });
 
-export const deleteColumn = (id: string): Promise<null> =>
-  fetchWithAuth(`/api/columns/${id}`, { method: 'DELETE' });
+export const deleteColumn = (boardId: string, id: string): Promise<null> =>
+  fetchWithAuth(`/api/boards/${boardId}/columns/${id}`, { method: 'DELETE' });
 
 // ─── DASHBOARD ────────────────────────────────────────────────────────────────
 

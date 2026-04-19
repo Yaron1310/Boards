@@ -46,14 +46,28 @@ function toDate(value: unknown): Date | null {
   return null;
 }
 
-async function fetchStatusOptions(orgId: string): Promise<StatusOption[]> {
-  const snap = await columnsCollection(orgId)
-    .where('type', '==', ColumnType.STATUS)
-    .limit(1)
-    .get();
-  if (snap.empty) return [];
-  const col = snap.docs[0].data() as DBColumn;
-  return (col.settings as StatusColumnSettings).options ?? [];
+async function fetchStatusOptions(orgId: string, boardIds: string[]): Promise<StatusOption[]> {
+  if (boardIds.length === 0) return [];
+  const allOptions: StatusOption[] = [];
+  const seenIds = new Set<string>();
+  await Promise.all(
+    boardIds.map(async (boardId) => {
+      const snap = await columnsCollection(orgId, boardId)
+        .where('type', '==', ColumnType.STATUS)
+        .limit(1)
+        .get();
+      if (!snap.empty) {
+        const col = snap.docs[0].data() as DBColumn;
+        for (const opt of (col.settings as StatusColumnSettings).options ?? []) {
+          if (!seenIds.has(opt.id)) {
+            seenIds.add(opt.id);
+            allOptions.push(opt);
+          }
+        }
+      }
+    }),
+  );
+  return allOptions;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,12 +124,12 @@ export const getDashboardSummary = async (req: Request, res: Response) => {
     const activeItems = items.filter(item => !item.isArchived);
     const archivedCount = items.filter(item => item.isArchived).length;
 
-    const statusOptions = await fetchStatusOptions(user.orgId);
-    const statusOptionMap = new Map(statusOptions.map(opt => [opt.id, opt]));
-    const doneOptionIds = resolveDoneOptionIds(statusOptions);
-
     // Collect unique IDs for batch lookups
     const uniqueBoardIds = [...new Set(activeItems.map(item => item.boardId))];
+
+    const statusOptions = await fetchStatusOptions(user.orgId, uniqueBoardIds);
+    const statusOptionMap = new Map(statusOptions.map(opt => [opt.id, opt]));
+    const doneOptionIds = resolveDoneOptionIds(statusOptions);
     const uniqueUserIds = [...new Set(activeItems.flatMap(item => item.assignees ?? []))];
 
     // Batch-fetch board names (chunks of 30 for Firestore 'in' limit)

@@ -25,6 +25,7 @@ import ColumnHeader from './ColumnHeader';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
+import AddColumnModal from './AddColumnModal';
 
 type DragData =
   | { type: 'group'; group: Group }
@@ -52,6 +53,7 @@ const BoardViewPage: React.FC = () => {
   const [nameValue, setNameValue] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [showAddGroup, setShowAddGroup] = useState(false);
+  const [showAddColumn, setShowAddColumn] = useState(false);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
 
   // Local optimistic state for DnD
@@ -365,7 +367,11 @@ const BoardViewPage: React.FC = () => {
         {/* Board content area */}
         <div className="flex-1 overflow-auto" role="grid" aria-label={`Board: ${board.name}`}>
           {/* Column header row */}
-          <ColumnHeader canManage={canManage} />
+          <ColumnHeader
+            boardId={boardId ?? ''}
+            canManage={canManage}
+            onAddColumn={() => setShowAddColumn(true)}
+          />
 
           {/* Groups area — wrapped in DnD context for both group and item DnD */}
           <DndContext
@@ -451,6 +457,10 @@ const BoardViewPage: React.FC = () => {
 
       {detailItem && (
         <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
+      )}
+
+      {showAddColumn && boardId && (
+        <AddColumnModal boardId={boardId} onClose={() => setShowAddColumn(false)} />
       )}
     </>
   );

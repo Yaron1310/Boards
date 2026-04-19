@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { columnsCollection } from '../db/collections.js';
+import { columnsCollection, boardsCollection } from '../db/collections.js';
 import { JwtUserPayload, DBColumn, ColumnType, StatusColumnSettings, DropdownColumnSettings, SimpleFormulaColumnSettings } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, getClientIp } from '../services/audit.service.js';
@@ -25,10 +25,6 @@ function asDBColumn(data: unknown): DBColumn {
 
 const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
 
-/**
- * Validates that the settings object matches the expected shape for the given column type.
- * Returns an error message string if invalid, null if valid.
- */
 function validateColumnSettings(type: ColumnType, settings: unknown): string | null {
   switch (type) {
     case ColumnType.STATUS: {
@@ -68,19 +64,29 @@ function validateColumnSettings(type: ColumnType, settings: unknown): string | n
     }
 
     default:
-      // All other types have optional or no settings — pass through
       return null;
   }
 }
 
+/** Validates that the boardId exists and belongs to the user's workspace. */
+async function validateBoardOwnership(workspaceId: string, boardId: string): Promise<boolean> {
+  const boardDoc = await boardsCollection(workspaceId).doc(boardId).get();
+  return boardDoc.exists;
+}
+
 // ---------------------------------------------------------------------------
-// GET /columns
+// GET /boards/:boardId/columns
 // ---------------------------------------------------------------------------
 export const getColumns = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
+  const { boardId } = req.params;
 
   try {
-    const snapshot = await columnsCollection(user.orgId).get();
+    if (!await validateBoardOwnership(user.orgId, boardId)) {
+      return res.status(404).json({ message: 'Board not found.' });
+    }
+
+    const snapshot = await columnsCollection(user.orgId, boardId).get();
     const columns = querySnapshotToArray<DBColumn>(snapshot).filter((col) =>
       canAccessColumn(user, asDBColumn(col), 'read'),
     );
@@ -93,14 +99,14 @@ export const getColumns = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// GET /columns/:id
+// GET /boards/:boardId/columns/:id
 // ---------------------------------------------------------------------------
 export const getColumnById = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  const { id } = req.params;
+  const { boardId, id } = req.params;
 
   try {
-    const doc = await columnsCollection(user.orgId).doc(id).get();
+    const doc = await columnsCollection(user.orgId, boardId).doc(id).get();
     if (!doc.exists) return res.status(404).json({ message: 'Column not found.' });
 
     const column = asDBColumn(snapshotToData<DBColumn>(doc));
@@ -116,10 +122,11 @@ export const getColumnById = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// POST /columns
+// POST /boards/:boardId/columns
 // ---------------------------------------------------------------------------
 export const createColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
+  const { boardId } = req.params;
   const { name, type, settings } = req.body;
 
   if (!name || typeof name !== 'string') {
@@ -131,15 +138,17 @@ export const createColumn = async (req: Request, res: Response) => {
     });
   }
 
-  // Validate settings shape for types that require it
   const settingsError = validateColumnSettings(type as ColumnType, settings ?? null);
   if (settingsError) return res.status(400).json({ message: settingsError });
 
   try {
-    // Build a provisional column to check permission
+    if (!await validateBoardOwnership(user.orgId, boardId)) {
+      return res.status(404).json({ message: 'Board not found.' });
+    }
+
     const provisionalColumn: DBColumn = {
       id: '',
-      workspaceId: user.orgId,
+      boardId,
       name: sanitizeText(name),
       type: type as ColumnType,
       settings: settings ?? {},
@@ -148,11 +157,11 @@ export const createColumn = async (req: Request, res: Response) => {
     };
     assertColumnAccess(user, provisionalColumn, 'create');
 
-    const docRef = columnsCollection(user.orgId).doc();
+    const docRef = columnsCollection(user.orgId, boardId).doc();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     await docRef.set({
       id: docRef.id,
-      workspaceId: user.orgId,
+      boardId,
       name: sanitizeText(name),
       type: type as ColumnType,
       settings: settings ?? {},
@@ -183,10 +192,11 @@ export const createColumn = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// PATCH /columns/reorder   (must be registered BEFORE /:id to avoid route conflict)
+// PATCH /boards/:boardId/columns/reorder  (registered BEFORE /:id to avoid conflict)
 // ---------------------------------------------------------------------------
 export const reorderColumns = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
+  const { boardId } = req.params;
   const { order } = req.body;
 
   if (!Array.isArray(order) || order.length === 0) {
@@ -194,12 +204,11 @@ export const reorderColumns = async (req: Request, res: Response) => {
   }
 
   try {
-    // Verify the user has column update permission (WORKSPACE_ADMIN+) by checking the first column
     const firstEntry = order[0] as { id: string; order: number };
     if (typeof firstEntry.id !== 'string') {
       return res.status(400).json({ message: 'Each entry must have id (string) and order (number).' });
     }
-    const sampleDoc = await columnsCollection(user.orgId).doc(firstEntry.id).get();
+    const sampleDoc = await columnsCollection(user.orgId, boardId).doc(firstEntry.id).get();
     if (sampleDoc.exists) {
       const sampleColumn = asDBColumn(snapshotToData<DBColumn>(sampleDoc));
       if (sampleColumn) assertColumnAccess(user, sampleColumn, 'update');
@@ -212,7 +221,7 @@ export const reorderColumns = async (req: Request, res: Response) => {
       if (typeof item.id !== 'string' || typeof item.order !== 'number') {
         return res.status(400).json({ message: 'Each entry must have id (string) and order (number).' });
       }
-      const ref = columnsCollection(user.orgId).doc(item.id);
+      const ref = columnsCollection(user.orgId, boardId).doc(item.id);
       batch.update(ref, { order: item.order, updatedAt: timestamp });
     }
     await batch.commit();
@@ -226,22 +235,21 @@ export const reorderColumns = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// PATCH /columns/:id
+// PATCH /boards/:boardId/columns/:id
 // ---------------------------------------------------------------------------
 export const updateColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  const { id } = req.params;
+  const { boardId, id } = req.params;
   const { name, settings } = req.body;
 
   try {
-    const doc = await columnsCollection(user.orgId).doc(id).get();
+    const doc = await columnsCollection(user.orgId, boardId).doc(id).get();
     if (!doc.exists) return res.status(404).json({ message: 'Column not found.' });
 
     const column = asDBColumn(snapshotToData<DBColumn>(doc));
     if (!column) return res.status(404).json({ message: 'Column not found.' });
     assertColumnAccess(user, column, 'update');
 
-    // Validate updated settings against the existing (immutable) column type
     if (settings !== undefined) {
       const settingsError = validateColumnSettings(column.type, settings);
       if (settingsError) return res.status(400).json({ message: settingsError });
@@ -253,8 +261,8 @@ export const updateColumn = async (req: Request, res: Response) => {
     if (name !== undefined) updateData.name = sanitizeText(String(name));
     if (settings !== undefined) updateData.settings = settings;
 
-    await columnsCollection(user.orgId).doc(id).update(updateData);
-    const updated = snapshotToData<DBColumn>(await columnsCollection(user.orgId).doc(id).get());
+    await columnsCollection(user.orgId, boardId).doc(id).update(updateData);
+    const updated = snapshotToData<DBColumn>(await columnsCollection(user.orgId, boardId).doc(id).get());
 
     void logAudit({
       actorUserId: user.id,
@@ -277,21 +285,21 @@ export const updateColumn = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// DELETE /columns/:id
+// DELETE /boards/:boardId/columns/:id
 // ---------------------------------------------------------------------------
 export const deleteColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  const { id } = req.params;
+  const { boardId, id } = req.params;
 
   try {
-    const doc = await columnsCollection(user.orgId).doc(id).get();
+    const doc = await columnsCollection(user.orgId, boardId).doc(id).get();
     if (!doc.exists) return res.status(404).json({ message: 'Column not found.' });
 
     const column = asDBColumn(snapshotToData<DBColumn>(doc));
     if (!column) return res.status(404).json({ message: 'Column not found.' });
     assertColumnAccess(user, column, 'delete');
 
-    await columnsCollection(user.orgId).doc(id).delete();
+    await columnsCollection(user.orgId, boardId).doc(id).delete();
 
     void logAudit({
       actorUserId: user.id,

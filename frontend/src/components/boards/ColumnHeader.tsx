@@ -31,8 +31,10 @@ interface SortState {
 }
 
 interface ColumnHeaderProps {
+  boardId: string;
   canManage: boolean;
   onSortChange?: (sort: SortState | null) => void;
+  onAddColumn?: () => void;
 }
 
 const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
@@ -151,9 +153,9 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   );
 };
 
-const ColumnHeader: React.FC<ColumnHeaderProps> = ({ canManage, onSortChange }) => {
-  const { data: columns = [], isLoading } = useColumns();
-  const { mutateAsync: reorderColumns } = useReorderColumns();
+const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortChange, onAddColumn }) => {
+  const { data: columns = [], isLoading } = useColumns(boardId);
+  const { mutateAsync: reorderColumns } = useReorderColumns(boardId);
   const [sort, setSort] = useState<SortState | null>(null);
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
@@ -261,9 +263,9 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ canManage, onSortChange }) 
             <button
               type="button"
               className="flex items-center gap-1 px-2 py-1 text-xs text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-              aria-label="Add new column (available in Column Management)"
-              onClick={() => {/* AddColumnModal — available in Column Management page */}}
-              title="Manage columns in Admin → Columns"
+              aria-label="Add new column"
+              onClick={onAddColumn}
+              title="Add column"
             >
               <FiPlus size={13} aria-hidden="true" />
             </button>

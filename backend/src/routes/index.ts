@@ -49,7 +49,7 @@ mainRouter.use('/boards', boardRouter);
 mainRouter.use('/boards', boardMemberRouter);
 mainRouter.use('/boards/:boardId/groups', groupRouter);
 mainRouter.use('/items', itemRouter);
-mainRouter.use('/columns', columnRouter);
+mainRouter.use('/boards/:boardId/columns', columnRouter);
 // Phase 8 — Dashboard
 mainRouter.use('/dashboard', dashboardRouter);
 // Phase 9 — Notifications

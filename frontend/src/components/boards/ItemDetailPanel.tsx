@@ -15,7 +15,7 @@ interface ItemDetailPanelProps {
 
 const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, onClose }) => {
   const { user } = useAuth();
-  const { data: columns = [] } = useColumns();
+  const { data: columns = [] } = useColumns(initialItem.boardId);
   const { data: liveItem } = useItem(initialItem.id);
   const item = liveItem ?? initialItem;
 

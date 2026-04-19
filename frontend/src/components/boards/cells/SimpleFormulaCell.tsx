@@ -18,7 +18,7 @@ const compute = (
 };
 
 const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
-  const { data: columns = [] } = useColumns();
+  const { data: columns = [] } = useColumns(item.boardId);
   const settings = column.settings as SimpleFormulaColumnSettings;
 
   const result = React.useMemo(() => {

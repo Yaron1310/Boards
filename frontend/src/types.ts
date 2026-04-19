@@ -230,7 +230,7 @@ export type ColumnSettings =
 
 export interface Column {
   id: string;
-  workspaceId: string;
+  boardId: string;
   name: string;
   type: ColumnType;
   settings: ColumnSettings;

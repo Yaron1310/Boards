@@ -242,7 +242,7 @@ export type ColumnSettings =
 
 export interface DBColumn {
   id: string;
-  workspaceId: string;
+  boardId: string;
   name: string;
   type: ColumnType;
   settings: ColumnSettings;

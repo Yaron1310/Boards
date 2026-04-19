@@ -304,8 +304,6 @@ export function canAccessColumn(
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
-  if (user.orgId !== column.workspaceId) return false;
-
   switch (op) {
     case 'read':
       return true; // any org member

@@ -29,8 +29,8 @@ export const queryKeys = {
     one: (id: string) => ['items', id] as const,
   },
   columns: {
-    all: ['columns'] as const,
-    one: (id: string) => ['columns', id] as const,
+    board: (boardId: string) => ['columns', { boardId }] as const,
+    one: (boardId: string, id: string) => ['columns', { boardId }, id] as const,
   },
   dashboard: {
     summary: (params: DashboardParams) => ['dashboard', 'summary', params] as const,

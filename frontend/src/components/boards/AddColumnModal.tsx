@@ -7,6 +7,7 @@ import type { StatusOption, DropdownOption } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface AddColumnModalProps {
+  boardId: string;
   onClose: () => void;
 }
 
@@ -32,9 +33,9 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ onClose }) => {
-  const { mutateAsync: createColumn, isPending } = useCreateColumn();
-  const { data: allColumns = [] } = useColumns();
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose }) => {
+  const { mutateAsync: createColumn, isPending } = useCreateColumn(boardId);
+  const { data: allColumns = [] } = useColumns(boardId);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
@@ -158,7 +159,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ onClose }) => {
 
     setError('');
     try {
-      await createColumn({ name: trimmedName, type, settings: buildSettings() });
+      await createColumn({ name: trimmedName, type, settings: buildSettings() } );
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create column.');

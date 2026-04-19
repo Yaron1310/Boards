@@ -25,6 +25,7 @@ function isAuthError(err: unknown): err is { status: number; message: string } {
  */
 async function validateItemValues(
   workspaceId: string,
+  boardId: string,
   values: Record<string, unknown>,
 ): Promise<string | null> {
   const columnIds = Object.keys(values);
@@ -32,7 +33,7 @@ async function validateItemValues(
 
   // Firestore 'in' operator supports up to 30 values
   const batchIds = columnIds.slice(0, 30);
-  const columnsSnap = await columnsCollection(workspaceId)
+  const columnsSnap = await columnsCollection(workspaceId, boardId)
     .where(admin.firestore.FieldPath.documentId(), 'in', batchIds)
     .get();
 
@@ -44,7 +45,7 @@ async function validateItemValues(
   for (const columnId of batchIds) {
     const column = columnMap.get(columnId);
     if (!column) {
-      return `Column "${columnId}" not found in this workspace.`;
+      return `Column "${columnId}" not found in this board.`;
     }
     const result = validateColumnValue(column, values[columnId]);
     if (!result.valid) return result.error ?? `Invalid value for column "${columnId}".`;
@@ -61,6 +62,7 @@ async function validateItemValues(
  */
 async function computeMirroredFields(
   workspaceId: string,
+  boardId: string,
   values: Record<string, unknown>,
 ): Promise<{ status?: string; assignees?: string[]; dueDate?: unknown }> {
   const mirrors: { status?: string; assignees?: string[]; dueDate?: unknown } = {};
@@ -68,7 +70,7 @@ async function computeMirroredFields(
   if (columnIds.length === 0) return mirrors;
 
   const batchIds = columnIds.slice(0, 30);
-  const columnsSnap = await columnsCollection(workspaceId)
+  const columnsSnap = await columnsCollection(workspaceId, boardId)
     .where(admin.firestore.FieldPath.documentId(), 'in', batchIds)
     .get();
 
@@ -205,12 +207,12 @@ export const createItem = async (req: Request, res: Response) => {
     // Validate column values if provided
     const normalizedValues: Record<string, unknown> = values && typeof values === 'object' ? values : {};
     if (Object.keys(normalizedValues).length > 0) {
-      const valError = await validateItemValues(user.orgId, normalizedValues);
+      const valError = await validateItemValues(user.orgId, boardId, normalizedValues);
       if (valError) return res.status(400).json({ message: valError });
     }
 
     // Compute mirrored fields from column values
-    const mirrored = await computeMirroredFields(user.orgId, normalizedValues);
+    const mirrored = await computeMirroredFields(user.orgId, boardId, normalizedValues);
 
     // Fetch board membership for calling user
     const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
@@ -502,12 +504,12 @@ export const updateItem = async (req: Request, res: Response) => {
     const normalizedValues: Record<string, unknown> =
       values && typeof values === 'object' ? values : {};
     if (Object.keys(normalizedValues).length > 0) {
-      const valError = await validateItemValues(user.orgId, normalizedValues);
+      const valError = await validateItemValues(user.orgId, item.boardId, normalizedValues);
       if (valError) return res.status(400).json({ message: valError });
     }
 
     // Compute mirrored fields for any new column values
-    const mirrored = await computeMirroredFields(user.orgId, normalizedValues);
+    const mirrored = await computeMirroredFields(user.orgId, item.boardId, normalizedValues);
 
     const updateData: Record<string, unknown> = {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),

@@ -26,10 +26,10 @@ export const groupsCollection = (workspaceId: string, boardId: string) =>
 export const itemsCollection = (workspaceId: string) =>
   db.collection('workspaces').doc(workspaceId).collection('items');
 
-// Column definitions (global to workspace):
-// /workspaces/{workspaceId}/columns/{columnId}
-export const columnsCollection = (workspaceId: string) =>
-  db.collection('workspaces').doc(workspaceId).collection('columns');
+// Column definitions (board-scoped):
+// /workspaces/{workspaceId}/boards/{boardId}/columns/{columnId}
+export const columnsCollection = (workspaceId: string, boardId: string) =>
+  boardsCollection(workspaceId).doc(boardId).collection('columns');
 
 // Board version stamps (one doc per board, touched on every item/group mutation):
 // /workspaces/{workspaceId}/boardVersions/{boardId}
