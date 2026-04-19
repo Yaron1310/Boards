@@ -68,9 +68,9 @@ function validateColumnSettings(type: ColumnType, settings: unknown): string | n
   }
 }
 
-/** Validates that the boardId exists and belongs to the user's workspace. */
-async function validateBoardOwnership(workspaceId: string, boardId: string): Promise<boolean> {
-  const boardDoc = await boardsCollection(workspaceId).doc(boardId).get();
+/** Validates that the boardId exists and belongs to the user's organization. */
+async function validateBoardOwnership(orgId: string, boardId: string): Promise<boolean> {
+  const boardDoc = await boardsCollection(orgId).doc(boardId).get();
   return boardDoc.exists;
 }
 

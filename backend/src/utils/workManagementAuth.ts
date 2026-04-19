@@ -391,10 +391,10 @@ export async function validateItemOwnershipChain(
  * Call this before creating or updating a group.
  */
 export async function validateGroupOwnershipChain(
-  workspaceId: string,
+  orgId: string,
   boardId: string,
 ): Promise<{ valid: boolean; error?: string }> {
-  const boardDoc = await boardsCollection(workspaceId).doc(boardId).get();
+  const boardDoc = await boardsCollection(orgId).doc(boardId).get();
   if (!boardDoc.exists) {
     return { valid: false, error: `Board "${boardId}" not found in this workspace.` };
   }

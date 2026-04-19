@@ -59,25 +59,41 @@ Gymind/
 ## Core Architecture & Hierarchy
 
 ### Multi-Tenant Model (UI vs Code Naming)
-To preserve the shell while pivoting, the following mapping is used in the UI:
-- **Organization** (Code: `Academy` / `academyId`) — The primary tenant/client entity.
-- **Workspace** (Code: `Organization` / `orgId`) — A department or project grouping within an Organization.
+- **Organization** (Firestore: `organizations/{orgId}`) — The primary tenant/client entity. This is what the UI labels "Organization".
+- **Workspace** (Firestore: `workspaces/{workspaceId}`, field `orgId` → parent org) — A department or project grouping within an Organization. This is what the UI labels "Workspace".
 - **User** — Employees belonging to one or more Workspaces.
 
-### Data Model (Flat Item Storage)
-Items are stored in a flat collection at the Organization level to allow cross-board dashboard queries:
-- **Collection Path**: `/academies/{academyId}/items/{itemId}`
-- **Item Schema**: 
-    - `orgId`: Reference to the Workspace.
-    - `boardId`: Reference to the parent Board.
-    - `groupId`: Reference to the Group.
-    - `values`: A dynamic map `Record<string, any>` keyed by `columnId`.
-    - `assignees`, `status`, `dueDate`, `isArchived`: Top-level indexed fields for querying.
+### JWT Payload
+After login the JWT carries:
+- `orgId` — the **organization** ID (top-level tenant). Used as the first argument to all work-management collection functions.
+- `selectedWorkspaceId` — the **workspace** (department) the user is currently operating in. Used for workspace-scoped filtering.
 
-### Supporting Collections
-- `/academies/{academyId}/boards/{boardId}`
-- `/academies/{academyId}/boards/{boardId}/groups/{groupId}`
-- `/academies/{academyId}/columns/{columnId}` (Column definitions)
+Personal/default workspaces have `isPersonal: true` in Firestore. Boards must never be created in a personal workspace.
+
+### Data Model (Flat Storage at Org Level)
+All work-management data is stored flat under the organization document, **not** under workspace documents. This enables cross-workspace dashboard queries while keeping tenant isolation.
+
+**Actual Firestore paths:**
+```
+/organizations/{orgId}/boards/{boardId}
+/organizations/{orgId}/boards/{boardId}/groups/{groupId}
+/organizations/{orgId}/boards/{boardId}/columns/{columnId}
+/organizations/{orgId}/boards/{boardId}/members/{userId}
+/organizations/{orgId}/items/{itemId}
+/organizations/{orgId}/boardVersions/{boardId}
+/organizations/{orgId}/notifications/{notificationId}
+```
+
+**Workspace scoping is done via fields**, not path nesting:
+- `boards.workspaceId` — which workspace (department) owns this board.
+- `items.workspaceId` — denormalized from its board for filtering.
+
+**Item Schema:**
+- `workspaceId`: Reference to the Workspace (department).
+- `boardId`: Reference to the parent Board.
+- `groupId`: Reference to the Group.
+- `values`: A dynamic map `Record<string, any>` keyed by `columnId`.
+- `assignees`, `status`, `dueDate`, `isArchived`: Top-level indexed fields for querying.
 
 ---
 
@@ -113,14 +129,15 @@ The `values` map on an Item is dynamic. When adding/modifying fields:
 Every interactive element MUST include appropriate ARIA attributes (`aria-label`, `aria-labelledby`, `role`). This is a hard requirement for all UI changes.
 
 ### Security
-- Users can only read/write items where `academyId` matches their membership.
+- Users can only read/write items where `orgId` (organization) matches their membership.
 - Column definitions are writable by admins only.
-- Item writes must validate that the `orgId` and `boardId` belong to the same `academyId`.
+- Item writes must validate that the `workspaceId` and `boardId` belong to the same `orgId`.
+- Boards cannot be created in personal/default workspaces (`isPersonal: true`).
 
 ---
 
 ## Common Pitfalls
-1. **Naming Confusion**: Remember that "Academy" in the database/code refers to the "Organization" in the UI, and "Organization" in code refers to "Workspace" in the UI.
+1. **Collection Functions Take `orgId`**: All work-management collection functions (`boardsCollection`, `itemsCollection`, etc.) take the **organization ID** as their first argument — NOT the workspace ID. Passing a workspace ID here is a bug.
 2. **Firestore Schema**: Since Firestore is schemaless, the backend controller is the gatekeeper. Always sanitize and explicitly pick fields from `req.body`.
-3. **Flat Storage Querying**: When querying items for a dashboard, always filter by `academyId` first to ensure tenant isolation.
+3. **Flat Storage Querying**: When querying items for a dashboard, the collection is already scoped to `orgId`. Add a `workspaceId` field filter if you need department-level scope.
 4. **ESLint**: Zero warnings are allowed. The project uses strict linting rules.
