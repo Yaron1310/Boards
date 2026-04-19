@@ -19,7 +19,7 @@ export const COLUMN_WIDTH_MAP: Record<ColumnType, string> = {
 
 export const ITEM_NAME_WIDTH = 'w-[238px]';
 export const ITEM_NAME_MIN_WIDTH = 'min-w-[238px]';
-export const GROUP_SECTION_WIDTH = 'w-[219px]';
+export const GROUP_SECTION_WIDTH = 'w-[222px]';
 export const ITEM_SECTION_WIDTH = 'w-[222px]';
 export const DRAG_HANDLE_WIDTH = 'w-5';
 export const CHECKBOX_WIDTH = 'w-6';
