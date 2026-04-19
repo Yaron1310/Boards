@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Organization logos are publicly readable (served via public URL)
+    // Writes are handled exclusively by the backend via Admin SDK (bypasses these rules)
+    match /organizationLogos/{orgId}/logo.png {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

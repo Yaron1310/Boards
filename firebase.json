@@ -1,5 +1,8 @@
 
 {
+  "storage": {
+    "rules": "storage.rules"
+  },
   "firestore": {
     "database": "gymind-p",
     "rules": "firestore.rules"
