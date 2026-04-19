@@ -152,7 +152,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     <section
       ref={setGroupRef}
       style={groupStyle}
-      className="rounded-lg border border-gray-200 overflow-hidden bg-white w-max"
+      className="rounded-lg border border-gray-200 bg-white w-max"
       aria-label={`Group: ${group.name}`}
     >
       {/* Group header with columns */}
@@ -163,7 +163,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         aria-label={`Group header: ${group.name}`}
       >
         {/* Left section — fixed width to match ItemRow alignment */}
-        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200`}>
+        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200 sticky left-0 z-[1] bg-gray-50`}>
           {/* Group drag handle */}
           {canManage && (
             <div

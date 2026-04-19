@@ -419,7 +419,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
         {/* Item name column — fixed */}
         <div
           role="columnheader"
-          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-gray-200 text-xs font-semibold text-gray-600 bg-gray-50`}
+          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-gray-200 text-xs font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1]`}
         >
           Item
         </div>
