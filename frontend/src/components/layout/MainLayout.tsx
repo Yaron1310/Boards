@@ -363,7 +363,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   <img
                     src={logoUrl}
                     alt={t('common.appLogoAlt')}
-                    className={`h-12 object-cover shadow-sm transition-all ${logoCircle ? 'w-12 rounded-full' : 'w-auto rounded'}`}
+                    className={`h-12 object-cover transition-all ${logoCircle ? 'w-12 rounded-full' : 'w-auto rounded'}`}
                     onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)}
                   />
                   <span className="absolute bottom-0 right-0 flex items-center justify-center w-5 h-5 rounded-full bg-gray-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" aria-hidden="true">
@@ -371,7 +371,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   </span>
                 </div>
               ) : (
-                <img src={logoUrl} alt={t('common.appLogoAlt')} className={`h-12 object-cover shadow-sm mr-4 ${logoCircle ? 'w-12 rounded-full' : 'w-auto rounded'}`} onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} />
+                <img src={logoUrl} alt={t('common.appLogoAlt')} className={`h-12 object-cover mr-4 ${logoCircle ? 'w-12 rounded-full' : 'w-auto rounded'}`} onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} />
               )}
               {isOrganizationAdmin ? (
                 <div
