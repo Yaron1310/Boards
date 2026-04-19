@@ -134,6 +134,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       groupId: group.id,
     });
     setNewItemName('');
+    setAddingItem(false);
   };
 
   const handleAddItemKeyDown = (e: React.KeyboardEvent) => {
@@ -163,7 +164,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         aria-label={`Group header: ${group.name}`}
       >
         {/* Left section — fixed width to match ItemRow alignment */}
-        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200 sticky left-0 z-[1] bg-gray-50`}>
+        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200 sticky left-4 z-[1] bg-gray-50`}>
           {/* Group drag handle */}
           {canManage && (
             <div
@@ -336,41 +337,43 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
           {/* Add item row */}
           {canManage && (
-            <div className="border-t border-gray-100 w-max">
-              {addingItem ? (
-                <div className="flex items-center gap-2 px-4 py-2">
-                  <input
-                    ref={addItemInputRef}
-                    type="text"
-                    value={newItemName}
-                    onChange={(e) => setNewItemName(e.target.value)}
-                    onKeyDown={handleAddItemKeyDown}
-                    onBlur={() => {
-                      if (!newItemName.trim()) {
-                        setAddingItem(false);
-                      }
-                    }}
-                    placeholder="Item name… (Enter to save, Esc to cancel)"
-                    disabled={isCreatingItem}
-                    className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    aria-label="New item name"
-                    aria-required="true"
-                  />
-                  {isCreatingItem && (
-                    <FiLoader className="animate-spin text-indigo-500 flex-shrink-0" size={14} aria-hidden="true" />
-                  )}
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setAddingItem(true)}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-xs text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors"
-                  aria-label={`Add item to ${group.name}`}
-                >
-                  <FiPlus size={13} aria-hidden="true" />
-                  Add Item
-                </button>
-              )}
+            <div className="border-t border-gray-100">
+              <div className="sticky left-4 w-max bg-white z-[1]">
+                {addingItem ? (
+                  <div className="flex items-center gap-2 px-4 py-2">
+                    <input
+                      ref={addItemInputRef}
+                      type="text"
+                      value={newItemName}
+                      onChange={(e) => setNewItemName(e.target.value)}
+                      onKeyDown={handleAddItemKeyDown}
+                      onBlur={() => {
+                        if (!newItemName.trim()) {
+                          setAddingItem(false);
+                        }
+                      }}
+                      placeholder="Item name… (Enter to save, Esc to cancel)"
+                      disabled={isCreatingItem}
+                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      aria-label="New item name"
+                      aria-required="true"
+                    />
+                    {isCreatingItem && (
+                      <FiLoader className="animate-spin text-indigo-500 flex-shrink-0" size={14} aria-hidden="true" />
+                    )}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAddingItem(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-xs text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors"
+                    aria-label={`Add item to ${group.name}`}
+                  >
+                    <FiPlus size={13} aria-hidden="true" />
+                    Add Item
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>

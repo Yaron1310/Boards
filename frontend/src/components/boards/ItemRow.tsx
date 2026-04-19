@@ -84,7 +84,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail }) => {
       } bg-white ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
     >
       {/* Left section — drag handle and item name */}
-      <div className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-100 sticky left-0 z-[1] bg-white group-hover:bg-indigo-50/40`}>
+      <div className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-100 sticky left-4 z-[1] bg-white group-hover:bg-indigo-50/40`}>
         {/* Drag handle */}
         <div
           className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}
