@@ -273,9 +273,6 @@ export const getDashboardOverdue = async (req: Request, res: Response) => {
   try {
     const now = new Date();
 
-    const statusOptions = await fetchStatusOptions(user.orgId);
-    const doneOptionIds = resolveDoneOptionIds(statusOptions);
-
     // Firestore query: active items past their due date, ordered by dueDate ASC
     let query: admin.firestore.Query = itemsCollection(user.orgId)
       .where('isArchived', '==', false)
@@ -303,14 +300,24 @@ export const getDashboardOverdue = async (req: Request, res: Response) => {
       if (workspaceId && typeof workspaceId === 'string' && item.workspaceId !== workspaceId) {
         return false;
       }
+      return true;
+    });
+
+    // Collect unique board IDs from filtered items
+    const uniqueBoardIds = [...new Set(filtered.map(item => item.boardId))];
+    const statusOptions = await fetchStatusOptions(user.orgId, uniqueBoardIds);
+    const doneOptionIds = resolveDoneOptionIds(statusOptions);
+
+    // Filter out items with done status
+    const filteredActive = filtered.filter(item => {
       if (item.status !== undefined && item.status !== null && doneOptionIds.has(item.status)) {
         return false;
       }
       return true;
     });
 
-    const hasMore = filtered.length > limit;
-    const data = hasMore ? filtered.slice(0, limit) : filtered;
+    const hasMore = filteredActive.length > limit;
+    const data = hasMore ? filteredActive.slice(0, limit) : filteredActive;
     const nextCursor = hasMore && data.length > 0 ? data[data.length - 1].id : null;
 
     void logAuditAndCheckAnomaly({
