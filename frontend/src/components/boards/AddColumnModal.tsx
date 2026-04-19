@@ -175,7 +175,14 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
       // Refetch columns to get the new column
       await qc.refetchQueries({ queryKey: queryKeys.columns.board(boardId) });
-      const updatedColumns = qc.getQueryData(queryKeys.columns.board(boardId)) as any[] ?? [];
+      const rawColumns = qc.getQueryData(queryKeys.columns.board(boardId)) as any[] ?? [];
+
+      // Sort by order field so position indices match visual order
+      const updatedColumns = [...rawColumns].sort((a: any, b: any) => {
+        const aOrder = typeof a.order === 'number' ? a.order : Infinity;
+        const bOrder = typeof b.order === 'number' ? b.order : Infinity;
+        return aOrder - bOrder;
+      });
 
       // Always reorder the new column to the correct position
       if (updatedColumns.length > 0) {
@@ -198,14 +205,11 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             }
           }
 
-          // Build new order by moving the new column to target position
+          // Move new column to target position and assign order to all columns
           const currentIndex = updatedColumns.findIndex(c => c.id === newColumnId);
-          if (currentIndex !== targetIndex && currentIndex !== -1) {
-            // Remove the new column and re-insert at target
+          if (currentIndex !== -1) {
             const reordered = updatedColumns.filter(c => c.id !== newColumnId);
             reordered.splice(Math.min(targetIndex, reordered.length), 0, updatedColumns[currentIndex]);
-
-            // Create order updates
             const finalOrder = reordered.map((col, idx) => ({ id: col.id, order: idx }));
             await reorderColumns(finalOrder);
           }

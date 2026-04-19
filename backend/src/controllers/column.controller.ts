@@ -91,6 +91,12 @@ export const getColumns = async (req: Request, res: Response) => {
       canAccessColumn(user, asDBColumn(col), 'read'),
     );
 
+    (columns as (DBColumn & { order?: number })[]).sort((a, b) => {
+      const aOrder = typeof a.order === 'number' ? a.order : Infinity;
+      const bOrder = typeof b.order === 'number' ? b.order : Infinity;
+      return aOrder - bOrder;
+    });
+
     res.json(columns);
   } catch (err: unknown) {
     logger.error('Error fetching columns:', err);
