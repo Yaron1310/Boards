@@ -1,12 +1,13 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { FiX, FiLayout } from 'react-icons/fi';
 import { useCreateBoard } from '../../hooks/queries/useBoardQueries';
+import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface CreateBoardModalProps {
-  workspaceId: string;
+  workspaceId?: string;
   onClose: () => void;
 }
 
@@ -14,11 +15,21 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('');
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
   const { mutateAsync: createBoard, isPending } = useCreateBoard();
+  const { data: allWorkspaces = [] } = useWorkspacesQuery();
+
+  const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
+
+  useEffect(() => {
+    if (workspaces.length === 0) return;
+    const preferred = workspaces.find((w) => w.id === workspaceId);
+    setSelectedWorkspaceId(preferred ? preferred.id : workspaces[0].id);
+  }, [workspaces.length, workspaceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,9 +38,17 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
       setError('Board name is required.');
       return;
     }
+    if (!selectedWorkspaceId) {
+      setError('Please select a workspace.');
+      return;
+    }
     setError('');
     try {
-      const board = await createBoard({ name: trimmed, description: description.trim() || undefined, workspaceId });
+      const board = await createBoard({
+        name: trimmed,
+        description: description.trim() || undefined,
+        workspaceId: selectedWorkspaceId,
+      });
       onClose();
       navigate(`/boards/${board.id}`);
     } catch (err) {
@@ -71,6 +90,31 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
         <form onSubmit={handleSubmit} noValidate>
           <div className="px-6 py-5 space-y-4">
             <div>
+              <label htmlFor="board-workspace" className="block text-sm font-medium text-gray-700 mb-1">
+                Workspace <span aria-hidden="true" className="text-red-500">*</span>
+              </label>
+              {workspaces.length === 0 ? (
+                <p className="text-sm text-amber-600">
+                  No workspaces found. Create a workspace first before adding boards.
+                </p>
+              ) : (
+                <select
+                  id="board-workspace"
+                  value={selectedWorkspaceId}
+                  onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
+                  aria-required="true"
+                >
+                  {workspaces.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
               <label htmlFor="board-name" className="block text-sm font-medium text-gray-700 mb-1">
                 Name <span aria-hidden="true" className="text-red-500">*</span>
               </label>
@@ -83,13 +127,8 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
                 autoFocus
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 aria-required="true"
-                aria-describedby={error ? 'board-name-error' : undefined}
+                aria-describedby={error ? 'board-error' : undefined}
               />
-              {error && (
-                <p id="board-name-error" className="mt-1 text-xs text-red-600" role="alert">
-                  {error}
-                </p>
-              )}
             </div>
 
             <div>
@@ -105,6 +144,12 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
             </div>
+
+            {error && (
+              <p id="board-error" className="text-xs text-red-600" role="alert">
+                {error}
+              </p>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
@@ -118,7 +163,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
             </button>
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isPending || workspaces.length === 0}
               className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
               aria-label="Create board"
             >

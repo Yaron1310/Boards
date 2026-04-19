@@ -99,7 +99,7 @@ const BoardListPage: React.FC = () => {
         </div>
       )}
 
-      {showCreateModal && workspaceId && (
+      {showCreateModal && (
         <CreateBoardModal
           workspaceId={workspaceId}
           onClose={() => setShowCreateModal(false)}

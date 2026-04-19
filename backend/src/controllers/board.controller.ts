@@ -27,10 +27,13 @@ export const createBoard = async (req: Request, res: Response) => {
   }
 
   try {
-    // Validate workspaceId belongs to this workspace (tenant boundary)
+    // Validate workspaceId belongs to this tenant and is not a personal/default workspace
     const workspaceDoc = await workspacesCollection.doc(workspaceId).get();
     if (!workspaceDoc.exists || workspaceDoc.data()?.orgId !== user.orgId) {
-      return res.status(400).json({ message: 'Invalid workspaceId: workspace not found in this workspace.' });
+      return res.status(400).json({ message: 'Invalid workspaceId: workspace not found in this organization.' });
+    }
+    if (workspaceDoc.data()?.isPersonal === true) {
+      return res.status(400).json({ message: 'Boards cannot be created in a default workspace. Please select a real workspace.' });
     }
 
     // Build a provisional board to check create permission before writing
