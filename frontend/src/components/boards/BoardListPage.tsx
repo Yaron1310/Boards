@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
-import { FiLayout, FiPlus, FiArchive } from 'react-icons/fi';
+import { FiLayout, FiPlus, FiArchive, FiArrowLeft } from 'react-icons/fi';
 import CreateBoardModal from './CreateBoardModal';
 
 const BoardListPage: React.FC = () => {
@@ -38,6 +38,17 @@ const BoardListPage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
+      <div className="mb-4">
+        <button
+          type="button"
+          onClick={() => navigate('/workspaces')}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          aria-label="Back to workspaces"
+        >
+          <FiArrowLeft size={15} aria-hidden="true" />
+          Workspaces
+        </button>
+      </div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Boards</h1>
         <div className="flex items-center gap-3">
