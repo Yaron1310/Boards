@@ -11,7 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
-import { COLUMN_WIDTH_MAP, ITEM_NAME_WIDTH } from '../../utils/columnWidths';
+import { COLUMN_WIDTH_MAP, ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
 interface GroupSectionProps {
   group: Group;
@@ -171,145 +171,148 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         role="row"
         aria-label={`Group header: ${group.name}`}
       >
-        {/* Group drag handle */}
-        {canManage && (
-          <div
-            className="flex items-center justify-center w-5 h-5 text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
-            aria-label="Drag to reorder group"
-            aria-grabbed={isGroupDragging}
-            {...groupDragAttributes}
-            {...groupDragListeners}
-          >
-            <FiMenu size={13} aria-hidden="true" />
-          </div>
-        )}
-
-        {/* Collapse toggle */}
-        <button
-          type="button"
-          onClick={() => void toggleCollapse()}
-          disabled={isUpdating}
-          className="flex items-center justify-center w-5 h-5 text-gray-400 hover:text-gray-600 rounded transition-colors flex-shrink-0"
-          aria-label={isCollapsed ? `Expand group ${group.name}` : `Collapse group ${group.name}`}
-          aria-expanded={!isCollapsed}
-        >
-          {isCollapsed
-            ? <FiChevronRight size={14} aria-hidden="true" />
-            : <FiChevronDown size={14} aria-hidden="true" />}
-        </button>
-
-        {/* Color dot */}
-        <span
-          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: groupColor }}
-          aria-hidden="true"
-        />
-
-        {/* Group name and info */}
-        <div className="flex items-center gap-2 px-3 py-2 flex-shrink-0" role="rowheader">
-          {editingName && canManage ? (
-            <input
-              ref={nameInputRef}
-              type="text"
-              value={nameValue}
-              onChange={(e) => setNameValue(e.target.value)}
-              onBlur={() => void commitNameEdit()}
-              onKeyDown={handleNameKeyDown}
-              disabled={isUpdating}
-              className="text-sm font-semibold text-gray-800 bg-transparent border-b border-indigo-500 outline-none"
-              aria-label="Edit group name"
-            />
-          ) : (
-            <h2
-              className={`text-sm font-semibold text-gray-800 truncate max-w-xs ${
-                canManage ? 'cursor-pointer hover:text-indigo-600 transition-colors' : ''
-              }`}
-              onClick={() => canManage && setEditingName(true)}
-              title={canManage ? 'Click to rename' : undefined}
+        {/* Left section — fixed 240px width to match ItemRow alignment */}
+        <div className={`flex items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-200`}>
+          {/* Group drag handle */}
+          {canManage && (
+            <div
+              className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none`}
+              aria-label="Drag to reorder group"
+              aria-grabbed={isGroupDragging}
+              {...groupDragAttributes}
+              {...groupDragListeners}
             >
-              {group.name}
-            </h2>
+              <FiMenu size={13} aria-hidden="true" />
+            </div>
           )}
 
-          {/* Item count */}
-          <span className="text-xs text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
-            {itemCount}
-          </span>
-        </div>
+          {/* Collapse toggle */}
+          <button
+            type="button"
+            onClick={() => void toggleCollapse()}
+            disabled={isUpdating}
+            className="flex items-center justify-center w-5 h-5 text-gray-400 hover:text-gray-600 rounded transition-colors flex-shrink-0"
+            aria-label={isCollapsed ? `Expand group ${group.name}` : `Collapse group ${group.name}`}
+            aria-expanded={!isCollapsed}
+          >
+            {isCollapsed
+              ? <FiChevronRight size={14} aria-hidden="true" />
+              : <FiChevronDown size={14} aria-hidden="true" />}
+          </button>
 
-        {/* Kebab menu */}
-        {canManage && (
-          <div className="relative flex-shrink-0" ref={menuRef}>
-            <button
-              type="button"
-              onClick={() => setMenuOpen((o) => !o)}
-              className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
-              aria-label={`Group options for ${group.name}`}
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-            >
-              <FiMoreHorizontal size={14} aria-hidden="true" />
-            </button>
+          {/* Color dot */}
+          <span
+            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+            style={{ backgroundColor: groupColor }}
+            aria-hidden="true"
+          />
 
-            {menuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
-                aria-label="Group actions"
+          {/* Group name and info */}
+          <div className="flex items-center gap-1 px-2 py-2 flex-1 min-w-0" role="rowheader">
+            {editingName && canManage ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onBlur={() => void commitNameEdit()}
+                onKeyDown={handleNameKeyDown}
+                disabled={isUpdating}
+                className="text-sm font-semibold text-gray-800 bg-transparent border-b border-indigo-500 outline-none"
+                aria-label="Edit group name"
+              />
+            ) : (
+              <h2
+                className={`text-sm font-semibold text-gray-800 truncate flex-1 ${
+                  canManage ? 'cursor-pointer hover:text-indigo-600 transition-colors' : ''
+                }`}
+                onClick={() => canManage && setEditingName(true)}
+                title={canManage ? 'Click to rename' : undefined}
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setEditingName(true);
-                  }}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  aria-label="Rename group"
-                >
-                  <FiEdit2 size={13} aria-hidden="true" />
-                  Rename
-                </button>
+                {group.name}
+              </h2>
+            )}
 
-                {confirmDelete ? (
-                  <div className="px-3 py-2 space-y-1">
-                    <p className="text-xs text-red-600">Delete this group?</p>
-                    <div className="flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete()}
-                        disabled={isDeleting}
-                        className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
-                        aria-label="Confirm delete group"
-                      >
-                        {isDeleting ? '…' : 'Delete'}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(false)}
-                        className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                        aria-label="Cancel delete"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
+            {/* Item count */}
+            <span className="text-xs text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
+              {itemCount}
+            </span>
+          </div>
+
+          {/* Kebab menu */}
+          {canManage && (
+            <div className="relative flex-shrink-0" ref={menuRef}>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((o) => !o)}
+                className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+                aria-label={`Group options for ${group.name}`}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+              >
+                <FiMoreHorizontal size={14} aria-hidden="true" />
+              </button>
+
+              {menuOpen && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-full mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
+                  aria-label="Group actions"
+                >
                   <button
                     type="button"
                     role="menuitem"
-                    onClick={() => setConfirmDelete(true)}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                    aria-label="Delete group"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setEditingName(true);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    aria-label="Rename group"
                   >
-                    <FiTrash2 size={13} aria-hidden="true" />
-                    Delete
+                    <FiEdit2 size={13} aria-hidden="true" />
+                    Rename
                   </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+
+                  {confirmDelete ? (
+                    <div className="px-3 py-2 space-y-1">
+                      <p className="text-xs text-red-600">Delete this group?</p>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete()}
+                          disabled={isDeleting}
+                          className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
+                          aria-label="Confirm delete group"
+                        >
+                          {isDeleting ? '…' : 'Delete'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDelete(false)}
+                          className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                          aria-label="Cancel delete"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => setConfirmDelete(true)}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      aria-label="Delete group"
+                    >
+                      <FiTrash2 size={13} aria-hidden="true" />
+                      Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Column headers — direct children of flex container for alignment */}
         {columns.map((col) => {

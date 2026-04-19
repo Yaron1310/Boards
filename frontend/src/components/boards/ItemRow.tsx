@@ -8,7 +8,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
-import { ITEM_NAME_WIDTH, CHECKBOX_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
+import { ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH, CHECKBOX_WIDTH } from '../../utils/columnWidths';
 
 interface ItemRowProps {
   item: Item;
@@ -86,41 +86,44 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
       } ${isSelected ? 'bg-indigo-50' : 'bg-white'} ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
       aria-selected={isSelected}
     >
-      {/* Drag handle */}
-      <div
-        className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}
-        aria-label="Drag to reorder item"
-        aria-grabbed={isDragging}
-        {...attributes}
-        {...listeners}
-      >
-        <FiMenu size={13} aria-hidden="true" />
-      </div>
+      {/* Left section — drag handle, checkbox, and item name (fixed 240px width) */}
+      <div className={`flex items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-100`}>
+        {/* Drag handle */}
+        <div
+          className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}
+          aria-label="Drag to reorder item"
+          aria-grabbed={isDragging}
+          {...attributes}
+          {...listeners}
+        >
+          <FiMenu size={13} aria-hidden="true" />
+        </div>
 
-      {/* Checkbox */}
-      <div role="gridcell" className={`flex items-center justify-center ${CHECKBOX_WIDTH} flex-shrink-0`}>
-        <input
-          type="checkbox"
-          checked={isSelected}
-          onChange={() => onSelectToggle(item.id)}
-          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-          aria-label={`Select item ${item.name}`}
-        />
-      </div>
+        {/* Checkbox */}
+        <div role="gridcell" className={`flex items-center justify-center ${CHECKBOX_WIDTH} flex-shrink-0`}>
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={() => onSelectToggle(item.id)}
+            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+            aria-label={`Select item ${item.name}`}
+          />
+        </div>
 
-      {/* Item name — fixed column */}
-      <div
-        role="gridcell"
-        className={`flex items-center ${ITEM_NAME_WIDTH} px-3 py-2 border-r border-gray-100 cursor-pointer`}
-        onClick={() => onOpenDetail(item)}
-        aria-label={`Open details for ${item.name}`}
-        tabIndex={0}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(item); }}
-      >
-        <span className="text-sm font-medium text-gray-800 truncate flex-1">{item.name}</span>
-        {item.isArchived && (
-          <span className="ml-2 text-xs text-gray-400 flex-shrink-0">(archived)</span>
-        )}
+        {/* Item name */}
+        <div
+          role="gridcell"
+          className="flex items-center flex-1 px-3 py-2 cursor-pointer"
+          onClick={() => onOpenDetail(item)}
+          aria-label={`Open details for ${item.name}`}
+          tabIndex={0}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(item); }}
+        >
+          <span className="text-sm font-medium text-gray-800 truncate">{item.name}</span>
+          {item.isArchived && (
+            <span className="ml-2 text-xs text-gray-400 flex-shrink-0">(archived)</span>
+          )}
+        </div>
       </div>
 
       {/* Dynamic column cells */}

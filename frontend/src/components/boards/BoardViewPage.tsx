@@ -381,7 +381,7 @@ const BoardViewPage: React.FC = () => {
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="p-4 space-y-4" role="region" aria-label="Board groups">
+            <div className="px-0 py-4 space-y-4" role="region" aria-label="Board groups">
               {groupsLoading ? (
                 <div className="flex justify-center items-center py-16" role="status" aria-label="Loading groups">
                   <FiLoader className="animate-spin h-6 w-6 text-indigo-400" aria-hidden="true" />
