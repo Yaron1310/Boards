@@ -42,6 +42,7 @@ export interface DBOrganizationSettings {
   updatedAt: admin.firestore.Timestamp | Date | any;
   displayNameColor?: string;
   sidebarLinkColor?: string;
+  logoCircle?: boolean;
 }
 
 export interface DBSystemSettings {

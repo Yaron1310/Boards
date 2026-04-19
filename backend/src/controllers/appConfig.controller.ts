@@ -45,6 +45,7 @@ export const getThemeSettings = async (req: Request, res: Response) => {
                 logoUrl: '/default_user.webp',
                 displayNameColor: '#ffffff',
                 sidebarLinkColor: '#e5e7eb',
+                logoCircle: true,
             });
         }
         const settings = snapshotToData<DBOrganizationSettings>(doc)!;
@@ -76,6 +77,7 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
         logoUpload,
         displayNameColor,
         sidebarLinkColor,
+        logoCircle,
         description,
         contactEmail,
         contactPhone,
@@ -110,6 +112,7 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
         if (appName !== undefined) dataToUpdate.appName = sanitizeText(appName);
         if (displayNameColor !== undefined) dataToUpdate.displayNameColor = sanitizeColor(displayNameColor);
         if (sidebarLinkColor !== undefined) dataToUpdate.sidebarLinkColor = sanitizeColor(sidebarLinkColor);
+        if (logoCircle !== undefined) dataToUpdate.logoCircle = !!logoCircle;
         if (description !== undefined) dataToUpdate.description = sanitizeText(description);
         if (contactEmail !== undefined) dataToUpdate.contactEmail = sanitizeText(contactEmail);
         if (contactPhone !== undefined) dataToUpdate.contactPhone = sanitizeText(contactPhone);
