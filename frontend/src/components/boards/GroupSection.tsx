@@ -11,7 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
-import { COLUMN_WIDTH_MAP, ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
+import { COLUMN_WIDTH_MAP, GROUP_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
 interface GroupSectionProps {
   group: Group;
@@ -171,8 +171,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         role="row"
         aria-label={`Group header: ${group.name}`}
       >
-        {/* Left section — fixed 240px width to match ItemRow alignment */}
-        <div className={`flex items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-200`}>
+        {/* Left section — fixed width to match ItemRow alignment */}
+        <div className={`flex items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200`}>
           {/* Group drag handle */}
           {canManage && (
             <div

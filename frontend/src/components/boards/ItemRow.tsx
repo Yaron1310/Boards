@@ -86,7 +86,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
       } ${isSelected ? 'bg-indigo-50' : 'bg-white'} ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
       aria-selected={isSelected}
     >
-      {/* Left section — drag handle, checkbox, and item name (fixed 240px width) */}
+      {/* Left section — drag handle, checkbox, and item name */}
       <div className={`flex items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-100`}>
         {/* Drag handle */}
         <div
