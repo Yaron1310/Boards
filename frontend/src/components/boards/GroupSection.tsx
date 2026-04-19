@@ -158,7 +158,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     >
       {/* Group header with columns */}
       <div
-        className="flex flex-nowrap items-stretch border-b border-gray-200 bg-gray-50 select-none w-max"
+        className="flex flex-nowrap items-stretch border-b border-gray-200 bg-gray-50 select-none w-max rounded-tl-xl"
         role="row"
         aria-label={`Group header: ${group.name}`}
       >
