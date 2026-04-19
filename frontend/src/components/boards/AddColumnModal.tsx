@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { FiX, FiColumns, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useCreateColumn, useColumns, useReorderColumns } from '../../hooks/queries/useColumnQueries';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
 import type { StatusOption, DropdownOption } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -36,14 +38,16 @@ const STATUS_PALETTE = [
 ];
 
 const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId }) => {
+  const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending } = useCreateColumn(boardId);
   const { data: allColumns = [] } = useColumns(boardId);
   const { mutateAsync: reorderColumns, isPending: isReordering } = useReorderColumns(boardId);
-  const previousColumnsRef = useRef(allColumns);
+  const previousColumnsRef = useRef<string[]>([]);
 
+  // Track column IDs before creation
   useEffect(() => {
-    previousColumnsRef.current = allColumns;
-  }, [allColumns]);
+    previousColumnsRef.current = allColumns.map(c => c.id);
+  }, []);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
@@ -167,42 +171,42 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
     setError('');
     try {
-      await createColumn({ name: trimmedName, type, settings: buildSettings() } );
+      await createColumn({ name: trimmedName, type, settings: buildSettings() });
 
-      // If insertion position is specified, reorder the new column
-      if (insertAfterColumnId || insertBeforeColumnId) {
-        // Wait a moment for the query to update
-        await new Promise(resolve => setTimeout(resolve, 100));
+      // Refetch columns to get the new column
+      const queryResult = await qc.refetchQueries({ queryKey: queryKeys.columns.board(boardId) });
+      const updatedColumns = queryResult[0]?.data ?? [];
 
-        // Find the new column (the one that wasn't in previousColumnsRef)
-        const newColumn = allColumns.find(col => !previousColumnsRef.current.some(c => c.id === col.id));
+      // Always reorder the new column to the correct position
+      if (updatedColumns.length > 0) {
+        // Find the new column
+        const newColumnId = updatedColumns.find(col => !previousColumnsRef.current.includes(col.id))?.id;
 
-        if (newColumn) {
-          let targetIndex = 0;
+        if (newColumnId) {
+          // Calculate target index
+          let targetIndex = updatedColumns.length - 1; // Default to end (rightmost)
+
           if (insertAfterColumnId) {
-            const afterIndex = allColumns.findIndex(c => c.id === insertAfterColumnId);
-            targetIndex = afterIndex + 1;
+            const afterIdx = updatedColumns.findIndex(c => c.id === insertAfterColumnId);
+            if (afterIdx !== -1) {
+              targetIndex = afterIdx + 1;
+            }
           } else if (insertBeforeColumnId) {
-            const beforeIndex = allColumns.findIndex(c => c.id === insertBeforeColumnId);
-            targetIndex = beforeIndex;
+            const beforeIdx = updatedColumns.findIndex(c => c.id === insertBeforeColumnId);
+            if (beforeIdx !== -1) {
+              targetIndex = beforeIdx;
+            }
           }
 
-          // Create new order array
-          const currentIndex = allColumns.findIndex(c => c.id === newColumn.id);
-          if (currentIndex !== targetIndex) {
-            const orderedColumns = allColumns.map((col, idx) => {
-              let newOrder = idx;
-              if (idx === currentIndex) return null; // Remove from current position
-              if (idx < currentIndex && idx >= targetIndex) newOrder += 1;
-              if (idx >= currentIndex && idx < targetIndex) newOrder -= 1;
-              return { id: col.id, order: newOrder };
-            }).filter(Boolean) as Array<{ id: string; order: number }>;
+          // Build new order by moving the new column to target position
+          const currentIndex = updatedColumns.findIndex(c => c.id === newColumnId);
+          if (currentIndex !== targetIndex && currentIndex !== -1) {
+            // Remove the new column and re-insert at target
+            const reordered = updatedColumns.filter(c => c.id !== newColumnId);
+            reordered.splice(Math.min(targetIndex, reordered.length), 0, updatedColumns[currentIndex]);
 
-            // Insert at target position
-            orderedColumns.splice(targetIndex, 0, { id: newColumn.id, order: targetIndex });
-
-            // Rebuild order values
-            const finalOrder = orderedColumns.map((col, idx) => ({ id: col.id, order: idx }));
+            // Create order updates
+            const finalOrder = reordered.map((col, idx) => ({ id: col.id, order: idx }));
             await reorderColumns(finalOrder);
           }
         }
