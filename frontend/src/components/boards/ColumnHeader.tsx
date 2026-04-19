@@ -25,6 +25,7 @@ import {
   FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2,
 } from 'react-icons/fi';
 import { COLUMN_WIDTH_MAP, ITEM_NAME_WIDTH } from '../../utils/columnWidths';
+import AddColumnModal from './AddColumnModal';
 
 interface SortState {
   columnId: string;
@@ -88,6 +89,8 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState(column.name);
+  const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+  const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
@@ -154,6 +157,12 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   useEffect(() => {
     if (isRenaming) renameInputRef.current?.select();
   }, [isRenaming]);
+
+  const handleAddColumn = (position: 'left' | 'right') => {
+    setInsertPosition(position);
+    setShowAddColumnModal(true);
+    setMenuOpen(false);
+  };
 
   return (
     <div
@@ -274,6 +283,26 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
                   <button
                     type="button"
                     role="menuitem"
+                    onClick={() => handleAddColumn('left')}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                    aria-label="Add column to the left"
+                  >
+                    <FiPlus size={12} aria-hidden="true" />
+                    Add left
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => handleAddColumn('right')}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                    aria-label="Add column to the right"
+                  >
+                    <FiPlus size={12} aria-hidden="true" />
+                    Add right
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
                     onClick={() => setConfirmDelete(true)}
                     className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
                     aria-label="Delete column"
@@ -286,6 +315,19 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
             </div>
           )}
         </div>
+      )}
+
+      {/* Add column modal - rendered here for insertion positioning */}
+      {showAddColumnModal && (
+        <AddColumnModal
+          boardId={boardId}
+          onClose={() => {
+            setShowAddColumnModal(false);
+            setInsertPosition(null);
+          }}
+          insertAfterColumnId={insertPosition === 'right' ? column.id : undefined}
+          insertBeforeColumnId={insertPosition === 'left' ? column.id : undefined}
+        />
       )}
     </div>
   );

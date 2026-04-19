@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { FiX, FiColumns, FiPlus, FiTrash2 } from 'react-icons/fi';
-import { useCreateColumn, useColumns } from '../../hooks/queries/useColumnQueries';
+import { useCreateColumn, useColumns, useReorderColumns } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
 import type { StatusOption, DropdownOption } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -9,6 +9,8 @@ import { useFocusTrap } from '../../hooks/useFocusTrap';
 interface AddColumnModalProps {
   boardId: string;
   onClose: () => void;
+  insertAfterColumnId?: string;
+  insertBeforeColumnId?: string;
 }
 
 const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
@@ -33,9 +35,15 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId }) => {
   const { mutateAsync: createColumn, isPending } = useCreateColumn(boardId);
   const { data: allColumns = [] } = useColumns(boardId);
+  const { mutateAsync: reorderColumns, isPending: isReordering } = useReorderColumns(boardId);
+  const previousColumnsRef = useRef(allColumns);
+
+  useEffect(() => {
+    previousColumnsRef.current = allColumns;
+  }, [allColumns]);
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
@@ -160,6 +168,46 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose }) => 
     setError('');
     try {
       await createColumn({ name: trimmedName, type, settings: buildSettings() } );
+
+      // If insertion position is specified, reorder the new column
+      if (insertAfterColumnId || insertBeforeColumnId) {
+        // Wait a moment for the query to update
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Find the new column (the one that wasn't in previousColumnsRef)
+        const newColumn = allColumns.find(col => !previousColumnsRef.current.some(c => c.id === col.id));
+
+        if (newColumn) {
+          let targetIndex = 0;
+          if (insertAfterColumnId) {
+            const afterIndex = allColumns.findIndex(c => c.id === insertAfterColumnId);
+            targetIndex = afterIndex + 1;
+          } else if (insertBeforeColumnId) {
+            const beforeIndex = allColumns.findIndex(c => c.id === insertBeforeColumnId);
+            targetIndex = beforeIndex;
+          }
+
+          // Create new order array
+          const currentIndex = allColumns.findIndex(c => c.id === newColumn.id);
+          if (currentIndex !== targetIndex) {
+            const orderedColumns = allColumns.map((col, idx) => {
+              let newOrder = idx;
+              if (idx === currentIndex) return null; // Remove from current position
+              if (idx < currentIndex && idx >= targetIndex) newOrder += 1;
+              if (idx >= currentIndex && idx < targetIndex) newOrder -= 1;
+              return { id: col.id, order: newOrder };
+            }).filter(Boolean) as Array<{ id: string; order: number }>;
+
+            // Insert at target position
+            orderedColumns.splice(targetIndex, 0, { id: newColumn.id, order: targetIndex });
+
+            // Rebuild order values
+            const finalOrder = orderedColumns.map((col, idx) => ({ id: col.id, order: idx }));
+            await reorderColumns(finalOrder);
+          }
+        }
+      }
+
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create column.');
