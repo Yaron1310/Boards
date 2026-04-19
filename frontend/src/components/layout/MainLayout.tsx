@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, Suspense } from 'react';
+import React, { useState, useRef, Suspense } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
@@ -15,6 +15,75 @@ import CookieConsent from '../legal/CookieConsent';
 
 // --- WORKSPACES + BOARDS NAV SECTION ---
 
+interface WorkspaceBoardsGroupProps {
+  workspace: { id: string; name: string };
+  sidebarLinkColor: string;
+  onNavigate: () => void;
+  canCreateBoard: boolean;
+}
+
+const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate, canCreateBoard }) => {
+  const navigate = useNavigate();
+  const [isExpanded, setIsExpanded] = useState(true);
+  const { data: boards = [] } = useBoards(workspace.id, false, true);
+
+  return (
+    <div className="mb-1">
+      <div className="flex items-center justify-between px-4 mb-0.5">
+        <button
+          type="button"
+          onClick={() => setIsExpanded((v) => !v)}
+          className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider transition-opacity hover:opacity-100 flex-1 min-w-0 text-left"
+          style={{ color: sidebarLinkColor, opacity: 0.7 }}
+          aria-expanded={isExpanded}
+          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${workspace.name}`}
+        >
+          {isExpanded ? <FiChevronDown size={12} aria-hidden="true" /> : <FiChevronRight size={12} aria-hidden="true" />}
+          <span className="truncate">{workspace.name}</span>
+        </button>
+        {canCreateBoard && (
+          <button
+            type="button"
+            onClick={() => { navigate(`/workspaces/${workspace.id}/boards`); onNavigate(); }}
+            className="rounded p-0.5 transition-opacity hover:opacity-100 flex-shrink-0"
+            style={{ color: sidebarLinkColor, opacity: 0.7 }}
+            aria-label={`Open ${workspace.name} boards`}
+          >
+            <FiPlus size={14} aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      {isExpanded && (
+        <ul role="list" aria-label={`${workspace.name} boards`}>
+          {boards.length === 0 && (
+            <li className="px-8 py-1 text-xs" style={{ color: sidebarLinkColor, opacity: 0.45 }}>
+              No boards yet
+            </li>
+          )}
+          {boards.map((board) => (
+            <li key={board.id} role="listitem">
+              <NavLink
+                to={`/boards/${board.id}`}
+                onClick={onNavigate}
+                style={() => ({ color: sidebarLinkColor })}
+                className={({ isActive }) =>
+                  `sidebar-nav-item flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 ${
+                    isActive ? 'active font-semibold' : 'hover:text-white'
+                  }`
+                }
+                aria-label={`Open board ${board.name}`}
+              >
+                <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
+                <span className="truncate">{board.name}</span>
+              </NavLink>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 interface WorkspacesNavSectionProps {
   sidebarLinkColor: string;
   onNavigate: () => void;
@@ -22,102 +91,22 @@ interface WorkspacesNavSectionProps {
 }
 
 const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate, canCreateBoard }) => {
-  const navigate = useNavigate();
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
-  const { data: allBoards = [] } = useBoards(undefined, false, true);
-  const initializedRef = useRef(false);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-
-  const workspaces = useMemo(() => allWorkspaces.filter((w) => !w.isPersonal), [allWorkspaces]);
-
-  useEffect(() => {
-    if (!initializedRef.current && workspaces.length > 0) {
-      setExpandedIds(new Set(workspaces.map((w) => w.id)));
-      initializedRef.current = true;
-    }
-  }, [workspaces]);
-
-  const boardsByWorkspace = useMemo(() => {
-    const map = new Map<string, typeof allBoards>();
-    for (const board of allBoards) {
-      if (board.isArchived) continue;
-      const list = map.get(board.workspaceId) ?? [];
-      list.push(board);
-      map.set(board.workspaceId, list);
-    }
-    return map;
-  }, [allBoards]);
-
-  const toggle = (id: string) =>
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
 
   if (workspaces.length === 0) return null;
 
   return (
     <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
-      {workspaces.map((workspace) => {
-        const boards = boardsByWorkspace.get(workspace.id) ?? [];
-        const isExpanded = expandedIds.has(workspace.id);
-        return (
-          <div key={workspace.id} className="mb-1">
-            <div className="flex items-center justify-between px-4 mb-0.5">
-              <button
-                type="button"
-                onClick={() => toggle(workspace.id)}
-                className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider transition-opacity hover:opacity-100 flex-1 min-w-0 text-left"
-                style={{ color: sidebarLinkColor, opacity: 0.7 }}
-                aria-expanded={isExpanded}
-                aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${workspace.name}`}
-              >
-                {isExpanded ? <FiChevronDown size={12} aria-hidden="true" /> : <FiChevronRight size={12} aria-hidden="true" />}
-                <span className="truncate">{workspace.name}</span>
-              </button>
-              {canCreateBoard && (
-                <button
-                  type="button"
-                  onClick={() => { navigate(`/workspaces/${workspace.id}/boards`); onNavigate(); }}
-                  className="rounded p-0.5 transition-opacity hover:opacity-100 flex-shrink-0"
-                  style={{ color: sidebarLinkColor, opacity: 0.7 }}
-                  aria-label={`Open ${workspace.name} boards`}
-                >
-                  <FiPlus size={14} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-            {isExpanded && (
-              <ul role="list" aria-label={`${workspace.name} boards`}>
-                {boards.length === 0 && (
-                  <li className="px-8 py-1 text-xs" style={{ color: sidebarLinkColor, opacity: 0.45 }}>
-                    No boards yet
-                  </li>
-                )}
-                {boards.map((board) => (
-                  <li key={board.id} role="listitem">
-                    <NavLink
-                      to={`/boards/${board.id}`}
-                      onClick={onNavigate}
-                      style={() => ({ color: sidebarLinkColor })}
-                      className={({ isActive }) =>
-                        `sidebar-nav-item flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 ${
-                          isActive ? 'active font-semibold' : 'hover:text-white'
-                        }`
-                      }
-                      aria-label={`Open board ${board.name}`}
-                    >
-                      <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
-                      <span className="truncate">{board.name}</span>
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        );
-      })}
+      {workspaces.map((workspace) => (
+        <WorkspaceBoardsGroup
+          key={workspace.id}
+          workspace={workspace}
+          sidebarLinkColor={sidebarLinkColor}
+          onNavigate={onNavigate}
+          canCreateBoard={canCreateBoard}
+        />
+      ))}
     </div>
   );
 };
