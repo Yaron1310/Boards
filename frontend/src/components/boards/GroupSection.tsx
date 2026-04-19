@@ -161,7 +161,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     <section
       ref={setGroupRef}
       style={groupStyle}
-      className="rounded-lg border border-gray-200 overflow-hidden bg-white"
+      className="rounded-lg border border-gray-200 overflow-hidden bg-white w-max"
       aria-label={`Group: ${group.name}`}
     >
       {/* Group header with columns */}
@@ -332,7 +332,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
       {/* Item rows */}
       {!isCollapsed && (
-        <div role="rowgroup" aria-label={`Items in ${group.name}`}>
+        <div role="rowgroup" aria-label={`Items in ${group.name}`} className="w-max">
           {items.length === 0 ? (
             <div className="px-4 py-4 text-xs text-gray-400 italic">
               No items yet.
@@ -353,7 +353,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
           {/* Add item row */}
           {canManage && (
-            <div className="border-t border-gray-100">
+            <div className="border-t border-gray-100 w-max">
               {addingItem ? (
                 <div className="flex items-center gap-2 px-4 py-2">
                   <input
