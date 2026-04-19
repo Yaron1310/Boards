@@ -16,7 +16,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
+import { useColumns, useReorderColumns, useDeleteColumn, useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
 import type { Column } from '../../types';
 import {
@@ -86,8 +86,12 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   const label = COLUMN_TYPE_LABELS[column.type];
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newName, setNewName] = useState(column.name);
   const menuRef = useRef<HTMLDivElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
+  const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdateColumn(boardId);
 
   const {
     attributes,
@@ -126,6 +130,30 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
     setMenuOpen(false);
     setConfirmDelete(false);
   };
+
+  const handleRename = async () => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === column.name) {
+      setIsRenaming(false);
+      setNewName(column.name);
+      return;
+    }
+    await updateColumn({ id: column.id, patch: { name: trimmed } });
+    setIsRenaming(false);
+    setMenuOpen(false);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') void handleRename();
+    if (e.key === 'Escape') {
+      setIsRenaming(false);
+      setNewName(column.name);
+    }
+  };
+
+  useEffect(() => {
+    if (isRenaming) renameInputRef.current?.select();
+  }, [isRenaming]);
 
   return (
     <div
@@ -195,7 +223,21 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
               className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
               aria-label="Column actions"
             >
-              {confirmDelete ? (
+              {isRenaming ? (
+                <div className="px-3 py-2 space-y-2">
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    value={newName}
+                    onChange={(e) => setNewName(e.target.value)}
+                    onBlur={() => void handleRename()}
+                    onKeyDown={handleRenameKeyDown}
+                    disabled={isUpdating}
+                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Column name"
+                  />
+                </div>
+              ) : confirmDelete ? (
                 <div className="px-3 py-2 space-y-1">
                   <p className="text-xs text-red-600">Delete this column?</p>
                   <div className="flex gap-1">
@@ -219,16 +261,27 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
                   </div>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => setConfirmDelete(true)}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
-                  aria-label="Delete column"
-                >
-                  <FiTrash2 size={12} aria-hidden="true" />
-                  Delete
-                </button>
+                <>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => setIsRenaming(true)}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                    aria-label="Rename column"
+                  >
+                    Edit name
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                    aria-label="Delete column"
+                  >
+                    <FiTrash2 size={12} aria-hidden="true" />
+                    Delete
+                  </button>
+                </>
               )}
             </div>
           )}

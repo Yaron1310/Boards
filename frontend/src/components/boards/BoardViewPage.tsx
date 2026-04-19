@@ -364,8 +364,8 @@ const BoardViewPage: React.FC = () => {
           )}
         </div>
 
-        {/* Board content area */}
-        <div className="flex-1 overflow-auto" role="grid" aria-label={`Board: ${board.name}`}>
+        {/* Board content area with horizontal scrolling */}
+        <div className="flex-1 overflow-x-auto overflow-y-auto" role="grid" aria-label={`Board: ${board.name}`}>
           {/* Column header row */}
           <ColumnHeader
             boardId={boardId ?? ''}
