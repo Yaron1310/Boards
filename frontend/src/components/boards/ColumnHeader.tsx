@@ -16,13 +16,13 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useColumns, useReorderColumns } from '../../hooks/queries/useColumnQueries';
+import { useColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
 import type { Column } from '../../types';
 import {
   FiType, FiHash, FiCalendar, FiFlag, FiUser, FiChevronDown,
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
-  FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu,
+  FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2,
 } from 'react-icons/fi';
 import { COLUMN_WIDTH_MAP, ITEM_NAME_WIDTH } from '../../utils/columnWidths';
 
@@ -77,12 +77,17 @@ interface ColumnHeaderCellProps {
   sort: SortState | null;
   onSort: (col: Column) => void;
   canManage: boolean;
+  boardId: string;
 }
 
-const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSort, canManage }) => {
+const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSort, canManage, boardId }) => {
   const isActive = sort?.columnId === column.id;
   const icon = COLUMN_TYPE_ICONS[column.type];
   const label = COLUMN_TYPE_LABELS[column.type];
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
 
   const {
     attributes,
@@ -104,6 +109,23 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   };
 
   const widthClass = COLUMN_WIDTH_MAP[column.type];
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpen]);
+
+  const handleDelete = async () => {
+    await deleteColumn(column.id);
+    setMenuOpen(false);
+    setConfirmDelete(false);
+  };
 
   return (
     <div
@@ -152,6 +174,66 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
           <FiArrowUp size={12} aria-hidden="true" />
         )}
       </button>
+
+      {/* Delete menu */}
+      {canManage && (
+        <div className="relative flex-shrink-0" ref={menuRef}>
+          <button
+            type="button"
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 rounded p-0.5 flex items-center justify-center"
+            aria-label={`Options for ${column.name} column`}
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <FiMoreVertical size={12} aria-hidden="true" />
+          </button>
+
+          {menuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
+              aria-label="Column actions"
+            >
+              {confirmDelete ? (
+                <div className="px-3 py-2 space-y-1">
+                  <p className="text-xs text-red-600">Delete this column?</p>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete()}
+                      disabled={isDeleting}
+                      className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
+                      aria-label="Confirm delete"
+                    >
+                      {isDeleting ? '…' : 'Delete'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete(false)}
+                      className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                      aria-label="Cancel"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                  aria-label="Delete column"
+                >
+                  <FiTrash2 size={12} aria-hidden="true" />
+                  Delete
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -256,6 +338,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
               sort={sort}
               onSort={handleSort}
               canManage={canManage}
+              boardId={boardId}
             />
           ))}
         </SortableContext>
