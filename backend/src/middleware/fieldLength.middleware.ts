@@ -10,6 +10,8 @@ const LARGE_FIELD_LIMITS: Record<string, number> = {
     html:                 200_000,  // Email template HTML (system admin email templates)
     htmlContent:          200_000,  // Marketing email HTML
     mediaData:            Infinity, // Base64-encoded media uploads (guard is Express 10MB body limit)
+    logoUpload:           Infinity, // Base64-encoded logo image (guard is Express 10MB body limit)
+    logoUrl:              Infinity, // Can be a long Firebase Storage URL or data URI
     message:              5_000,    // Individual chat messages
     mainText:             10_000,   // Marketing email main body text
     description:          2_000,    // Item/board descriptions and instructions
