@@ -80,6 +80,11 @@ interface DataContextType {
   fetchTutorialSettings: () => Promise<void>;
   updateTutorialSettings: (settings: TutorialSettings) => Promise<boolean>;
 
+  orgTokenUsage: Record<string, { used: number; limit: number | null }> | null;
+  organizationTokenUsage: Record<string, { used: number; limit: number | null }> | null;
+  isAnalyticsLoading: boolean;
+  fetchOrgTokenUsage: (month?: number, year?: number) => Promise<void>;
+
   isLoading: boolean;
   dataError: string | null;
   clearDataError: () => void;
@@ -123,6 +128,12 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- General state ---
   const [dataError, setDataError] = useState<string | null>(null);
+
+  // Token usage analytics stubs — backend not yet implemented
+  const orgTokenUsage: Record<string, { used: number; limit: number | null }> | null = null;
+  const organizationTokenUsage: Record<string, { used: number; limit: number | null }> | null = null;
+  const isAnalyticsLoading = false;
+  const fetchOrgTokenUsage = useCallback(async (_month?: number, _year?: number) => {}, []);
 
   // Composite loading: true while any role-enabled query is loading for the first time
   const isLoading = [
@@ -373,6 +384,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       organizationSettings, updateOrganizationSettings, setOrganizationSettingsLocal, regenerateApiKey,
       systemSettings, fetchSystemSettings, updateSystemSettings,
       tutorialSettings, fetchTutorialSettings, updateTutorialSettings,
+      orgTokenUsage, organizationTokenUsage, isAnalyticsLoading, fetchOrgTokenUsage,
       isLoading, dataError, clearDataError, fetchAllData,
     }}>
       {children}
