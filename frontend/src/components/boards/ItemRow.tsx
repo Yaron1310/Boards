@@ -81,13 +81,13 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
       ref={setNodeRef}
       role="row"
       style={style}
-      className={`flex items-stretch group border-b border-gray-100 last:border-b-0 hover:bg-indigo-50/40 transition-colors ${
+      className={`flex flex-nowrap items-stretch group border-b border-gray-100 last:border-b-0 hover:bg-indigo-50/40 transition-colors ${
         item.isArchived ? 'opacity-60' : ''
       } ${isSelected ? 'bg-indigo-50' : 'bg-white'} ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
       aria-selected={isSelected}
     >
       {/* Left section — drag handle, checkbox, and item name */}
-      <div className={`flex items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-100`}>
+      <div className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-100`}>
         {/* Drag handle */}
         <div
           className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}

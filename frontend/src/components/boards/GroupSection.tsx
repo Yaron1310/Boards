@@ -166,13 +166,13 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     >
       {/* Group header with columns */}
       <div
-        className="flex items-stretch border-b border-gray-200 bg-gray-50 select-none"
+        className="flex flex-nowrap items-stretch border-b border-gray-200 bg-gray-50 select-none"
         style={{ borderLeft: `4px solid ${groupColor}` }}
         role="row"
         aria-label={`Group header: ${group.name}`}
       >
         {/* Left section — fixed width to match ItemRow alignment */}
-        <div className={`flex items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200`}>
+        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200`}>
           {/* Group drag handle */}
           {canManage && (
             <div
@@ -321,7 +321,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             <div
               key={col.id}
               role="columnheader"
-              className={`flex items-center ${widthClass} px-3 py-2 border-r border-gray-200 text-xs font-semibold text-gray-600`}
+              className={`flex flex-shrink-0 items-center ${widthClass} px-3 py-2 border-r border-gray-200 text-xs font-semibold text-gray-600`}
               title={col.name}
             >
               <span className="truncate">{col.name}</span>

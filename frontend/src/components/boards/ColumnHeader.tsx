@@ -160,7 +160,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
       ref={setNodeRef}
       style={style}
       role="columnheader"
-      className={`flex items-center gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
+      className={`flex flex-shrink-0 items-center gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
     >
       {/* Drag handle */}
       {canManage && (
@@ -370,14 +370,14 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
       onDragEnd={handleDragEnd}
     >
       <div
-        className="sticky top-0 z-10 flex items-stretch bg-gray-50 border-b border-gray-200 select-none"
+        className="sticky top-0 z-10 flex flex-nowrap items-stretch bg-gray-50 border-b border-gray-200 select-none"
         role="row"
         aria-label="Column headers"
       >
         {/* Item name column — fixed */}
         <div
           role="columnheader"
-          className={`flex items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-gray-200 text-xs font-semibold text-gray-600 bg-gray-50`}
+          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-gray-200 text-xs font-semibold text-gray-600 bg-gray-50`}
         >
           Item
         </div>
