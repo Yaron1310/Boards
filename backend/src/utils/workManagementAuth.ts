@@ -92,7 +92,9 @@ export function canAccessBoard(
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
-  if (user.orgId !== board.workspaceId) return false;
+  // Tenant isolation is guaranteed by the collection path (boardsCollection(user.orgId)).
+  // board.workspaceId holds the *department* ID — comparing it to user.orgId (the academy ID)
+  // would always be unequal and incorrectly block all non-system-admin users.
 
   const effective = effectiveBoardRole(user, board, member);
 
@@ -101,9 +103,11 @@ export function canAccessBoard(
       return boardRoleAtLeast(effective, BoardRole.VIEWER);
 
     case 'create':
-      // Creating a board has no prior membership; keep workspace-admin gate
+      // ORGANIZATION_ADMIN may create boards in any workspace within their org.
+      // WORKSPACE_ADMIN may only create boards in their own selected workspace.
+      if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) return true;
       return (
-        isAtLeast(user.role, UserRole.WORKSPACE_ADMIN) &&
+        user.role === UserRole.WORKSPACE_ADMIN &&
         user.selectedWorkspaceId === board.workspaceId
       );
 
