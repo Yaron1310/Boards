@@ -159,12 +159,11 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       {/* Group header with columns */}
       <div
         className="flex flex-nowrap items-stretch border-b border-gray-200 bg-gray-50 select-none w-max"
-        style={{ borderLeft: `4px solid ${groupColor}` }}
         role="row"
         aria-label={`Group header: ${group.name}`}
       >
         {/* Left section — fixed width to match ItemRow alignment */}
-        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200 sticky left-4 z-[1] bg-gray-50`}>
+        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200 sticky left-4 z-[1] bg-gray-50`} style={{ borderLeft: `4px solid ${groupColor}` }}>
           {/* Group drag handle */}
           {canManage && (
             <div
