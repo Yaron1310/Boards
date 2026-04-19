@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
+import { COLUMN_TYPE_ICONS } from './ColumnHeader';
 import { COLUMN_WIDTH_MAP, GROUP_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
 interface GroupSectionProps {
@@ -50,7 +51,6 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const [newItemName, setNewItemName] = useState('');
   const addItemInputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const {
@@ -144,15 +144,6 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     }
   };
 
-  const handleSelectToggle = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const groupColor = group.color ?? '#6366f1';
   const itemCount = items.length;
   const itemIds = items.map((i) => i.id);
@@ -199,13 +190,6 @@ const GroupSection: React.FC<GroupSectionProps> = ({
               ? <FiChevronRight size={14} aria-hidden="true" />
               : <FiChevronDown size={14} aria-hidden="true" />}
           </button>
-
-          {/* Color dot */}
-          <span
-            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-            style={{ backgroundColor: groupColor }}
-            aria-hidden="true"
-          />
 
           {/* Group name and info */}
           <div className="flex items-center gap-1 px-2 py-2 flex-1 min-w-0" role="rowheader">
@@ -321,9 +305,10 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             <div
               key={col.id}
               role="columnheader"
-              className={`flex flex-shrink-0 items-center ${widthClass} px-3 py-2 border-r border-gray-200 text-xs font-semibold text-gray-600`}
+              className={`flex flex-shrink-0 items-center gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 text-xs font-semibold text-gray-600`}
               title={col.name}
             >
+              <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
               <span className="truncate">{col.name}</span>
             </div>
           );
@@ -343,8 +328,6 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                 <ItemRow
                   key={item.id}
                   item={item}
-                  isSelected={selectedIds.has(item.id)}
-                  onSelectToggle={handleSelectToggle}
                   onOpenDetail={onOpenDetail}
                 />
               ))}

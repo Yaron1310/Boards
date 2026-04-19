@@ -39,7 +39,7 @@ interface ColumnHeaderProps {
   onAddColumn?: () => void;
 }
 
-const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
+export const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
   [ColumnType.TEXT]:           <FiType size={13} aria-hidden="true" />,
   [ColumnType.NUMBER]:         <FiHash size={13} aria-hidden="true" />,
   [ColumnType.DATE]:           <FiCalendar size={13} aria-hidden="true" />,

@@ -8,16 +8,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
-import { ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH, CHECKBOX_WIDTH } from '../../utils/columnWidths';
+import { ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
 interface ItemRowProps {
   item: Item;
-  isSelected: boolean;
-  onSelectToggle: (id: string) => void;
   onOpenDetail: (item: Item) => void;
 }
 
-const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onOpenDetail }) => {
+const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail }) => {
   const { user } = useAuth();
   const { data: columns = [] } = useColumns(item.boardId);
 
@@ -83,8 +81,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
       style={style}
       className={`flex flex-nowrap items-stretch group border-b border-gray-100 last:border-b-0 hover:bg-indigo-50/40 transition-colors w-max ${
         item.isArchived ? 'opacity-60' : ''
-      } ${isSelected ? 'bg-indigo-50' : 'bg-white'} ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
-      aria-selected={isSelected}
+      } bg-white ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
     >
       {/* Left section — drag handle, checkbox, and item name */}
       <div className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-100`}>
@@ -97,17 +94,6 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, isSelected, onSelectToggle, onO
           {...listeners}
         >
           <FiMenu size={13} aria-hidden="true" />
-        </div>
-
-        {/* Checkbox */}
-        <div role="gridcell" className={`flex items-center justify-center ${CHECKBOX_WIDTH} flex-shrink-0`}>
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={() => onSelectToggle(item.id)}
-            className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-            aria-label={`Select item ${item.name}`}
-          />
         </div>
 
         {/* Item name */}
