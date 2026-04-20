@@ -12,10 +12,10 @@ import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../u
 /**
  * Upload an image file to Firebase Storage and return the public URL.
  */
-async function uploadImageFileToStorage(buffer: Buffer, storagePath: string, cacheControl: string = 'public, max-age=86400'): Promise<string> {
+async function uploadImageFileToStorage(buffer: Buffer, storagePath: string, contentType: string = 'image/webp', cacheControl: string = 'public, max-age=86400'): Promise<string> {
     const file = storage.bucket().file(storagePath);
     await file.save(buffer, {
-        metadata: { contentType: 'image/jpeg', cacheControl },
+        metadata: { contentType, cacheControl },
         public: true,
     });
     return `${file.publicUrl()}?v=${Date.now()}`;
@@ -25,7 +25,7 @@ async function uploadImageFileToStorage(buffer: Buffer, storagePath: string, cac
  * Upload organization logo to Firebase Storage.
  */
 async function uploadLogoToStorage(buffer: Buffer, orgId: string): Promise<string> {
-    return uploadImageFileToStorage(buffer, `organizationLogos/${orgId}/logo.png`, 'public, max-age=31536000');
+    return uploadImageFileToStorage(buffer, `organizationLogos/${orgId}/logo.webp`, 'image/webp', 'public, max-age=31536000');
 }
 
 export const getThemeSettings = async (req: Request, res: Response) => {

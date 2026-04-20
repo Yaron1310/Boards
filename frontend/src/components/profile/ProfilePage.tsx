@@ -146,7 +146,7 @@ const ProfilePage: React.FC = () => {
   const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const MAX_DIMENSION = 400; // px — sufficient for a profile picture
-      const QUALITY = 0.82;
+      const QUALITY = 0.75;
 
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
@@ -177,7 +177,7 @@ const ProfilePage: React.FC = () => {
         canvas.toBlob((blob) => {
           if (!blob) reject(new Error('Failed to compress image'));
           else resolve(blob);
-        }, 'image/jpeg', QUALITY);
+        }, 'image/webp', QUALITY);
       };
 
       img.onerror = () => {

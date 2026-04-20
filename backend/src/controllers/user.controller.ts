@@ -455,17 +455,17 @@ export const updateMyPassword = async (req: Request, res: Response) => {
     }
 };
 
-async function uploadImageFileToStorage(buffer: Buffer, storagePath: string, cacheControl: string = 'public, max-age=86400'): Promise<string> {
+async function uploadImageFileToStorage(buffer: Buffer, storagePath: string, contentType: string = 'image/webp', cacheControl: string = 'public, max-age=86400'): Promise<string> {
     const file = storage.bucket().file(storagePath);
     await file.save(buffer, {
-        metadata: { contentType: 'image/jpeg', cacheControl },
+        metadata: { contentType, cacheControl },
         public: true,
     });
     return `${file.publicUrl()}?v=${Date.now()}`;
 }
 
 async function uploadProfileImageToStorage(buffer: Buffer, userId: string): Promise<string> {
-    return uploadImageFileToStorage(buffer, `userProfileImages/${userId}/profile.jpg`);
+    return uploadImageFileToStorage(buffer, `userProfileImages/${userId}/profile.webp`);
 }
 
 export const updateMyProfileImage = async (req: Request, res: Response) => {
