@@ -318,6 +318,7 @@ const ProfilePage: React.FC = () => {
             setImagePreviewUrl(null);
         } else {
              if (!authError && !dataCtxError) setProfileUpdateMessage({type: 'error', text: "Failed to remove profile image."});
+        }
     }
   };
 
