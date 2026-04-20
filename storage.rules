@@ -1,9 +1,14 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Organization logos are publicly readable (served via public URL)
-    // Writes are handled exclusively by the backend via Admin SDK (bypasses these rules)
+    // Organization logos — publicly readable, backend-only writes via Admin SDK
     match /organizationLogos/{orgId}/logo.png {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // User profile images — publicly readable, backend-only writes via Admin SDK
+    match /userProfileImages/{userId}/profile.jpg {
       allow read: if true;
       allow write: if false;
     }

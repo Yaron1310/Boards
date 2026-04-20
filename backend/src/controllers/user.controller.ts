@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs';
 import admin from 'firebase-admin';
 import * as logger from 'firebase-functions/logger';
 import { Buffer } from 'node:buffer';
-import { db } from '../services/firestore.service.js';
+import { db, storage } from '../services/firestore.service.js';
 
 import {
     usersCollection,
@@ -455,20 +455,46 @@ export const updateMyPassword = async (req: Request, res: Response) => {
     }
 };
 
+async function uploadProfileImageToStorage(dataUri: string, userId: string): Promise<string> {
+    const match = dataUri.match(/^data:(image\/\w+);base64,(.+)$/);
+    if (!match) throw new Error('Invalid data URI format');
+
+    const buffer = Buffer.from(match[2], 'base64');
+    const bucket = storage.bucket();
+    const file = bucket.file(`userProfileImages/${userId}/profile.jpg`);
+
+    await file.save(buffer, {
+        metadata: { contentType: 'image/jpeg', cacheControl: 'public, max-age=86400' },
+        public: true,
+    });
+
+    return `${file.publicUrl()}?v=${Date.now()}`;
+}
+
 export const updateMyProfileImage = async (req: Request, res: Response) => {
     const userPayload = req.user as JwtUserPayload;
     const userId = userPayload.id;
     const { imageUrl } = req.body;
     try {
-        const sanitizedImageUrl = sanitizeImageUrl(imageUrl);
-        await usersCollection.doc(userId).update({ profileImageUrl: sanitizedImageUrl || admin.firestore.FieldValue.delete() });
+        let resolvedUrl = sanitizeImageUrl(imageUrl);
+
+        if (resolvedUrl && resolvedUrl.startsWith('data:image')) {
+            try {
+                resolvedUrl = await uploadProfileImageToStorage(resolvedUrl, userId);
+            } catch (uploadErr) {
+                logger.error('Failed to upload profile image to Storage:', uploadErr);
+                return res.status(500).json({ message: 'Failed to upload profile image.' });
+            }
+        }
+
+        await usersCollection.doc(userId).update({ profileImageUrl: resolvedUrl || admin.firestore.FieldValue.delete() });
 
         // Fan-out: update denormalized profile image on all membership documents
         const membershipsSnapshot = await membershipsCollection.where('userId', '==', userId).get();
         if (!membershipsSnapshot.empty) {
             const batch = db.batch();
             membershipsSnapshot.forEach(doc => batch.update(doc.ref, {
-                userProfileImageUrl: sanitizedImageUrl || admin.firestore.FieldValue.delete()
+                userProfileImageUrl: resolvedUrl || admin.firestore.FieldValue.delete()
             }));
             await batch.commit();
         }
