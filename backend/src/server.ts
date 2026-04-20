@@ -39,7 +39,14 @@ export const createApp = async (): Promise<Application> => {
         }
     }));
     app.use(cookieParser());
-    app.use(express.json({ limit: '10mb' }));
+    app.use(express.json({
+        limit: '10mb',
+        // Skip JSON parsing for multipart/form-data (let multer handle it)
+        type: (req) => {
+            const contentType = req.headers['content-type'] || '';
+            return !contentType.includes('multipart/form-data') ? 'application/json' : false;
+        }
+    }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     app.use(enforceFieldLength);
     app.use(passport.initialize());
