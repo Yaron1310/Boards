@@ -169,12 +169,12 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
       ref={setNodeRef}
       style={style}
       role="columnheader"
-      className={`flex flex-shrink-0 items-center gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
+      className={`flex flex-shrink-0 items-center justify-between gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
     >
       {/* Drag handle */}
       {canManage && (
         <span
-          className="opacity-0 group-hover:opacity-40 text-gray-400 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
+          className="opacity-0 group-hover:opacity-100 text-gray-600 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
           aria-label={`Drag to reorder ${column.name} column`}
           aria-grabbed={isDragging}
           {...attributes}
@@ -188,7 +188,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
         {icon}
       </span>
 
-      <span className="flex-1 text-xs font-semibold text-gray-600 truncate">
+      <span className="flex-1 text-sm font-semibold text-gray-600 truncate">
         {column.name}
       </span>
 
@@ -419,7 +419,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
         {/* Item name column — fixed */}
         <div
           role="columnheader"
-          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-gray-200 text-xs font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1]`}
+          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-gray-200 text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1]`}
         >
           Item
         </div>

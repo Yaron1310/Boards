@@ -167,7 +167,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           {/* Group drag handle */}
           {canManage && (
             <div
-              className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none`}
+              className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} text-gray-500 hover:text-gray-700 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none`}
               aria-label="Drag to reorder group"
               aria-grabbed={isGroupDragging}
               {...groupDragAttributes}
@@ -202,12 +202,12 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                 onBlur={() => void commitNameEdit()}
                 onKeyDown={handleNameKeyDown}
                 disabled={isUpdating}
-                className="text-sm font-semibold text-gray-800 bg-transparent border-b border-indigo-500 outline-none"
+                className="text-base font-semibold text-gray-800 bg-transparent border-b border-indigo-500 outline-none"
                 aria-label="Edit group name"
               />
             ) : (
               <h2
-                className={`text-sm font-semibold text-gray-800 truncate flex-1 ${
+                className={`text-base font-semibold text-gray-800 truncate flex-1 ${
                   canManage ? 'cursor-pointer hover:text-indigo-600 transition-colors' : ''
                 }`}
                 onClick={() => canManage && setEditingName(true)}
@@ -305,7 +305,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             <div
               key={col.id}
               role="columnheader"
-              className={`flex flex-shrink-0 items-center gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 text-xs font-semibold text-gray-600`}
+              className={`flex flex-shrink-0 items-center gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 text-sm font-semibold text-gray-600`}
               title={col.name}
             >
               <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
