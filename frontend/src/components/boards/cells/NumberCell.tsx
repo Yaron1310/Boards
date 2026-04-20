@@ -41,7 +41,7 @@ const NumberCell: React.FC<Props> = ({ item, column }) => {
               value={draft}
               autoFocus
               step={settings?.precision != null ? Math.pow(10, -settings.precision) : 'any'}
-              className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none"
+              className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none text-center"
               onChange={(e) => setDraft(e.target.value)}
               onBlur={() => commit(stopEdit)}
               onKeyDown={(e) => {
@@ -54,7 +54,7 @@ const NumberCell: React.FC<Props> = ({ item, column }) => {
         }
         const display = formatDisplay();
         return (
-          <div className="px-3 py-2 text-sm text-gray-700 truncate w-full text-right">
+          <div className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center">
             {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
           </div>
         );

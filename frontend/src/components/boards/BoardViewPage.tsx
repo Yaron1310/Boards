@@ -36,9 +36,10 @@ const BoardViewPage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  const itemParams = useMemo(() => ({ boardId: boardId ?? '', limit: 200 }), [boardId]);
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);
   const { data: groups = [], isLoading: groupsLoading } = useGroups(boardId ?? '', !!boardId);
-  const { data: itemsPage } = useItems({ boardId: boardId ?? '', limit: 200 }, !!boardId);
+  const { data: itemsPage } = useItems(itemParams, !!boardId);
 
   const { mutateAsync: updateBoard, isPending: isSaving } = useUpdateBoard();
   const { mutateAsync: archiveBoard, isPending: isArchiving } = useArchiveBoard();
@@ -91,13 +92,19 @@ const BoardViewPage: React.FC = () => {
   // Sync local state from server
   useEffect(() => {
     const sorted = [...groups].sort((a, b) => a.order - b.order);
-    setLocalGroups(sorted);
-    serverGroupsRef.current = sorted;
+    // Only update if changed
+    if (JSON.stringify(sorted) !== JSON.stringify(serverGroupsRef.current)) {
+      setLocalGroups(sorted);
+      serverGroupsRef.current = sorted;
+    }
   }, [groups]);
 
   useEffect(() => {
-    setLocalItemsByGroup(serverItemsByGroup);
-    serverItemsByGroupRef.current = serverItemsByGroup;
+    // Only update if changed
+    if (JSON.stringify(serverItemsByGroup) !== JSON.stringify(serverItemsByGroupRef.current)) {
+      setLocalItemsByGroup(serverItemsByGroup);
+      serverItemsByGroupRef.current = serverItemsByGroup;
+    }
   }, [serverItemsByGroup]);
 
   useEffect(() => {

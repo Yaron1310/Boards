@@ -16,7 +16,27 @@ const formatDate = (val: string | Date | null | undefined): string => {
   if (!val) return '';
   const d = val instanceof Date ? val : new Date(val as string);
   if (isNaN(d.getTime())) return '';
-  return d.toLocaleDateString([], { dateStyle: 'short' });
+  return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
+};
+
+const TrafficLight: React.FC<{ date: string | Date | null | undefined, type: 'start' | 'end' }> = ({ date, type }) => {
+  let red = "#666666";
+  let green = "#666666";
+
+  if (type === 'start') {
+    green = "#22c55e"; // Start always green bottom
+  } else {
+    red = "#ef4444";   // End always red top
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="w-[22px] h-[22px] -ml-1">
+      <rect x="7" y="3" width="10" height="18" rx="3" fill="#000000" stroke="rgba(255, 255, 255, 0.15)" strokeWidth="1" />
+      <circle cx="12" cy="7" r="2" fill={red} />
+      <circle cx="12" cy="12" r="2" fill="#666666" />
+      <circle cx="12" cy="17" r="2" fill={green} />
+    </svg>
+  );
 };
 
 const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
@@ -45,43 +65,71 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
       {(isEditing, stopEdit) => {
         if (isEditing) {
           return (
-            <div className="flex items-center gap-1 px-2 py-1 w-full">
+            <div 
+              className="flex items-center gap-1 px-2 py-1 w-full bg-white rounded shadow-lg border border-indigo-200 z-30"
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                  commit(stopEdit);
+                }
+              }}
+            >
               <input
                 type="date"
                 value={start}
                 autoFocus
-                className="flex-1 text-xs border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-indigo-400"
+                className="flex-1 text-[10px] border border-gray-100 rounded px-1 py-0.5 outline-none focus:border-indigo-400 text-center"
                 onChange={(e) => setStart(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') { setStart(toDateInput(rawValue?.start)); setEnd(toDateInput(rawValue?.end)); stopEdit(); }
-                }}
-                aria-label={`${column.name} start date`}
-              />
-              <span className="text-gray-400 text-xs flex-shrink-0">→</span>
-              <input
-                type="date"
-                value={end}
-                className="flex-1 text-xs border border-gray-200 rounded px-1 py-0.5 outline-none focus:border-indigo-400"
-                onChange={(e) => setEnd(e.target.value)}
-                onBlur={() => commit(stopEdit)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
                   if (e.key === 'Escape') { setStart(toDateInput(rawValue?.start)); setEnd(toDateInput(rawValue?.end)); stopEdit(); }
                 }}
-                aria-label={`${column.name} end date`}
+              />
+              <span className="text-gray-400 text-[10px] flex-shrink-0">→</span>
+              <input
+                type="date"
+                value={end}
+                className="flex-1 text-[10px] border border-gray-100 rounded px-1 py-0.5 outline-none focus:border-indigo-400 text-center"
+                onChange={(e) => setEnd(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
+                  if (e.key === 'Escape') { setStart(toDateInput(rawValue?.start)); setEnd(toDateInput(rawValue?.end)); stopEdit(); }
+                }}
               />
             </div>
           );
         }
-        const startDisplay = formatDate(rawValue?.start);
-        const endDisplay = formatDate(rawValue?.end);
+
+        if (!rawValue?.start && !rawValue?.end) {
+          return (
+            <div className="px-3 py-2 text-xs text-gray-300 text-center w-full italic">
+              Set range
+            </div>
+          );
+        }
+
         return (
-          <div className="px-3 py-2 text-sm text-gray-700 truncate w-full">
-            {startDisplay || endDisplay ? (
-              <span>{startDisplay || '?'} → {endDisplay || '?'}</span>
-            ) : (
-              <span className="text-gray-300 text-xs">—</span>
-            )}
+          <div className="px-1 py-0.5 flex justify-center w-full overflow-hidden">
+            <div 
+              className="inline-flex items-center gap-[2px] px-3 py-0.5 rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:brightness-[1.08] transition-all cursor-default"
+              style={{ background: 'linear-gradient(90deg, #6366f1, #3b82f6)' }}
+            >
+              <span className="flex items-center gap-0.5">
+                <TrafficLight date={rawValue?.start} type="start" />
+                {formatDate(rawValue?.start) || '?'}
+              </span>
+
+              <span className="ml-1.5 flex items-center">
+                <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-none stroke-white stroke-[2.5]">
+                  <line x1="1" y1="12" x2="19" y2="12" />
+                  <polyline points="13 6 19 12 13 18" />
+                </svg>
+              </span>
+
+              <span className="flex items-center gap-0.5 ml-0.5">
+                <TrafficLight date={rawValue?.end} type="end" />
+                {formatDate(rawValue?.end) || '?'}
+              </span>
+            </div>
           </div>
         );
       }}

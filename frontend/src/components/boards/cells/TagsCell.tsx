@@ -81,7 +81,7 @@ const TagsCell: React.FC<Props> = ({ item, column }) => {
           );
         }
         return (
-          <div className="px-3 py-2 flex flex-wrap gap-1 w-full">
+          <div className="px-3 py-2 flex flex-wrap justify-center gap-1 w-full">
             {rawValue.length > 0 ? rawValue.map((tag) => (
               <span
                 key={tag}

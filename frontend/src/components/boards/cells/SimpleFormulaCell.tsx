@@ -40,7 +40,7 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
       className="flex items-center min-w-[120px] px-3 py-2 border-r border-gray-100 last:border-r-0 bg-gray-50/60"
       title="Computed value — read only"
     >
-      <span className="text-sm text-gray-600 truncate w-full text-right">
+      <span className="text-sm text-gray-600 truncate w-full text-center">
         {result != null ? (Number.isInteger(result) ? result : result.toFixed(2)) : <span className="text-gray-300 text-xs">—</span>}
       </span>
     </div>

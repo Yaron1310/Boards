@@ -25,7 +25,7 @@ const CellWrapper: React.FC<CellWrapperProps> = ({ column, isReadOnly = false, c
     <div
       role="gridcell"
       aria-label={column.name}
-      className={`relative flex flex-shrink-0 items-center ${widthClass} border-r border-gray-100 last:border-r-0 ${
+      className={`relative flex flex-shrink-0 items-center justify-center ${widthClass} border-r border-gray-100 last:border-r-0 ${
         isEditing ? 'z-20 ring-1 ring-inset ring-indigo-400' : !isReadOnly ? 'hover:bg-indigo-50/30 cursor-pointer' : ''
       }`}
       onClick={isEditing ? undefined : startEdit}

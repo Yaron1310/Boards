@@ -342,8 +342,10 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
   const serverColumnsRef = useRef<Column[]>([]);
 
   useEffect(() => {
-    setLocalColumns(columns);
-    serverColumnsRef.current = columns;
+    if (JSON.stringify(columns) !== JSON.stringify(serverColumnsRef.current)) {
+      setLocalColumns(columns);
+      serverColumnsRef.current = columns;
+    }
   }, [columns]);
 
   const sensors = useSensors(

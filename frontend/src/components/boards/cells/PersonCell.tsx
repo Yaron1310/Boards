@@ -50,7 +50,7 @@ const PersonCell: React.FC<Props> = ({ item, column }) => {
     <CellWrapper column={column}>
       {(isEditing, stopEdit) => (
         <>
-          <div className="px-3 py-2 w-full flex items-center">
+          <div className="px-3 py-2 w-full flex items-center justify-center">
             {selectedUsers.length > 0 ? (
               <div className="flex items-center -space-x-1">
                 {selectedUsers.slice(0, 3).map((u) => <Avatar key={u.id} user={u} />)}

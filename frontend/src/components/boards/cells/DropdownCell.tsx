@@ -28,7 +28,7 @@ const DropdownCell: React.FC<Props> = ({ item, column }) => {
     <CellWrapper column={column}>
       {(isEditing, stopEdit) => (
         <>
-          <div className="px-3 py-2 w-full flex flex-wrap gap-1 min-h-[36px] items-center">
+          <div className="px-3 py-2 w-full flex flex-wrap gap-1 min-h-[36px] items-center justify-center">
             {selectedOptions.length > 0 ? selectedOptions.map((o) => (
               <span
                 key={o.id}

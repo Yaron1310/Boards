@@ -5,7 +5,7 @@
 // automatically forwarded to the backend function by Firebase Hosting.
 
 // const DEVELOPMENT_BACKEND_URL = 'http://localhost:8080'; // For local dev with `firebase emulators:start`
-const DEVELOPMENT_BACKEND_URL = 'https://api-72zxe6vfjq-uc.a.run.app'; // Live Production Backend
+const DEVELOPMENT_BACKEND_URL = 'https://api-two25mmunq-uc.a.run.app'; // Live Production Backend
 
 // `process.env.NODE_ENV` is a standard variable injected by many bundlers, including Vite.
 // Vite replaces this with 'production' or 'development' at build time.

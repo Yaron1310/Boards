@@ -54,7 +54,7 @@ const DateCell: React.FC<Props> = ({ item, column }) => {
               type={includeTime ? 'datetime-local' : 'date'}
               value={draft}
               autoFocus
-              className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none"
+              className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none text-center"
               onChange={(e) => setDraft(e.target.value)}
               onBlur={() => commit(stopEdit)}
               onKeyDown={(e) => {
@@ -67,7 +67,7 @@ const DateCell: React.FC<Props> = ({ item, column }) => {
         }
         const display = formatDisplay(rawValue, includeTime);
         return (
-          <div className="px-3 py-2 text-sm text-gray-700 truncate w-full">
+          <div className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center">
             {display || <span className="text-gray-300 text-xs">—</span>}
           </div>
         );
