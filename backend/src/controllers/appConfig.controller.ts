@@ -10,23 +10,22 @@ import { JwtUserPayload, DBOrganizationSettings } from '../types/index.js';
 import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../utils/sanitizer.js';
 
 /**
- * Upload a base64 data-URI image to Firebase Storage and return the public URL.
+ * Upload an image file to Firebase Storage and return the public URL.
  */
-async function uploadLogoToStorage(dataUri: string, orgId: string): Promise<string> {
-    const match = dataUri.match(/^data:(image\/\w+);base64,(.+)$/);
-    if (!match) throw new Error('Invalid data URI format');
-
-    const buffer = Buffer.from(match[2], 'base64');
-    const bucket = storage.bucket();
-    const filePath = `organizationLogos/${orgId}/logo.png`;
-    const file = bucket.file(filePath);
-
+async function uploadImageFileToStorage(buffer: Buffer, storagePath: string, cacheControl: string = 'public, max-age=86400'): Promise<string> {
+    const file = storage.bucket().file(storagePath);
     await file.save(buffer, {
-        metadata: { contentType: 'image/png', cacheControl: 'public, max-age=31536000' },
+        metadata: { contentType: 'image/jpeg', cacheControl },
         public: true,
     });
-
     return `${file.publicUrl()}?v=${Date.now()}`;
+}
+
+/**
+ * Upload organization logo to Firebase Storage.
+ */
+async function uploadLogoToStorage(buffer: Buffer, orgId: string): Promise<string> {
+    return uploadImageFileToStorage(buffer, `organizationLogos/${orgId}/logo.png`, 'public, max-age=31536000');
 }
 
 export const getThemeSettings = async (req: Request, res: Response) => {
@@ -74,7 +73,6 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
         sidebarGradientMaskOpacity,
         appName,
         logoUrl,
-        logoUpload,
         displayNameColor,
         sidebarLinkColor,
         logoCircle,
@@ -91,10 +89,10 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
-        const sanitizedLogoUpload = sanitizeImageUrl(logoUpload);
-        if (sanitizedLogoUpload && typeof sanitizedLogoUpload === 'string' && sanitizedLogoUpload.startsWith('data:image')) {
+        // Handle logo file upload via multipart/form-data
+        if ((req as any).file) {
             try {
-                const publicUrl = await uploadLogoToStorage(sanitizedLogoUpload, user.orgId);
+                const publicUrl = await uploadLogoToStorage((req as any).file.buffer, user.orgId);
                 dataToUpdate.logoUrl = publicUrl;
             } catch (uploadErr) {
                 logger.error('Failed to upload logo to Storage:', uploadErr);

@@ -247,11 +247,33 @@ export const deletePreApprovedUserFromBackend = async (preApprovedUserId: string
 export const getMyUserDetails = async (): Promise<{ user: User, selectedWorkspace: Workspace }> => fetchWithAuth('/api/users/me/details');
 export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
 export const updateMyPassword = async (passwords: { currentPassword?: string; newPassword: string }): Promise<{ message: string }> => fetchWithAuth('/api/users/me/password', { method: 'PUT', body: JSON.stringify(passwords) });
-export const updateMyProfileImage = async (imageUrl: string): Promise<User> => fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: JSON.stringify({ imageUrl }) });
+export const updateMyProfileImage = async (imageData: string | Blob): Promise<User> => {
+    if (imageData instanceof Blob) {
+        const formData = new FormData();
+        formData.append('image', imageData);
+        return fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: formData });
+    }
+    return fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: JSON.stringify({ imageUrl: imageData }) });
+};
 
 // --- Workspace Settings / Theme ---
 export const getThemeSettingsFromBackend = async (): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/theme');
-export const updateThemeSettingsOnBackend = async (settings: Partial<OrganizationSettings> & { logoUpload?: string; }): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify(settings) });
+export const updateThemeSettingsOnBackend = async (settings: Partial<OrganizationSettings> & { logoUpload?: Blob | string; }): Promise<OrganizationSettings> => {
+    if (settings.logoUpload instanceof Blob) {
+        const formData = new FormData();
+        Object.keys(settings).forEach(key => {
+            const value = settings[key as keyof typeof settings];
+            if (key === 'logoUpload') {
+                formData.append('logo', value as Blob);
+            } else if (value !== undefined) {
+                formData.append(key, String(value));
+            }
+        });
+        delete settings.logoUpload;
+        return fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: formData });
+    }
+    return fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify(settings) });
+};
 export const regenerateApiKey = async (): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/api-key/regenerate', { method: 'POST' });
 
 // --- System-wide Settings (System Admin only) ---

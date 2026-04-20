@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import * as userController from '../controllers/user.controller.js';
 import { requireRole } from '../middleware/auth.middleware.js';
+import { uploadImage } from '../middleware/upload.middleware.js';
 import { UserRole } from '../types/index.js';
 
 export const userRouter = Router();
@@ -15,7 +16,7 @@ userRouter.delete('/pre-approved/:id', requireRole([UserRole.ORGANIZATION_ADMIN,
 userRouter.get('/me/details', userController.getMyUserDetails);
 userRouter.put('/me/details', userController.updateMyUserDetails);
 userRouter.put('/me/password', userController.updateMyPassword);
-userRouter.put('/me/profile-image', userController.updateMyProfileImage);
+userRouter.put('/me/profile-image', uploadImage.single('image'), userController.updateMyProfileImage);
 
 
 // --- General user management (Admin/Manager) ---

@@ -50,6 +50,7 @@ const ProfilePage: React.FC = () => {
   const [isEditingImage, setIsEditingImage] = useState(false);
   const [editedImageUrl, setEditedImageUrl] = useState('');
   const [imageUploadFile, setImageUploadFile] = useState<File | null>(null);
+  const [compressedImageBlob, setCompressedImageBlob] = useState<Blob | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
 
@@ -142,7 +143,7 @@ const ProfilePage: React.FC = () => {
     if (dataCtxError) clearDataCtxError();
   }
 
-  const compressImage = (file: File): Promise<string> => {
+  const compressImage = (file: File): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const MAX_DIMENSION = 400; // px — sufficient for a profile picture
       const QUALITY = 0.82;
@@ -173,7 +174,10 @@ const ProfilePage: React.FC = () => {
           return;
         }
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', QUALITY));
+        canvas.toBlob((blob) => {
+          if (!blob) reject(new Error('Failed to compress image'));
+          else resolve(blob);
+        }, 'image/jpeg', QUALITY);
       };
 
       img.onerror = () => {
@@ -212,8 +216,9 @@ const ProfilePage: React.FC = () => {
     setShowUrlInput(false);
 
     compressImage(file)
-      .then((dataUrl) => {
-        setImagePreviewUrl(dataUrl);
+      .then((blob) => {
+        setCompressedImageBlob(blob);
+        setImagePreviewUrl(URL.createObjectURL(blob));
       })
       .catch(() => {
         setProfileUpdateMessage({ type: 'error', text: 'Failed to process image. Please try another file.' });
@@ -273,37 +278,46 @@ const ProfilePage: React.FC = () => {
 
   const handleSaveImage = async () => {
     clearMessages();
-    let imageUrlToSave = '';
 
-    if (imageUploadFile) {
-        if (imagePreviewUrl) {
-            imageUrlToSave = imagePreviewUrl;
+    if (compressedImageBlob) {
+        // Upload the compressed image blob
+        const success = await updateUserProfileImage(compressedImageBlob);
+        if (success) {
+            setProfileUpdateMessage({type: 'success', text: "Profile image updated."});
+            setIsEditingImage(false);
+            setImageUploadFile(null);
+            setCompressedImageBlob(null);
+            if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+            setImagePreviewUrl(null);
         } else {
-            setProfileUpdateMessage({type: 'error', text: "Error processing uploaded image. Please try again."});
-            return;
+             if (!authError && !dataCtxError) setProfileUpdateMessage({type: 'error', text: "Failed to update profile image."});
         }
     } else if (editedImageUrl.trim()) {
         const url = editedImageUrl.trim();
-        // Only validate as HTTP URL if the user explicitly entered it (input visible)
-        // If input is hidden, we assume the value (likely base64 from DB) is valid.
+        // Validate HTTPS URL
         if (showUrlInput && !url.startsWith('http') && !url.startsWith('https')) {
              setProfileUpdateMessage({type: 'error', text: "Please enter a valid image URL starting with http."});
              return;
         }
-        imageUrlToSave = url;
+        const success = await updateUserProfileImage(url);
+        if (success) {
+            setProfileUpdateMessage({type: 'success', text: "Profile image updated."});
+            setIsEditingImage(false);
+        } else {
+             if (!authError && !dataCtxError) setProfileUpdateMessage({type: 'error', text: "Failed to update profile image."});
+        }
     } else {
-        // Allow user to remove their image by saving an empty string
-        imageUrlToSave = '';
-    }
-    
-    const success = await updateUserProfileImage(imageUrlToSave);
-    if (success) {
-        setProfileUpdateMessage({type: 'success', text: "Profile image updated."});
-        setIsEditingImage(false);
-        setImageUploadFile(null);
-        setImagePreviewUrl(null);
-    } else {
-         if (!authError && !dataCtxError) setProfileUpdateMessage({type: 'error', text: "Failed to update profile image."});
+        // Remove profile image
+        const success = await updateUserProfileImage('');
+        if (success) {
+            setProfileUpdateMessage({type: 'success', text: "Profile image removed."});
+            setIsEditingImage(false);
+            setImageUploadFile(null);
+            setCompressedImageBlob(null);
+            if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+            setImagePreviewUrl(null);
+        } else {
+             if (!authError && !dataCtxError) setProfileUpdateMessage({type: 'error', text: "Failed to remove profile image."});
     }
   };
 

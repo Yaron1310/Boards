@@ -455,20 +455,17 @@ export const updateMyPassword = async (req: Request, res: Response) => {
     }
 };
 
-async function uploadProfileImageToStorage(dataUri: string, userId: string): Promise<string> {
-    const match = dataUri.match(/^data:(image\/\w+);base64,(.+)$/);
-    if (!match) throw new Error('Invalid data URI format');
-
-    const buffer = Buffer.from(match[2], 'base64');
-    const bucket = storage.bucket();
-    const file = bucket.file(`userProfileImages/${userId}/profile.jpg`);
-
+async function uploadImageFileToStorage(buffer: Buffer, storagePath: string, cacheControl: string = 'public, max-age=86400'): Promise<string> {
+    const file = storage.bucket().file(storagePath);
     await file.save(buffer, {
-        metadata: { contentType: 'image/jpeg', cacheControl: 'public, max-age=86400' },
+        metadata: { contentType: 'image/jpeg', cacheControl },
         public: true,
     });
-
     return `${file.publicUrl()}?v=${Date.now()}`;
+}
+
+async function uploadProfileImageToStorage(buffer: Buffer, userId: string): Promise<string> {
+    return uploadImageFileToStorage(buffer, `userProfileImages/${userId}/profile.jpg`);
 }
 
 export const updateMyProfileImage = async (req: Request, res: Response) => {
@@ -476,15 +473,19 @@ export const updateMyProfileImage = async (req: Request, res: Response) => {
     const userId = userPayload.id;
     const { imageUrl } = req.body;
     try {
-        let resolvedUrl = sanitizeImageUrl(imageUrl);
+        let resolvedUrl = '';
 
-        if (resolvedUrl && resolvedUrl.startsWith('data:image')) {
+        // Handle file upload via multipart/form-data
+        if ((req as any).file) {
             try {
-                resolvedUrl = await uploadProfileImageToStorage(resolvedUrl, userId);
+                resolvedUrl = await uploadProfileImageToStorage((req as any).file.buffer, userId);
             } catch (uploadErr) {
                 logger.error('Failed to upload profile image to Storage:', uploadErr);
                 return res.status(500).json({ message: 'Failed to upload profile image.' });
             }
+        } else if (imageUrl) {
+            // Handle direct HTTPS URL (no upload needed)
+            resolvedUrl = sanitizeImageUrl(imageUrl);
         }
 
         await usersCollection.doc(userId).update({ profileImageUrl: resolvedUrl || admin.firestore.FieldValue.delete() });

@@ -32,7 +32,7 @@ interface AuthContextType {
   logout: () => void;
   updateUserDetails: (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string }) => Promise<boolean>;
   updateUserPassword: (passwords: { currentPassword?: string; newPassword: string }) => Promise<boolean>;
-  updateUserProfileImage: (imageUrl: string) => Promise<boolean>;
+  updateUserProfileImage: (imageData: string | Blob) => Promise<boolean>;
   setAuthenticatedUserFromGoogle: (token: string) => Promise<boolean>;
   setAuthenticatedUserFromToken: (token: string) => Promise<boolean>;
 
@@ -575,9 +575,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const dismissLanguageModal = useCallback(() => setShowLanguageModal(false), []);
 
-  const updateUserProfileImage = useCallback(async (imageUrl: string): Promise<boolean> => {
+  const updateUserProfileImage = useCallback(async (imageData: string | Blob): Promise<boolean> => {
     try {
-        const updatedUser = await apiService.updateMyProfileImage(imageUrl);
+        const updatedUser = await apiService.updateMyProfileImage(imageData);
         updateAuthUser(updatedUser);
         return true;
     } catch (error: any) {
