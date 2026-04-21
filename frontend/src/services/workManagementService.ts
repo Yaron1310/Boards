@@ -13,9 +13,13 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   const storedToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
   const callerHeaders = (options.headers || {}) as Record<string, string>;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...callerHeaders,
   };
+
+  if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   if (storedToken && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${storedToken}`;
   }

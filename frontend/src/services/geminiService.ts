@@ -13,9 +13,16 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
   const storedToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
   const callerHeaders = (options.headers || {}) as Record<string, string>;
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...callerHeaders,
   };
+
+  // If the body is FormData, the browser will set the Content-Type automatically (including boundary).
+  // If we set it to 'application/json' or anything else, it will break.
+  // If the user DID NOT provide a Content-Type, and it's NOT FormData, we default to application/json.
+  if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+  }
+
   // Add stored token as Bearer if no explicit Authorization header was provided by the caller
   if (storedToken && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${storedToken}`;
