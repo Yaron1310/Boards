@@ -1,6 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { FiX, FiColumns, FiPlus, FiTrash2 } from 'react-icons/fi';
+import {
+  FiX, FiColumns, FiPlus, FiTrash2,
+  FiType, FiHash, FiCalendar, FiClock, FiWatch,
+  FiFlag, FiUser, FiChevronDown, FiCheckSquare, FiTag,
+  FiMail, FiPhone, FiMapPin, FiZap,
+} from 'react-icons/fi';
 import { useCreateColumn, useColumns, useReorderColumns } from '../../hooks/queries/useColumnQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
@@ -29,8 +34,96 @@ const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   [ColumnType.PHONE]: 'Phone',
   [ColumnType.LOCATION]: 'Location',
   [ColumnType.TIME_RANGE]: 'Time Range',
-  [ColumnType.SIMPLE_FORMULA]: 'Simple Formula',
+  [ColumnType.SIMPLE_FORMULA]: 'Formula',
 };
+
+const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
+  [ColumnType.TEXT]: <FiType size={20} aria-hidden="true" />,
+  [ColumnType.NUMBER]: <FiHash size={20} aria-hidden="true" />,
+  [ColumnType.DATE]: <FiCalendar size={20} aria-hidden="true" />,
+  [ColumnType.TIME]: <FiClock size={20} aria-hidden="true" />,
+  [ColumnType.TIME_RANGE]: <FiWatch size={20} aria-hidden="true" />,
+  [ColumnType.STATUS]: <FiFlag size={20} aria-hidden="true" />,
+  [ColumnType.DROPDOWN]: <FiChevronDown size={20} aria-hidden="true" />,
+  [ColumnType.CHECKBOX]: <FiCheckSquare size={20} aria-hidden="true" />,
+  [ColumnType.PERSON]: <FiUser size={20} aria-hidden="true" />,
+  [ColumnType.EMAIL]: <FiMail size={20} aria-hidden="true" />,
+  [ColumnType.PHONE]: <FiPhone size={20} aria-hidden="true" />,
+  [ColumnType.TAGS]: <FiTag size={20} aria-hidden="true" />,
+  [ColumnType.LOCATION]: <FiMapPin size={20} aria-hidden="true" />,
+  [ColumnType.SIMPLE_FORMULA]: <FiZap size={20} aria-hidden="true" />,
+};
+
+type GroupStyle = {
+  dot: string;
+  selectedBg: string;
+  selectedBorder: string;
+  selectedText: string;
+  selectedIcon: string;
+  hoverBg: string;
+  hoverBorder: string;
+};
+
+const GROUP_STYLES: Record<string, GroupStyle> = {
+  Inputs: {
+    dot: 'bg-blue-500',
+    selectedBg: 'bg-blue-50',
+    selectedBorder: 'border-blue-500',
+    selectedText: 'text-blue-700',
+    selectedIcon: 'text-blue-600',
+    hoverBg: 'hover:bg-blue-50',
+    hoverBorder: 'hover:border-blue-300',
+  },
+  Time: {
+    dot: 'bg-teal-500',
+    selectedBg: 'bg-teal-50',
+    selectedBorder: 'border-teal-500',
+    selectedText: 'text-teal-700',
+    selectedIcon: 'text-teal-600',
+    hoverBg: 'hover:bg-teal-50',
+    hoverBorder: 'hover:border-teal-300',
+  },
+  Selection: {
+    dot: 'bg-violet-500',
+    selectedBg: 'bg-violet-50',
+    selectedBorder: 'border-violet-500',
+    selectedText: 'text-violet-700',
+    selectedIcon: 'text-violet-600',
+    hoverBg: 'hover:bg-violet-50',
+    hoverBorder: 'hover:border-violet-300',
+  },
+  Information: {
+    dot: 'bg-orange-500',
+    selectedBg: 'bg-orange-50',
+    selectedBorder: 'border-orange-500',
+    selectedText: 'text-orange-700',
+    selectedIcon: 'text-orange-600',
+    hoverBg: 'hover:bg-orange-50',
+    hoverBorder: 'hover:border-orange-300',
+  },
+  Calculation: {
+    dot: 'bg-emerald-500',
+    selectedBg: 'bg-emerald-50',
+    selectedBorder: 'border-emerald-500',
+    selectedText: 'text-emerald-700',
+    selectedIcon: 'text-emerald-600',
+    hoverBg: 'hover:bg-emerald-50',
+    hoverBorder: 'hover:border-emerald-300',
+  },
+};
+
+const COLUMN_TYPE_GROUPS: { label: string; types: ColumnType[] }[] = [
+  { label: 'Inputs', types: [ColumnType.TEXT, ColumnType.NUMBER] },
+  { label: 'Time', types: [ColumnType.DATE, ColumnType.TIME, ColumnType.TIME_RANGE] },
+  { label: 'Selection', types: [ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.CHECKBOX, ColumnType.PERSON] },
+  { label: 'Information', types: [ColumnType.EMAIL, ColumnType.PHONE, ColumnType.TAGS, ColumnType.LOCATION] },
+  { label: 'Calculation', types: [ColumnType.SIMPLE_FORMULA] },
+];
+
+const TYPE_TO_GROUP: Record<ColumnType, string> = {} as Record<ColumnType, string>;
+COLUMN_TYPE_GROUPS.forEach(({ label, types }) => {
+  types.forEach((t) => { TYPE_TO_GROUP[t] = label; });
+});
 
 const STATUS_PALETTE = [
   '#6B7280', '#10B981', '#F59E0B', '#EF4444',
@@ -41,13 +134,13 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending } = useCreateColumn(boardId);
   const { data: allColumns = [] } = useColumns(boardId);
-  const { mutateAsync: reorderColumns, isPending: isReordering } = useReorderColumns(boardId);
+  const { mutateAsync: reorderColumns } = useReorderColumns(boardId);
   const previousColumnsRef = useRef<string[]>([]);
 
-  // Track column IDs before creation
   useEffect(() => {
     previousColumnsRef.current = allColumns.map(c => c.id);
   }, []);
+
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
@@ -120,15 +213,9 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const buildSettings = () => {
     switch (type) {
       case ColumnType.TEXT:
-        return {
-          ...(maxLength ? { maxLength: parseInt(maxLength, 10) } : {}),
-          multiline,
-        };
+        return { ...(maxLength ? { maxLength: parseInt(maxLength, 10) } : {}), multiline };
       case ColumnType.NUMBER:
-        return {
-          ...(unit ? { unit } : {}),
-          ...(precision ? { precision: parseInt(precision, 10) } : {}),
-        };
+        return { ...(unit ? { unit } : {}), ...(precision ? { precision: parseInt(precision, 10) } : {}) };
       case ColumnType.DATE:
         return { includeTime };
       case ColumnType.STATUS:
@@ -140,10 +227,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       case ColumnType.TAGS:
         return { allowCustom };
       case ColumnType.SIMPLE_FORMULA:
-        return {
-          operation: formulaOperation,
-          fields: [formulaField1, formulaField2] as [string, string],
-        };
+        return { operation: formulaOperation, fields: [formulaField1, formulaField2] as [string, string] };
       default:
         return {};
     }
@@ -173,39 +257,29 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     try {
       await createColumn({ name: trimmedName, type, settings: buildSettings() });
 
-      // Refetch columns to get the new column
       await qc.refetchQueries({ queryKey: queryKeys.columns.board(boardId) });
       const rawColumns = qc.getQueryData(queryKeys.columns.board(boardId)) as any[] ?? [];
 
-      // Sort by order field so position indices match visual order
       const updatedColumns = [...rawColumns].sort((a: any, b: any) => {
         const aOrder = typeof a.order === 'number' ? a.order : Infinity;
         const bOrder = typeof b.order === 'number' ? b.order : Infinity;
         return aOrder - bOrder;
       });
 
-      // Always reorder the new column to the correct position
       if (updatedColumns.length > 0) {
-        // Find the new column
         const newColumnId = updatedColumns.find(col => !previousColumnsRef.current.includes(col.id))?.id;
 
         if (newColumnId) {
-          // Calculate target index
-          let targetIndex = updatedColumns.length - 1; // Default to end (rightmost)
+          let targetIndex = updatedColumns.length - 1;
 
           if (insertAfterColumnId) {
             const afterIdx = updatedColumns.findIndex(c => c.id === insertAfterColumnId);
-            if (afterIdx !== -1) {
-              targetIndex = afterIdx + 1;
-            }
+            if (afterIdx !== -1) targetIndex = afterIdx + 1;
           } else if (insertBeforeColumnId) {
             const beforeIdx = updatedColumns.findIndex(c => c.id === insertBeforeColumnId);
-            if (beforeIdx !== -1) {
-              targetIndex = beforeIdx;
-            }
+            if (beforeIdx !== -1) targetIndex = beforeIdx;
           }
 
-          // Move new column to target position and assign order to all columns
           const currentIndex = updatedColumns.findIndex(c => c.id === newColumnId);
           if (currentIndex !== -1) {
             const reordered = updatedColumns.filter(c => c.id !== newColumnId);
@@ -232,7 +306,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       aria-modal="true"
       aria-labelledby="add-column-title"
     >
-      <div ref={dialogRef} className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+      <div ref={dialogRef} className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -255,11 +329,58 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
         </div>
 
         <form onSubmit={(e) => void handleSubmit(e)} noValidate className="flex flex-col min-h-0 flex-1">
-          <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
-            {/* Name */}
+          <div className="px-6 py-5 space-y-5 overflow-y-auto flex-1">
+
+            {/* Section 1: Column Type */}
             <div>
-              <label htmlFor="col-name" className="block text-sm font-medium text-gray-700 mb-1">
-                Name <span aria-hidden="true" className="text-red-500">*</span>
+              <p className="text-sm font-semibold text-gray-700 mb-3">Select column type</p>
+              <div className="space-y-3" role="group" aria-label="Column type selector">
+                {COLUMN_TYPE_GROUPS.map(({ label, types }) => {
+                  const s = GROUP_STYLES[label];
+                  return (
+                    <div key={label}>
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} aria-hidden="true" />
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {types.map((ct) => {
+                          const isSelected = type === ct;
+                          return (
+                            <button
+                              key={ct}
+                              type="button"
+                              onClick={() => setType(ct)}
+                              aria-pressed={isSelected}
+                              aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
+                              className={[
+                                'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 transition-all duration-150',
+                                'w-[76px] h-[66px] px-1',
+                                isSelected
+                                  ? `${s.selectedBg} ${s.selectedBorder} ${s.selectedText}`
+                                  : `bg-white border-gray-200 text-gray-500 ${s.hoverBg} ${s.hoverBorder}`,
+                              ].join(' ')}
+                            >
+                              <span className={isSelected ? s.selectedIcon : 'text-gray-400'}>
+                                {COLUMN_TYPE_ICONS[ct]}
+                              </span>
+                              <span className="text-[11px] font-medium leading-tight text-center">
+                                {COLUMN_TYPE_LABELS[ct]}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Section 2: Name */}
+            <div className="pt-1 border-t border-gray-100">
+              <label htmlFor="col-name" className="block text-sm font-semibold text-gray-700 mb-2">
+                Column name <span aria-hidden="true" className="text-red-500">*</span>
               </label>
               <input
                 id="col-name"
@@ -267,36 +388,17 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Priority"
-                autoFocus
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 aria-required="true"
                 aria-describedby={error ? 'col-error' : undefined}
               />
             </div>
 
-            {/* Type */}
-            <div>
-              <label htmlFor="col-type" className="block text-sm font-medium text-gray-700 mb-1">
-                Type
-              </label>
-              <select
-                id="col-type"
-                value={type}
-                onChange={(e) => setType(e.target.value as ColumnType)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white"
-                aria-label="Column type"
-              >
-                {Object.values(ColumnType).map((ct) => (
-                  <option key={ct} value={ct}>
-                    {COLUMN_TYPE_LABELS[ct]}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {/* Section 3: Type-specific settings */}
 
             {/* TEXT settings */}
             {type === ColumnType.TEXT && (
-              <div className="space-y-3 pt-2 border-t border-gray-100">
+              <div className="space-y-3 pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Text Settings</p>
                 <div className="flex items-end gap-4">
                   <div className="flex-1">
@@ -329,7 +431,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
             {/* NUMBER settings */}
             {type === ColumnType.NUMBER && (
-              <div className="space-y-3 pt-2 border-t border-gray-100">
+              <div className="space-y-3 pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Number Settings</p>
                 <div className="flex gap-3">
                   <div className="flex-1">
@@ -366,7 +468,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
             {/* DATE settings */}
             {type === ColumnType.DATE && (
-              <div className="pt-2 border-t border-gray-100">
+              <div className="pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Date Settings</p>
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                   <input
@@ -383,7 +485,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
             {/* STATUS settings */}
             {type === ColumnType.STATUS && (
-              <div className="space-y-2 pt-2 border-t border-gray-100">
+              <div className="space-y-2 pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status Options</p>
                 {statusOptions.map((opt, idx) => (
                   <div key={opt.id} className="flex items-center gap-2">
@@ -425,7 +527,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
             {/* PERSON settings */}
             {type === ColumnType.PERSON && (
-              <div className="pt-2 border-t border-gray-100">
+              <div className="pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Person Settings</p>
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                   <input
@@ -442,7 +544,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
             {/* DROPDOWN settings */}
             {type === ColumnType.DROPDOWN && (
-              <div className="space-y-2 pt-2 border-t border-gray-100">
+              <div className="space-y-2 pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Dropdown Options</p>
                 {dropdownOptions.map((opt, idx) => (
                   <div key={opt.id} className="flex items-center gap-2">
@@ -487,7 +589,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
             {/* TAGS settings */}
             {type === ColumnType.TAGS && (
-              <div className="pt-2 border-t border-gray-100">
+              <div className="pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Tags Settings</p>
                 <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                   <input
@@ -504,7 +606,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
             {/* SIMPLE_FORMULA settings */}
             {type === ColumnType.SIMPLE_FORMULA && (
-              <div className="space-y-3 pt-2 border-t border-gray-100">
+              <div className="space-y-3 pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Formula Settings</p>
                 {numberColumns.length < 2 && (
                   <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded" role="note">
@@ -542,9 +644,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                     >
                       <option value="">Select column</option>
                       {numberColumns.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
+                        <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
                   </div>
@@ -561,9 +661,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                     >
                       <option value="">Select column</option>
                       {numberColumns.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
+                        <option key={c.id} value={c.id}>{c.name}</option>
                       ))}
                     </select>
                   </div>
