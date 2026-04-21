@@ -12,7 +12,7 @@ import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
 import { COLUMN_TYPE_ICONS } from './ColumnHeader';
-import { COLUMN_WIDTH_MAP, GROUP_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
+import { calculateColumnWidth, GROUP_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
 interface GroupSectionProps {
   group: Group;
@@ -298,21 +298,19 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           )}
         </div>
 
-        {/* Column headers — direct children of flex container for alignment */}
-        {columns.map((col) => {
-          const widthClass = COLUMN_WIDTH_MAP[col.type];
-          return (
-            <div
-              key={col.id}
-              role="columnheader"
-              className={`flex flex-shrink-0 items-center gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 text-sm font-semibold text-gray-600`}
-              title={col.name}
-            >
-              <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
-              <span className="truncate">{col.name}</span>
-            </div>
-          );
-        })}
+        {/* Column headers — widths match the top header row */}
+        {columns.map((col) => (
+          <div
+            key={col.id}
+            role="columnheader"
+            style={{ width: `${calculateColumnWidth(col.name)}px` }}
+            className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-gray-200 text-sm font-semibold text-gray-600"
+            title={col.name}
+          >
+            <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
+            <span className="truncate">{col.name}</span>
+          </div>
+        ))}
       </div>
 
       {/* Item rows */}

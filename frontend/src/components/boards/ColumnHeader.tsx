@@ -24,7 +24,7 @@ import {
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
   FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2,
 } from 'react-icons/fi';
-import { COLUMN_WIDTH_MAP, ITEM_NAME_WIDTH } from '../../utils/columnWidths';
+import { calculateColumnWidth, ITEM_NAME_WIDTH } from '../../utils/columnWidths';
 import AddColumnModal from './AddColumnModal';
 
 interface SortState {
@@ -115,7 +115,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const widthClass = COLUMN_WIDTH_MAP[column.type];
+  const colWidth = calculateColumnWidth(column.name);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -167,9 +167,9 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   return (
     <div
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, width: `${colWidth}px` }}
       role="columnheader"
-      className={`flex flex-shrink-0 items-center justify-between gap-1.5 ${widthClass} px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
+      className={`flex flex-shrink-0 items-center px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
     >
       {/* Drag handle */}
       {canManage && (
@@ -184,138 +184,143 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
         </span>
       )}
 
-      <span className="text-gray-400 flex-shrink-0" title={label}>
-        {icon}
-      </span>
+      {/* Center: icon + name */}
+      <div className="flex flex-1 items-center justify-center gap-1.5 min-w-0 px-1">
+        <span className="text-gray-400 flex-shrink-0" title={label}>
+          {icon}
+        </span>
+        <span className="text-sm font-semibold text-gray-600 truncate">
+          {column.name}
+        </span>
+      </div>
 
-      <span className="flex-1 text-sm font-semibold text-gray-600 truncate">
-        {column.name}
-      </span>
-
-      <button
-        type="button"
-        onClick={() => onSort(column)}
-        className={`flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 ${
-          isActive ? '!opacity-100 text-indigo-600' : 'text-gray-400 hover:text-gray-600'
-        }`}
-        aria-label={
-          isActive
-            ? `Sorted by ${column.name} ${sort?.direction === 'asc' ? 'ascending' : 'descending'}. Click to reverse.`
-            : `Sort by ${column.name}`
-        }
-        aria-pressed={isActive}
-      >
-        {isActive && sort?.direction === 'desc' ? (
-          <FiArrowDown size={12} aria-hidden="true" />
-        ) : (
-          <FiArrowUp size={12} aria-hidden="true" />
-        )}
-      </button>
-
-      {/* Delete menu */}
-      {canManage && (
-        <div className="relative flex-shrink-0" ref={menuRef}>
-          <button
-            type="button"
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 rounded p-0.5 flex items-center justify-center"
-            aria-label={`Options for ${column.name} column`}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-          >
-            <FiMoreVertical size={12} aria-hidden="true" />
-          </button>
-
-          {menuOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
-              aria-label="Column actions"
-            >
-              {isRenaming ? (
-                <div className="px-3 py-2 space-y-2">
-                  <input
-                    ref={renameInputRef}
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    onBlur={() => void handleRename()}
-                    onKeyDown={handleRenameKeyDown}
-                    disabled={isUpdating}
-                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    aria-label="Column name"
-                  />
-                </div>
-              ) : confirmDelete ? (
-                <div className="px-3 py-2 space-y-1">
-                  <p className="text-xs text-red-600">Delete this column?</p>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      onClick={() => void handleDelete()}
-                      disabled={isDeleting}
-                      className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
-                      aria-label="Confirm delete"
-                    >
-                      {isDeleting ? '…' : 'Delete'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDelete(false)}
-                      className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                      aria-label="Cancel"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => setIsRenaming(true)}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                    aria-label="Rename column"
-                  >
-                    Edit name
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => handleAddColumn('left')}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                    aria-label="Add column to the left"
-                  >
-                    <FiPlus size={12} aria-hidden="true" />
-                    Add left
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => handleAddColumn('right')}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                    aria-label="Add column to the right"
-                  >
-                    <FiPlus size={12} aria-hidden="true" />
-                    Add right
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => setConfirmDelete(true)}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
-                    aria-label="Delete column"
-                  >
-                    <FiTrash2 size={12} aria-hidden="true" />
-                    Delete
-                  </button>
-                </>
-              )}
-            </div>
+      {/* Right: sort + 3-dots */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => onSort(column)}
+          className={`opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 ${
+            isActive ? '!opacity-100 text-indigo-600' : 'text-gray-400 hover:text-gray-600'
+          }`}
+          aria-label={
+            isActive
+              ? `Sorted by ${column.name} ${sort?.direction === 'asc' ? 'ascending' : 'descending'}. Click to reverse.`
+              : `Sort by ${column.name}`
+          }
+          aria-pressed={isActive}
+        >
+          {isActive && sort?.direction === 'desc' ? (
+            <FiArrowDown size={12} aria-hidden="true" />
+          ) : (
+            <FiArrowUp size={12} aria-hidden="true" />
           )}
-        </div>
-      )}
+        </button>
+
+        {/* Options menu */}
+        {canManage && (
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 rounded p-0.5 flex items-center justify-center"
+              aria-label={`Options for ${column.name} column`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <FiMoreVertical size={12} aria-hidden="true" />
+            </button>
+
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
+                aria-label="Column actions"
+              >
+                {isRenaming ? (
+                  <div className="px-3 py-2 space-y-2">
+                    <input
+                      ref={renameInputRef}
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onBlur={() => void handleRename()}
+                      onKeyDown={handleRenameKeyDown}
+                      disabled={isUpdating}
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      aria-label="Column name"
+                    />
+                  </div>
+                ) : confirmDelete ? (
+                  <div className="px-3 py-2 space-y-1">
+                    <p className="text-xs text-red-600">Delete this column?</p>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete()}
+                        disabled={isDeleting}
+                        className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
+                        aria-label="Confirm delete"
+                      >
+                        {isDeleting ? '…' : 'Delete'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(false)}
+                        className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                        aria-label="Cancel"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => setIsRenaming(true)}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                      aria-label="Rename column"
+                    >
+                      Edit name
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleAddColumn('left')}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                      aria-label="Add column to the left"
+                    >
+                      <FiPlus size={12} aria-hidden="true" />
+                      Add left
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleAddColumn('right')}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                      aria-label="Add column to the right"
+                    >
+                      <FiPlus size={12} aria-hidden="true" />
+                      Add right
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => setConfirmDelete(true)}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                      aria-label="Delete column"
+                    >
+                      <FiTrash2 size={12} aria-hidden="true" />
+                      Delete
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Add column modal - rendered here for insertion positioning */}
       {showAddColumnModal && (
