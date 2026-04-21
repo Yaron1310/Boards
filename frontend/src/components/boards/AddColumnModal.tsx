@@ -115,10 +115,13 @@ const GROUP_STYLES: Record<string, GroupStyle> = {
 const COLUMN_TYPE_GROUPS: { label: string; types: ColumnType[] }[] = [
   { label: 'Inputs', types: [ColumnType.TEXT, ColumnType.NUMBER] },
   { label: 'Time', types: [ColumnType.DATE, ColumnType.TIME, ColumnType.TIME_RANGE] },
-  { label: 'Selection', types: [ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.CHECKBOX, ColumnType.PERSON] },
-  { label: 'Information', types: [ColumnType.EMAIL, ColumnType.PHONE, ColumnType.TAGS, ColumnType.LOCATION] },
+  { label: 'Selection', types: [ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.CHECKBOX, ColumnType.TAGS] },
+  { label: 'Information', types: [ColumnType.EMAIL, ColumnType.PHONE, ColumnType.PERSON, ColumnType.LOCATION] },
   { label: 'Calculation', types: [ColumnType.SIMPLE_FORMULA] },
 ];
+
+const LEFT_COLUMN_GROUPS = ['Inputs', 'Time'];
+const RIGHT_COLUMN_GROUPS = ['Selection', 'Information', 'Calculation'];
 
 const TYPE_TO_GROUP: Record<ColumnType, string> = {} as Record<ColumnType, string>;
 COLUMN_TYPE_GROUPS.forEach(({ label, types }) => {
@@ -306,7 +309,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       aria-modal="true"
       aria-labelledby="add-column-title"
     >
-      <div ref={dialogRef} className="bg-white rounded-xl shadow-xl w-full max-w-xl max-h-[90vh] flex flex-col">
+      <div ref={dialogRef} className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -334,46 +337,95 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             {/* Section 1: Column Type */}
             <div>
               <p className="text-sm font-semibold text-gray-700 mb-3">Select column type</p>
-              <div className="space-y-3" role="group" aria-label="Column type selector">
-                {COLUMN_TYPE_GROUPS.map(({ label, types }) => {
-                  const s = GROUP_STYLES[label];
-                  return (
-                    <div key={label}>
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} aria-hidden="true" />
-                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
+              <div className="flex gap-0" role="group" aria-label="Column type selector">
+                {/* Left Column */}
+                <div className="flex-1 space-y-3 pr-4">
+                  {COLUMN_TYPE_GROUPS.filter(g => LEFT_COLUMN_GROUPS.includes(g.label)).map(({ label, types }) => {
+                    const s = GROUP_STYLES[label];
+                    return (
+                      <div key={label}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} aria-hidden="true" />
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {types.map((ct) => {
+                            const isSelected = type === ct;
+                            return (
+                              <button
+                                key={ct}
+                                type="button"
+                                onClick={() => setType(ct)}
+                                aria-pressed={isSelected}
+                                aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
+                                className={[
+                                  'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 transition-all duration-150',
+                                  'w-full h-[66px] px-1 min-w-0',
+                                  isSelected
+                                    ? `${s.selectedBg} ${s.selectedBorder} ${s.selectedText}`
+                                    : `bg-white border-gray-200 text-gray-500 ${s.hoverBg} ${s.hoverBorder}`,
+                                ].join(' ')}
+                              >
+                                <span className={isSelected ? s.selectedIcon : 'text-gray-400'}>
+                                  {COLUMN_TYPE_ICONS[ct]}
+                                </span>
+                                <span className="text-[11px] font-medium leading-tight text-center line-clamp-2">
+                                  {COLUMN_TYPE_LABELS[ct]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {types.map((ct) => {
-                          const isSelected = type === ct;
-                          return (
-                            <button
-                              key={ct}
-                              type="button"
-                              onClick={() => setType(ct)}
-                              aria-pressed={isSelected}
-                              aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
-                              className={[
-                                'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 transition-all duration-150',
-                                'w-[76px] h-[66px] px-1',
-                                isSelected
-                                  ? `${s.selectedBg} ${s.selectedBorder} ${s.selectedText}`
-                                  : `bg-white border-gray-200 text-gray-500 ${s.hoverBg} ${s.hoverBorder}`,
-                              ].join(' ')}
-                            >
-                              <span className={isSelected ? s.selectedIcon : 'text-gray-400'}>
-                                {COLUMN_TYPE_ICONS[ct]}
-                              </span>
-                              <span className="text-[11px] font-medium leading-tight text-center">
-                                {COLUMN_TYPE_LABELS[ct]}
-                              </span>
-                            </button>
-                          );
-                        })}
+                    );
+                  })}
+                </div>
+
+                {/* Vertical Separator */}
+                <div className="w-px bg-gray-200 self-stretch mx-0" aria-hidden="true" />
+
+                {/* Right Column */}
+                <div className="flex-1 space-y-3 pl-4">
+                  {COLUMN_TYPE_GROUPS.filter(g => RIGHT_COLUMN_GROUPS.includes(g.label)).map(({ label, types }) => {
+                    const s = GROUP_STYLES[label];
+                    return (
+                      <div key={label}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} aria-hidden="true" />
+                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {types.map((ct) => {
+                            const isSelected = type === ct;
+                            return (
+                              <button
+                                key={ct}
+                                type="button"
+                                onClick={() => setType(ct)}
+                                aria-pressed={isSelected}
+                                aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
+                                className={[
+                                  'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 transition-all duration-150',
+                                  'w-full h-[66px] px-1 min-w-0',
+                                  isSelected
+                                    ? `${s.selectedBg} ${s.selectedBorder} ${s.selectedText}`
+                                    : `bg-white border-gray-200 text-gray-500 ${s.hoverBg} ${s.hoverBorder}`,
+                                ].join(' ')}
+                              >
+                                <span className={isSelected ? s.selectedIcon : 'text-gray-400'}>
+                                  {COLUMN_TYPE_ICONS[ct]}
+                                </span>
+                                <span className="text-[11px] font-medium leading-tight text-center line-clamp-2">
+                                  {COLUMN_TYPE_LABELS[ct]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             </div>
 
