@@ -38,20 +38,20 @@ const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
 };
 
 const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
-  [ColumnType.TEXT]: <FiType size={20} aria-hidden="true" />,
-  [ColumnType.NUMBER]: <FiHash size={20} aria-hidden="true" />,
-  [ColumnType.DATE]: <FiCalendar size={20} aria-hidden="true" />,
-  [ColumnType.TIME]: <FiClock size={20} aria-hidden="true" />,
-  [ColumnType.TIME_RANGE]: <FiWatch size={20} aria-hidden="true" />,
-  [ColumnType.STATUS]: <FiFlag size={20} aria-hidden="true" />,
-  [ColumnType.DROPDOWN]: <FiChevronDown size={20} aria-hidden="true" />,
-  [ColumnType.CHECKBOX]: <FiCheckSquare size={20} aria-hidden="true" />,
-  [ColumnType.PERSON]: <FiUser size={20} aria-hidden="true" />,
-  [ColumnType.EMAIL]: <FiMail size={20} aria-hidden="true" />,
-  [ColumnType.PHONE]: <FiPhone size={20} aria-hidden="true" />,
-  [ColumnType.TAGS]: <FiTag size={20} aria-hidden="true" />,
-  [ColumnType.LOCATION]: <FiMapPin size={20} aria-hidden="true" />,
-  [ColumnType.SIMPLE_FORMULA]: <FiZap size={20} aria-hidden="true" />,
+  [ColumnType.TEXT]: <FiType size={16} aria-hidden="true" />,
+  [ColumnType.NUMBER]: <FiHash size={16} aria-hidden="true" />,
+  [ColumnType.DATE]: <FiCalendar size={16} aria-hidden="true" />,
+  [ColumnType.TIME]: <FiClock size={16} aria-hidden="true" />,
+  [ColumnType.TIME_RANGE]: <FiWatch size={16} aria-hidden="true" />,
+  [ColumnType.STATUS]: <FiFlag size={16} aria-hidden="true" />,
+  [ColumnType.DROPDOWN]: <FiChevronDown size={16} aria-hidden="true" />,
+  [ColumnType.CHECKBOX]: <FiCheckSquare size={16} aria-hidden="true" />,
+  [ColumnType.PERSON]: <FiUser size={16} aria-hidden="true" />,
+  [ColumnType.EMAIL]: <FiMail size={16} aria-hidden="true" />,
+  [ColumnType.PHONE]: <FiPhone size={16} aria-hidden="true" />,
+  [ColumnType.TAGS]: <FiTag size={16} aria-hidden="true" />,
+  [ColumnType.LOCATION]: <FiMapPin size={16} aria-hidden="true" />,
+  [ColumnType.SIMPLE_FORMULA]: <FiZap size={16} aria-hidden="true" />,
 };
 
 type GroupStyle = {
@@ -338,7 +338,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       aria-modal="true"
       aria-labelledby="add-column-title"
     >
-      <div ref={dialogRef} className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div ref={dialogRef} className="bg-white rounded-xl shadow-xl w-full max-h-[90vh] flex flex-col" style={{ maxWidth: '40rem' }}>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -356,7 +356,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             aria-label="Close dialog"
             data-modal-escape
           >
-            <FiX size={20} aria-hidden="true" />
+            <FiX size={16} aria-hidden="true" />
           </button>
         </div>
 
@@ -375,7 +375,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                   const isInformationGroup = label === 'Information';
 
                   return (
-                    <div key={label} className={isInformationGroup ? 'w-full pt-4 border-t border-gray-100' : ''}>
+                    <div key={label} className={isInformationGroup ? 'w-full' : ''}>
                       <div className="flex items-center gap-1.5 mb-2">
                         <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} aria-hidden="true" />
                         <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
@@ -392,7 +392,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                               aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
                               className={[
                                 'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 transition-all duration-150',
-                                'w-[76px] h-[66px] px-1',
+                                'w-[76px] h-[50px] px-1',
                                 isSelected
                                   ? `${s.selectedBg} ${s.selectedBorder} ${s.selectedText}`
                                   : `${s.unselectedBg} ${s.unselectedBorder} ${s.unselectedText} ${s.hoverBg} ${s.hoverBorder} ${s.hoverText}`,
