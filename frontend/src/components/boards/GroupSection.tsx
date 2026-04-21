@@ -163,7 +163,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         aria-label={`Group header: ${group.name}`}
       >
         {/* Left section — fixed width to match ItemRow alignment */}
-        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 z-[1] bg-gray-50 rounded-tl-md`} style={{ borderLeft: `4px solid ${groupColor}` }}>
+        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 bg-gray-50 rounded-tl-md ${menuOpen ? 'z-[30]' : 'z-[1]'}`} style={{ borderLeft: `4px solid ${groupColor}` }}>
           {/* Group drag handle */}
           {canManage && (
             <div
