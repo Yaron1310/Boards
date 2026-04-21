@@ -336,7 +336,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
           {/* Add item row */}
           {canManage && (
-            <div className="border-t border-[#d2d2d4]">
+            <div>
               <div className="sticky left-4 w-max bg-white z-[1] rounded-bl-xl">
                 {addingItem ? (
                   <div className="flex items-center gap-2 px-4 py-2">
