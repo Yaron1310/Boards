@@ -254,11 +254,18 @@ export const deletePreApprovedUserFromBackend = async (preApprovedUserId: string
 export const getMyUserDetails = async (): Promise<{ user: User, selectedWorkspace: Workspace }> => fetchWithAuth('/api/users/me/details');
 export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
 export const updateMyPassword = async (passwords: { currentPassword?: string; newPassword: string }): Promise<{ message: string }> => fetchWithAuth('/api/users/me/password', { method: 'PUT', body: JSON.stringify(passwords) });
+const blobToBase64 = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+
 export const updateMyProfileImage = async (imageData: string | Blob): Promise<User> => {
     if (imageData instanceof Blob) {
-        const formData = new FormData();
-        formData.append('image', imageData);
-        return fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: formData });
+        const imageBase64 = await blobToBase64(imageData);
+        return fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: JSON.stringify({ imageBase64 }) });
     }
     return fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: JSON.stringify({ imageUrl: imageData }) });
 };
@@ -267,17 +274,9 @@ export const updateMyProfileImage = async (imageData: string | Blob): Promise<Us
 export const getThemeSettingsFromBackend = async (): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/theme');
 export const updateThemeSettingsOnBackend = async (settings: Partial<OrganizationSettings> & { logoUpload?: Blob | string; }): Promise<OrganizationSettings> => {
     if (settings.logoUpload instanceof Blob) {
-        const formData = new FormData();
-        Object.keys(settings).forEach(key => {
-            const value = settings[key as keyof typeof settings];
-            if (key === 'logoUpload') {
-                formData.append('logo', value as Blob);
-            } else if (value !== undefined) {
-                formData.append(key, String(value));
-            }
-        });
-        delete settings.logoUpload;
-        return fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: formData });
+        const logoBase64 = await blobToBase64(settings.logoUpload);
+        const { logoUpload: _removed, ...rest } = settings;
+        return fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify({ ...rest, logoBase64 }) });
     }
     return fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify(settings) });
 };

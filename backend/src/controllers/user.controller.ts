@@ -480,20 +480,20 @@ async function uploadProfileImageToStorage(buffer: Buffer, userId: string): Prom
 export const updateMyProfileImage = async (req: Request, res: Response) => {
     const userPayload = req.user as JwtUserPayload;
     const userId = userPayload.id;
-    const { imageUrl } = req.body;
+    const { imageUrl, imageBase64 } = req.body;
     try {
         let resolvedUrl = '';
 
-        // Handle file upload via multipart/form-data
-        if ((req as any).file) {
+        if (imageBase64) {
             try {
-                resolvedUrl = await uploadProfileImageToStorage((req as any).file.buffer, userId);
+                const base64Data = imageBase64.replace(/^data:[^;]+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                resolvedUrl = await uploadProfileImageToStorage(buffer, userId);
             } catch (uploadErr) {
                 logger.error('Failed to upload profile image to Storage:', uploadErr);
                 return res.status(500).json({ message: 'Failed to upload profile image.' });
             }
         } else if (imageUrl) {
-            // Handle direct HTTPS URL (no upload needed)
             resolvedUrl = sanitizeImageUrl(imageUrl);
         }
 

@@ -73,6 +73,7 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
         sidebarGradientMaskOpacity,
         appName,
         logoUrl,
+        logoBase64,
         displayNameColor,
         sidebarLinkColor,
         logoCircle,
@@ -89,10 +90,11 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
 
-        // Handle logo file upload via multipart/form-data
-        if ((req as any).file) {
+        if (logoBase64) {
             try {
-                const publicUrl = await uploadLogoToStorage((req as any).file.buffer, user.orgId);
+                const base64Data = logoBase64.replace(/^data:[^;]+;base64,/, '');
+                const buffer = Buffer.from(base64Data, 'base64');
+                const publicUrl = await uploadLogoToStorage(buffer, user.orgId);
                 dataToUpdate.logoUrl = publicUrl;
             } catch (uploadErr) {
                 logger.error('Failed to upload logo to Storage:', uploadErr);
