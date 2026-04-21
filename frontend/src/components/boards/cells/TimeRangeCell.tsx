@@ -19,14 +19,36 @@ const formatDate = (val: string | Date | null | undefined): string => {
   return `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
 };
 
+const toDate = (val: string | Date | null | undefined): Date | null => {
+  if (!val) return null;
+  const d = val instanceof Date ? val : new Date(val as string);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const pluralDays = (n: number) => `${n} day${n !== 1 ? 's' : ''}`;
+
+const getDurationText = (start: string | Date | null | undefined, end: string | Date | null | undefined): string => {
+  const startDate = toDate(start);
+  const endDate = toDate(end);
+  if (!startDate || !endDate) return '';
+  const total = Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const left = Math.round((endDate.getTime() - today.getTime()) / 86_400_000);
+  if (left > 0) {
+    return `${pluralDays(total)} (${pluralDays(left)} left)`;
+  }
+  return pluralDays(total);
+};
+
 const TrafficLight: React.FC<{ date: string | Date | null | undefined, type: 'start' | 'end' }> = ({ date, type }) => {
   let red = "#666666";
   let green = "#666666";
 
   if (type === 'start') {
-    green = "#22c55e"; // Start always green bottom
+    green = "#22c55e";
   } else {
-    red = "#ef4444";   // End always red top
+    red = "#ef4444";
   }
 
   return (
@@ -44,6 +66,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   const { mutate } = useUpdateItem();
   const [start, setStart] = useState(toDateInput(rawValue?.start));
   const [end, setEnd] = useState(toDateInput(rawValue?.end));
+  const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
     setStart(toDateInput(rawValue?.start));
@@ -65,7 +88,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
       {(isEditing, stopEdit) => {
         if (isEditing) {
           return (
-            <div 
+            <div
               className="flex items-center gap-1 px-2 py-1 w-full bg-white rounded shadow-lg border border-indigo-200 z-30"
               onBlur={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -107,28 +130,39 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
           );
         }
 
+        const durationText = getDurationText(rawValue?.start, rawValue?.end);
+
         return (
           <div className="px-1 py-0.5 flex justify-center w-full overflow-hidden">
-            <div 
-              className="inline-flex items-center gap-[2px] px-3 py-0.5 rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:brightness-[1.08] transition-all cursor-default"
+            <div
+              className="inline-flex items-center justify-center gap-[2px] px-3 py-0.5 rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] transition-all cursor-default min-w-[80px]"
               style={{ background: 'linear-gradient(90deg, #6366f1, #3b82f6)' }}
+              onMouseEnter={() => setHovered(true)}
+              onMouseLeave={() => setHovered(false)}
+              aria-label={hovered && durationText ? durationText : `${formatDate(rawValue?.start)} to ${formatDate(rawValue?.end)}`}
             >
-              <span className="flex items-center gap-0.5">
-                <TrafficLight date={rawValue?.start} type="start" />
-                {formatDate(rawValue?.start) || '?'}
-              </span>
+              {hovered && durationText ? (
+                <span className="text-center leading-tight">{durationText}</span>
+              ) : (
+                <>
+                  <span className="flex items-center gap-0.5">
+                    <TrafficLight date={rawValue?.start} type="start" />
+                    {formatDate(rawValue?.start) || '?'}
+                  </span>
 
-              <span className="ml-1.5 flex items-center">
-                <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-none stroke-white stroke-[2.5]">
-                  <line x1="1" y1="12" x2="19" y2="12" />
-                  <polyline points="13 6 19 12 13 18" />
-                </svg>
-              </span>
+                  <span className="ml-1.5 flex items-center">
+                    <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-none stroke-white stroke-[2.5]">
+                      <line x1="1" y1="12" x2="19" y2="12" />
+                      <polyline points="13 6 19 12 13 18" />
+                    </svg>
+                  </span>
 
-              <span className="flex items-center gap-0.5 ml-0.5">
-                <TrafficLight date={rawValue?.end} type="end" />
-                {formatDate(rawValue?.end) || '?'}
-              </span>
+                  <span className="flex items-center gap-0.5 ml-0.5">
+                    <TrafficLight date={rawValue?.end} type="end" />
+                    {formatDate(rawValue?.end) || '?'}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         );
