@@ -23,7 +23,7 @@ const Avatar: React.FC<{ user: User; size?: string; textSize?: string }> = ({
   if (user.profileImageUrl && !imgError) {
     return (
       <img
-        className={`${size} rounded-full object-cover border-2 border-white flex-shrink-0`}
+        className={`${size} rounded-full object-cover border-2 border-gray-300 flex-shrink-0`}
         src={user.profileImageUrl}
         alt={user.name}
         title={user.name}
@@ -33,7 +33,7 @@ const Avatar: React.FC<{ user: User; size?: string; textSize?: string }> = ({
   }
   return (
     <div
-      className={`${size} rounded-full flex items-center justify-center ${textSize} text-white font-medium border-2 border-white flex-shrink-0 ${avatarColor(user.id)}`}
+      className={`${size} rounded-full flex items-center justify-center ${textSize} text-white font-medium border-2 border-gray-300 flex-shrink-0 ${avatarColor(user.id)}`}
       title={user.name}
       aria-label={user.name}
     >

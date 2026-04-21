@@ -133,12 +133,14 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
         const durationText = getDurationText(rawValue?.start, rawValue?.end);
 
         return (
-          <div className="px-1 py-0.5 flex justify-center w-full overflow-hidden">
+          <div
+            className="px-1 py-0.5 flex justify-center w-full overflow-hidden"
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+          >
             <div
-              className="inline-flex items-center justify-center gap-[2px] px-3 py-0.5 rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] transition-all cursor-default min-w-[80px]"
+              className="flex items-center justify-center w-full gap-[2px] px-3 py-0.5 rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] cursor-default"
               style={{ background: 'linear-gradient(90deg, #6366f1, #3b82f6)' }}
-              onMouseEnter={() => setHovered(true)}
-              onMouseLeave={() => setHovered(false)}
               aria-label={hovered && durationText ? durationText : `${formatDate(rawValue?.start)} to ${formatDate(rawValue?.end)}`}
             >
               {hovered && durationText ? (
