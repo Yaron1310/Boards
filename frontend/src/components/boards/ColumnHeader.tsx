@@ -115,7 +115,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const colWidth = calculateColumnWidth(column.name);
+  const colWidth = calculateColumnWidth(column.name, column.type);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -169,7 +169,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
       ref={setNodeRef}
       style={{ ...style, width: `${colWidth}px` }}
       role="columnheader"
-      className={`flex flex-shrink-0 items-center px-3 py-2 border-r border-gray-200 last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
+      className={`flex flex-shrink-0 items-center px-3 py-2 border-r border-[#d2d2d4] last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
     >
       {/* Drag handle */}
       {canManage && (
@@ -419,14 +419,14 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
       onDragEnd={handleDragEnd}
     >
       <div
-        className="sticky top-0 z-[21] flex flex-nowrap items-stretch bg-gray-50 border-b border-gray-200 select-none w-max"
+        className="sticky top-0 z-[21] flex flex-nowrap items-stretch bg-gray-50 border-b border-[#d2d2d4] select-none w-max"
         role="row"
         aria-label="Column headers"
       >
         {/* Item name column — fixed */}
         <div
           role="columnheader"
-          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-gray-200 text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1]`}
+          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1]`}
         >
           Item
         </div>

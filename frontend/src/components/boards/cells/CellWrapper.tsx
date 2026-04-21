@@ -10,7 +10,7 @@ interface CellWrapperProps {
 
 const CellWrapper: React.FC<CellWrapperProps> = ({ column, isReadOnly = false, children }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const colWidth = calculateColumnWidth(column.name);
+  const colWidth = calculateColumnWidth(column.name, column.type);
 
   const startEdit = (e: React.MouseEvent | React.KeyboardEvent) => {
     if (!isReadOnly && !isEditing) {
@@ -26,7 +26,7 @@ const CellWrapper: React.FC<CellWrapperProps> = ({ column, isReadOnly = false, c
       role="gridcell"
       aria-label={column.name}
       style={{ width: `${colWidth}px` }}
-      className={`relative flex flex-shrink-0 items-center justify-center border-r border-gray-100 last:border-r-0 ${
+      className={`relative flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0 ${
         isEditing ? 'z-20 ring-1 ring-inset ring-indigo-400' : !isReadOnly ? 'hover:bg-indigo-50/30 cursor-pointer' : ''
       }`}
       onClick={isEditing ? undefined : startEdit}

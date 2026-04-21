@@ -1,3 +1,9 @@
+import { ColumnType } from '../types';
+
+export const COLUMN_TYPE_MIN_WIDTHS: Partial<Record<ColumnType, number>> = {
+  [ColumnType.TIME_RANGE]: 205,
+};
+
 export const ITEM_NAME_WIDTH = 'w-[238px]';
 export const ITEM_NAME_MIN_WIDTH = 'min-w-[238px]';
 export const GROUP_SECTION_WIDTH = 'w-[222px]';
@@ -26,11 +32,13 @@ function measureTextWidth(text: string): number {
 
 const _widthCache = new Map<string, number>();
 
-export function calculateColumnWidth(columnName: string): number {
-  const cached = _widthCache.get(columnName);
+export function calculateColumnWidth(columnName: string, columnType?: ColumnType): number {
+  const cacheKey = `${columnName}|${columnType ?? ''}`;
+  const cached = _widthCache.get(cacheKey);
   if (cached !== undefined) return cached;
   const textWidth = measureTextWidth(columnName);
-  const width = Math.max(MIN_COLUMN_WIDTH, Math.min(MAX_COLUMN_WIDTH, COLUMN_HEADER_OVERHEAD + textWidth));
-  _widthCache.set(columnName, width);
+  const typeMin = columnType ? (COLUMN_TYPE_MIN_WIDTHS[columnType] ?? MIN_COLUMN_WIDTH) : MIN_COLUMN_WIDTH;
+  const width = Math.max(typeMin, Math.min(MAX_COLUMN_WIDTH, COLUMN_HEADER_OVERHEAD + textWidth));
+  _widthCache.set(cacheKey, width);
   return width;
 }

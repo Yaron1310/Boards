@@ -158,12 +158,12 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     >
       {/* Group header with columns */}
       <div
-        className="flex flex-nowrap items-stretch border-b border-gray-200 bg-gray-50 select-none w-max rounded-tl-xl"
+        className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] bg-gray-50 select-none w-max rounded-tl-xl"
         role="row"
         aria-label={`Group header: ${group.name}`}
       >
         {/* Left section — fixed width to match ItemRow alignment */}
-        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-gray-200 sticky left-4 z-[1] bg-gray-50 rounded-tl-md`} style={{ borderLeft: `4px solid ${groupColor}` }}>
+        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 z-[1] bg-gray-50 rounded-tl-md`} style={{ borderLeft: `4px solid ${groupColor}` }}>
           {/* Group drag handle */}
           {canManage && (
             <div
@@ -303,8 +303,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           <div
             key={col.id}
             role="columnheader"
-            style={{ width: `${calculateColumnWidth(col.name)}px` }}
-            className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-gray-200 text-sm font-semibold text-gray-600"
+            style={{ width: `${calculateColumnWidth(col.name, col.type)}px` }}
+            className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600"
             title={col.name}
           >
             <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
@@ -327,6 +327,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                   key={item.id}
                   item={item}
                   onOpenDetail={onOpenDetail}
+                  groupColor={groupColor}
                 />
               ))}
             </SortableContext>
@@ -334,7 +335,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
           {/* Add item row */}
           {canManage && (
-            <div className="border-t border-gray-100">
+            <div className="border-t border-[#d2d2d4]">
               <div className="sticky left-4 w-max bg-white z-[1] rounded-bl-xl">
                 {addingItem ? (
                   <div className="flex items-center gap-2 px-4 py-2">
@@ -379,7 +380,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       {/* Collapsed summary bar */}
       {isCollapsed && (
         <div
-          className="px-4 py-2 text-xs text-gray-400 bg-gray-50 border-t border-gray-100"
+          className="px-4 py-2 text-xs text-gray-400 bg-gray-50 border-t border-[#d2d2d4]"
           aria-label={`${group.name} collapsed — ${itemCount} items`}
         >
           {itemCount} item{itemCount !== 1 ? 's' : ''} hidden

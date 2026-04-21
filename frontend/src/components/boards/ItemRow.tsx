@@ -13,9 +13,10 @@ import { ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths'
 interface ItemRowProps {
   item: Item;
   onOpenDetail: (item: Item) => void;
+  groupColor?: string;
 }
 
-const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail }) => {
+const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => {
   const { user } = useAuth();
   const { data: columns = [] } = useColumns(item.boardId);
 
@@ -79,12 +80,15 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail }) => {
       ref={setNodeRef}
       role="row"
       style={style}
-      className={`flex flex-nowrap items-stretch group border-b border-gray-100 last:border-b-0 hover:bg-indigo-50/40 transition-colors w-max ${
+      className={`flex flex-nowrap items-stretch group border-b border-[#d2d2d4] last:border-b-0 hover:bg-indigo-50/40 transition-colors w-max ${
         item.isArchived ? 'opacity-60' : ''
       } bg-white ${isDragging ? 'shadow-md opacity-50 z-10' : ''}`}
     >
       {/* Left section — drag handle and item name */}
-      <div className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-gray-100 sticky left-4 z-[1] bg-white group-hover:bg-indigo-50/40`}>
+      <div
+        className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 z-[1] bg-white group-hover:bg-indigo-50/40`}
+        style={groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
+      >
         {/* Drag handle */}
         <div
           className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}

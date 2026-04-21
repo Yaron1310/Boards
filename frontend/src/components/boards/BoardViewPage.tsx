@@ -451,15 +451,17 @@ const BoardViewPage: React.FC = () => {
             {/* Add Group button */}
             {canManage && !board.isArchived && !showAddGroup && (
               <div className="px-4 pb-6">
-                <button
-                  type="button"
-                  onClick={() => setShowAddGroup(true)}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors"
-                  aria-label="Add new group"
-                >
-                  <FiPlus size={15} aria-hidden="true" />
-                  Add Group
-                </button>
+                <div className="sticky left-4 w-max">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddGroup(true)}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                    aria-label="Add new group"
+                  >
+                    <FiPlus size={15} aria-hidden="true" />
+                    Add Group
+                  </button>
+                </div>
               </div>
             )}
           </div>
