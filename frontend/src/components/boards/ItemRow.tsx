@@ -86,7 +86,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => 
     >
       {/* Left section — drag handle, item name, and row actions */}
       <div
-        className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 z-[1] bg-white group-hover:bg-indigo-50/40`}
+        className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 z-[1] bg-white group-hover:bg-indigo-50`}
         style={groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
       >
         {/* Drag handle */}
