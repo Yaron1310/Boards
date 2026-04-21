@@ -80,6 +80,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
       id: item.id,
       patch: { values: { [column.id]: { start: nextStart, end: nextEnd } } },
     });
+    setHovered(false);
     stopEdit();
   };
 
@@ -104,7 +105,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                 onChange={(e) => setStart(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
-                  if (e.key === 'Escape') { setStart(toDateInput(rawValue?.start)); setEnd(toDateInput(rawValue?.end)); stopEdit(); }
+                  if (e.key === 'Escape') { setStart(toDateInput(rawValue?.start)); setEnd(toDateInput(rawValue?.end)); setHovered(false); stopEdit(); }
                 }}
               />
               <span className="text-gray-400 text-[10px] flex-shrink-0">→</span>
@@ -115,7 +116,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                 onChange={(e) => setEnd(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
-                  if (e.key === 'Escape') { setStart(toDateInput(rawValue?.start)); setEnd(toDateInput(rawValue?.end)); stopEdit(); }
+                  if (e.key === 'Escape') { setStart(toDateInput(rawValue?.start)); setEnd(toDateInput(rawValue?.end)); setHovered(false); stopEdit(); }
                 }}
               />
             </div>

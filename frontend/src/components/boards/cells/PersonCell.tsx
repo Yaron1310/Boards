@@ -46,7 +46,7 @@ interface TooltipAnchor { centerX: number; top: number; bottom: number }
 
 const TOOLTIP_W = 220;
 const TOOLTIP_H = 152;
-const GAP = 8;
+const GAP = 0;
 
 const ProfileTooltip: React.FC<{
   user: User;
@@ -156,7 +156,7 @@ const PersonCell: React.FC<Props> = ({ item, column }) => {
     closeTimer.current = setTimeout(() => {
       setHoveredUser(null);
       setTooltipAnchor(null);
-    }, 80);
+    }, 150);
   };
 
   const cancelClose = () => {
