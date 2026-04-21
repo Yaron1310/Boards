@@ -158,7 +158,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     >
       {/* Group header with columns */}
       <div
-        className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] bg-gray-50 select-none w-max rounded-tl-xl"
+        className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] bg-gray-50 w-max rounded-tl-xl"
         role="row"
         aria-label={`Group header: ${group.name}`}
       >
@@ -182,7 +182,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             type="button"
             onClick={() => void toggleCollapse()}
             disabled={isUpdating}
-            className="flex items-center justify-center w-5 h-5 text-gray-400 hover:text-gray-600 rounded transition-colors flex-shrink-0"
+            className="flex items-center justify-center w-5 h-5 self-center text-gray-400 hover:text-gray-600 rounded transition-colors flex-shrink-0"
             aria-label={isCollapsed ? `Expand group ${group.name}` : `Collapse group ${group.name}`}
             aria-expanded={!isCollapsed}
           >
@@ -240,7 +240,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
               {menuOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 top-full mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1"
+                  className="absolute right-0 top-full mt-1 w-36 border border-gray-200 rounded-lg shadow-lg z-[50] py-1 select-text"
+                  style={{ backgroundColor: 'white' }}
                   aria-label="Group actions"
                 >
                   <button

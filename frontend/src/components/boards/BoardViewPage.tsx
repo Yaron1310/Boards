@@ -304,7 +304,7 @@ const BoardViewPage: React.FC = () => {
         <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 bg-white flex items-center gap-3">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(`/workspaces/${board.workspaceId}/boards`)}
             className="text-gray-400 hover:text-gray-600 transition-colors rounded p-1"
             aria-label="Go back"
           >
