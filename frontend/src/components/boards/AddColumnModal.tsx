@@ -56,59 +56,89 @@ const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
 
 type GroupStyle = {
   dot: string;
+  unselectedBg: string;
+  unselectedBorder: string;
+  unselectedText: string;
+  unselectedIcon: string;
   selectedBg: string;
   selectedBorder: string;
   selectedText: string;
   selectedIcon: string;
   hoverBg: string;
   hoverBorder: string;
+  hoverText: string;
 };
 
 const GROUP_STYLES: Record<string, GroupStyle> = {
   Inputs: {
     dot: 'bg-blue-500',
+    unselectedBg: 'bg-blue-50',
+    unselectedBorder: 'border-blue-200',
+    unselectedText: 'text-blue-600',
+    unselectedIcon: 'text-blue-500',
     selectedBg: 'bg-blue-50',
     selectedBorder: 'border-blue-500',
     selectedText: 'text-blue-700',
     selectedIcon: 'text-blue-600',
-    hoverBg: 'hover:bg-blue-50',
-    hoverBorder: 'hover:border-blue-300',
+    hoverBg: 'hover:bg-blue-100',
+    hoverBorder: 'hover:border-blue-400',
+    hoverText: 'hover:text-blue-800',
   },
   Time: {
     dot: 'bg-teal-500',
+    unselectedBg: 'bg-teal-50',
+    unselectedBorder: 'border-teal-200',
+    unselectedText: 'text-teal-600',
+    unselectedIcon: 'text-teal-500',
     selectedBg: 'bg-teal-50',
     selectedBorder: 'border-teal-500',
     selectedText: 'text-teal-700',
     selectedIcon: 'text-teal-600',
-    hoverBg: 'hover:bg-teal-50',
-    hoverBorder: 'hover:border-teal-300',
+    hoverBg: 'hover:bg-teal-100',
+    hoverBorder: 'hover:border-teal-400',
+    hoverText: 'hover:text-teal-800',
   },
   Selection: {
     dot: 'bg-violet-500',
+    unselectedBg: 'bg-violet-50',
+    unselectedBorder: 'border-violet-200',
+    unselectedText: 'text-violet-600',
+    unselectedIcon: 'text-violet-500',
     selectedBg: 'bg-violet-50',
     selectedBorder: 'border-violet-500',
     selectedText: 'text-violet-700',
     selectedIcon: 'text-violet-600',
-    hoverBg: 'hover:bg-violet-50',
-    hoverBorder: 'hover:border-violet-300',
+    hoverBg: 'hover:bg-violet-100',
+    hoverBorder: 'hover:border-violet-400',
+    hoverText: 'hover:text-violet-800',
   },
   Information: {
     dot: 'bg-orange-500',
+    unselectedBg: 'bg-orange-50',
+    unselectedBorder: 'border-orange-200',
+    unselectedText: 'text-orange-600',
+    unselectedIcon: 'text-orange-500',
     selectedBg: 'bg-orange-50',
     selectedBorder: 'border-orange-500',
     selectedText: 'text-orange-700',
     selectedIcon: 'text-orange-600',
-    hoverBg: 'hover:bg-orange-50',
-    hoverBorder: 'hover:border-orange-300',
+    hoverBg: 'hover:bg-orange-100',
+    hoverBorder: 'hover:border-orange-400',
+    hoverText: 'hover:text-orange-800',
   },
   Calculation: {
-    dot: 'bg-emerald-500',
-    selectedBg: 'bg-emerald-50',
-    selectedBorder: 'border-emerald-500',
-    selectedText: 'text-emerald-700',
-    selectedIcon: 'text-emerald-600',
-    hoverBg: 'hover:bg-emerald-50',
-    hoverBorder: 'hover:border-emerald-300',
+    dot: 'bg-yellow-500',
+    unselectedBg: 'bg-yellow-50',
+    unselectedBorder: 'border-yellow-200',
+    unselectedText: 'text-yellow-600',
+    unselectedIcon: 'text-yellow-500',
+    selectedBg: 'bg-yellow-50',
+    selectedBorder: 'border-yellow-500',
+    selectedText: 'text-yellow-700',
+    selectedIcon: 'text-yellow-600',
+    hoverBg: 'hover:bg-yellow-100',
+    hoverBorder: 'hover:border-yellow-400',
+    hoverText: 'hover:text-yellow-800',
   },
 };
 
@@ -120,8 +150,7 @@ const COLUMN_TYPE_GROUPS: { label: string; types: ColumnType[] }[] = [
   { label: 'Calculation', types: [ColumnType.SIMPLE_FORMULA] },
 ];
 
-const LEFT_COLUMN_GROUPS = ['Inputs', 'Time'];
-const RIGHT_COLUMN_GROUPS = ['Selection', 'Information', 'Calculation'];
+const BUTTON_DISPLAY_ORDER = ['Inputs', 'Selection', 'Time', 'Calculation', 'Information'];
 
 const TYPE_TO_GROUP: Record<ColumnType, string> = {} as Record<ColumnType, string>;
 COLUMN_TYPE_GROUPS.forEach(({ label, types }) => {
@@ -337,95 +366,51 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             {/* Section 1: Column Type */}
             <div>
               <p className="text-sm font-semibold text-gray-700 mb-3">Select column type</p>
-              <div className="flex gap-0" role="group" aria-label="Column type selector">
-                {/* Left Column */}
-                <div className="flex-1 space-y-3 pr-4">
-                  {COLUMN_TYPE_GROUPS.filter(g => LEFT_COLUMN_GROUPS.includes(g.label)).map(({ label, types }) => {
-                    const s = GROUP_STYLES[label];
-                    return (
-                      <div key={label}>
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} aria-hidden="true" />
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {types.map((ct) => {
-                            const isSelected = type === ct;
-                            return (
-                              <button
-                                key={ct}
-                                type="button"
-                                onClick={() => setType(ct)}
-                                aria-pressed={isSelected}
-                                aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
-                                className={[
-                                  'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 transition-all duration-150',
-                                  'w-full h-[66px] px-1 min-w-0',
-                                  isSelected
-                                    ? `${s.selectedBg} ${s.selectedBorder} ${s.selectedText}`
-                                    : `bg-white border-gray-200 text-gray-500 ${s.hoverBg} ${s.hoverBorder}`,
-                                ].join(' ')}
-                              >
-                                <span className={isSelected ? s.selectedIcon : 'text-gray-400'}>
-                                  {COLUMN_TYPE_ICONS[ct]}
-                                </span>
-                                <span className="text-[11px] font-medium leading-tight text-center line-clamp-2">
-                                  {COLUMN_TYPE_LABELS[ct]}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+              <div className="flex flex-wrap gap-6" role="group" aria-label="Column type selector">
+                {BUTTON_DISPLAY_ORDER.map((groupLabel) => {
+                  const groupData = COLUMN_TYPE_GROUPS.find(g => g.label === groupLabel);
+                  if (!groupData) return null;
+                  const { label, types } = groupData;
+                  const s = GROUP_STYLES[label];
+                  const isInformationGroup = label === 'Information';
 
-                {/* Vertical Separator */}
-                <div className="w-px bg-gray-200 self-stretch mx-0" aria-hidden="true" />
-
-                {/* Right Column */}
-                <div className="flex-1 space-y-3 pl-4">
-                  {COLUMN_TYPE_GROUPS.filter(g => RIGHT_COLUMN_GROUPS.includes(g.label)).map(({ label, types }) => {
-                    const s = GROUP_STYLES[label];
-                    return (
-                      <div key={label}>
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} aria-hidden="true" />
-                          <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {types.map((ct) => {
-                            const isSelected = type === ct;
-                            return (
-                              <button
-                                key={ct}
-                                type="button"
-                                onClick={() => setType(ct)}
-                                aria-pressed={isSelected}
-                                aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
-                                className={[
-                                  'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 transition-all duration-150',
-                                  'w-full h-[66px] px-1 min-w-0',
-                                  isSelected
-                                    ? `${s.selectedBg} ${s.selectedBorder} ${s.selectedText}`
-                                    : `bg-white border-gray-200 text-gray-500 ${s.hoverBg} ${s.hoverBorder}`,
-                                ].join(' ')}
-                              >
-                                <span className={isSelected ? s.selectedIcon : 'text-gray-400'}>
-                                  {COLUMN_TYPE_ICONS[ct]}
-                                </span>
-                                <span className="text-[11px] font-medium leading-tight text-center line-clamp-2">
-                                  {COLUMN_TYPE_LABELS[ct]}
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
+                  return (
+                    <div key={label} className={isInformationGroup ? 'w-full pt-4 border-t border-gray-100' : ''}>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot}`} aria-hidden="true" />
+                        <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</span>
                       </div>
-                    );
-                  })}
-                </div>
+                      <div className="flex flex-wrap gap-2">
+                        {types.map((ct) => {
+                          const isSelected = type === ct;
+                          return (
+                            <button
+                              key={ct}
+                              type="button"
+                              onClick={() => setType(ct)}
+                              aria-pressed={isSelected}
+                              aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
+                              className={[
+                                'flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 transition-all duration-150',
+                                'w-[76px] h-[66px] px-1',
+                                isSelected
+                                  ? `${s.selectedBg} ${s.selectedBorder} ${s.selectedText}`
+                                  : `${s.unselectedBg} ${s.unselectedBorder} ${s.unselectedText} ${s.hoverBg} ${s.hoverBorder} ${s.hoverText}`,
+                              ].join(' ')}
+                            >
+                              <span className={isSelected ? s.selectedIcon : s.unselectedIcon}>
+                                {COLUMN_TYPE_ICONS[ct]}
+                              </span>
+                              <span className="text-[11px] font-medium leading-tight text-center">
+                                {COLUMN_TYPE_LABELS[ct]}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
