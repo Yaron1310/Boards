@@ -416,6 +416,8 @@ export const register = async (req: Request, res: Response) => {
             const newMembership: Omit<DBMembership, 'createdAt'> = {
                 id: newMembershipRef.id,
                 userId: newUser.id,
+                userName: newUser.name,
+                userEmail: newUser.email,
                 entityId: workspaceId,
                 entityType: 'workspace',
                 role: UserRole.REGULAR_USER,
@@ -860,6 +862,8 @@ export const googleCallback = async (req: Request, res: Response) => {
         batch.set(newMembershipRef, {
             id: newMembershipRef.id,
             userId: dbUser.id,
+            userName: dbUser.name,
+            userEmail: dbUser.email,
             entityId: workspaceId,
             entityType: 'workspace',
             role: UserRole.REGULAR_USER,
@@ -1006,6 +1010,8 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
             batch.set(newMembershipRef, {
                 id: newMembershipRef.id,
                 userId: newUserRef.id,
+                userName: name,
+                userEmail: email,
                 entityId: workspaceId,
                 entityType: 'workspace',
                 role: UserRole.REGULAR_USER,
@@ -1161,6 +1167,8 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
             batch.set(newMembershipRef, {
                 id: newMembershipRef.id,
                 userId: newUserRef.id,
+                userName: name,
+                userEmail: email,
                 entityId: workspaceId,
                 entityType: 'workspace',
                 role: UserRole.REGULAR_USER,

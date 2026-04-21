@@ -112,6 +112,8 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
                 batch.set(newMembershipRef, {
                     id: newMembershipRef.id,
                     userId: userId,
+                    userName,
+                    userEmail,
                     entityId: orgId,
                     entityType: 'workspace',
                     role: UserRole.ORGANIZATION_ADMIN,
@@ -148,6 +150,8 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
                 batch.set(personalMembershipRef, {
                     id: personalMembershipRef.id,
                     userId: userId,
+                    userName,
+                    userEmail,
                     entityId: personalOrgId,
                     entityType: 'workspace',
                     role: UserRole.REGULAR_USER,
@@ -251,6 +255,8 @@ export const removeOrganizationAdmin = async (req: Request, res: Response) => {
                 await newMembershipRef.set({
                     id: newMembershipRef.id,
                     userId: userId,
+                    userName: user.name,
+                    userEmail: user.email,
                     entityId: defaultOrgId,
                     entityType: 'workspace',
                     role: UserRole.REGULAR_USER,
@@ -371,6 +377,8 @@ export const setupOrganization = async (req: Request, res: Response) => {
             transaction.set(organizationMembershipRef, {
                 id: organizationMembershipRef.id,
                 userId: userId,
+                userName: user.name,
+                userEmail: user.email,
                 entityId: newOrganizationRef.id,
                 entityType: 'workspace',
                 role: UserRole.ORGANIZATION_ADMIN,
@@ -392,6 +400,8 @@ export const setupOrganization = async (req: Request, res: Response) => {
             transaction.set(orgMembershipRef, {
                 id: orgMembershipRef.id,
                 userId: userId,
+                userName: user.name,
+                userEmail: user.email,
                 entityId: personalOrgRef.id,
                 entityType: 'workspace',
                 role: UserRole.REGULAR_USER,

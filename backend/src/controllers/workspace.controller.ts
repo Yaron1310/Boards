@@ -193,7 +193,7 @@ export const addWorkspaceManager = async (req: Request, res: Response) => {
 
         const userSnapshot = await usersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
 
-        const addManagerRole = async (userId: string) => {
+        const addManagerRole = async (userId: string, userName: string, userEmail: string) => {
             const membershipSnapshot = await membershipsCollection.where('userId', '==', userId).get();
             const memberships = querySnapshotToArray<DBMembership>(membershipSnapshot);
 
@@ -208,6 +208,8 @@ export const addWorkspaceManager = async (req: Request, res: Response) => {
             await newMembershipRef.set({
                 id: newMembershipRef.id,
                 userId: userId,
+                userName,
+                userEmail,
                 entityId: workspaceId,
                 entityType: 'workspace',
                 role: UserRole.WORKSPACE_ADMIN,
@@ -219,7 +221,7 @@ export const addWorkspaceManager = async (req: Request, res: Response) => {
 
         if (!userSnapshot.empty) {
             const user = snapshotToData<DBUser>(userSnapshot.docs[0])!;
-            const { isHigherAdmin, alreadyAdmin } = await addManagerRole(user.id);
+            const { isHigherAdmin, alreadyAdmin } = await addManagerRole(user.id, user.name, user.email);
             if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System or Workspace Admin and cannot be assigned as an Workspace Manager.' });
             if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already a manager of this workspace.` });
             return res.status(200).json({ message: `Successfully promoted existing user ${email} to Workspace Manager.` });
@@ -232,7 +234,7 @@ export const addWorkspaceManager = async (req: Request, res: Response) => {
                 status: 'pending',
             };
             await newUserRef.set({ ...newAdminUser, createdAt: new Date() });
-            await addManagerRole(newAdminUser.id);
+            await addManagerRole(newAdminUser.id, newAdminUser.name, newAdminUser.email);
 
             const verificationTokenPayload: any = { userId: newAdminUser.id, action: 'verify_email' };
             const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
@@ -317,10 +319,17 @@ export const removeUserFromWorkspace = async (req: Request, res: Response) => {
             const defaultOrgSnapshot = await workspacesCollection.where('orgId', '==', workspaceData.orgId).where('name', '==', 'Default Workspace').limit(1).get();
             if (!defaultOrgSnapshot.empty) {
                 const defaultOrgId = defaultOrgSnapshot.docs[0].id;
+                
+                // Fetch user details for denormalization
+                const userDoc = await usersCollection.doc(userId).get();
+                const userData = userDoc.exists ? userDoc.data() as DBUser : null;
+
                 const newMembershipRef = membershipsCollection.doc();
                 batch.set(newMembershipRef, {
                     id: newMembershipRef.id,
                     userId,
+                    userName: userData?.name,
+                    userEmail: userData?.email,
                     entityId: defaultOrgId,
                     entityType: 'workspace',
                     role: UserRole.REGULAR_USER,

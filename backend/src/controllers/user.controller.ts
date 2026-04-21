@@ -102,6 +102,8 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                     batch.set(newMembershipRef, {
                         id: newMembershipRef.id,
                         userId: user.id,
+                        userName: user.name,
+                        userEmail: user.email,
                         entityId: targetOrgId,
                         entityType: 'workspace',
                         role: UserRole.REGULAR_USER,
@@ -254,7 +256,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
             membershipQuery = membershipQuery.where('role', '==', roleFilter);
         }
 
-        const snapshot = await membershipQuery.orderBy('userName').get();
+        const snapshot = await membershipQuery.get();
         const memberships = querySnapshotToArray<DBMembership>(snapshot);
 
         // Deduplicate by userId (a user can have multiple memberships)
@@ -263,6 +265,13 @@ export const getAllUsers = async (req: Request, res: Response) => {
             if (seenUserIds.has(m.userId)) return false;
             seenUserIds.add(m.userId);
             return true;
+        });
+
+        // Sort in-memory to include users without userName field
+        uniqueMemberships.sort((a, b) => {
+            const nameA = (a.userName || '').toLowerCase();
+            const nameB = (b.userName || '').toLowerCase();
+            return nameA.localeCompare(nameB);
         });
 
         // Apply search filter on denormalized fields
