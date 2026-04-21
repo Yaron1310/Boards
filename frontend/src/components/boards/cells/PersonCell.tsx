@@ -57,8 +57,8 @@ const ProfileTooltip: React.FC<{
   const [imgError, setImgError] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const showAbove = anchor.top > TOOLTIP_H + GAP;
-  const top = showAbove ? anchor.top - TOOLTIP_H - GAP : anchor.bottom + GAP;
+  const showAbove = anchor.top > TOOLTIP_H;
+  const top = showAbove ? anchor.top : anchor.bottom;
   const left = Math.max(8, Math.min(anchor.centerX - TOOLTIP_W / 2, window.innerWidth - TOOLTIP_W - 8));
 
   const copyEmail = (e: React.MouseEvent) => {
@@ -74,7 +74,7 @@ const ProfileTooltip: React.FC<{
       role="tooltip"
       aria-label={`${user.name}'s profile`}
       className="fixed z-[200] bg-white rounded-xl shadow-xl border border-gray-100 p-4 flex flex-col items-center gap-3 pointer-events-auto"
-      style={{ top, left, width: TOOLTIP_W }}
+      style={{ top, left, width: TOOLTIP_W, transform: showAbove ? 'translateY(-100%)' : undefined }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
