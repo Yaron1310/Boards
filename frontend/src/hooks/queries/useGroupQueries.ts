@@ -6,9 +6,20 @@ import type { CreateGroupData, UpdateGroupData, ReorderGroupItem } from '@/servi
 export const useGroups = (boardId: string, enabled = true) =>
   useQuery({
     queryKey: queryKeys.groups.all(boardId),
-    queryFn: () => wm.listGroups(boardId),
+    queryFn: () => wm.listGroups(boardId, false),
     enabled: enabled && !!boardId,
     staleTime: 2 * 60 * 1000,
+  });
+
+export const useArchivedGroups = (boardId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.groups.archived(boardId),
+    queryFn: async () => {
+      const all = await wm.listGroups(boardId, true);
+      return all.filter((g) => g.isArchived);
+    },
+    enabled: enabled && !!boardId,
+    staleTime: 0,
   });
 
 export const useCreateGroup = () => {
@@ -40,6 +51,30 @@ export const useDeleteGroup = () => {
       wm.deleteGroup(boardId, groupId),
     onSuccess: (_data, { boardId }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.groups.all(boardId) });
+    },
+  });
+};
+
+export const useArchiveGroup = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ boardId, groupId }: { boardId: string; groupId: string }) =>
+      wm.archiveGroup(boardId, groupId),
+    onSuccess: (_data, { boardId }) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.groups.all(boardId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.groups.archived(boardId) });
+    },
+  });
+};
+
+export const useRestoreGroup = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ boardId, groupId }: { boardId: string; groupId: string }) =>
+      wm.restoreGroup(boardId, groupId),
+    onSuccess: (_data, { boardId }) => {
+      void qc.invalidateQueries({ queryKey: queryKeys.groups.all(boardId) });
+      void qc.invalidateQueries({ queryKey: queryKeys.groups.archived(boardId) });
     },
   });
 };

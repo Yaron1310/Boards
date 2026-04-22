@@ -23,6 +23,7 @@ export const queryKeys = {
   },
   groups: {
     all: (boardId: string) => ['groups', boardId] as const,
+    archived: (boardId: string) => ['groups', boardId, 'archived'] as const,
   },
   items: {
     list: (params: ListItemsParams) => ['items', params] as const,

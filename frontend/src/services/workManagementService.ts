@@ -124,8 +124,10 @@ export interface ReorderGroupItem {
   order: number;
 }
 
-export const listGroups = (boardId: string): Promise<Group[]> =>
-  fetchWithAuth(`/api/boards/${boardId}/groups`);
+export const listGroups = (boardId: string, includeArchived = false): Promise<Group[]> => {
+  const qs = includeArchived ? '?includeArchived=true' : '';
+  return fetchWithAuth(`/api/boards/${boardId}/groups${qs}`);
+};
 
 export const createGroup = (boardId: string, data: CreateGroupData): Promise<Group> =>
   fetchWithAuth(`/api/boards/${boardId}/groups`, { method: 'POST', body: JSON.stringify(data) });
@@ -135,6 +137,12 @@ export const updateGroup = (boardId: string, groupId: string, patch: UpdateGroup
 
 export const deleteGroup = (boardId: string, groupId: string): Promise<null> =>
   fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}`, { method: 'DELETE' });
+
+export const archiveGroup = (boardId: string, groupId: string): Promise<void> =>
+  fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/archive`, { method: 'PATCH' });
+
+export const restoreGroup = (boardId: string, groupId: string): Promise<Group> =>
+  fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/restore`, { method: 'PATCH' });
 
 export const reorderGroups = (boardId: string, order: ReorderGroupItem[]): Promise<void> =>
   fetchWithAuth(`/api/boards/${boardId}/groups/reorder`, { method: 'PATCH', body: JSON.stringify({ order }) });

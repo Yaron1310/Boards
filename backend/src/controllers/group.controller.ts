@@ -23,6 +23,7 @@ function isAuthError(err: unknown): err is { status: number; message: string } {
 export const getGroups = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
+  const { includeArchived } = req.query;
 
   try {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
@@ -32,7 +33,11 @@ export const getGroups = async (req: Request, res: Response) => {
     assertBoardAccess(user, board, 'read');
 
     const snapshot = await groupsCollection(user.orgId, boardId).orderBy('order').get();
-    const groups = querySnapshotToArray<DBGroup>(snapshot);
+    const allGroups = querySnapshotToArray<DBGroup>(snapshot);
+    // Documents without isArchived set are treated as active (backward compat)
+    const groups = includeArchived === 'true'
+      ? allGroups
+      : allGroups.filter((g) => !g.isArchived);
 
     res.json(groups);
   } catch (err: unknown) {
@@ -260,5 +265,98 @@ export const deleteGroup = async (req: Request, res: Response) => {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error(`Error deleting group ${req.params.groupId}:`, err);
     res.status(500).json({ message: 'Failed to delete group.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /boards/:boardId/groups/:groupId/archive
+// ---------------------------------------------------------------------------
+export const archiveGroup = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { boardId, groupId } = req.params;
+
+  try {
+    const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
+    if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
+    const board = snapshotToData<DBBoard>(boardDoc)!;
+
+    const groupDoc = await groupsCollection(user.orgId, boardId).doc(groupId).get();
+    if (!groupDoc.exists) return res.status(404).json({ message: 'Group not found.' });
+    const group = snapshotToData<DBGroup>(groupDoc)!;
+
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertGroupAccess(user, group, 'archive', board.createdBy, memberData);
+
+    await groupsCollection(user.orgId, boardId).doc(groupId).update({
+      isArchived: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    touchBoardVersion(user.orgId, boardId);
+
+    void logAudit({
+      actorUserId: user.id,
+      actorRole: user.role,
+      action: 'UPDATE',
+      resourceType: 'group',
+      resourceId: groupId,
+      workspaceId: user.orgId,
+      orgId: user.orgId,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    res.json({ message: 'Group archived.' });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error archiving group ${req.params.groupId}:`, err);
+    res.status(500).json({ message: 'Failed to archive group.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /boards/:boardId/groups/:groupId/restore
+// ---------------------------------------------------------------------------
+export const restoreGroup = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { boardId, groupId } = req.params;
+
+  try {
+    const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
+    if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
+    const board = snapshotToData<DBBoard>(boardDoc)!;
+
+    const groupDoc = await groupsCollection(user.orgId, boardId).doc(groupId).get();
+    if (!groupDoc.exists) return res.status(404).json({ message: 'Group not found.' });
+    const group = snapshotToData<DBGroup>(groupDoc)!;
+
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertGroupAccess(user, group, 'archive', board.createdBy, memberData);
+
+    await groupsCollection(user.orgId, boardId).doc(groupId).update({
+      isArchived: false,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    touchBoardVersion(user.orgId, boardId);
+
+    void logAudit({
+      actorUserId: user.id,
+      actorRole: user.role,
+      action: 'UPDATE',
+      resourceType: 'group',
+      resourceId: groupId,
+      workspaceId: user.orgId,
+      orgId: user.orgId,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    const updated = snapshotToData<DBGroup>(await groupsCollection(user.orgId, boardId).doc(groupId).get());
+    res.json(updated);
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error restoring group ${req.params.groupId}:`, err);
+    res.status(500).json({ message: 'Failed to restore group.' });
   }
 };

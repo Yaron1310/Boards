@@ -275,6 +275,7 @@ export interface Group {
   color?: string;
   order: number;
   isCollapsed?: boolean;
+  isArchived?: boolean;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

@@ -288,6 +288,7 @@ export interface DBGroup {
   color?: string;
   order: number;
   isCollapsed?: boolean;
+  isArchived?: boolean;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }

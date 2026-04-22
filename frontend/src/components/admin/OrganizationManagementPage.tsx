@@ -394,27 +394,32 @@ const WorkspaceManagementPage: React.FC = () => {
     }
   };
 
-  const handleAttemptArchive = async (org: OrgWithComputedData) => {
+  const handleAttemptArchive = (org: OrgWithComputedData) => {
     clearFeedback();
-    setIsSaving(true);
-    const result = await deleteWorkspace(org.id);
-    setIsSaving(false);
-    if (result.isConflict) {
-        setArchiveConfirmData({ resource: org, dependencies: result.dependencies.users || [] });
-    } else if (dataError) {
-        setFeedbackMessage({ type: 'error', text: dataError });
-    } else {
-        setArchiveConfirmData({ resource: org });
-    }
+    // Show confirmation first; dependency check happens on confirm
+    setArchiveConfirmData({ resource: org });
   };
 
   const handleConfirmArchive = async () => {
     if (!archiveConfirmData) return;
+    clearFeedback();
     setIsSaving(true);
-    const success = await confirmArchiveWorkspace(archiveConfirmData.resource.id);
-    if (success) {
-        setFeedbackMessage({ type: 'success', text: 'Workspace archived successfully.' });
+    const result = await deleteWorkspace(archiveConfirmData.resource.id);
+    setIsSaving(false);
+    if (result.isConflict) {
+        // Show dependency warning; user must confirm again
+        setArchiveConfirmData({ resource: archiveConfirmData.resource, dependencies: result.dependencies?.users || [] });
+        return;
     }
+    // No conflict — archive succeeded (errors surface via the dataError useEffect)
+    setArchiveConfirmData(null);
+  };
+
+  const handleConfirmArchiveWithDeps = async () => {
+    if (!archiveConfirmData) return;
+    clearFeedback();
+    setIsSaving(true);
+    await confirmArchiveWorkspace(archiveConfirmData.resource.id);
     setIsSaving(false);
     setArchiveConfirmData(null);
   };
@@ -712,13 +717,17 @@ const WorkspaceManagementPage: React.FC = () => {
       <ConfirmationModal
         isOpen={!!archiveConfirmData}
         onClose={() => setArchiveConfirmData(null)}
-        onConfirm={handleConfirmArchive}
+        onConfirm={archiveConfirmData?.dependencies && archiveConfirmData.dependencies.length > 0
+          ? handleConfirmArchiveWithDeps
+          : handleConfirmArchive}
         isLoading={isSaving}
         title="Confirm Workspace Archive"
         message={<>Are you sure you want to archive "<strong>{archiveConfirmData?.resource.name}</strong>"?</>}
         confirmText="Confirm Archive"
         dependencies={archiveConfirmData?.dependencies}
-        dependencyWarning={archiveConfirmData?.dependencies && archiveConfirmData.dependencies.length > 0 ? `This will unassign ${archiveConfirmData.dependencies.length} user(s). Their accounts will NOT be deleted.` : "This action cannot be undone."}
+        dependencyWarning={archiveConfirmData?.dependencies && archiveConfirmData.dependencies.length > 0
+          ? `This will unassign ${archiveConfirmData.dependencies.length} user(s). Their accounts will NOT be deleted.`
+          : undefined}
       />
 
       <ArchiveRestoreModal

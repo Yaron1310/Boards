@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   FiChevronDown, FiChevronRight, FiMoreHorizontal, FiPlus,
-  FiEdit2, FiTrash2, FiLoader, FiMenu,
+  FiEdit2, FiTrash2, FiLoader, FiMenu, FiArchive,
 } from 'react-icons/fi';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useCreateItem } from '../../hooks/queries/useItemQueries';
-import { useUpdateGroup, useDeleteGroup } from '../../hooks/queries/useGroupQueries';
+import { useUpdateGroup, useDeleteGroup, useArchiveGroup } from '../../hooks/queries/useGroupQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
@@ -38,6 +38,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
   const { mutateAsync: updateGroup, isPending: isUpdating } = useUpdateGroup();
   const { mutateAsync: deleteGroup, isPending: isDeleting } = useDeleteGroup();
+  const { mutateAsync: archiveGroup, isPending: isArchiving } = useArchiveGroup();
   const { mutateAsync: createItem, isPending: isCreatingItem } = useCreateItem();
 
   const [editingName, setEditingName] = useState(false);
@@ -52,6 +53,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const addItemInputRef = useRef<HTMLInputElement>(null);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
 
   const {
     attributes: groupDragAttributes,
@@ -122,6 +124,12 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     setMenuOpen(false);
     setConfirmDelete(false);
     await deleteGroup({ boardId, groupId: group.id });
+  };
+
+  const handleArchive = async () => {
+    setMenuOpen(false);
+    setConfirmArchive(false);
+    await archiveGroup({ boardId, groupId: group.id });
   };
 
   const handleAddItem = async () => {
@@ -257,6 +265,42 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                     <FiEdit2 size={13} aria-hidden="true" />
                     Rename
                   </button>
+
+                  {confirmArchive ? (
+                    <div className="px-3 py-2 space-y-1">
+                      <p className="text-xs text-amber-600">Archive this group?</p>
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void handleArchive()}
+                          disabled={isArchiving}
+                          className="flex-1 px-2 py-1 text-xs text-white bg-amber-500 rounded hover:bg-amber-600 transition-colors disabled:opacity-60"
+                          aria-label="Confirm archive group"
+                        >
+                          {isArchiving ? '…' : 'Archive'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmArchive(false)}
+                          className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                          aria-label="Cancel archive"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => setConfirmArchive(true)}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 transition-colors"
+                      aria-label="Archive group"
+                    >
+                      <FiArchive size={13} aria-hidden="true" />
+                      Archive
+                    </button>
+                  )}
 
                   {confirmDelete ? (
                     <div className="px-3 py-2 space-y-1">

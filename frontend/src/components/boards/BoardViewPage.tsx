@@ -26,6 +26,7 @@ import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
 import AddColumnModal from './AddColumnModal';
+import BoardArchiveModal from './BoardArchiveModal';
 
 type DragData =
   | { type: 'group'; group: Group }
@@ -55,6 +56,7 @@ const BoardViewPage: React.FC = () => {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [showAddGroup, setShowAddGroup] = useState(false);
   const [showAddColumn, setShowAddColumn] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
 
   // Local optimistic state for DnD
@@ -344,6 +346,15 @@ const BoardViewPage: React.FC = () => {
 
           {canManage && (
             <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowArchiveModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                aria-label="View archived groups and items"
+              >
+                <FiArchive size={13} aria-hidden="true" />
+                Archived
+              </button>
               {board.isArchived ? (
                 <button
                   type="button"
@@ -353,7 +364,7 @@ const BoardViewPage: React.FC = () => {
                   aria-label="Restore board"
                 >
                   <FiRotateCcw size={13} aria-hidden="true" />
-                  Restore
+                  Restore Board
                 </button>
               ) : (
                 <button
@@ -364,7 +375,7 @@ const BoardViewPage: React.FC = () => {
                   aria-label="Archive board"
                 >
                   <FiArchive size={13} aria-hidden="true" />
-                  Archive
+                  Archive Board
                 </button>
               )}
             </div>
@@ -474,6 +485,10 @@ const BoardViewPage: React.FC = () => {
 
       {showAddColumn && boardId && (
         <AddColumnModal boardId={boardId} onClose={() => setShowAddColumn(false)} />
+      )}
+
+      {showArchiveModal && boardId && (
+        <BoardArchiveModal boardId={boardId} onClose={() => setShowArchiveModal(false)} />
       )}
     </>
   );
