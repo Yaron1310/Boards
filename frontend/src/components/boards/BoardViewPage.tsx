@@ -12,7 +12,7 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
-import { useBoard, useUpdateBoard, useArchiveBoard, useRestoreBoard } from '../../hooks/queries/useBoardQueries';
+import { useBoard, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
 import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries';
 import { useItems, useReorderItems } from '../../hooks/queries/useItemQueries';
 import { useAuth } from '../../hooks/useAuth';
@@ -20,7 +20,7 @@ import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
 import { UserRole } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiRotateCcw, FiChevronLeft, FiPlus, FiMenu } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu } from 'react-icons/fi';
 import ColumnHeader from './ColumnHeader';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
@@ -43,8 +43,6 @@ const BoardViewPage: React.FC = () => {
   const { data: itemsPage } = useItems(itemParams, !!boardId);
 
   const { mutateAsync: updateBoard, isPending: isSaving } = useUpdateBoard();
-  const { mutateAsync: archiveBoard, isPending: isArchiving } = useArchiveBoard();
-  const { mutateAsync: restoreBoard, isPending: isRestoring } = useRestoreBoard();
   const { mutateAsync: reorderGroups } = useReorderGroups();
   const { mutateAsync: reorderItems } = useReorderItems();
 
@@ -136,16 +134,6 @@ const BoardViewPage: React.FC = () => {
       setEditingName(false);
       if (board) setNameValue(board.name);
     }
-  };
-
-  const handleArchive = async () => {
-    if (!boardId) return;
-    await archiveBoard(boardId);
-  };
-
-  const handleRestore = async () => {
-    if (!boardId) return;
-    await restoreBoard(boardId);
   };
 
   // --- DnD handlers ---
@@ -355,29 +343,6 @@ const BoardViewPage: React.FC = () => {
                 <FiArchive size={13} aria-hidden="true" />
                 Archived
               </button>
-              {board.isArchived ? (
-                <button
-                  type="button"
-                  onClick={() => void handleRestore()}
-                  disabled={isRestoring}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-60"
-                  aria-label="Restore board"
-                >
-                  <FiRotateCcw size={13} aria-hidden="true" />
-                  Restore Board
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => void handleArchive()}
-                  disabled={isArchiving}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-60"
-                  aria-label="Archive board"
-                >
-                  <FiArchive size={13} aria-hidden="true" />
-                  Archive Board
-                </button>
-              )}
             </div>
           )}
         </div>

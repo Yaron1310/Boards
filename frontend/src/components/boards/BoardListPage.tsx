@@ -1,9 +1,12 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useBoards, useRestoreBoard } from '../../hooks/queries/useBoardQueries';
+import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
-import { FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX, FiRotateCcw, FiLoader, FiInbox } from 'react-icons/fi';
+import {
+  FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX,
+  FiRotateCcw, FiLoader, FiInbox, FiTrash2,
+} from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 import CreateBoardModal from './CreateBoardModal';
 
@@ -13,6 +16,7 @@ const BoardListPage: React.FC = () => {
   const { user } = useAuth();
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [showArchiveModal, setShowArchiveModal] = React.useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
 
   const { data: boards = [], isLoading, error } = useBoards(workspaceId, false, !!workspaceId);
   const { data: archivedBoards = [], isLoading: archivedLoading, refetch: refetchArchived } = useBoards(
@@ -21,13 +25,30 @@ const BoardListPage: React.FC = () => {
     showArchiveModal && !!workspaceId,
   );
 
+  const { mutateAsync: archiveBoard } = useArchiveBoard();
   const { mutateAsync: restoreBoard } = useRestoreBoard();
+  const { mutateAsync: deleteBoard } = useDeleteBoard();
+
+  const [actioningId, setActioningId] = React.useState<string | null>(null);
   const [restoringId, setRestoringId] = React.useState<string | null>(null);
 
   const onlyArchived = React.useMemo(
     () => archivedBoards.filter((b) => b.isArchived),
     [archivedBoards],
   );
+
+  const handleArchive = async (id: string) => {
+    setActioningId(id);
+    await archiveBoard(id).catch(() => {});
+    setActioningId(null);
+  };
+
+  const handleDelete = async (id: string) => {
+    setActioningId(id);
+    setConfirmDeleteId(null);
+    await deleteBoard(id).catch(() => {});
+    setActioningId(null);
+  };
 
   const handleRestore = async (id: string) => {
     setRestoringId(id);
@@ -105,24 +126,76 @@ const BoardListPage: React.FC = () => {
           aria-label="Boards"
         >
           {boards.map((board) => (
-            <button
+            <div
               key={board.id}
-              type="button"
               role="listitem"
-              aria-label={`Open board ${board.name}`}
+              className="group relative flex items-start gap-4 p-5 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer"
               onClick={() => navigate(`/boards/${board.id}`)}
-              className="flex items-start gap-4 p-5 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all text-left w-full"
+              aria-label={`Open board ${board.name}`}
             >
               <div className="flex-shrink-0 w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
                 <FiLayout className="text-indigo-500" size={20} aria-hidden="true" />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 pr-14">
                 <p className="font-semibold truncate text-gray-800">{board.name}</p>
                 {board.description && (
                   <p className="text-sm text-gray-500 mt-1 line-clamp-2">{board.description}</p>
                 )}
               </div>
-            </button>
+
+              {/* Action icons — visible on hover */}
+              {canManageBoards && (
+                <div
+                  className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {actioningId === board.id ? (
+                    <FiLoader className="animate-spin text-gray-400" size={16} aria-hidden="true" />
+                  ) : confirmDeleteId === board.id ? (
+                    <>
+                      <span className="text-xs text-red-600 mr-1">Delete?</span>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(board.id)}
+                        className="px-2 py-0.5 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors"
+                        aria-label="Confirm delete board"
+                      >
+                        Yes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                        aria-label="Cancel delete"
+                      >
+                        No
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void handleArchive(board.id)}
+                        className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                        aria-label={`Archive board ${board.name}`}
+                        title="Archive"
+                      >
+                        <FiArchive size={15} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDeleteId(board.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        aria-label={`Delete board ${board.name}`}
+                        title="Delete"
+                      >
+                        <FiTrash2 size={15} aria-hidden="true" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
