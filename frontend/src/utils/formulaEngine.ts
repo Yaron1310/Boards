@@ -80,13 +80,17 @@ class FormulaParser {
       return val;
     }
 
-    // Column reference: {Name}
+    // {…} — either a numeric literal like {42} or a column reference like {Price}
     if (this.input[this.pos] === '{') {
       this.pos++;
       const start = this.pos;
       while (this.pos < this.input.length && this.input[this.pos] !== '}') this.pos++;
       const name = this.input.slice(start, this.pos);
       if (this.input[this.pos] === '}') this.pos++;
+      // If the content is a plain number, treat it as a literal value
+      const asNum = Number(name.trim());
+      if (name.trim() !== '' && !isNaN(asNum)) return asNum;
+      // Otherwise look up as a column reference
       const v = this.values[name];
       return v != null && !isNaN(Number(v)) ? Number(v) : 0;
     }
