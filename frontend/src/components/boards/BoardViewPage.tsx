@@ -27,6 +27,7 @@ import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
 import AddColumnModal from './AddColumnModal';
 import BoardArchiveModal from './BoardArchiveModal';
+import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 
 type DragData =
   | { type: 'group'; group: Group }
@@ -348,6 +349,7 @@ const BoardViewPage: React.FC = () => {
         </div>
 
         {/* Board content area with horizontal scrolling */}
+        <FormulaEditProvider>
         <div className="flex-1 relative min-h-0">
           {/* Left-edge wall: sits on the page background and hides board content scrolling into the 16px gap */}
           <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
@@ -442,6 +444,7 @@ const BoardViewPage: React.FC = () => {
             )}
           </div>
         </div>
+        </FormulaEditProvider>
       </div>
 
       {detailItem && (

@@ -43,7 +43,7 @@ const NumberCell: React.FC<Props> = ({ item, column }) => {
         {() => (
           <div
             className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-100/60 transition-colors"
-            onClick={() => insertColumnRef(column.name)}
+            onMouseDown={(e) => { e.preventDefault(); insertColumnRef(column.name); }}
             title={`Insert {${column.name}} into formula`}
             aria-label={`Insert ${column.name} into formula`}
           >
