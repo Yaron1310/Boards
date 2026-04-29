@@ -246,6 +246,31 @@ export interface LocationValue {
 export interface TimeRangeValue {
   start: Date | string;
   end: Date | string;
+  /** Stored duration in days — preserved so dependency shifts don't alter task length */
+  durationDays?: number;
+}
+
+// --- Cell Dependencies ---
+
+export interface TimeRangeDependency {
+  /** Unique ID for this dependency link */
+  id: string;
+  /** Item that must finish first (the source / predecessor) */
+  sourceItemId: string;
+  sourceColumnId: string;
+  /** Item that starts after (the dependent / successor) */
+  targetItemId: string;
+  targetColumnId: string;
+  /** Days gap between source.end and target.start (default 0) */
+  offsetDays: number;
+}
+
+/** Board-level rule: "in every row, targetColumnId depends on sourceColumnId" */
+export interface DependencyRule {
+  id: string;
+  sourceColumnId: string;
+  targetColumnId: string;
+  offsetDays: number;
 }
 
 export type ColumnValueMap = Record<string, unknown>;
@@ -260,6 +285,8 @@ export interface Board {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  /** Column-level dependency rules that apply to every item on this board */
+  dependencyRules?: DependencyRule[];
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -294,6 +321,8 @@ export interface Item {
   status?: string;
   assignees?: string[];
   dueDate?: Date | string;
+  // Cell dependency links — stored on the target item (the dependent one)
+  dependencies?: TimeRangeDependency[];
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: Date | string;

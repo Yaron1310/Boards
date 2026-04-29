@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
@@ -169,6 +169,7 @@ export interface UpdateItemData {
   assignees?: string[];
   status?: string;
   dueDate?: string;
+  dependencies?: TimeRangeDependency[];
 }
 
 export interface ListItemsParams {

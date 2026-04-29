@@ -477,7 +477,7 @@ export const reorderItems = async (req: Request, res: Response) => {
 export const updateItem = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { id } = req.params;
-  const { name, groupId, order, values, assignees, status, dueDate } = req.body;
+  const { name, groupId, order, values, assignees, status, dueDate, dependencies } = req.body;
 
   try {
     const doc = await itemsCollection(user.orgId).doc(id).get();
@@ -534,6 +534,8 @@ export const updateItem = async (req: Request, res: Response) => {
 
     if (dueDate !== undefined) updateData.dueDate = dueDate;
     else if (mirrored.dueDate !== undefined) updateData.dueDate = mirrored.dueDate;
+
+    if (Array.isArray(dependencies)) updateData.dependencies = dependencies;
 
     const previousAssignees = item.assignees ?? [];
     await itemsCollection(user.orgId).doc(id).update(updateData);

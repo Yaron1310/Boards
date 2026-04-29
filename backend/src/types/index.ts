@@ -258,6 +258,25 @@ export interface LocationValue {
 export interface TimeRangeValue {
   start: admin.firestore.Timestamp | Date | any;
   end: admin.firestore.Timestamp | Date | any;
+  durationDays?: number;
+}
+
+// --- Cell Dependencies ---
+
+export interface TimeRangeDependency {
+  id: string;
+  sourceItemId: string;
+  sourceColumnId: string;
+  targetItemId: string;
+  targetColumnId: string;
+  offsetDays: number;
+}
+
+export interface DependencyRule {
+  id: string;
+  sourceColumnId: string;
+  targetColumnId: string;
+  offsetDays: number;
 }
 
 // The dynamic map stored in an Item document
@@ -273,6 +292,7 @@ export interface DBBoard {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  dependencyRules?: DependencyRule[];
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
@@ -307,6 +327,7 @@ export interface DBItem {
   status?: string;          // mirrors values[statusColumnId]
   assignees?: string[];     // mirrors values[personColumnId] — userIds
   dueDate?: admin.firestore.Timestamp | Date | any; // mirrors values[dateColumnId]
+  dependencies?: TimeRangeDependency[];
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: admin.firestore.Timestamp | Date | any;
