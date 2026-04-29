@@ -147,8 +147,11 @@ export function validateColumnValue(column: DBColumn, value: unknown): Validatio
     }
 
     case ColumnType.SIMPLE_FORMULA: {
-      // Computed in UI; not stored. Reject any attempt to write this value.
-      return { valid: false, error: `Column "${column.name}": simple_formula values are computed and must not be stored directly.` };
+      // Per-cell formula overrides are stored as strings; the result is computed client-side.
+      if (typeof value !== 'string') {
+        return { valid: false, error: `Column "${column.name}": formula override must be a string expression.` };
+      }
+      return { valid: true };
     }
 
     default:

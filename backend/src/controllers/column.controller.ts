@@ -14,10 +14,8 @@ function isAuthError(err: unknown): err is { status: number; message: string } {
 
 /**
  * Cast helper: snapshotToData / querySnapshotToArray use a recursive DeepWithDates<T>
- * transform which widens tuple types (e.g. SimpleFormulaColumnSettings.fields: [string,string]
- * becomes string[]).  This prevents direct assignability to DBColumn when ColumnSettings is a
- * discriminated union.  Since the data is Firestore-sourced and structurally correct at runtime,
- * the cast is safe.
+ * transform which widens union types in ColumnSettings. Since the data is Firestore-sourced
+ * and structurally correct at runtime, the cast is safe.
  */
 function asDBColumn(data: unknown): DBColumn {
   return data as unknown as DBColumn;
@@ -53,12 +51,8 @@ function validateColumnSettings(type: ColumnType, settings: unknown): string | n
 
     case ColumnType.SIMPLE_FORMULA: {
       const s = settings as SimpleFormulaColumnSettings | null;
-      const validOps = ['add', 'subtract', 'multiply', 'divide'];
-      if (!s || !validOps.includes(s.operation)) {
-        return 'SIMPLE_FORMULA column requires settings.operation: "add" | "subtract" | "multiply" | "divide".';
-      }
-      if (!Array.isArray(s.fields) || s.fields.length !== 2 || !s.fields.every((f) => typeof f === 'string')) {
-        return 'SIMPLE_FORMULA column requires settings.fields: exactly 2 columnId strings.';
+      if (!s || typeof s.defaultFormula !== 'string') {
+        return 'SIMPLE_FORMULA column requires settings.defaultFormula: a string formula expression.';
       }
       return null;
     }

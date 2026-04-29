@@ -209,9 +209,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const [allowCustom, setAllowCustom] = useState(true);
 
   // SIMPLE_FORMULA
-  const [formulaOperation, setFormulaOperation] = useState<'add' | 'subtract' | 'multiply' | 'divide'>('add');
-  const [formulaField1, setFormulaField1] = useState('');
-  const [formulaField2, setFormulaField2] = useState('');
+  const [formulaDefault, setFormulaDefault] = useState('');
 
   const numberColumns = allColumns.filter((c) => c.type === ColumnType.NUMBER);
 
@@ -259,7 +257,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       case ColumnType.TAGS:
         return { allowCustom };
       case ColumnType.SIMPLE_FORMULA:
-        return { operation: formulaOperation, fields: [formulaField1, formulaField2] as [string, string] };
+        return { defaultFormula: formulaDefault.trim() };
       default:
         return {};
     }
@@ -274,14 +272,6 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     }
     if (type === ColumnType.STATUS && statusOptions.length === 0) {
       setError('Status column requires at least one option.');
-      return;
-    }
-    if (type === ColumnType.SIMPLE_FORMULA && (!formulaField1 || !formulaField2)) {
-      setError('Formula column requires two field selections.');
-      return;
-    }
-    if (type === ColumnType.SIMPLE_FORMULA && formulaField1 === formulaField2) {
-      setError('Formula fields must be different columns.');
       return;
     }
 
@@ -645,64 +635,45 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             {type === ColumnType.SIMPLE_FORMULA && (
               <div className="space-y-3 pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Formula Settings</p>
-                {numberColumns.length < 2 && (
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded" role="note">
-                    You need at least 2 Number columns to create a formula.
-                  </p>
-                )}
                 <div>
-                  <label htmlFor="formula-op" className="block text-xs text-gray-600 mb-1">
-                    Operation
+                  <label htmlFor="formula-default" className="block text-xs text-gray-600 mb-1">
+                    Default formula <span className="text-gray-400">(applied to all cells unless overridden)</span>
                   </label>
-                  <select
-                    id="formula-op"
-                    value={formulaOperation}
-                    onChange={(e) => setFormulaOperation(e.target.value as typeof formulaOperation)}
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    aria-label="Formula operation"
-                  >
-                    <option value="add">Add (+)</option>
-                    <option value="subtract">Subtract (−)</option>
-                    <option value="multiply">Multiply (×)</option>
-                    <option value="divide">Divide (÷)</option>
-                  </select>
-                </div>
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label htmlFor="formula-f1" className="block text-xs text-gray-600 mb-1">
-                      Field 1
-                    </label>
-                    <select
-                      id="formula-f1"
-                      value={formulaField1}
-                      onChange={(e) => setFormulaField1(e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      aria-label="Formula field 1"
-                    >
-                      <option value="">Select column</option>
-                      {numberColumns.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                  <div className="relative flex items-center">
+                    <span className="absolute left-2.5 text-xs font-mono text-indigo-400 select-none">=</span>
+                    <input
+                      id="formula-default"
+                      type="text"
+                      value={formulaDefault}
+                      onChange={(e) => setFormulaDefault(e.target.value)}
+                      placeholder={numberColumns.length > 0 ? `e.g. {${numberColumns[0]?.name}} * {${numberColumns[1]?.name ?? 'Col2'}}` : 'e.g. {Price} * {Qty}'}
+                      className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      aria-label="Default formula expression"
+                      spellCheck={false}
+                    />
                   </div>
-                  <div className="flex-1">
-                    <label htmlFor="formula-f2" className="block text-xs text-gray-600 mb-1">
-                      Field 2
-                    </label>
-                    <select
-                      id="formula-f2"
-                      value={formulaField2}
-                      onChange={(e) => setFormulaField2(e.target.value)}
-                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      aria-label="Formula field 2"
-                    >
-                      <option value="">Select column</option>
-                      {numberColumns.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    Use <code className="bg-gray-100 px-1 rounded">{'{ColumnName}'}</code> to reference number columns. Supports +, −, ×, ÷ and parentheses.
+                  </p>
                 </div>
+                {numberColumns.length > 0 && (
+                  <div>
+                    <p className="text-[11px] text-gray-500 mb-1.5">Available columns:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {numberColumns.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setFormulaDefault((prev) => prev + `{${c.name}}`)}
+                          className="text-[11px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded border border-indigo-200 hover:bg-indigo-100 transition-colors font-mono"
+                          aria-label={`Insert reference to ${c.name}`}
+                        >
+                          {`{${c.name}}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

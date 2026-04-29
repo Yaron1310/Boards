@@ -225,8 +225,7 @@ export interface TagsColumnSettings {
 }
 
 export interface SimpleFormulaColumnSettings {
-  operation: 'add' | 'subtract' | 'multiply' | 'divide';
-  fields: [string, string]; // exactly 2 columnIds
+  defaultFormula: string; // e.g. "{Price} * {Qty}" — evaluated client-side
 }
 
 export type ColumnSettings =
