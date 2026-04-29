@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
-import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
 import type { Item, Column, NumberColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
 
@@ -10,8 +9,6 @@ const NumberCell: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as number | null | undefined;
   const settings = column.settings as NumberColumnSettings;
   const { mutate } = useUpdateItem();
-  const { isFormulaEditing, insertColumnRef } = useFormulaEdit();
-
   const [draft, setDraft] = useState<string>(rawValue != null ? String(rawValue) : '');
 
   useEffect(() => {
@@ -33,26 +30,6 @@ const NumberCell: React.FC<Props> = ({ item, column }) => {
     const formatted = Number.isInteger(rawValue) ? String(rawValue) : rawValue.toFixed(precision);
     return settings?.unit ? `${formatted} ${settings.unit}` : formatted;
   };
-
-  // When a formula cell in the same row is being edited, intercept clicks
-  // to insert this column's reference into the formula instead of entering edit mode.
-  if (isFormulaEditing) {
-    const display = formatDisplay();
-    return (
-      <CellWrapper column={column} isReadOnly>
-        {() => (
-          <div
-            className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-100/60 transition-colors"
-            onClick={() => insertColumnRef(column.name)}
-            title={`Insert {${column.name}} into formula`}
-            aria-label={`Insert ${column.name} into formula`}
-          >
-            {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
-          </div>
-        )}
-      </CellWrapper>
-    );
-  }
 
   return (
     <CellWrapper column={column}>

@@ -8,7 +8,6 @@ import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
-import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
 interface ItemRowProps {
@@ -181,11 +180,9 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => 
       </div>
 
       {/* Dynamic column cells */}
-      <FormulaEditProvider>
-        {columns.map((col) => (
-          <ColumnCell key={col.id} item={item} column={col} />
-        ))}
-      </FormulaEditProvider>
+      {columns.map((col) => (
+        <ColumnCell key={col.id} item={item} column={col} />
+      ))}
     </div>
   );
 };
