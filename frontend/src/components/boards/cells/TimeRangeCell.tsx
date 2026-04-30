@@ -137,6 +137,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   const [start, setStart] = useState(toDateInput(rawValue?.start));
   const [end, setEnd] = useState(toDateInput(rawValue?.end));
   const [hovered, setHovered] = useState(false);
+  const [showDepMenu, setShowDepMenu] = useState<'in' | 'out' | null>(null);
   const cellRef = useRef<HTMLDivElement | null>(null);
 
   const {
@@ -150,6 +151,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     setHoveredCell,
     getDepsFrom,
     getDepsTo,
+    removeDependency,
     registerCellRect,
   } = useDependency();
 
@@ -316,27 +318,71 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
               </div>
             )}
 
-            {/* Incoming dependency dot */}
+            {/* Incoming dependency dot — click to see/remove incoming deps */}
             {hasDepsIn && !isDrawing && (
-              <span
-                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-orange-400 border border-white shadow z-10"
-                aria-label="Has incoming dependency"
+              <button
+                type="button"
+                className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow z-20 hover:scale-125 transition-transform"
+                aria-label="Incoming dependency — click to remove"
+                title="Click to remove incoming dependency"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDepMenu((v) => (v === 'in' ? null : 'in'));
+                }}
               />
             )}
 
-            {/* Outgoing dependency dot */}
+            {/* Outgoing dependency dot — click to see/remove outgoing deps */}
             {hasDepsOut && !isDrawing && (
-              <span
-                className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500 border border-white shadow z-10"
-                aria-label="Has outgoing dependency"
+              <button
+                type="button"
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow z-20 hover:scale-125 transition-transform"
+                aria-label="Outgoing dependency — click to remove"
+                title="Click to remove outgoing dependency"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowDepMenu((v) => (v === 'out' ? null : 'out'));
+                }}
               />
+            )}
+
+            {/* Dependency removal popover */}
+            {showDepMenu && (
+              <div
+                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl z-40 min-w-[160px] py-1"
+                onMouseLeave={() => setShowDepMenu(null)}
+                role="menu"
+                aria-label="Dependency options"
+              >
+                <p className="px-3 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                  {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
+                </p>
+                {(showDepMenu === 'in'
+                  ? getDepsTo(item.id, column.id)
+                  : getDepsFrom(item.id, column.id)
+                ).map((dep) => (
+                  <button
+                    key={dep.id}
+                    type="button"
+                    className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeDependency(dep);
+                      setShowDepMenu(null);
+                    }}
+                  >
+                    <span className="text-red-400">✕</span>
+                    Remove link
+                  </button>
+                ))}
+              </div>
             )}
 
             {/* Connector handle — inside the cell, right side */}
             {(hovered || isHoveredCell || isSource) && !isEditing && !isDrawing && (
               <button
                 type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125"
+                className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125"
                 onClick={handleConnectorClick}
                 aria-label="Start dependency from this cell"
                 title="Draw dependency"
@@ -347,7 +393,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
             {isSource && !isEditing && (
               <button
                 type="button"
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-blue-500 border-blue-600 scale-125"
+                className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-blue-500 border-blue-600 scale-125"
                 onClick={handleConnectorClick}
                 aria-label="Cancel dependency drawing"
                 title="Click to cancel"

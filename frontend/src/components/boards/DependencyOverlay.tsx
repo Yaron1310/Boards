@@ -3,7 +3,9 @@ import type { TimeRangeDependency } from '../../types';
 import { useDependency } from '../../contexts/DependencyContext';
 
 // ---------------------------------------------------------------------------
-// Arrowhead marker definitions
+// The SVG uses position:fixed so it sits at the viewport level, completely
+// outside any overflow:auto/hidden ancestor. All coordinates are raw viewport
+// coordinates from getBoundingClientRect() — no scroll offset arithmetic.
 // ---------------------------------------------------------------------------
 
 const MARKER_ID = 'dep-arrow';
@@ -19,24 +21,6 @@ const Defs: React.FC = () => (
     </marker>
   </defs>
 );
-
-// ---------------------------------------------------------------------------
-// Coord helper — converts a cell's viewport rect to SVG (scroll-content) coords
-// The SVG is absolute at top:0 left:0 inside the scroll container, so:
-//   svgX = cellRect.x - containerRect.x + scrollLeft
-//   svgY = cellRect.y - containerRect.y + scrollTop
-// ---------------------------------------------------------------------------
-
-const toSvgCoords = (
-  cellRect: DOMRect,
-  containerRect: DOMRect,
-  containerEl: HTMLDivElement,
-) => ({
-  x: cellRect.x - containerRect.x + containerEl.scrollLeft,
-  y: cellRect.y - containerRect.y + containerEl.scrollTop,
-  w: cellRect.width,
-  h: cellRect.height,
-});
 
 // ---------------------------------------------------------------------------
 // Single saved dependency line
@@ -58,19 +42,16 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
     if (!isHighlighted && !showRemove) { setCoords(null); return; }
 
     const recalc = () => {
-      const containerRect = containerEl.getBoundingClientRect();
       const srcRect = getCellRect({ itemId: dep.sourceItemId, columnId: dep.sourceColumnId });
       const tgtRect = getCellRect({ itemId: dep.targetItemId, columnId: dep.targetColumnId });
       if (!srcRect || !tgtRect) { setCoords(null); return; }
 
-      const src = toSvgCoords(srcRect, containerRect, containerEl);
-      const tgt = toSvgCoords(tgtRect, containerRect, containerEl);
-
+      // Pure viewport coordinates — the SVG is position:fixed at 0,0
       setCoords({
-        x1: src.x + src.w,            // right edge of source cell
-        y1: src.y + src.h / 2,        // vertical centre
-        x2: tgt.x,                     // left edge of target cell
-        y2: tgt.y + tgt.h / 2,
+        x1: srcRect.right,
+        y1: (srcRect.top + srcRect.bottom) / 2,
+        x2: tgtRect.left,
+        y2: (tgtRect.top + tgtRect.bottom) / 2,
       });
     };
 
@@ -121,49 +102,50 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
 };
 
 // ---------------------------------------------------------------------------
-// Live draw-mode line
+// Live draw-mode line — mouse coords are also viewport (clientX/Y)
 // ---------------------------------------------------------------------------
 
-interface LiveLineProps {
-  containerEl: HTMLDivElement;
-}
-
-const LiveLine: React.FC<LiveLineProps> = ({ containerEl }) => {
+const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) => {
   const { drawState, getCellRect } = useDependency();
-  const [srcCoords, setSrcCoords] = useState<{ x: number; y: number } | null>(null);
+  const [srcX, setSrcX] = useState(0);
+  const [srcY, setSrcY] = useState(0);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!drawState) { setSrcCoords(null); return; }
+    if (!drawState) { setReady(false); return; }
 
-    const containerRect = containerEl.getBoundingClientRect();
-    const srcRect = getCellRect(drawState.source);
-    if (!srcRect) { setSrcCoords(null); return; }
+    const recalc = () => {
+      const srcRect = getCellRect(drawState.source);
+      if (!srcRect) { setReady(false); return; }
+      setSrcX(srcRect.right);
+      setSrcY((srcRect.top + srcRect.bottom) / 2);
+      setReady(true);
+    };
 
-    const src = toSvgCoords(srcRect, containerRect, containerEl);
-    setSrcCoords({ x: src.x + src.w, y: src.y + src.h / 2 });
+    recalc();
+    containerEl.addEventListener('scroll', recalc);
+    return () => containerEl.removeEventListener('scroll', recalc);
   }, [drawState, getCellRect, containerEl]);
 
-  if (!drawState || !srcCoords) return null;
+  if (!drawState || !ready) return null;
 
   const isValid = drawState.hoveredTarget !== null;
   const isInvalid = (drawState.mouseX !== 0 || drawState.mouseY !== 0) && !isValid;
 
-  // Snap to target centre-left when hovering a valid cell
   let x2 = drawState.mouseX;
   let y2 = drawState.mouseY;
+
   if (isValid && drawState.hoveredTarget) {
-    const containerRect = containerEl.getBoundingClientRect();
     const tgtRect = getCellRect(drawState.hoveredTarget);
     if (tgtRect) {
-      const tgt = toSvgCoords(tgtRect, containerRect, containerEl);
-      x2 = tgt.x;
-      y2 = tgt.y + tgt.h / 2;
+      x2 = tgtRect.left;
+      y2 = (tgtRect.top + tgtRect.bottom) / 2;
     }
   }
 
   return (
     <line
-      x1={srcCoords.x} y1={srcCoords.y} x2={x2} y2={y2}
+      x1={srcX} y1={srcY} x2={x2} y2={y2}
       stroke={isInvalid ? '#ef4444' : '#6366f1'}
       strokeWidth={2}
       strokeDasharray={isValid ? 'none' : '6 3'}
@@ -174,8 +156,7 @@ const LiveLine: React.FC<LiveLineProps> = ({ containerEl }) => {
 };
 
 // ---------------------------------------------------------------------------
-// Main overlay — zero-size SVG with overflow:visible so it takes no layout
-// space but can draw lines anywhere in the scroll container
+// Main overlay — fixed to viewport, no clipping issues
 // ---------------------------------------------------------------------------
 
 interface Props {
@@ -191,14 +172,13 @@ const DependencyOverlay: React.FC<Props> = ({ onRemoveDep }) => {
   return (
     <svg
       style={{
-        position: 'absolute',
+        position: 'fixed',
         top: 0,
         left: 0,
-        width: 0,
-        height: 0,
-        overflow: 'visible',
+        width: '100vw',
+        height: '100vh',
         pointerEvents: 'none',
-        zIndex: 15,
+        zIndex: 9999,
       }}
       aria-hidden="true"
     >

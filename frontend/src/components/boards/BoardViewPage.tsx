@@ -98,13 +98,10 @@ const BoardContent: React.FC<BoardContentProps> = ({
   }, [circularDepDetected, clearCircularDepFlag]);
 
   const handleMouseMove = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!drawState || !boardContainerRef.current) return;
-    const rect = boardContainerRef.current.getBoundingClientRect();
-    setDrawMouse(
-      e.clientX - rect.left + boardContainerRef.current.scrollLeft,
-      e.clientY - rect.top + boardContainerRef.current.scrollTop,
-    );
-  }, [drawState, boardContainerRef, setDrawMouse]);
+    if (!drawState) return;
+    // SVG is position:fixed so we use raw viewport coordinates directly
+    setDrawMouse(e.clientX, e.clientY);
+  }, [drawState, setDrawMouse]);
 
   const groupIds = localGroups.map((g) => g.id);
 
@@ -112,16 +109,16 @@ const BoardContent: React.FC<BoardContentProps> = ({
     <div className="flex-1 relative min-h-0">
       <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
 
+      {/* SVG overlay — position:fixed, renders at viewport level outside all scroll containers */}
+      <DependencyOverlay onRemoveDep={(dep) => removeDependency(dep)} />
+
       <div
         ref={boardContainerRef as React.RefObject<HTMLDivElement>}
-        className="h-full overflow-x-auto overflow-y-auto relative"
+        className="h-full overflow-x-auto overflow-y-auto"
         role="grid"
         aria-label={`Board: ${board.name}`}
         onMouseMove={handleMouseMove}
       >
-        {/* SVG dependency line overlay — inside the scroll container so it scrolls with content */}
-        <DependencyOverlay onRemoveDep={(dep) => removeDependency(dep)} />
-
         <ColumnHeader
           boardId={boardId}
           canManage={canManage}
