@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { TimeRangeDependency } from '../../types';
 import { useDependency } from '../../contexts/DependencyContext';
 
 // ---------------------------------------------------------------------------
-// Arrowhead marker definitions (reusable SVG defs)
+// Arrowhead marker definitions
 // ---------------------------------------------------------------------------
 
 const MARKER_ID = 'dep-arrow';
@@ -21,6 +21,24 @@ const Defs: React.FC = () => (
 );
 
 // ---------------------------------------------------------------------------
+// Coord helper — converts a cell's viewport rect to SVG (scroll-content) coords
+// The SVG is absolute at top:0 left:0 inside the scroll container, so:
+//   svgX = cellRect.x - containerRect.x + scrollLeft
+//   svgY = cellRect.y - containerRect.y + scrollTop
+// ---------------------------------------------------------------------------
+
+const toSvgCoords = (
+  cellRect: DOMRect,
+  containerRect: DOMRect,
+  containerEl: HTMLDivElement,
+) => ({
+  x: cellRect.x - containerRect.x + containerEl.scrollLeft,
+  y: cellRect.y - containerRect.y + containerEl.scrollTop,
+  w: cellRect.width,
+  h: cellRect.height,
+});
+
+// ---------------------------------------------------------------------------
 // Single saved dependency line
 // ---------------------------------------------------------------------------
 
@@ -28,7 +46,7 @@ interface DepLineProps {
   dep: TimeRangeDependency;
   isHighlighted: boolean;
   onRemove: () => void;
-  containerEl: HTMLDivElement | null;
+  containerEl: HTMLDivElement;
 }
 
 const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, containerEl }) => {
@@ -40,28 +58,27 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
     if (!isHighlighted && !showRemove) { setCoords(null); return; }
 
     const recalc = () => {
-      if (!containerEl) return;
       const containerRect = containerEl.getBoundingClientRect();
       const srcRect = getCellRect({ itemId: dep.sourceItemId, columnId: dep.sourceColumnId });
       const tgtRect = getCellRect({ itemId: dep.targetItemId, columnId: dep.targetColumnId });
       if (!srcRect || !tgtRect) { setCoords(null); return; }
 
-      const scrollLeft = containerEl.scrollLeft;
-      const scrollTop = containerEl.scrollTop;
+      const src = toSvgCoords(srcRect, containerRect, containerEl);
+      const tgt = toSvgCoords(tgtRect, containerRect, containerEl);
 
       setCoords({
-        x1: srcRect.right - containerRect.left + scrollLeft,
-        y1: (srcRect.top + srcRect.bottom) / 2 - containerRect.top + scrollTop,
-        x2: tgtRect.left - containerRect.left + scrollLeft,
-        y2: (tgtRect.top + tgtRect.bottom) / 2 - containerRect.top + scrollTop,
+        x1: src.x + src.w,            // right edge of source cell
+        y1: src.y + src.h / 2,        // vertical centre
+        x2: tgt.x,                     // left edge of target cell
+        y2: tgt.y + tgt.h / 2,
       });
     };
 
     recalc();
-    containerEl?.addEventListener('scroll', recalc);
+    containerEl.addEventListener('scroll', recalc);
     window.addEventListener('resize', recalc);
     return () => {
-      containerEl?.removeEventListener('scroll', recalc);
+      containerEl.removeEventListener('scroll', recalc);
       window.removeEventListener('resize', recalc);
     };
   }, [isHighlighted, showRemove, dep, getCellRect, containerEl]);
@@ -77,20 +94,10 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
       onMouseLeave={() => setShowRemove(false)}
       style={{ cursor: 'default' }}
     >
-      {/* Wider invisible hit area */}
+      {/* Wide invisible hit area */}
+      <line x1={coords.x1} y1={coords.y1} x2={coords.x2} y2={coords.y2} stroke="transparent" strokeWidth={12} />
       <line
-        x1={coords.x1}
-        y1={coords.y1}
-        x2={coords.x2}
-        y2={coords.y2}
-        stroke="transparent"
-        strokeWidth={12}
-      />
-      <line
-        x1={coords.x1}
-        y1={coords.y1}
-        x2={coords.x2}
-        y2={coords.y2}
+        x1={coords.x1} y1={coords.y1} x2={coords.x2} y2={coords.y2}
         stroke="#6366f1"
         strokeWidth={showRemove ? 2.5 : 1.5}
         strokeOpacity={showRemove ? 1 : 0.7}
@@ -114,72 +121,61 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
 };
 
 // ---------------------------------------------------------------------------
-// Live draw-mode line (follows the mouse)
+// Live draw-mode line
 // ---------------------------------------------------------------------------
 
 interface LiveLineProps {
-  containerEl: HTMLDivElement | null;
+  containerEl: HTMLDivElement;
 }
 
 const LiveLine: React.FC<LiveLineProps> = ({ containerEl }) => {
   const { drawState, getCellRect } = useDependency();
-  const [start, setStart] = useState<{ x: number; y: number } | null>(null);
+  const [srcCoords, setSrcCoords] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (!drawState || !containerEl) { setStart(null); return; }
+    if (!drawState) { setSrcCoords(null); return; }
 
     const containerRect = containerEl.getBoundingClientRect();
     const srcRect = getCellRect(drawState.source);
-    if (!srcRect) { setStart(null); return; }
+    if (!srcRect) { setSrcCoords(null); return; }
 
-    setStart({
-      x: srcRect.right - containerRect.left + containerEl.scrollLeft,
-      y: (srcRect.top + srcRect.bottom) / 2 - containerRect.top + containerEl.scrollTop,
-    });
+    const src = toSvgCoords(srcRect, containerRect, containerEl);
+    setSrcCoords({ x: src.x + src.w, y: src.y + src.h / 2 });
   }, [drawState, getCellRect, containerEl]);
 
-  if (!drawState || !start) return null;
+  if (!drawState || !srcCoords) return null;
 
   const isValid = drawState.hoveredTarget !== null;
-  const isInvalid =
-    drawState.mouseX !== 0 &&
-    drawState.mouseY !== 0 &&
-    !isValid &&
-    drawState.hoveredTarget === null;
+  const isInvalid = (drawState.mouseX !== 0 || drawState.mouseY !== 0) && !isValid;
 
+  // Snap to target centre-left when hovering a valid cell
   let x2 = drawState.mouseX;
   let y2 = drawState.mouseY;
-
-  // If hovering a valid target snap to its center-left
-  if (drawState.hoveredTarget && containerEl) {
+  if (isValid && drawState.hoveredTarget) {
     const containerRect = containerEl.getBoundingClientRect();
     const tgtRect = getCellRect(drawState.hoveredTarget);
     if (tgtRect) {
-      x2 = tgtRect.left - containerRect.left + containerEl.scrollLeft;
-      y2 = (tgtRect.top + tgtRect.bottom) / 2 - containerRect.top + containerEl.scrollTop;
+      const tgt = toSvgCoords(tgtRect, containerRect, containerEl);
+      x2 = tgt.x;
+      y2 = tgt.y + tgt.h / 2;
     }
   }
 
-  const color = isInvalid ? '#ef4444' : isValid ? '#6366f1' : '#6366f1';
-  const markerId = isInvalid ? MARKER_INVALID_ID : MARKER_ID;
-
   return (
     <line
-      x1={start.x}
-      y1={start.y}
-      x2={x2}
-      y2={y2}
-      stroke={color}
+      x1={srcCoords.x} y1={srcCoords.y} x2={x2} y2={y2}
+      stroke={isInvalid ? '#ef4444' : '#6366f1'}
       strokeWidth={2}
       strokeDasharray={isValid ? 'none' : '6 3'}
-      markerEnd={`url(#${markerId})`}
+      markerEnd={`url(#${isInvalid ? MARKER_INVALID_ID : MARKER_ID})`}
       style={{ pointerEvents: 'none' }}
     />
   );
 };
 
 // ---------------------------------------------------------------------------
-// Main overlay
+// Main overlay — zero-size SVG with overflow:visible so it takes no layout
+// space but can draw lines anywhere in the scroll container
 // ---------------------------------------------------------------------------
 
 interface Props {
@@ -189,30 +185,7 @@ interface Props {
 const DependencyOverlay: React.FC<Props> = ({ onRemoveDep }) => {
   const { allDeps, hoveredCell, drawState, boardContainerRef } = useDependency();
 
-  // We need to know scrollable container dimensions to size the SVG
-  const [size, setSize] = useState({ w: 0, h: 0 });
-  const resizeRef = useRef<ResizeObserver | null>(null);
-
-  useEffect(() => {
-    const el = boardContainerRef.current;
-    if (!el) return;
-
-    const update = () =>
-      setSize({ w: el.scrollWidth, h: el.scrollHeight });
-
-    update();
-    resizeRef.current = new ResizeObserver(update);
-    resizeRef.current.observe(el);
-    el.addEventListener('scroll', update);
-
-    return () => {
-      resizeRef.current?.disconnect();
-      el.removeEventListener('scroll', update);
-    };
-  }, [boardContainerRef]);
-
   const containerEl = boardContainerRef.current;
-
   if (!containerEl || (allDeps.length === 0 && !drawState)) return null;
 
   return (
@@ -221,11 +194,11 @@ const DependencyOverlay: React.FC<Props> = ({ onRemoveDep }) => {
         position: 'absolute',
         top: 0,
         left: 0,
-        width: size.w,
-        height: size.h,
+        width: 0,
+        height: 0,
+        overflow: 'visible',
         pointerEvents: 'none',
         zIndex: 15,
-        overflow: 'visible',
       }}
       aria-hidden="true"
     >
@@ -234,7 +207,6 @@ const DependencyOverlay: React.FC<Props> = ({ onRemoveDep }) => {
         const isHighlighted =
           (hoveredCell?.itemId === dep.sourceItemId && hoveredCell?.columnId === dep.sourceColumnId) ||
           (hoveredCell?.itemId === dep.targetItemId && hoveredCell?.columnId === dep.targetColumnId);
-
         return (
           <g key={dep.id} style={{ pointerEvents: isHighlighted ? 'auto' : 'none' }}>
             <DepLine

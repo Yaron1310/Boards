@@ -86,11 +86,21 @@ const resolveEffectiveDates = (
   }
 
   const rawValue = item.values[columnId] as TimeRangeValue | null | undefined;
-  const storedDuration = rawValue?.durationDays ?? (() => {
-    const rs = toDate(rawValue?.start);
-    const re = toDate(rawValue?.end);
-    return rs && re ? Math.max(0, Math.round((re.getTime() - rs.getTime()) / 86_400_000)) : 1;
-  })();
+
+  // Only shift if the cell already has a known duration. If the cell is
+  // completely empty (never been filled), don't invent dates — show nothing.
+  const rawStart = toDate(rawValue?.start);
+  const rawEnd = toDate(rawValue?.end);
+  const storedDuration = rawValue?.durationDays
+    ?? (rawStart && rawEnd
+      ? Math.max(1, Math.round((rawEnd.getTime() - rawStart.getTime()) / 86_400_000))
+      : null);
+
+  if (storedDuration === null) {
+    // Cell has no dates and no stored duration — dependency exists but target
+    // is not filled yet; return nulls so the cell still shows "Set range".
+    return { start: null, end: null };
+  }
 
   const computedStart = addDays(latestSourceEnd, maxOffset + 1);
   const computedEnd = addDays(computedStart, storedDuration);

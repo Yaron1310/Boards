@@ -112,16 +112,16 @@ const BoardContent: React.FC<BoardContentProps> = ({
     <div className="flex-1 relative min-h-0">
       <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
 
-      {/* SVG dependency line overlay */}
-      <DependencyOverlay onRemoveDep={(dep) => removeDependency(dep)} />
-
       <div
         ref={boardContainerRef as React.RefObject<HTMLDivElement>}
-        className="h-full overflow-x-auto overflow-y-auto"
+        className="h-full overflow-x-auto overflow-y-auto relative"
         role="grid"
         aria-label={`Board: ${board.name}`}
         onMouseMove={handleMouseMove}
       >
+        {/* SVG dependency line overlay — inside the scroll container so it scrolls with content */}
+        <DependencyOverlay onRemoveDep={(dep) => removeDependency(dep)} />
+
         <ColumnHeader
           boardId={boardId}
           canManage={canManage}
