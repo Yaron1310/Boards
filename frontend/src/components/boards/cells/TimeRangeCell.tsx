@@ -327,17 +327,16 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
             {/* Outgoing dependency dot */}
             {hasDepsOut && !isDrawing && (
               <span
-                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 w-2.5 h-2.5 rounded-full bg-blue-500 border border-white shadow z-10"
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-blue-500 border border-white shadow z-10"
                 aria-label="Has outgoing dependency"
               />
             )}
 
-            {/* Connector handle */}
+            {/* Connector handle — inside the cell, right side */}
             {(hovered || isHoveredCell || isSource) && !isEditing && !isDrawing && (
               <button
                 type="button"
-                className={`absolute right-0 top-1/2 -translate-y-1/2 translate-x-[18px] w-4 h-4 rounded-full border-2 shadow transition-all z-20
-                  bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125`}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125"
                 onClick={handleConnectorClick}
                 aria-label="Start dependency from this cell"
                 title="Draw dependency"
@@ -348,7 +347,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
             {isSource && !isEditing && (
               <button
                 type="button"
-                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-[18px] w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-blue-500 border-blue-600 scale-125"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-blue-500 border-blue-600 scale-125"
                 onClick={handleConnectorClick}
                 aria-label="Cancel dependency drawing"
                 title="Click to cancel"
