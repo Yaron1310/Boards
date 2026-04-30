@@ -351,7 +351,8 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
             {hasDepsOut && !isDrawing && (
               <button
                 type="button"
-                className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow z-20 hover:scale-125 transition-transform flex items-center justify-center"
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
+                style={{ zIndex: 10000 }}
                 aria-label="Outgoing dependency — click to remove all"
                 title="Click to remove all outgoing dependencies"
                 onClick={(e) => {

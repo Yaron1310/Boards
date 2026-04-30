@@ -15,7 +15,7 @@ const Defs: React.FC = () => (
   <defs>
     {/* refX=8 places the tip exactly at the path endpoint */}
     <marker id={MARKER_ID} markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L0,6 L8,3 z" fill="#6366f1" />
+      <path d="M0,0 L0,6 L8,3 z" fill="#16a34a" />
     </marker>
     <marker id={MARKER_INVALID_ID} markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
       <path d="M0,0 L0,6 L8,3 z" fill="#ef4444" />
@@ -41,10 +41,9 @@ const arcPath = (x1: number, y1: number, x2: number, y2: number): string => {
   return `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`;
 };
 
-// Source point is the right edge of the cell so the arc begins outside
-// the pill, making it appear to emerge from behind the cell content.
+// Blue dot (outgoing) center: right-1 (4px) + half of w-3 (6px) = 10px from right edge.
 const blueDotCoords = (r: DOMRect) => ({
-  x: r.right,
+  x: r.right - 10,
   y: (r.top + r.bottom) / 2,
 });
 
@@ -63,13 +62,21 @@ const orangeDotCoords = (r: DOMRect) => ({
 interface DepLineProps {
   dep: TimeRangeDependency;
   isHighlighted: boolean;
+  isNew: boolean;
   containerEl: HTMLDivElement;
 }
 
-const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, containerEl }) => {
+const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, isNew, containerEl }) => {
   const { getCellRect } = useDependency();
   const [coords, setCoords] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [showRemove, setShowRemove] = useState(false);
+  // Start visible for 1 s when this dep was just drawn, then fade out.
+  const [showNew, setShowNew] = useState(isNew);
+  useEffect(() => {
+    if (!isNew) return;
+    const t = setTimeout(() => setShowNew(false), 1000);
+    return () => clearTimeout(t);
+  }, []); // intentionally mount-only
 
   // Always recalculate — not gated on isHighlighted so the invisible hit-area
   // stays in place and mouse-enter fires correctly, preventing flicker.
@@ -94,7 +101,7 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, containerEl }) =>
 
   if (!coords) return null;
 
-  const visible = isHighlighted || showRemove;
+  const visible = isHighlighted || showRemove || showNew;
   const d = arcPath(coords.x1, coords.y1, coords.x2, coords.y2);
 
   return (
@@ -114,7 +121,7 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, containerEl }) =>
       {/* Visible line — always in DOM so CSS opacity transition produces a smooth fade */}
       <path
         d={d}
-        stroke="#6366f1"
+        stroke="#16a34a"
         strokeWidth={showRemove ? 2.5 : 1.5}
         fill="none"
         markerEnd={`url(#${MARKER_ID})`}
@@ -192,7 +199,7 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
 // ---------------------------------------------------------------------------
 
 const DependencyOverlay: React.FC = () => {
-  const { allDeps, hoveredCell, drawState, boardContainerRef } = useDependency();
+  const { allDeps, hoveredCell, drawState, boardContainerRef, justCreatedDepId } = useDependency();
 
   const containerEl = boardContainerRef.current;
   if (!containerEl || (allDeps.length === 0 && !drawState)) return null;
@@ -221,6 +228,7 @@ const DependencyOverlay: React.FC = () => {
             <DepLine
               dep={dep}
               isHighlighted={isHighlighted}
+              isNew={dep.id === justCreatedDepId}
               containerEl={containerEl}
             />
           </g>

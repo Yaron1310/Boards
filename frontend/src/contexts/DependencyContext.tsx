@@ -47,6 +47,9 @@ interface DependencyContextValue {
   getDepsTo: (itemId: string, columnId: string) => TimeRangeDependency[];
   allDeps: TimeRangeDependency[];
 
+  // ID of the dep that was just drawn — DepLine uses it to auto-show for 1 s
+  justCreatedDepId: string | null;
+
   // Mutations
   removeDependency: (dep: TimeRangeDependency) => void;
 
@@ -117,6 +120,7 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
   const [hoveredCell, setHoveredCell] = useState<CellRef | null>(null);
   const [circularDepDetected, setCircularDepDetected] = useState(false);
   const [pendingApplyDep, setPendingApplyDep] = useState<TimeRangeDependency | null>(null);
+  const [justCreatedDepId, setJustCreatedDepId] = useState<string | null>(null);
 
   const cellEls = useRef<Map<string, HTMLElement>>(new Map());
   const boardContainerRef = useRef<HTMLDivElement | null>(null);
@@ -203,6 +207,7 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
 
       updateItem({ id: target.itemId, patch: { dependencies: [...existingDeps, newDep] } });
       setPendingApplyDep(newDep);
+      setJustCreatedDepId(newDep.id);
     },
     [drawState, allDeps, items, updateItem],
   );
@@ -246,6 +251,7 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
       getDepsFrom,
       getDepsTo,
       allDeps,
+      justCreatedDepId,
       removeDependency,
       registerCellRect,
       getCellRect,
@@ -254,8 +260,8 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
     [
       items, drawState, startDraw, cancelDraw, setDrawMouse, setHoveredTarget, confirmDraw,
       circularDepDetected, clearCircularDepFlag, pendingApplyDep, clearPendingApplyDep,
-      hoveredCell, setHoveredCell, getDepsFrom, getDepsTo, allDeps, removeDependency,
-      registerCellRect, getCellRect,
+      hoveredCell, setHoveredCell, getDepsFrom, getDepsTo, allDeps, justCreatedDepId,
+      removeDependency, registerCellRect, getCellRect,
     ],
   );
 
