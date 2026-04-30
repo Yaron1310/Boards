@@ -392,18 +392,36 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                     {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
                   </p>
                   {showDepMenu === 'out' ? (
-                    // Outgoing: one button removes ALL links from this source
-                    <button
-                      type="button"
-                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                      onClick={() => {
-                        getDepsFrom(item.id, column.id).forEach((dep) => removeDependency(dep));
-                        setShowDepMenu(null);
-                      }}
-                    >
-                      <span className="text-red-400">✕</span>
-                      Remove all links ({getDepsFrom(item.id, column.id).length})
-                    </button>
+                    // Outgoing: individual remove per dep, plus Remove all if multiple
+                    <>
+                      {getDepsFrom(item.id, column.id).map((dep) => (
+                        <button
+                          key={dep.id}
+                          type="button"
+                          className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          onClick={() => {
+                            removeDependency(dep);
+                            setShowDepMenu(null);
+                          }}
+                        >
+                          <span className="text-red-400">✕</span>
+                          Remove link
+                        </button>
+                      ))}
+                      {getDepsFrom(item.id, column.id).length > 1 && (
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-red-50"
+                          onClick={() => {
+                            getDepsFrom(item.id, column.id).forEach((dep) => removeDependency(dep));
+                            setShowDepMenu(null);
+                          }}
+                        >
+                          <span className="text-red-400">✕</span>
+                          Remove all links ({getDepsFrom(item.id, column.id).length})
+                        </button>
+                      )}
+                    </>
                   ) : (
                     // Incoming: each dep can be removed individually
                     getDepsTo(item.id, column.id).map((dep) => (

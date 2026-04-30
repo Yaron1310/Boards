@@ -110,7 +110,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
       <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
 
       {/* SVG overlay — position:fixed, renders at viewport level outside all scroll containers */}
-      <DependencyOverlay onRemoveDep={(dep) => removeDependency(dep)} />
+      <DependencyOverlay />
 
       <div
         ref={boardContainerRef as React.RefObject<HTMLDivElement>}

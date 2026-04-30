@@ -65,11 +65,10 @@ const orangeDotCoords = (r: DOMRect) => ({
 interface DepLineProps {
   dep: TimeRangeDependency;
   isHighlighted: boolean;
-  onRemove: () => void;
   containerEl: HTMLDivElement;
 }
 
-const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, containerEl }) => {
+const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, containerEl }) => {
   const { getCellRect } = useDependency();
   const [coords, setCoords] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [showRemove, setShowRemove] = useState(false);
@@ -124,20 +123,6 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
           markerEnd={`url(#${MARKER_ID})`}
           style={{ pointerEvents: 'none' }}
         />
-      )}
-      {/* Remove button lives on the blue dot in TimeRangeCell; clicking the
-          arrow line itself also triggers removal via the context menu. */}
-      {showRemove && (
-        <g
-          transform={`translate(${coords.x1 - 9}, ${coords.y1 - 9})`}
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          style={{ cursor: 'pointer' }}
-          aria-label="Remove dependency"
-          role="button"
-        >
-          {/* Invisible hit circle for easy clicking */}
-          <circle cx="9" cy="9" r="9" fill="transparent" />
-        </g>
       )}
     </g>
   );
@@ -206,11 +191,7 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
 // Main overlay — fixed to viewport, no clipping issues
 // ---------------------------------------------------------------------------
 
-interface Props {
-  onRemoveDep: (dep: TimeRangeDependency) => void;
-}
-
-const DependencyOverlay: React.FC<Props> = ({ onRemoveDep }) => {
+const DependencyOverlay: React.FC = () => {
   const { allDeps, hoveredCell, drawState, boardContainerRef } = useDependency();
 
   const containerEl = boardContainerRef.current;
@@ -240,7 +221,6 @@ const DependencyOverlay: React.FC<Props> = ({ onRemoveDep }) => {
             <DepLine
               dep={dep}
               isHighlighted={isHighlighted}
-              onRemove={() => onRemoveDep(dep)}
               containerEl={containerEl}
             />
           </g>
