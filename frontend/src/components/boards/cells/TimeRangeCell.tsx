@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import type { Item, Column, TimeRangeValue } from '../../../types';
 import { useDependency } from '../../../contexts/DependencyContext';
@@ -138,7 +139,14 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   const [end, setEnd] = useState(toDateInput(rawValue?.end));
   const [hovered, setHovered] = useState(false);
   const [showDepMenu, setShowDepMenu] = useState<'in' | 'out' | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
   const cellRef = useRef<HTMLDivElement | null>(null);
+
+  const openDepMenu = (type: 'in' | 'out', btn: EventTarget & HTMLButtonElement) => {
+    const r = btn.getBoundingClientRect();
+    setMenuAnchor({ x: r.left + r.width / 2, y: r.top });
+    setShowDepMenu((v) => (v === type ? null : type));
+  };
 
   useEffect(() => {
     if (!showDepMenu) return;
@@ -325,7 +333,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
               </div>
             )}
 
-            {/* Incoming dependency dot — click to see/remove incoming deps */}
+            {/* Incoming dependency dot — click to manage individual incoming deps */}
             {hasDepsIn && !isDrawing && (
               <button
                 type="button"
@@ -334,21 +342,21 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                 title="Click to remove incoming dependency"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowDepMenu((v) => (v === 'in' ? null : 'in'));
+                  openDepMenu('in', e.currentTarget);
                 }}
               />
             )}
 
-            {/* Outgoing dependency dot — shows X to signal removal, click to manage */}
+            {/* Outgoing dependency dot — shows X; click removes ALL outgoing at once */}
             {hasDepsOut && !isDrawing && (
               <button
                 type="button"
                 className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow z-20 hover:scale-125 transition-transform flex items-center justify-center"
-                aria-label="Outgoing dependency — click to remove"
-                title="Click to remove outgoing dependency"
+                aria-label="Outgoing dependency — click to remove all"
+                title="Click to remove all outgoing dependencies"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setShowDepMenu((v) => (v === 'out' ? null : 'out'));
+                  openDepMenu('out', e.currentTarget);
                 }}
               >
                 <svg viewBox="0 0 8 8" className="w-[6px] h-[6px]" aria-hidden="true">
@@ -358,45 +366,74 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
               </button>
             )}
 
-            {/* Dependency removal popover */}
-            {showDepMenu && (
-              <div
-                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl z-40 min-w-[160px] py-1"
-                role="menu"
-                aria-label="Dependency options"
-              >
-                <p className="px-3 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-                  {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
-                </p>
-                {(showDepMenu === 'in'
-                  ? getDepsTo(item.id, column.id)
-                  : getDepsFrom(item.id, column.id)
-                ).map((dep) => (
-                  <button
-                    key={dep.id}
-                    type="button"
-                    className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeDependency(dep);
-                      setShowDepMenu(null);
-                    }}
-                  >
-                    <span className="text-red-400">✕</span>
-                    Remove link
-                  </button>
-                ))}
-                <div className="border-t border-gray-100 mt-1">
-                  <button
-                    type="button"
-                    className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
-                    onClick={(e) => { e.stopPropagation(); setShowDepMenu(null); }}
-                    aria-label="Cancel"
-                  >
-                    Cancel
-                  </button>
+            {/* Dependency removal popover — rendered via portal to float above SVG overlay */}
+            {showDepMenu && menuAnchor && createPortal(
+              <>
+                {/* Backdrop closes on outside click */}
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
+                  onClick={() => setShowDepMenu(null)}
+                  aria-hidden="true"
+                />
+                <div
+                  style={{
+                    position: 'fixed',
+                    left: menuAnchor.x,
+                    top: menuAnchor.y,
+                    transform: 'translate(-50%, calc(-100% - 8px))',
+                    zIndex: 10001,
+                  }}
+                  className="bg-white border border-gray-200 rounded-lg shadow-xl min-w-[160px] py-1"
+                  role="menu"
+                  aria-label="Dependency options"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p className="px-3 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                    {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
+                  </p>
+                  {showDepMenu === 'out' ? (
+                    // Outgoing: one button removes ALL links from this source
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      onClick={() => {
+                        getDepsFrom(item.id, column.id).forEach((dep) => removeDependency(dep));
+                        setShowDepMenu(null);
+                      }}
+                    >
+                      <span className="text-red-400">✕</span>
+                      Remove all links ({getDepsFrom(item.id, column.id).length})
+                    </button>
+                  ) : (
+                    // Incoming: each dep can be removed individually
+                    getDepsTo(item.id, column.id).map((dep) => (
+                      <button
+                        key={dep.id}
+                        type="button"
+                        className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        onClick={() => {
+                          removeDependency(dep);
+                          setShowDepMenu(null);
+                        }}
+                      >
+                        <span className="text-red-400">✕</span>
+                        Remove link
+                      </button>
+                    ))
+                  )}
+                  <div className="border-t border-gray-100 mt-1">
+                    <button
+                      type="button"
+                      className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+                      onClick={() => setShowDepMenu(null)}
+                      aria-label="Cancel"
+                    >
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </div>
+              </>,
+              document.body
             )}
 
             {/* Connector handle — inside the cell, right side */}

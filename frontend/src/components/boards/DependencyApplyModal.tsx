@@ -65,6 +65,8 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
       );
 
       if (!sourceItem) continue;
+      // Prevent self-loop: source and target must be different items
+      if (sourceItem.id === targetIt.id) continue;
 
       const dep: TimeRangeDependency = {
         id: crypto.randomUUID(),

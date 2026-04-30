@@ -23,11 +23,22 @@ const Defs: React.FC = () => (
   </defs>
 );
 
-// Build a cubic-bezier path that exits upward from (x1,y1) and enters
-// downward into (x2,y2), giving a gentle "almost straight" arc.
+// Cubic-bezier arc that bows perpendicular to the line direction so the
+// arrowhead always tracks toward the target regardless of angle.
+// C1 creates the visible bow; C2 sits near P3 on the direct line so the
+// end tangent (and thus the marker) points from source toward target.
 const arcPath = (x1: number, y1: number, x2: number, y2: number): string => {
-  const offset = 30;
-  return `M ${x1} ${y1} C ${x1} ${y1 - offset}, ${x2} ${y2 - offset}, ${x2} ${y2}`;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.max(Math.sqrt(dx * dx + dy * dy), 1);
+  const bow = Math.min(len * 0.15, 25);
+  // Perpendicular-left of travel direction
+  const c1x = (x1 + x2) / 2 + (dy / len) * bow;
+  const c1y = (y1 + y2) / 2 - (dx / len) * bow;
+  // C2 close to P3 on the straight line → end tangent ≈ P0→P3
+  const c2x = x2 - dx * 0.15;
+  const c2y = y2 - dy * 0.15;
+  return `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`;
 };
 
 // Blue dot (outgoing) is w-3 h-3 at right-1 top-1/2 -translate-y-1/2:
