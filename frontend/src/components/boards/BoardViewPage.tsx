@@ -218,6 +218,10 @@ const BoardContent: React.FC<BoardContentProps> = ({
           newDep={pendingApplyDep}
           items={allItems}
           onClose={clearPendingApplyDep}
+          onCancel={() => {
+            removeDependency(pendingApplyDep);
+            clearPendingApplyDep();
+          }}
         />
       )}
     </div>

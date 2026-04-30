@@ -13,14 +13,39 @@ const MARKER_INVALID_ID = 'dep-arrow-invalid';
 
 const Defs: React.FC = () => (
   <defs>
-    <marker id={MARKER_ID} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    {/* refX=8 places the tip exactly at the path endpoint */}
+    <marker id={MARKER_ID} markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
       <path d="M0,0 L0,6 L8,3 z" fill="#6366f1" />
     </marker>
-    <marker id={MARKER_INVALID_ID} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+    <marker id={MARKER_INVALID_ID} markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
       <path d="M0,0 L0,6 L8,3 z" fill="#ef4444" />
     </marker>
   </defs>
 );
+
+// Build a cubic-bezier path that exits upward from (x1,y1) and enters
+// downward into (x2,y2), giving a gentle "almost straight" arc.
+const arcPath = (x1: number, y1: number, x2: number, y2: number): string => {
+  const offset = 30;
+  return `M ${x1} ${y1} C ${x1} ${y1 - offset}, ${x2} ${y2 - offset}, ${x2} ${y2}`;
+};
+
+// Blue dot (outgoing) is w-3 h-3 at right-1 top-1/2 -translate-y-1/2:
+//   center-x  = cellRect.right  - 4 (right-1) - 6 (half of w-3) = right - 10
+//   center-y  = cellRect center (vertically)
+//   top       = center-y - 6
+const blueDotCoords = (r: DOMRect) => ({
+  x: r.right - 10,
+  y: (r.top + r.bottom) / 2 - 6,
+});
+
+// Orange dot (incoming) is w-3 h-3 at left-1 top-1/2 -translate-y-1/2:
+//   center-x  = cellRect.left + 4 + 6 = left + 10
+//   bottom    = center-y + 6
+const orangeDotCoords = (r: DOMRect) => ({
+  x: r.left + 10,
+  y: (r.top + r.bottom) / 2 + 6,
+});
 
 // ---------------------------------------------------------------------------
 // Single saved dependency line
@@ -38,21 +63,16 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
   const [coords, setCoords] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [showRemove, setShowRemove] = useState(false);
 
+  // Always recalculate — not gated on isHighlighted so the invisible hit-area
+  // stays in place and mouse-enter fires correctly, preventing flicker.
   useEffect(() => {
-    if (!isHighlighted && !showRemove) { setCoords(null); return; }
-
     const recalc = () => {
       const srcRect = getCellRect({ itemId: dep.sourceItemId, columnId: dep.sourceColumnId });
       const tgtRect = getCellRect({ itemId: dep.targetItemId, columnId: dep.targetColumnId });
       if (!srcRect || !tgtRect) { setCoords(null); return; }
-
-      // Pure viewport coordinates — the SVG is position:fixed at 0,0
-      setCoords({
-        x1: srcRect.right,
-        y1: (srcRect.top + srcRect.bottom) / 2,
-        x2: tgtRect.left,
-        y2: (tgtRect.top + tgtRect.bottom) / 2,
-      });
+      const src = blueDotCoords(srcRect);
+      const tgt = orangeDotCoords(tgtRect);
+      setCoords({ x1: src.x, y1: src.y, x2: tgt.x, y2: tgt.y });
     };
 
     recalc();
@@ -62,12 +82,12 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
       containerEl.removeEventListener('scroll', recalc);
       window.removeEventListener('resize', recalc);
     };
-  }, [isHighlighted, showRemove, dep, getCellRect, containerEl]);
+  }, [dep, getCellRect, containerEl]);
 
   if (!coords) return null;
 
-  const midX = (coords.x1 + coords.x2) / 2;
-  const midY = (coords.y1 + coords.y2) / 2;
+  const visible = isHighlighted || showRemove;
+  const d = arcPath(coords.x1, coords.y1, coords.x2, coords.y2);
 
   return (
     <g
@@ -75,26 +95,37 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, onRemove, contain
       onMouseLeave={() => setShowRemove(false)}
       style={{ cursor: 'default' }}
     >
-      {/* Wide invisible hit area */}
-      <line x1={coords.x1} y1={coords.y1} x2={coords.x2} y2={coords.y2} stroke="transparent" strokeWidth={12} />
-      <line
-        x1={coords.x1} y1={coords.y1} x2={coords.x2} y2={coords.y2}
-        stroke="#6366f1"
-        strokeWidth={showRemove ? 2.5 : 1.5}
-        strokeOpacity={showRemove ? 1 : 0.7}
-        markerEnd={`url(#${MARKER_ID})`}
+      {/* Wide hit area — always present so hover works even when line is invisible */}
+      <path
+        d={d}
+        stroke="rgba(0,0,0,0.01)"
+        strokeWidth={12}
+        fill="none"
+        style={{ pointerEvents: 'stroke' } as React.CSSProperties}
       />
+      {visible && (
+        <path
+          d={d}
+          stroke="#6366f1"
+          strokeWidth={showRemove ? 2.5 : 1.5}
+          strokeOpacity={showRemove ? 1 : 0.7}
+          fill="none"
+          markerEnd={`url(#${MARKER_ID})`}
+          style={{ pointerEvents: 'none' }}
+        />
+      )}
+      {/* Remove button lives on the blue dot in TimeRangeCell; clicking the
+          arrow line itself also triggers removal via the context menu. */}
       {showRemove && (
         <g
-          transform={`translate(${midX - 9}, ${midY - 9})`}
+          transform={`translate(${coords.x1 - 9}, ${coords.y1 - 9})`}
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           style={{ cursor: 'pointer' }}
           aria-label="Remove dependency"
           role="button"
         >
-          <circle cx="9" cy="9" r="9" fill="white" stroke="#ef4444" strokeWidth="1.5" />
-          <line x1="5" y1="5" x2="13" y2="13" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-          <line x1="13" y1="5" x2="5" y2="13" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+          {/* Invisible hit circle for easy clicking */}
+          <circle cx="9" cy="9" r="9" fill="transparent" />
         </g>
       )}
     </g>
@@ -117,8 +148,9 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
     const recalc = () => {
       const srcRect = getCellRect(drawState.source);
       if (!srcRect) { setReady(false); return; }
-      setSrcX(srcRect.right);
-      setSrcY((srcRect.top + srcRect.bottom) / 2);
+      const src = blueDotCoords(srcRect);
+      setSrcX(src.x);
+      setSrcY(src.y);
       setReady(true);
     };
 
@@ -138,17 +170,21 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
   if (isValid && drawState.hoveredTarget) {
     const tgtRect = getCellRect(drawState.hoveredTarget);
     if (tgtRect) {
-      x2 = tgtRect.left;
-      y2 = (tgtRect.top + tgtRect.bottom) / 2;
+      const tgt = orangeDotCoords(tgtRect);
+      x2 = tgt.x;
+      y2 = tgt.y;
     }
   }
 
+  const d = arcPath(srcX, srcY, x2, y2);
+
   return (
-    <line
-      x1={srcX} y1={srcY} x2={x2} y2={y2}
+    <path
+      d={d}
       stroke={isInvalid ? '#ef4444' : '#6366f1'}
       strokeWidth={2}
       strokeDasharray={isValid ? 'none' : '6 3'}
+      fill="none"
       markerEnd={`url(#${isInvalid ? MARKER_INVALID_ID : MARKER_ID})`}
       style={{ pointerEvents: 'none' }}
     />
@@ -188,7 +224,8 @@ const DependencyOverlay: React.FC<Props> = ({ onRemoveDep }) => {
           (hoveredCell?.itemId === dep.sourceItemId && hoveredCell?.columnId === dep.sourceColumnId) ||
           (hoveredCell?.itemId === dep.targetItemId && hoveredCell?.columnId === dep.targetColumnId);
         return (
-          <g key={dep.id} style={{ pointerEvents: isHighlighted ? 'auto' : 'none' }}>
+          // pointerEvents: auto overrides the svg's inherited none so the hit-area works
+          <g key={dep.id} style={{ pointerEvents: 'auto' }}>
             <DepLine
               dep={dep}
               isHighlighted={isHighlighted}

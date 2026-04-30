@@ -140,6 +140,13 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   const [showDepMenu, setShowDepMenu] = useState<'in' | 'out' | null>(null);
   const cellRef = useRef<HTMLDivElement | null>(null);
 
+  useEffect(() => {
+    if (!showDepMenu) return;
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowDepMenu(null); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showDepMenu]);
+
   const {
     items: allItems,
     drawState,
@@ -332,25 +339,29 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
               />
             )}
 
-            {/* Outgoing dependency dot — click to see/remove outgoing deps */}
+            {/* Outgoing dependency dot — shows X to signal removal, click to manage */}
             {hasDepsOut && !isDrawing && (
               <button
                 type="button"
-                className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow z-20 hover:scale-125 transition-transform"
+                className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow z-20 hover:scale-125 transition-transform flex items-center justify-center"
                 aria-label="Outgoing dependency — click to remove"
                 title="Click to remove outgoing dependency"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowDepMenu((v) => (v === 'out' ? null : 'out'));
                 }}
-              />
+              >
+                <svg viewBox="0 0 8 8" className="w-[6px] h-[6px]" aria-hidden="true">
+                  <line x1="1" y1="1" x2="7" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="7" y1="1" x2="1" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
             )}
 
             {/* Dependency removal popover */}
             {showDepMenu && (
               <div
                 className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-lg shadow-xl z-40 min-w-[160px] py-1"
-                onMouseLeave={() => setShowDepMenu(null)}
                 role="menu"
                 aria-label="Dependency options"
               >
@@ -375,6 +386,16 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                     Remove link
                   </button>
                 ))}
+                <div className="border-t border-gray-100 mt-1">
+                  <button
+                    type="button"
+                    className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+                    onClick={(e) => { e.stopPropagation(); setShowDepMenu(null); }}
+                    aria-label="Cancel"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
 

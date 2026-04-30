@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import type { Item, TimeRangeDependency } from '../../types';
 import { useUpdateItem } from '../../hooks/queries/useItemQueries';
 
@@ -8,10 +8,19 @@ interface Props {
   /** All items on the board, used to find rows below in the same group */
   items: Item[];
   onClose: () => void;
+  /** Called when the user explicitly cancels — removes the newly created dep */
+  onCancel: () => void;
 }
 
-const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose }) => {
+const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCancel }) => {
   const { mutate: updateItem } = useUpdateItem();
+
+  // Esc cancels and revokes the newly created dependency
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onCancel]);
 
   // Items in the same group that come after the target item (by order)
   const targetItem = items.find((i) => i.id === newDep.targetItemId);
@@ -120,6 +129,15 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose }) => {
             aria-label="Keep only this one dependency"
           >
             Just this one
+          </button>
+
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full text-center text-sm px-4 py-2 rounded-lg text-red-400 hover:bg-red-50 transition-colors border border-red-100"
+            aria-label="Cancel and remove this dependency"
+          >
+            Cancel
           </button>
         </div>
       </div>
