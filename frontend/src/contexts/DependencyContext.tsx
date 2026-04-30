@@ -132,7 +132,7 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
         ids.forEach((id) => next.delete(id));
         return next;
       });
-    }, 2000);
+    }, 3500);
   }, []);
 
   const cellEls = useRef<Map<string, HTMLElement>>(new Map());
@@ -220,7 +220,6 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
 
       updateItem({ id: target.itemId, patch: { dependencies: [...existingDeps, newDep] } });
       setPendingApplyDep(newDep);
-      addJustCreatedDepIds([newDep.id]);
     },
     [drawState, allDeps, items, updateItem, addJustCreatedDepIds],
   );

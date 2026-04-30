@@ -83,7 +83,8 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
       updateItem({ id: targetIt.id, patch: { dependencies: [...existingDeps, dep] } });
       newDepIds.push(dep.id);
     }
-    onApply(newDepIds);
+    // Always include the original dep so it flashes too
+    onApply([newDep.id, ...newDepIds]);
     onClose();
   };
 
@@ -131,7 +132,7 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
 
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { onApply([newDep.id]); onClose(); }}
             className="w-full text-center text-sm px-4 py-2 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors"
             aria-label="Keep only this one dependency"
           >

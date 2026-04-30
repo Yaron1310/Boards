@@ -288,8 +288,8 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
           <div
             ref={cellRef}
             className={`px-1 py-0.5 flex justify-center w-full overflow-visible relative ${
-              isValidTarget ? 'ring-2 ring-inset ring-indigo-400 rounded' : ''
-            } ${isSource ? 'ring-2 ring-inset ring-blue-500 rounded' : ''}`}
+              isSource ? 'ring-2 ring-inset ring-blue-500 rounded' : ''
+            }`}
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
             onClick={isDrawing ? handleCellClick : undefined}

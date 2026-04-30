@@ -47,12 +47,11 @@ const blueDotCoords = (r: DOMRect) => ({
   y: (r.top + r.bottom) / 2,
 });
 
-// Orange dot (incoming) is w-3 h-3 at left-1 top-1/2 -translate-y-1/2:
-//   center-x  = cellRect.left + 4 + 6 = left + 10
-//   bottom    = center-y + 6
+// Orange dot (incoming) is w-3 h-3 at left-1: right edge = 4 + 12 = 16px from cell left.
+// Arrow tip lands at the dot's center-right.
 const orangeDotCoords = (r: DOMRect) => ({
-  x: r.left + 10,
-  y: (r.top + r.bottom) / 2 + 6,
+  x: r.left + 16,
+  y: (r.top + r.bottom) / 2,
 });
 
 // ---------------------------------------------------------------------------
@@ -70,11 +69,11 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, isNew, containerE
   const { getCellRect } = useDependency();
   const [coords, setCoords] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [showRemove, setShowRemove] = useState(false);
-  // Start visible for 1 s when this dep was just drawn, then fade out.
+  // Stay visible for 2 s when this dep was just drawn, then fade out.
   const [showNew, setShowNew] = useState(isNew);
   useEffect(() => {
     if (!isNew) return;
-    const t = setTimeout(() => setShowNew(false), 1000);
+    const t = setTimeout(() => setShowNew(false), 2000);
     return () => clearTimeout(t);
   }, []); // intentionally mount-only
 
@@ -184,7 +183,7 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
   return (
     <path
       d={d}
-      stroke={isInvalid ? '#ef4444' : '#6366f1'}
+      stroke={isInvalid ? '#ef4444' : '#16a34a'}
       strokeWidth={2}
       strokeDasharray={isValid ? 'none' : '6 3'}
       fill="none"
