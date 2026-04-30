@@ -288,6 +288,9 @@ const BoardViewPage: React.FC = () => {
     return map;
   }, [itemsPage]);
 
+  // Flat list of all items across groups — used by DependencyProvider
+  const allItems = useMemo(() => Object.values(localItemsByGroup).flat(), [localItemsByGroup]);
+
   // Sync local state from server
   useEffect(() => {
     const sorted = [...groups].sort((a, b) => a.order - b.order);
@@ -483,8 +486,6 @@ const BoardViewPage: React.FC = () => {
       </div>
     );
   }
-
-  const allItems = useMemo(() => Object.values(localItemsByGroup).flat(), [localItemsByGroup]);
 
   return (
     <>
