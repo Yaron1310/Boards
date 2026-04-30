@@ -24,7 +24,7 @@ interface DependencyContextValue {
 
   // Draw mode
   drawState: DrawState | null;
-  startDraw: (source: CellRef) => void;
+  startDraw: (source: CellRef, mouseX?: number, mouseY?: number) => void;
   cancelDraw: () => void;
   setDrawMouse: (x: number, y: number) => void;
   setHoveredTarget: (target: CellRef | null) => void;
@@ -148,8 +148,8 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
     [allDeps],
   );
 
-  const startDraw = useCallback((source: CellRef) => {
-    setDrawState({ source, mouseX: 0, mouseY: 0, hoveredTarget: null });
+  const startDraw = useCallback((source: CellRef, mouseX = 0, mouseY = 0) => {
+    setDrawState({ source, mouseX, mouseY, hoveredTarget: null });
   }, []);
 
   const cancelDraw = useCallback(() => setDrawState(null), []);

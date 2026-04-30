@@ -41,13 +41,11 @@ const arcPath = (x1: number, y1: number, x2: number, y2: number): string => {
   return `M ${x1} ${y1} C ${c1x} ${c1y} ${c2x} ${c2y} ${x2} ${y2}`;
 };
 
-// Blue dot (outgoing) is w-3 h-3 at right-1 top-1/2 -translate-y-1/2:
-//   center-x  = cellRect.right  - 4 (right-1) - 6 (half of w-3) = right - 10
-//   center-y  = cellRect center (vertically)
-//   top       = center-y - 6
+// Source point is the right edge of the cell so the arc begins outside
+// the pill, making it appear to emerge from behind the cell content.
 const blueDotCoords = (r: DOMRect) => ({
-  x: r.right - 10,
-  y: (r.top + r.bottom) / 2 - 6,
+  x: r.right,
+  y: (r.top + r.bottom) / 2,
 });
 
 // Orange dot (incoming) is w-3 h-3 at left-1 top-1/2 -translate-y-1/2:
@@ -105,25 +103,27 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, containerEl }) =>
       onMouseLeave={() => setShowRemove(false)}
       style={{ cursor: 'default' }}
     >
-      {/* Wide hit area — always present so hover works even when line is invisible */}
+      {/* Wide hit area — stroke: none so it's truly invisible; opacity:0 keeps pointer-events working */}
       <path
         d={d}
-        stroke="rgba(0,0,0,0.01)"
+        stroke="black"
         strokeWidth={12}
         fill="none"
-        style={{ pointerEvents: 'stroke' } as React.CSSProperties}
+        style={{ pointerEvents: 'stroke', opacity: 0 } as React.CSSProperties}
       />
-      {visible && (
-        <path
-          d={d}
-          stroke="#6366f1"
-          strokeWidth={showRemove ? 2.5 : 1.5}
-          strokeOpacity={showRemove ? 1 : 0.7}
-          fill="none"
-          markerEnd={`url(#${MARKER_ID})`}
-          style={{ pointerEvents: 'none' }}
-        />
-      )}
+      {/* Visible line — always in DOM so CSS opacity transition produces a smooth fade */}
+      <path
+        d={d}
+        stroke="#6366f1"
+        strokeWidth={showRemove ? 2.5 : 1.5}
+        fill="none"
+        markerEnd={`url(#${MARKER_ID})`}
+        style={{
+          pointerEvents: 'none',
+          opacity: visible ? (showRemove ? 1 : 0.7) : 0,
+          transition: 'opacity 0.4s ease',
+        }}
+      />
     </g>
   );
 };
@@ -158,7 +158,7 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
   if (!drawState || !ready) return null;
 
   const isValid = drawState.hoveredTarget !== null;
-  const isInvalid = (drawState.mouseX !== 0 || drawState.mouseY !== 0) && !isValid;
+  const isInvalid = !isValid;
 
   let x2 = drawState.mouseX;
   let y2 = drawState.mouseY;

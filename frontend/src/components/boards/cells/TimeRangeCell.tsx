@@ -212,7 +212,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
 
   const handleConnectorClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    isDrawing ? cancelDraw() : startDraw(cellRefId);
+    isDrawing ? cancelDraw() : startDraw(cellRefId, e.clientX, e.clientY);
   };
 
   const handleCellClick = (e: React.MouseEvent) => {
