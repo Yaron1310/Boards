@@ -10,9 +10,11 @@ interface Props {
   onClose: () => void;
   /** Called when the user explicitly cancels — removes the newly created dep */
   onCancel: () => void;
+  /** Called with IDs of all deps created by the bulk-apply so they can flash */
+  onApply: (depIds: string[]) => void;
 }
 
-const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCancel }) => {
+const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCancel, onApply }) => {
   const { mutate: updateItem } = useUpdateItem();
 
   // Esc cancels and revokes the newly created dependency
@@ -43,6 +45,7 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
   );
 
   const applyToItems = (targets: Item[]) => {
+    const newDepIds: string[] = [];
     for (const targetIt of targets) {
       // Skip items that already have a dependency with the same source column → target column
       const existingDeps = targetIt.dependencies ?? [];
@@ -78,7 +81,9 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
       };
 
       updateItem({ id: targetIt.id, patch: { dependencies: [...existingDeps, dep] } });
+      newDepIds.push(dep.id);
     }
+    onApply(newDepIds);
     onClose();
   };
 

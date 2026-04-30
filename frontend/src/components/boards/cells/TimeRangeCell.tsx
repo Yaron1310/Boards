@@ -333,18 +333,24 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
               </div>
             )}
 
-            {/* Incoming dependency dot — click to manage individual incoming deps */}
+            {/* Incoming dependency dot — orange with X; click to remove individual incoming links */}
             {hasDepsIn && !isDrawing && (
               <button
                 type="button"
-                className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow z-20 hover:scale-125 transition-transform"
+                className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
+                style={{ zIndex: 10000 }}
                 aria-label="Incoming dependency — click to remove"
                 title="Click to remove incoming dependency"
                 onClick={(e) => {
                   e.stopPropagation();
                   openDepMenu('in', e.currentTarget);
                 }}
-              />
+              >
+                <svg viewBox="0 0 8 8" className="w-[6px] h-[6px]" aria-hidden="true">
+                  <line x1="1" y1="1" x2="7" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                  <line x1="7" y1="1" x2="1" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
             )}
 
             {/* Outgoing dependency dot — shows X; click removes ALL outgoing at once */}
@@ -393,36 +399,18 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                     {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
                   </p>
                   {showDepMenu === 'out' ? (
-                    // Outgoing: individual remove per dep, plus Remove all if multiple
-                    <>
-                      {getDepsFrom(item.id, column.id).map((dep) => (
-                        <button
-                          key={dep.id}
-                          type="button"
-                          className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                          onClick={() => {
-                            removeDependency(dep);
-                            setShowDepMenu(null);
-                          }}
-                        >
-                          <span className="text-red-400">✕</span>
-                          Remove link
-                        </button>
-                      ))}
-                      {getDepsFrom(item.id, column.id).length > 1 && (
-                        <button
-                          type="button"
-                          className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2 border-t border-red-50"
-                          onClick={() => {
-                            getDepsFrom(item.id, column.id).forEach((dep) => removeDependency(dep));
-                            setShowDepMenu(null);
-                          }}
-                        >
-                          <span className="text-red-400">✕</span>
-                          Remove all links ({getDepsFrom(item.id, column.id).length})
-                        </button>
-                      )}
-                    </>
+                    // Outgoing: single bulk-remove button — individual removal via target's orange dot
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                      onClick={() => {
+                        getDepsFrom(item.id, column.id).forEach((dep) => removeDependency(dep));
+                        setShowDepMenu(null);
+                      }}
+                    >
+                      <span className="text-red-400">✕</span>
+                      Remove all links ({getDepsFrom(item.id, column.id).length})
+                    </button>
                   ) : (
                     // Incoming: each dep can be removed individually
                     getDepsTo(item.id, column.id).map((dep) => (

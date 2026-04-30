@@ -48,7 +48,8 @@ interface DependencyContextValue {
   allDeps: TimeRangeDependency[];
 
   // ID of the dep that was just drawn — DepLine uses it to auto-show for 1 s
-  justCreatedDepId: string | null;
+  justCreatedDepIds: ReadonlySet<string>;
+  addJustCreatedDepIds: (ids: string[]) => void;
 
   // Mutations
   removeDependency: (dep: TimeRangeDependency) => void;
@@ -120,7 +121,19 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
   const [hoveredCell, setHoveredCell] = useState<CellRef | null>(null);
   const [circularDepDetected, setCircularDepDetected] = useState(false);
   const [pendingApplyDep, setPendingApplyDep] = useState<TimeRangeDependency | null>(null);
-  const [justCreatedDepId, setJustCreatedDepId] = useState<string | null>(null);
+  const [justCreatedDepIds, setJustCreatedDepIds] = useState<Set<string>>(new Set());
+
+  const addJustCreatedDepIds = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setJustCreatedDepIds((prev) => new Set([...prev, ...ids]));
+    setTimeout(() => {
+      setJustCreatedDepIds((prev) => {
+        const next = new Set(prev);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
+    }, 2000);
+  }, []);
 
   const cellEls = useRef<Map<string, HTMLElement>>(new Map());
   const boardContainerRef = useRef<HTMLDivElement | null>(null);
@@ -207,9 +220,9 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
 
       updateItem({ id: target.itemId, patch: { dependencies: [...existingDeps, newDep] } });
       setPendingApplyDep(newDep);
-      setJustCreatedDepId(newDep.id);
+      addJustCreatedDepIds([newDep.id]);
     },
-    [drawState, allDeps, items, updateItem],
+    [drawState, allDeps, items, updateItem, addJustCreatedDepIds],
   );
 
   const removeDependency = useCallback(
@@ -251,7 +264,8 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
       getDepsFrom,
       getDepsTo,
       allDeps,
-      justCreatedDepId,
+      justCreatedDepIds,
+      addJustCreatedDepIds,
       removeDependency,
       registerCellRect,
       getCellRect,
@@ -260,8 +274,8 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
     [
       items, drawState, startDraw, cancelDraw, setDrawMouse, setHoveredTarget, confirmDraw,
       circularDepDetected, clearCircularDepFlag, pendingApplyDep, clearPendingApplyDep,
-      hoveredCell, setHoveredCell, getDepsFrom, getDepsTo, allDeps, justCreatedDepId,
-      removeDependency, registerCellRect, getCellRect,
+      hoveredCell, setHoveredCell, getDepsFrom, getDepsTo, allDeps,
+      justCreatedDepIds, addJustCreatedDepIds, removeDependency, registerCellRect, getCellRect,
     ],
   );
 

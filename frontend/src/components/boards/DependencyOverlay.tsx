@@ -199,7 +199,7 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
 // ---------------------------------------------------------------------------
 
 const DependencyOverlay: React.FC = () => {
-  const { allDeps, hoveredCell, drawState, boardContainerRef, justCreatedDepId } = useDependency();
+  const { allDeps, hoveredCell, drawState, boardContainerRef, justCreatedDepIds } = useDependency();
 
   const containerEl = boardContainerRef.current;
   if (!containerEl || (allDeps.length === 0 && !drawState)) return null;
@@ -228,7 +228,7 @@ const DependencyOverlay: React.FC = () => {
             <DepLine
               dep={dep}
               isHighlighted={isHighlighted}
-              isNew={dep.id === justCreatedDepId}
+              isNew={justCreatedDepIds.has(dep.id)}
               containerEl={containerEl}
             />
           </g>

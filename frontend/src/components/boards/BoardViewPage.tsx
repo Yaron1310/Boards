@@ -86,6 +86,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
     clearCircularDepFlag,
     pendingApplyDep,
     clearPendingApplyDep,
+    addJustCreatedDepIds,
   } = useDependency();
 
   const [showCircularToast, setShowCircularToast] = React.useState(false);
@@ -222,6 +223,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
             removeDependency(pendingApplyDep);
             clearPendingApplyDep();
           }}
+          onApply={addJustCreatedDepIds}
         />
       )}
     </div>
