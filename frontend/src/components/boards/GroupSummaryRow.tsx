@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { evaluateFormula } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
-import { calculateColumnWidth } from '../../utils/columnWidths';
+import { calculateColumnWidth, ITEM_SECTION_WIDTH } from '../../utils/columnWidths';
 
 interface Props {
   items: Item[];
@@ -41,6 +41,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols }) => 
   const [mode, setMode] = useState<Mode>('sum');
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
+  const isCheckbox = col.type === ColumnType.CHECKBOX;
   const colWidth = calculateColumnWidth(col.name, col.type);
 
   function computeValue(): string | null {
@@ -108,38 +109,28 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols }) => 
 
   const value = isAggregatable ? computeValue() : null;
 
-  // Checkbox never toggles — always shows X/Y
-  const isCheckbox = col.type === ColumnType.CHECKBOX;
-
   return (
     <div
       role="gridcell"
       aria-label={`${col.name} ${mode === 'sum' ? 'sum' : 'average'}: ${value ?? 'none'}`}
       style={{ width: `${colWidth}px` }}
-      className="flex flex-shrink-0 items-center justify-center gap-1.5 border-r border-[#d2d2d4] last:border-r-0 py-1.5 px-2"
+      className="relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-1.5 px-2"
     >
       {isAggregatable && !isCheckbox && (
         <button
           type="button"
           onClick={() => setMode((m) => (m === 'sum' ? 'avg' : 'sum'))}
-          className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors select-none flex-shrink-0 ${
-            mode === 'sum'
-              ? 'bg-blue-500 text-white'
-              : 'bg-green-400 text-black'
-          }`}
+          style={{ backgroundColor: mode === 'sum' ? '#3b82f6cf' : '#4ade8082' }}
+          className="absolute left-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-normal leading-none transition-colors select-none flex-shrink-0 text-gray-700"
           aria-label={mode === 'sum' ? `Switch ${col.name} to average` : `Switch ${col.name} to sum`}
           title={mode === 'sum' ? 'Showing sum — click for average' : 'Showing average — click for sum'}
         >
           {mode === 'sum' ? 'Sum' : 'Ave'}
         </button>
       )}
-      {value !== null ? (
-        <span className="text-xs font-medium text-gray-600 truncate">
-          {value}
-        </span>
-      ) : (
-        <span className="text-gray-300 text-xs select-none">—</span>
-      )}
+      <span className="flex-1 text-center text-xs font-normal text-gray-500 truncate">
+        {value ?? <span className="text-gray-300">—</span>}
+      </span>
     </div>
   );
 };
@@ -157,6 +148,9 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns }) => {
       aria-label="Group summary row"
       className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] bg-gray-50/80 w-max rounded-bl-xl"
     >
+      {/* Spacer aligned with the item name sticky section */}
+      <div className={`flex-shrink-0 ${ITEM_SECTION_WIDTH}`} aria-hidden="true" />
+
       {columns.map((col) => (
         <SummaryCell
           key={col.id}
