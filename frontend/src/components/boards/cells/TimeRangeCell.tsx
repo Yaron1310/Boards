@@ -99,6 +99,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     getDepsTo,
     removeDependency,
     registerCellRect,
+    items: allItems,
   } = useDependency();
 
   const cellRefId = { itemId: item.id, columnId: column.id };
@@ -119,6 +120,57 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     setStart(toDateInput(rawValue?.start));
     setEnd(toDateInput(rawValue?.end));
   }, [rawValue]);
+
+  // Dependency formula: when any source cell's end date changes, shift this
+  // cell's start to sourceEnd + offsetDays and shift end to preserve duration.
+  const depsIn = getDepsTo(item.id, column.id);
+  const depFormulaKey = depsIn
+    .map((dep) => {
+      const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
+        ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
+      return `${dep.id}:${srcVal?.end ?? ''}:${dep.offsetDays}`;
+    })
+    .join('|');
+
+  // Using refs so the effect body always reads the latest values without
+  // needing them as deps (we only want to fire when the source end changes).
+  const rawValueRef = useRef(rawValue);
+  rawValueRef.current = rawValue;
+  const allItemsRef = useRef(allItems);
+  allItemsRef.current = allItems;
+  const depsInRef = useRef(depsIn);
+  depsInRef.current = depsIn;
+
+  useEffect(() => {
+    const deps = depsInRef.current;
+    const items = allItemsRef.current;
+    const rv = rawValueRef.current;
+    if (deps.length === 0) return;
+
+    for (const dep of deps) {
+      const srcVal = items.find((i) => i.id === dep.sourceItemId)
+        ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
+      const srcEnd = toDate(srcVal?.end);
+      if (!srcEnd) continue;
+
+      const newStart = new Date(srcEnd);
+      newStart.setDate(newStart.getDate() + dep.offsetDays);
+
+      const curStart = toDate(rv?.start);
+      const curEnd = toDate(rv?.end);
+      const durMs = curStart && curEnd ? Math.max(0, curEnd.getTime() - curStart.getTime()) : 0;
+      const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+
+      const newStartISO = newStart.toISOString();
+      const newEndISO = newEnd?.toISOString() ?? null;
+      if (newStartISO === rv?.start && newEndISO === rv?.end) continue;
+
+      const durationDays = durMs > 0 ? Math.round(durMs / 86_400_000) : (rv?.durationDays ?? 1);
+      mutate({ id: item.id, patch: { values: { [column.id]: { start: newStartISO, end: newEndISO, durationDays } } } });
+      break;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [depFormulaKey]);
 
   const isDependentCell = hasDepsIn;
   const displayStart = toDate(rawValue?.start);
