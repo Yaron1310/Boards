@@ -15,7 +15,7 @@ const Defs: React.FC = () => (
   <defs>
     {/* refX=8 places the tip exactly at the path endpoint */}
     <marker id={MARKER_ID} markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
-      <path d="M0,0 L0,6 L8,3 z" fill="#16a34a" />
+      <path d="M0,0 L0,6 L8,3 z" fill="#22c55e" />
     </marker>
     <marker id={MARKER_INVALID_ID} markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
       <path d="M0,0 L0,6 L8,3 z" fill="#ef4444" />
@@ -130,13 +130,13 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, isNew, containerE
       {/* Visible line — always in DOM so CSS opacity transition produces a smooth fade */}
       <path
         d={d}
-        stroke="#16a34a"
+        stroke="#22c55e"
         strokeWidth={showRemove ? 2.5 : 1.5}
         fill="none"
         markerEnd={`url(#${MARKER_ID})`}
         style={{
           pointerEvents: 'none',
-          opacity: visible ? (showRemove ? 1 : 0.7) : 0,
+          opacity: visible ? 1 : 0,
           transition: 'opacity 0.4s ease',
         }}
       />
@@ -193,7 +193,7 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
   return (
     <path
       d={d}
-      stroke={isInvalid ? '#ef4444' : '#16a34a'}
+      stroke={isInvalid ? '#ef4444' : '#22c55e'}
       strokeWidth={2}
       strokeDasharray={isValid ? 'none' : '6 3'}
       fill="none"

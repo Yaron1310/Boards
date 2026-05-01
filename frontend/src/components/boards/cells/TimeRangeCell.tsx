@@ -29,6 +29,9 @@ const toDate = (val: string | Date | null | undefined): Date | null => {
   return isNaN(d.getTime()) ? null : d;
 };
 
+const isoFromParts = (y: number, m: number, d: number) =>
+  `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+
 const pluralDays = (n: number) => `${n} day${n !== 1 ? 's' : ''}`;
 
 const getDurationText = (start: Date | null, end: Date | null): string => {
@@ -41,13 +44,209 @@ const getDurationText = (start: Date | null, end: Date | null): string => {
 };
 
 // ---------------------------------------------------------------------------
+// Date range picker (hotel-style: click start then end in one flow)
+// ---------------------------------------------------------------------------
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+interface DateRangePickerProps {
+  initialStart: string;
+  initialEnd: string;
+  anchorEl: HTMLElement | null;
+  onCommit: (start: string, end: string) => void;
+  onCancel: () => void;
+}
+
+const DateRangePicker: React.FC<DateRangePickerProps> = ({
+  initialStart, initialEnd, anchorEl, onCommit, onCancel,
+}) => {
+  const [selStart, setSelStart] = useState(initialStart);
+  const [selEnd, setSelEnd] = useState(initialEnd);
+  const [phase, setPhase] = useState<'start' | 'end'>(initialStart ? 'end' : 'start');
+  const [hoverIso, setHoverIso] = useState('');
+  const [viewYear, setViewYear] = useState(() => {
+    if (initialStart) return new Date(initialStart).getFullYear();
+    return new Date().getFullYear();
+  });
+  const [viewMonth, setViewMonth] = useState(() => {
+    if (initialStart) return new Date(initialStart).getMonth();
+    return new Date().getMonth();
+  });
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Position below (or above if no space) the anchor cell
+  useEffect(() => {
+    if (!anchorEl) return;
+    const r = anchorEl.getBoundingClientRect();
+    const pickerH = 310;
+    const pickerW = 264;
+    let top = r.bottom + 6;
+    let left = r.left;
+    if (top + pickerH > window.innerHeight - 8) top = Math.max(8, r.top - pickerH - 6);
+    if (left + pickerW > window.innerWidth - 8) left = Math.max(8, window.innerWidth - pickerW - 8);
+    setPos({ top, left });
+  }, [anchorEl]);
+
+  // Close on outside mousedown (setTimeout defers past the click that opened editing)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) onCancel();
+    };
+    const t = setTimeout(() => document.addEventListener('mousedown', handler), 0);
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler); };
+  }, [onCancel]);
+
+  // Esc cancels
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [onCancel]);
+
+  const prevMonth = () => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1); }
+    else setViewMonth((m) => m - 1);
+  };
+  const nextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1); }
+    else setViewMonth((m) => m + 1);
+  };
+
+  const firstDayOffset = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+
+  const handleDayClick = (day: number) => {
+    const iso = isoFromParts(viewYear, viewMonth, day);
+    if (phase === 'start') {
+      setSelStart(iso);
+      setSelEnd('');
+      setPhase('end');
+    } else {
+      if (selStart && iso < selStart) {
+        // clicked before current start — restart from this date
+        setSelStart(iso);
+        setSelEnd('');
+      } else {
+        onCommit(selStart, iso);
+      }
+    }
+  };
+
+  const getDayClass = (day: number): string => {
+    const iso = isoFromParts(viewYear, viewMonth, day);
+    const isStart = iso === selStart;
+    const effectiveEnd = selEnd || (phase === 'end' && hoverIso > selStart ? hoverIso : '');
+    const isEnd = !!effectiveEnd && iso === effectiveEnd;
+    const inRange = !!selStart && !!effectiveEnd && iso > selStart && iso < effectiveEnd;
+    const isHoverEnd = isEnd && !selEnd;
+
+    const today = new Date();
+    const isToday =
+      viewYear === today.getFullYear() &&
+      viewMonth === today.getMonth() &&
+      day === today.getDate();
+
+    if (isStart && isEnd) return 'bg-indigo-500 text-white rounded-full';
+    if (isStart)
+      return 'bg-indigo-500 text-white ' + (effectiveEnd ? 'rounded-l-full' : 'rounded-full');
+    if (isEnd)
+      return (isHoverEnd ? 'bg-indigo-200 text-indigo-900' : 'bg-indigo-500 text-white') + ' rounded-r-full';
+    if (inRange) return 'bg-indigo-100 text-indigo-900';
+    return `${isToday ? 'font-bold text-indigo-600' : 'text-gray-700'} rounded-full hover:bg-gray-100`;
+  };
+
+  return (
+    <div
+      ref={pickerRef}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10002, width: 264 }}
+      className="bg-white border border-gray-200 rounded-xl shadow-2xl p-3 select-none"
+      onClick={(e) => e.stopPropagation()}
+      aria-label="Date range picker"
+    >
+      {/* Month navigation */}
+      <div className="flex items-center justify-between mb-1">
+        <button
+          type="button"
+          onClick={prevMonth}
+          className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 text-lg leading-none"
+          aria-label="Previous month"
+        >‹</button>
+        <span className="text-sm font-semibold text-gray-700">
+          {MONTH_NAMES[viewMonth]} {viewYear}
+        </span>
+        <button
+          type="button"
+          onClick={nextMonth}
+          className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 text-lg leading-none"
+          aria-label="Next month"
+        >›</button>
+      </div>
+
+      {/* Phase hint */}
+      <p className="text-[10px] text-center text-indigo-400 font-medium mb-2">
+        {phase === 'start'
+          ? 'Select start date'
+          : selStart
+            ? `${formatDate(new Date(selStart + 'T12:00:00'))} → select end date`
+            : 'Select end date'}
+      </p>
+
+      {/* Day-of-week headers */}
+      <div className="grid grid-cols-7 mb-0.5">
+        {DAY_NAMES.map((d) => (
+          <div key={d} className="text-center text-[10px] font-semibold text-gray-400 py-0.5">{d}</div>
+        ))}
+      </div>
+
+      {/* Day cells */}
+      <div className="grid grid-cols-7">
+        {Array.from({ length: firstDayOffset }).map((_, i) => <div key={`gap-${i}`} />)}
+        {Array.from({ length: daysInMonth }).map((_, i) => {
+          const day = i + 1;
+          return (
+            <button
+              key={day}
+              type="button"
+              className={`h-8 w-full text-[12px] font-medium text-center transition-colors ${getDayClass(day)}`}
+              onClick={() => handleDayClick(day)}
+              onMouseEnter={() => {
+                if (phase === 'end') setHoverIso(isoFromParts(viewYear, viewMonth, day));
+              }}
+              onMouseLeave={() => setHoverIso('')}
+              aria-label={`${day} ${MONTH_NAMES[viewMonth]} ${viewYear}`}
+              aria-pressed={
+                isoFromParts(viewYear, viewMonth, day) === selStart ||
+                isoFromParts(viewYear, viewMonth, day) === selEnd
+              }
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Cancel link */}
+      <div className="flex justify-end mt-2 pt-2 border-t border-gray-100">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors"
+          aria-label="Cancel date selection"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Dependency formula helpers
 // ---------------------------------------------------------------------------
 
-// Compute display dates from the dependency formula — purely for rendering,
-// never written to the DB. Returns raw values unchanged when:
-//   - there are no incoming deps, OR
-//   - the source cell has no end date (never invents dates)
 const resolveEffectiveDates = (
   rawValue: TimeRangeValue | null | undefined,
   depsIn: TimeRangeDependency[],
@@ -56,7 +255,6 @@ const resolveEffectiveDates = (
   const rawStart = toDate(rawValue?.start);
   const rawEnd = toDate(rawValue?.end);
 
-  // Only shift dates the user already entered — never create dates for an empty cell
   if (!rawStart) return { start: rawStart, end: rawEnd, isComputed: false };
 
   for (const dep of depsIn) {
@@ -85,8 +283,6 @@ interface ComputedTarget {
   durationDays: number;
 }
 
-// Returns the formula-driven dates for a target item (used by source cell's
-// blue-dot flow to know what each target is currently displaying).
 const computeTargetEffective = (dep: TimeRangeDependency, allItems: Item[]): ComputedTarget | null => {
   const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
     ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
@@ -97,7 +293,6 @@ const computeTargetEffective = (dep: TimeRangeDependency, allItems: Item[]): Com
   if (!tgtItem) return null;
   const tgtVal = tgtItem.values[dep.targetColumnId] as TimeRangeValue | null | undefined;
 
-  // Don't compute for target cells with no user-entered dates
   if (!toDate(tgtVal?.start)) return null;
 
   const newStart = new Date(srcEnd);
@@ -150,7 +345,6 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   const [hovered, setHovered] = useState(false);
   const [showDepMenu, setShowDepMenu] = useState<'in' | 'out' | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
-  // Pending removal confirmation: holds the deps to remove + targets with computed dates
   const [removeConfirm, setRemoveConfirm] = useState<{
     depsToRemove: TimeRangeDependency[];
     computedTargets: ComputedTarget[];
@@ -207,17 +401,31 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     setEnd(toDateInput(rawValue?.end));
   }, [rawValue]);
 
-  // Compute display dates: formula-driven if source has an end date, raw otherwise.
   const depsIn = getDepsTo(item.id, column.id);
   const { start: displayStart, end: displayEnd, isComputed } = resolveEffectiveDates(rawValue, depsIn, allItems);
 
   const isDependentCell = hasDepsIn;
 
   // ---------------------------------------------------------------------------
-  // Removal helpers — prompt keep/revert when formula-computed dates exist
+  // Commit — accepts values directly so it works with the async picker flow
   // ---------------------------------------------------------------------------
 
-  // Incoming dep removal (orange dot — current cell is the target)
+  const commitValues = (s: string, e: string, stopEdit: () => void) => {
+    const nextStart = s ? new Date(s).toISOString() : null;
+    const nextEnd = e ? new Date(e).toISOString() : null;
+    const durationDays =
+      nextStart && nextEnd
+        ? Math.max(0, Math.round((new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / 86_400_000))
+        : (rawValue?.durationDays ?? 1);
+    mutate({ id: item.id, patch: { values: { [column.id]: { start: nextStart, end: nextEnd, durationDays } } } });
+    setHovered(false);
+    stopEdit();
+  };
+
+  // ---------------------------------------------------------------------------
+  // Removal helpers
+  // ---------------------------------------------------------------------------
+
   const triggerRemoveIn = (dep: TimeRangeDependency) => {
     if (isComputed && displayStart) {
       const durMs = displayEnd ? Math.max(0, displayEnd.getTime() - displayStart.getTime()) : 0;
@@ -238,13 +446,11 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     }
   };
 
-  // Outgoing dep removal (blue dot — current cell is the source, targets are other items)
   const triggerRemoveOut = () => {
     const deps = getDepsFrom(item.id, column.id);
     const computedTargets = deps
       .map((dep) => computeTargetEffective(dep, allItems))
       .filter((x): x is ComputedTarget => x !== null);
-
     if (computedTargets.length > 0) {
       setRemoveConfirm({ depsToRemove: deps, computedTargets });
     } else {
@@ -269,23 +475,8 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   };
 
   // ---------------------------------------------------------------------------
-  // Commit user-entered dates
+  // Draw-mode handlers
   // ---------------------------------------------------------------------------
-
-  const commit = (stopEdit: () => void) => {
-    const nextStart = start ? new Date(start).toISOString() : null;
-    const nextEnd = end ? new Date(end).toISOString() : null;
-    const durationDays =
-      nextStart && nextEnd
-        ? Math.max(0, Math.round((new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / 86_400_000))
-        : (rawValue?.durationDays ?? 1);
-    mutate({
-      id: item.id,
-      patch: { values: { [column.id]: { start: nextStart, end: nextEnd, durationDays } } },
-    });
-    setHovered(false);
-    stopEdit();
-  };
 
   const handleConnectorClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -313,272 +504,242 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
 
   return (
     <CellWrapper column={column}>
-      {(isEditing, stopEdit) => {
-        if (isEditing) {
-          return (
-            <div
-              className="flex items-center gap-1 px-2 py-1 w-full bg-white rounded shadow-lg border border-indigo-200 z-30"
-              onBlur={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node)) commit(stopEdit);
-              }}
-            >
-              <input
-                type="date"
-                value={start}
-                autoFocus
-                className="flex-1 text-[10px] border border-gray-100 rounded px-1 py-0.5 outline-none focus:border-indigo-400 text-center"
-                onChange={(e) => setStart(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
-                  if (e.key === 'Escape') {
-                    setStart(toDateInput(rawValue?.start));
-                    setEnd(toDateInput(rawValue?.end));
-                    setHovered(false);
-                    stopEdit();
-                  }
-                }}
-              />
-              <span className="text-gray-400 text-[10px] flex-shrink-0">→</span>
-              <input
-                type="date"
-                value={end}
-                className="flex-1 text-[10px] border border-gray-100 rounded px-1 py-0.5 outline-none focus:border-indigo-400 text-center"
-                onChange={(e) => setEnd(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
-                  if (e.key === 'Escape') {
-                    setStart(toDateInput(rawValue?.start));
-                    setEnd(toDateInput(rawValue?.end));
-                    setHovered(false);
-                    stopEdit();
-                  }
-                }}
-              />
-            </div>
-          );
-        }
+      {(isEditing, stopEdit) => (
+        // Outer div always rendered so cellRef stays valid (needed by dependency overlay)
+        <div
+          ref={cellRef}
+          className={`px-1 py-0.5 flex justify-center w-full overflow-visible relative ${
+            isSource ? 'ring-2 ring-inset ring-blue-500 rounded' : ''
+          }`}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          onClick={isDrawing ? handleCellClick : undefined}
+          style={isDrawing && isValidTarget ? { cursor: 'crosshair' } : undefined}
+          aria-label={`${column.name} for ${item.name}`}
+        >
+          {isEditing ? (
+            // While picker is open keep a height placeholder so the cell doesn't collapse
+            <>
+              <div className="h-7 w-full" aria-hidden="true" />
+              {createPortal(
+                <DateRangePicker
+                  initialStart={start}
+                  initialEnd={end}
+                  anchorEl={cellRef.current}
+                  onCommit={(s, e) => {
+                    setStart(s);
+                    setEnd(e);
+                    commitValues(s, e, stopEdit);
+                  }}
+                  onCancel={stopEdit}
+                />,
+                document.body
+              )}
+            </>
+          ) : (
+            <>
+              {(() => {
+                const isEmpty = !displayStart && !displayEnd;
+                const durationText = getDurationText(displayStart, displayEnd);
+                return isEmpty ? (
+                  <div className="px-3 py-2 text-xs text-gray-300 text-center w-full italic">
+                    Set range
+                  </div>
+                ) : (
+                  <div
+                    className="flex items-center justify-center w-full gap-[2px] px-3 h-[26px] rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] cursor-default"
+                    style={{
+                      background: isDependentCell
+                        ? 'linear-gradient(90deg, #8b5cf6, #6366f1)'
+                        : 'linear-gradient(90deg, #6366f1, #3b82f6)',
+                    }}
+                    aria-label={hovered && durationText ? durationText : `${formatDate(displayStart)} to ${formatDate(displayEnd)}`}
+                  >
+                    {hovered && durationText ? (
+                      <span className="text-center leading-tight">{durationText}</span>
+                    ) : (
+                      <>
+                        <span className="flex items-center gap-0.5">
+                          <TrafficLight date={displayStart} type="start" />
+                          {formatDate(displayStart) || '?'}
+                        </span>
+                        <span className="ml-1.5 flex items-center">
+                          <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-none stroke-white stroke-[2.5]">
+                            <line x1="1" y1="12" x2="19" y2="12" />
+                            <polyline points="13 6 19 12 13 18" />
+                          </svg>
+                        </span>
+                        <span className="flex items-center gap-0.5 ml-0.5">
+                          <TrafficLight date={displayEnd} type="end" />
+                          {formatDate(displayEnd) || '?'}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
 
-        const isEmpty = !displayStart && !displayEnd;
-        const durationText = getDurationText(displayStart, displayEnd);
+              {/* Incoming dependency dot */}
+              {hasDepsIn && !isDrawing && (
+                <button
+                  type="button"
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
+                  style={{ zIndex: 10000 }}
+                  aria-label="Incoming dependency — click to remove"
+                  title="Click to remove incoming dependency"
+                  onClick={(e) => { e.stopPropagation(); openDepMenu('in', e.currentTarget); }}
+                >
+                  <svg viewBox="0 0 8 8" className="w-[6px] h-[6px]" aria-hidden="true">
+                    <line x1="1" y1="1" x2="7" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                    <line x1="7" y1="1" x2="1" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
 
-        return (
-          <div
-            ref={cellRef}
-            className={`px-1 py-0.5 flex justify-center w-full overflow-visible relative ${
-              isSource ? 'ring-2 ring-inset ring-blue-500 rounded' : ''
-            }`}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onClick={isDrawing ? handleCellClick : undefined}
-            style={isDrawing && isValidTarget ? { cursor: 'crosshair' } : undefined}
-            aria-label={`${column.name} for ${item.name}`}
-          >
-            {isEmpty ? (
-              <div className="px-3 py-2 text-xs text-gray-300 text-center w-full italic">
-                Set range
-              </div>
-            ) : (
+              {/* Outgoing dependency dot */}
+              {hasDepsOut && !isDrawing && (
+                <button
+                  type="button"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
+                  style={{ zIndex: 10000 }}
+                  aria-label="Outgoing dependency — click to remove all"
+                  title="Click to remove all outgoing dependencies"
+                  onClick={(e) => { e.stopPropagation(); openDepMenu('out', e.currentTarget); }}
+                >
+                  <svg viewBox="0 0 8 8" className="w-[6px] h-[6px]" aria-hidden="true">
+                    <line x1="1" y1="1" x2="7" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                    <line x1="7" y1="1" x2="1" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+
+              {/* Connector handle */}
+              {(hovered || isHoveredCell || isSource) && !isDrawing && (
+                <button
+                  type="button"
+                  className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125"
+                  onClick={handleConnectorClick}
+                  aria-label="Start dependency from this cell"
+                  title="Draw dependency"
+                />
+              )}
+
+              {/* Source cancel handle */}
+              {isSource && (
+                <button
+                  type="button"
+                  className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-blue-500 border-blue-600 scale-125"
+                  onClick={handleConnectorClick}
+                  aria-label="Cancel dependency drawing"
+                  title="Click to cancel"
+                />
+              )}
+            </>
+          )}
+
+          {/* Dependency removal popover */}
+          {showDepMenu && menuAnchor && createPortal(
+            <>
               <div
-                className="flex items-center justify-center w-full gap-[2px] px-3 h-[26px] rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] cursor-default"
+                style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
+                onClick={closeMenu}
+                aria-hidden="true"
+              />
+              <div
                 style={{
-                  background: isDependentCell
-                    ? 'linear-gradient(90deg, #8b5cf6, #6366f1)'
-                    : 'linear-gradient(90deg, #6366f1, #3b82f6)',
+                  position: 'fixed',
+                  left: menuAnchor.x,
+                  top: menuAnchor.y,
+                  transform: 'translate(-50%, calc(-100% - 8px))',
+                  zIndex: 10001,
                 }}
-                aria-label={hovered && durationText ? durationText : `${formatDate(displayStart)} to ${formatDate(displayEnd)}`}
+                className="bg-white border border-gray-200 rounded-lg shadow-xl min-w-[200px] py-1"
+                role="menu"
+                aria-label="Dependency options"
+                onClick={(e) => e.stopPropagation()}
               >
-                {hovered && durationText ? (
-                  <span className="text-center leading-tight">{durationText}</span>
+                {removeConfirm ? (
+                  <>
+                    <p className="px-3 pt-2 pb-1 text-[11px] font-semibold text-gray-700 leading-snug">
+                      {removeConfirm.computedTargets.length === 1 && removeConfirm.computedTargets[0].targetItemId === item.id
+                        ? 'This cell shows formula-driven dates.'
+                        : `${removeConfirm.computedTargets.length} target cell(s) show formula-driven dates.`}
+                    </p>
+                    <p className="px-3 pb-2 text-[10px] text-gray-400">
+                      Keep the current dates or revert to the original?
+                    </p>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 font-medium"
+                      onClick={handleKeepDates}
+                      aria-label="Keep formula-computed dates after removing link"
+                    >
+                      Keep current dates
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                      onClick={handleRevertDates}
+                      aria-label="Revert to original dates after removing link"
+                    >
+                      Revert to original dates
+                    </button>
+                    <div className="border-t border-gray-100 mt-1">
+                      <button
+                        type="button"
+                        className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+                        onClick={closeMenu}
+                        aria-label="Cancel removal"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
                 ) : (
                   <>
-                    <span className="flex items-center gap-0.5">
-                      <TrafficLight date={displayStart} type="start" />
-                      {formatDate(displayStart) || '?'}
-                    </span>
-                    <span className="ml-1.5 flex items-center">
-                      <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-none stroke-white stroke-[2.5]">
-                        <line x1="1" y1="12" x2="19" y2="12" />
-                        <polyline points="13 6 19 12 13 18" />
-                      </svg>
-                    </span>
-                    <span className="flex items-center gap-0.5 ml-0.5">
-                      <TrafficLight date={displayEnd} type="end" />
-                      {formatDate(displayEnd) || '?'}
-                    </span>
+                    <p className="px-3 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                      {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
+                    </p>
+                    {showDepMenu === 'out' ? (
+                      <button
+                        type="button"
+                        className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                        onClick={triggerRemoveOut}
+                      >
+                        <span className="text-red-400">✕</span>
+                        Remove all links ({getDepsFrom(item.id, column.id).length})
+                      </button>
+                    ) : (
+                      getDepsTo(item.id, column.id).map((dep) => (
+                        <button
+                          key={dep.id}
+                          type="button"
+                          className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          onClick={() => triggerRemoveIn(dep)}
+                        >
+                          <span className="text-red-400">✕</span>
+                          Remove link
+                        </button>
+                      ))
+                    )}
+                    <div className="border-t border-gray-100 mt-1">
+                      <button
+                        type="button"
+                        className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+                        onClick={closeMenu}
+                        aria-label="Cancel"
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </>
                 )}
               </div>
-            )}
-
-            {/* Incoming dependency dot — orange with X; click to remove individual incoming links */}
-            {hasDepsIn && !isDrawing && (
-              <button
-                type="button"
-                className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
-                style={{ zIndex: 10000 }}
-                aria-label="Incoming dependency — click to remove"
-                title="Click to remove incoming dependency"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openDepMenu('in', e.currentTarget);
-                }}
-              >
-                <svg viewBox="0 0 8 8" className="w-[6px] h-[6px]" aria-hidden="true">
-                  <line x1="1" y1="1" x2="7" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="7" y1="1" x2="1" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-            )}
-
-            {/* Outgoing dependency dot — blue; click to remove all outgoing links */}
-            {hasDepsOut && !isDrawing && (
-              <button
-                type="button"
-                className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
-                style={{ zIndex: 10000 }}
-                aria-label="Outgoing dependency — click to remove all"
-                title="Click to remove all outgoing dependencies"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openDepMenu('out', e.currentTarget);
-                }}
-              >
-                <svg viewBox="0 0 8 8" className="w-[6px] h-[6px]" aria-hidden="true">
-                  <line x1="1" y1="1" x2="7" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                  <line x1="7" y1="1" x2="1" y2="7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
-                </svg>
-              </button>
-            )}
-
-            {/* Dependency removal popover — rendered via portal to float above SVG overlay */}
-            {showDepMenu && menuAnchor && createPortal(
-              <>
-                <div
-                  style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
-                  onClick={closeMenu}
-                  aria-hidden="true"
-                />
-                <div
-                  style={{
-                    position: 'fixed',
-                    left: menuAnchor.x,
-                    top: menuAnchor.y,
-                    transform: 'translate(-50%, calc(-100% - 8px))',
-                    zIndex: 10001,
-                  }}
-                  className="bg-white border border-gray-200 rounded-lg shadow-xl min-w-[200px] py-1"
-                  role="menu"
-                  aria-label="Dependency options"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {removeConfirm ? (
-                    // Keep / revert confirmation step
-                    <>
-                      <p className="px-3 pt-2 pb-1 text-[11px] font-semibold text-gray-700 leading-snug">
-                        {removeConfirm.computedTargets.length === 1 && removeConfirm.computedTargets[0].targetItemId === item.id
-                          ? 'This cell shows formula-driven dates.'
-                          : `${removeConfirm.computedTargets.length} target cell(s) show formula-driven dates.`}
-                      </p>
-                      <p className="px-3 pb-2 text-[10px] text-gray-400">
-                        Keep the current dates or revert to the original?
-                      </p>
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 font-medium"
-                        onClick={handleKeepDates}
-                        aria-label="Keep formula-computed dates after removing link"
-                      >
-                        Keep current dates
-                      </button>
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
-                        onClick={handleRevertDates}
-                        aria-label="Revert to original dates after removing link"
-                      >
-                        Revert to original dates
-                      </button>
-                      <div className="border-t border-gray-100 mt-1">
-                        <button
-                          type="button"
-                          className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
-                          onClick={closeMenu}
-                          aria-label="Cancel removal"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    // Normal dep list
-                    <>
-                      <p className="px-3 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-                        {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
-                      </p>
-                      {showDepMenu === 'out' ? (
-                        <button
-                          type="button"
-                          className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                          onClick={triggerRemoveOut}
-                        >
-                          <span className="text-red-400">✕</span>
-                          Remove all links ({getDepsFrom(item.id, column.id).length})
-                        </button>
-                      ) : (
-                        getDepsTo(item.id, column.id).map((dep) => (
-                          <button
-                            key={dep.id}
-                            type="button"
-                            className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                            onClick={() => triggerRemoveIn(dep)}
-                          >
-                            <span className="text-red-400">✕</span>
-                            Remove link
-                          </button>
-                        ))
-                      )}
-                      <div className="border-t border-gray-100 mt-1">
-                        <button
-                          type="button"
-                          className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
-                          onClick={closeMenu}
-                          aria-label="Cancel"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>,
-              document.body
-            )}
-
-            {/* Connector handle — inside the cell, right side */}
-            {(hovered || isHoveredCell || isSource) && !isEditing && !isDrawing && (
-              <button
-                type="button"
-                className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125"
-                onClick={handleConnectorClick}
-                aria-label="Start dependency from this cell"
-                title="Draw dependency"
-              />
-            )}
-
-            {/* Source cancel handle when in draw mode */}
-            {isSource && !isEditing && (
-              <button
-                type="button"
-                className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-blue-500 border-blue-600 scale-125"
-                onClick={handleConnectorClick}
-                aria-label="Cancel dependency drawing"
-                title="Click to cancel"
-              />
-            )}
-
-          </div>
-        );
-      }}
+            </>,
+            document.body
+          )}
+        </div>
+      )}
     </CellWrapper>
   );
 };

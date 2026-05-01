@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import {
   FiX, FiColumns, FiPlus, FiTrash2,
-  FiType, FiHash, FiCalendar, FiClock, FiWatch,
+  FiType, FiHash, FiCalendar, FiClock,
   FiFlag, FiUser, FiChevronDown, FiCheckSquare, FiTag,
   FiMail, FiPhone, FiMapPin, FiZap,
 } from 'react-icons/fi';
@@ -42,7 +42,19 @@ const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
   [ColumnType.NUMBER]: <FiHash size={16} aria-hidden="true" />,
   [ColumnType.DATE]: <FiCalendar size={16} aria-hidden="true" />,
   [ColumnType.TIME]: <FiClock size={16} aria-hidden="true" />,
-  [ColumnType.TIME_RANGE]: <FiWatch size={16} aria-hidden="true" />,
+  [ColumnType.TIME_RANGE]: (
+    <span className="flex items-center gap-[2px]" aria-hidden="true">
+      <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="3" width="12" height="10" rx="1.5" /><line x1="1" y1="6.5" x2="13" y2="6.5" /><line x1="4" y1="1" x2="4" y2="4" /><line x1="10" y1="1" x2="10" y2="4" />
+      </svg>
+      <svg width="7" height="7" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="1" y1="5" x2="9" y2="5" /><polyline points="6 2 9 5 6 8" />
+      </svg>
+      <svg width="10" height="10" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="3" width="12" height="10" rx="1.5" /><line x1="1" y1="6.5" x2="13" y2="6.5" /><line x1="4" y1="1" x2="4" y2="4" /><line x1="10" y1="1" x2="10" y2="4" />
+      </svg>
+    </span>
+  ),
   [ColumnType.STATUS]: <FiFlag size={16} aria-hidden="true" />,
   [ColumnType.DROPDOWN]: <FiChevronDown size={16} aria-hidden="true" />,
   [ColumnType.CHECKBOX]: <FiCheckSquare size={16} aria-hidden="true" />,
