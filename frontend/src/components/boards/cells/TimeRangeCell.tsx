@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
-import type { Item, Column, TimeRangeValue } from '../../../types';
+import type { Item, Column, TimeRangeValue, TimeRangeDependency } from '../../../types';
 import { useDependency } from '../../../contexts/DependencyContext';
 import CellWrapper from './CellWrapper';
 
@@ -41,6 +41,84 @@ const getDurationText = (start: Date | null, end: Date | null): string => {
 };
 
 // ---------------------------------------------------------------------------
+// Dependency formula helpers
+// ---------------------------------------------------------------------------
+
+// Compute display dates from the dependency formula — purely for rendering,
+// never written to the DB. Returns raw values unchanged when:
+//   - there are no incoming deps, OR
+//   - the source cell has no end date (never invents dates)
+const resolveEffectiveDates = (
+  rawValue: TimeRangeValue | null | undefined,
+  depsIn: TimeRangeDependency[],
+  allItems: Item[],
+): { start: Date | null; end: Date | null; isComputed: boolean } => {
+  const rawStart = toDate(rawValue?.start);
+  const rawEnd = toDate(rawValue?.end);
+
+  // Only shift dates the user already entered — never create dates for an empty cell
+  if (!rawStart) return { start: rawStart, end: rawEnd, isComputed: false };
+
+  for (const dep of depsIn) {
+    const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
+      ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
+    const srcEnd = toDate(srcVal?.end);
+    if (!srcEnd) continue;
+
+    const newStart = new Date(srcEnd);
+    newStart.setDate(newStart.getDate() + dep.offsetDays);
+
+    const durMs = rawEnd ? Math.max(0, rawEnd.getTime() - rawStart.getTime()) : 0;
+    const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+
+    return { start: newStart, end: newEnd, isComputed: true };
+  }
+  return { start: rawStart, end: rawEnd, isComputed: false };
+};
+
+interface ComputedTarget {
+  dep: TimeRangeDependency;
+  targetItemId: string;
+  targetColumnId: string;
+  start: string;
+  end: string | null;
+  durationDays: number;
+}
+
+// Returns the formula-driven dates for a target item (used by source cell's
+// blue-dot flow to know what each target is currently displaying).
+const computeTargetEffective = (dep: TimeRangeDependency, allItems: Item[]): ComputedTarget | null => {
+  const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
+    ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
+  const srcEnd = toDate(srcVal?.end);
+  if (!srcEnd) return null;
+
+  const tgtItem = allItems.find((i) => i.id === dep.targetItemId);
+  if (!tgtItem) return null;
+  const tgtVal = tgtItem.values[dep.targetColumnId] as TimeRangeValue | null | undefined;
+
+  // Don't compute for target cells with no user-entered dates
+  if (!toDate(tgtVal?.start)) return null;
+
+  const newStart = new Date(srcEnd);
+  newStart.setDate(newStart.getDate() + dep.offsetDays);
+
+  const rawStart = toDate(tgtVal?.start);
+  const rawEnd = toDate(tgtVal?.end);
+  const durMs = rawStart && rawEnd ? Math.max(0, rawEnd.getTime() - rawStart.getTime()) : 0;
+  const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+
+  return {
+    dep,
+    targetItemId: dep.targetItemId,
+    targetColumnId: dep.targetColumnId,
+    start: newStart.toISOString(),
+    end: newEnd?.toISOString() ?? null,
+    durationDays: durMs > 0 ? Math.round(durMs / 86_400_000) : (tgtVal?.durationDays ?? 1),
+  };
+};
+
+// ---------------------------------------------------------------------------
 // Traffic light
 // ---------------------------------------------------------------------------
 
@@ -72,20 +150,28 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   const [hovered, setHovered] = useState(false);
   const [showDepMenu, setShowDepMenu] = useState<'in' | 'out' | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  // Pending removal confirmation: holds the deps to remove + targets with computed dates
+  const [removeConfirm, setRemoveConfirm] = useState<{
+    depsToRemove: TimeRangeDependency[];
+    computedTargets: ComputedTarget[];
+  } | null>(null);
   const cellRef = useRef<HTMLDivElement | null>(null);
+
+  const closeMenu = () => { setShowDepMenu(null); setRemoveConfirm(null); };
 
   const openDepMenu = (type: 'in' | 'out', btn: EventTarget & HTMLButtonElement) => {
     const r = btn.getBoundingClientRect();
     setMenuAnchor({ x: r.left + r.width / 2, y: r.top });
+    setRemoveConfirm(null);
     setShowDepMenu((v) => (v === type ? null : type));
   };
 
   useEffect(() => {
     if (!showDepMenu) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowDepMenu(null); };
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') closeMenu(); };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [showDepMenu]);
+  }, [showDepMenu]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const {
     drawState,
@@ -121,60 +207,70 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     setEnd(toDateInput(rawValue?.end));
   }, [rawValue]);
 
-  // Dependency formula: when any source cell's end date changes, shift this
-  // cell's start to sourceEnd + offsetDays and shift end to preserve duration.
+  // Compute display dates: formula-driven if source has an end date, raw otherwise.
   const depsIn = getDepsTo(item.id, column.id);
-  const depFormulaKey = depsIn
-    .map((dep) => {
-      const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
-        ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
-      return `${dep.id}:${srcVal?.end ?? ''}:${dep.offsetDays}`;
-    })
-    .join('|');
-
-  // Using refs so the effect body always reads the latest values without
-  // needing them as deps (we only want to fire when the source end changes).
-  const rawValueRef = useRef(rawValue);
-  rawValueRef.current = rawValue;
-  const allItemsRef = useRef(allItems);
-  allItemsRef.current = allItems;
-  const depsInRef = useRef(depsIn);
-  depsInRef.current = depsIn;
-
-  useEffect(() => {
-    const deps = depsInRef.current;
-    const items = allItemsRef.current;
-    const rv = rawValueRef.current;
-    if (deps.length === 0) return;
-
-    for (const dep of deps) {
-      const srcVal = items.find((i) => i.id === dep.sourceItemId)
-        ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
-      const srcEnd = toDate(srcVal?.end);
-      if (!srcEnd) continue;
-
-      const newStart = new Date(srcEnd);
-      newStart.setDate(newStart.getDate() + dep.offsetDays);
-
-      const curStart = toDate(rv?.start);
-      const curEnd = toDate(rv?.end);
-      const durMs = curStart && curEnd ? Math.max(0, curEnd.getTime() - curStart.getTime()) : 0;
-      const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
-
-      const newStartISO = newStart.toISOString();
-      const newEndISO = newEnd?.toISOString() ?? null;
-      if (newStartISO === rv?.start && newEndISO === rv?.end) continue;
-
-      const durationDays = durMs > 0 ? Math.round(durMs / 86_400_000) : (rv?.durationDays ?? 1);
-      mutate({ id: item.id, patch: { values: { [column.id]: { start: newStartISO, end: newEndISO, durationDays } } } });
-      break;
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [depFormulaKey]);
+  const { start: displayStart, end: displayEnd, isComputed } = resolveEffectiveDates(rawValue, depsIn, allItems);
 
   const isDependentCell = hasDepsIn;
-  const displayStart = toDate(rawValue?.start);
-  const displayEnd = toDate(rawValue?.end);
+
+  // ---------------------------------------------------------------------------
+  // Removal helpers — prompt keep/revert when formula-computed dates exist
+  // ---------------------------------------------------------------------------
+
+  // Incoming dep removal (orange dot — current cell is the target)
+  const triggerRemoveIn = (dep: TimeRangeDependency) => {
+    if (isComputed && displayStart) {
+      const durMs = displayEnd ? Math.max(0, displayEnd.getTime() - displayStart.getTime()) : 0;
+      setRemoveConfirm({
+        depsToRemove: [dep],
+        computedTargets: [{
+          dep,
+          targetItemId: item.id,
+          targetColumnId: column.id,
+          start: displayStart.toISOString(),
+          end: displayEnd?.toISOString() ?? null,
+          durationDays: durMs > 0 ? Math.round(durMs / 86_400_000) : (rawValue?.durationDays ?? 1),
+        }],
+      });
+    } else {
+      removeDependency(dep);
+      closeMenu();
+    }
+  };
+
+  // Outgoing dep removal (blue dot — current cell is the source, targets are other items)
+  const triggerRemoveOut = () => {
+    const deps = getDepsFrom(item.id, column.id);
+    const computedTargets = deps
+      .map((dep) => computeTargetEffective(dep, allItems))
+      .filter((x): x is ComputedTarget => x !== null);
+
+    if (computedTargets.length > 0) {
+      setRemoveConfirm({ depsToRemove: deps, computedTargets });
+    } else {
+      deps.forEach((d) => removeDependency(d));
+      closeMenu();
+    }
+  };
+
+  const handleKeepDates = () => {
+    if (!removeConfirm) return;
+    for (const t of removeConfirm.computedTargets) {
+      mutate({ id: t.targetItemId, patch: { values: { [t.targetColumnId]: { start: t.start, end: t.end, durationDays: t.durationDays } } } });
+    }
+    removeConfirm.depsToRemove.forEach((d) => removeDependency(d));
+    closeMenu();
+  };
+
+  const handleRevertDates = () => {
+    if (!removeConfirm) return;
+    removeConfirm.depsToRemove.forEach((d) => removeDependency(d));
+    closeMenu();
+  };
+
+  // ---------------------------------------------------------------------------
+  // Commit user-entered dates
+  // ---------------------------------------------------------------------------
 
   const commit = (stopEdit: () => void) => {
     const nextStart = start ? new Date(start).toISOString() : null;
@@ -334,7 +430,7 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
               </button>
             )}
 
-            {/* Outgoing dependency dot — shows X; click removes ALL outgoing at once */}
+            {/* Outgoing dependency dot — blue; click to remove all outgoing links */}
             {hasDepsOut && !isDrawing && (
               <button
                 type="button"
@@ -357,10 +453,9 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
             {/* Dependency removal popover — rendered via portal to float above SVG overlay */}
             {showDepMenu && menuAnchor && createPortal(
               <>
-                {/* Backdrop closes on outside click */}
                 <div
                   style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
-                  onClick={() => setShowDepMenu(null)}
+                  onClick={closeMenu}
                   aria-hidden="true"
                 />
                 <div
@@ -371,54 +466,89 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                     transform: 'translate(-50%, calc(-100% - 8px))',
                     zIndex: 10001,
                   }}
-                  className="bg-white border border-gray-200 rounded-lg shadow-xl min-w-[160px] py-1"
+                  className="bg-white border border-gray-200 rounded-lg shadow-xl min-w-[200px] py-1"
                   role="menu"
                   aria-label="Dependency options"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <p className="px-3 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
-                    {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
-                  </p>
-                  {showDepMenu === 'out' ? (
-                    // Outgoing: single bulk-remove button — individual removal via target's orange dot
-                    <button
-                      type="button"
-                      className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                      onClick={() => {
-                        getDepsFrom(item.id, column.id).forEach((dep) => removeDependency(dep));
-                        setShowDepMenu(null);
-                      }}
-                    >
-                      <span className="text-red-400">✕</span>
-                      Remove all links ({getDepsFrom(item.id, column.id).length})
-                    </button>
-                  ) : (
-                    // Incoming: each dep can be removed individually
-                    getDepsTo(item.id, column.id).map((dep) => (
+                  {removeConfirm ? (
+                    // Keep / revert confirmation step
+                    <>
+                      <p className="px-3 pt-2 pb-1 text-[11px] font-semibold text-gray-700 leading-snug">
+                        {removeConfirm.computedTargets.length === 1 && removeConfirm.computedTargets[0].targetItemId === item.id
+                          ? 'This cell shows formula-driven dates.'
+                          : `${removeConfirm.computedTargets.length} target cell(s) show formula-driven dates.`}
+                      </p>
+                      <p className="px-3 pb-2 text-[10px] text-gray-400">
+                        Keep the current dates or revert to the original?
+                      </p>
                       <button
-                        key={dep.id}
                         type="button"
-                        className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        onClick={() => {
-                          removeDependency(dep);
-                          setShowDepMenu(null);
-                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 font-medium"
+                        onClick={handleKeepDates}
+                        aria-label="Keep formula-computed dates after removing link"
                       >
-                        <span className="text-red-400">✕</span>
-                        Remove link
+                        Keep current dates
                       </button>
-                    ))
+                      <button
+                        type="button"
+                        className="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                        onClick={handleRevertDates}
+                        aria-label="Revert to original dates after removing link"
+                      >
+                        Revert to original dates
+                      </button>
+                      <div className="border-t border-gray-100 mt-1">
+                        <button
+                          type="button"
+                          className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+                          onClick={closeMenu}
+                          aria-label="Cancel removal"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    // Normal dep list
+                    <>
+                      <p className="px-3 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                        {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
+                      </p>
+                      {showDepMenu === 'out' ? (
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                          onClick={triggerRemoveOut}
+                        >
+                          <span className="text-red-400">✕</span>
+                          Remove all links ({getDepsFrom(item.id, column.id).length})
+                        </button>
+                      ) : (
+                        getDepsTo(item.id, column.id).map((dep) => (
+                          <button
+                            key={dep.id}
+                            type="button"
+                            className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            onClick={() => triggerRemoveIn(dep)}
+                          >
+                            <span className="text-red-400">✕</span>
+                            Remove link
+                          </button>
+                        ))
+                      )}
+                      <div className="border-t border-gray-100 mt-1">
+                        <button
+                          type="button"
+                          className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+                          onClick={closeMenu}
+                          aria-label="Cancel"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
                   )}
-                  <div className="border-t border-gray-100 mt-1">
-                    <button
-                      type="button"
-                      className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
-                      onClick={() => setShowDepMenu(null)}
-                      aria-label="Cancel"
-                    >
-                      Cancel
-                    </button>
-                  </div>
                 </div>
               </>,
               document.body
