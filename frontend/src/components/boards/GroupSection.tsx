@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
+import GroupSummaryRow from './GroupSummaryRow';
 import { COLUMN_TYPE_ICONS } from './ColumnHeader';
 import { calculateColumnWidth, GROUP_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
@@ -381,7 +382,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           {/* Add item row */}
           {canManage && (
             <div>
-              <div className="sticky left-4 w-max bg-white z-[1] rounded-bl-xl">
+              <div className="sticky left-4 w-max bg-white z-[1]">
                 {addingItem ? (
                   <div className="flex items-center gap-2 px-4 py-2">
                     <input
@@ -419,6 +420,9 @@ const GroupSection: React.FC<GroupSectionProps> = ({
               </div>
             </div>
           )}
+
+          {/* Sum / average summary row */}
+          <GroupSummaryRow items={items} columns={columns} groupColor={groupColor} />
         </div>
       )}
 
