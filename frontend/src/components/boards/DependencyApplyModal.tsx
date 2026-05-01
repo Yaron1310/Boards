@@ -37,11 +37,10 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
         .sort((a, b) => a.order - b.order)
     : [];
 
-  // Items on the whole board (other groups) minus already covered
+  // All items on the board that can receive the dependency — everyone except
+  // the original target (already linked) and the source itself (self-loop).
   const candidatesOnBoard = items.filter(
-    (i) =>
-      i.id !== newDep.targetItemId &&
-      !candidatesInGroup.some((c) => c.id === i.id),
+    (i) => i.id !== newDep.targetItemId && i.id !== newDep.sourceItemId,
   );
 
   const applyToItems = (targets: Item[]) => {

@@ -29,12 +29,6 @@ const toDate = (val: string | Date | null | undefined): Date | null => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-const addDays = (d: Date, days: number): Date => {
-  const r = new Date(d);
-  r.setDate(r.getDate() + days);
-  return r;
-};
-
 const pluralDays = (n: number) => `${n} day${n !== 1 ? 's' : ''}`;
 
 const getDurationText = (start: Date | null, end: Date | null): string => {
@@ -44,68 +38,6 @@ const getDurationText = (start: Date | null, end: Date | null): string => {
   today.setHours(0, 0, 0, 0);
   const left = Math.round((end.getTime() - today.getTime()) / 86_400_000);
   return left > 0 ? `${pluralDays(total)} (${pluralDays(left)} left)` : pluralDays(total);
-};
-
-// ---------------------------------------------------------------------------
-// Formula resolution — walk the dependency chain to compute effective dates
-// ---------------------------------------------------------------------------
-
-const resolveEffectiveDates = (
-  item: Item,
-  columnId: string,
-  allItems: Item[],
-  visited = new Set<string>(),
-): { start: Date | null; end: Date | null } => {
-  const key = `${item.id}::${columnId}`;
-  if (visited.has(key)) return { start: null, end: null };
-  visited.add(key);
-
-  const deps = (item.dependencies ?? []).filter((d) => d.targetColumnId === columnId);
-
-  if (deps.length === 0) {
-    const raw = item.values[columnId] as TimeRangeValue | null | undefined;
-    return { start: toDate(raw?.start), end: toDate(raw?.end) };
-  }
-
-  let latestSourceEnd: Date | null = null;
-  let maxOffset = 0;
-
-  for (const dep of deps) {
-    const sourceItem = allItems.find((i) => i.id === dep.sourceItemId);
-    if (!sourceItem) continue;
-    const { end: sourceEnd } = resolveEffectiveDates(sourceItem, dep.sourceColumnId, allItems, new Set(visited));
-    if (!sourceEnd) continue;
-    if (!latestSourceEnd || sourceEnd > latestSourceEnd) {
-      latestSourceEnd = sourceEnd;
-      maxOffset = dep.offsetDays;
-    }
-  }
-
-  if (!latestSourceEnd) {
-    const raw = item.values[columnId] as TimeRangeValue | null | undefined;
-    return { start: toDate(raw?.start), end: toDate(raw?.end) };
-  }
-
-  const rawValue = item.values[columnId] as TimeRangeValue | null | undefined;
-
-  // Only shift if the cell already has a known duration. If the cell is
-  // completely empty (never been filled), don't invent dates — show nothing.
-  const rawStart = toDate(rawValue?.start);
-  const rawEnd = toDate(rawValue?.end);
-  const storedDuration = rawValue?.durationDays
-    ?? (rawStart && rawEnd
-      ? Math.max(1, Math.round((rawEnd.getTime() - rawStart.getTime()) / 86_400_000))
-      : null);
-
-  if (storedDuration === null) {
-    // Cell has no dates and no stored duration — dependency exists but target
-    // is not filled yet; return nulls so the cell still shows "Set range".
-    return { start: null, end: null };
-  }
-
-  const computedStart = addDays(latestSourceEnd, maxOffset + 1);
-  const computedEnd = addDays(computedStart, storedDuration);
-  return { start: computedStart, end: computedEnd };
 };
 
 // ---------------------------------------------------------------------------
@@ -156,7 +88,6 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   }, [showDepMenu]);
 
   const {
-    items: allItems,
     drawState,
     startDraw,
     cancelDraw,
@@ -189,11 +120,9 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     setEnd(toDateInput(rawValue?.end));
   }, [rawValue]);
 
-  const { start: effectiveStart, end: effectiveEnd } = resolveEffectiveDates(item, column.id, allItems);
   const isDependentCell = hasDepsIn;
-
-  const displayStart = isDependentCell ? effectiveStart : toDate(rawValue?.start);
-  const displayEnd = isDependentCell ? effectiveEnd : toDate(rawValue?.end);
+  const displayStart = toDate(rawValue?.start);
+  const displayEnd = toDate(rawValue?.end);
 
   const commit = (stopEdit: () => void) => {
     const nextStart = start ? new Date(start).toISOString() : null;
@@ -465,15 +394,6 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
               />
             )}
 
-            {/* Formula badge */}
-            {isDependentCell && isHoveredCell && (
-              <span
-                className="absolute -top-5 left-1/2 -translate-x-1/2 text-[9px] text-purple-600 bg-purple-50 border border-purple-200 rounded px-1 whitespace-nowrap z-30"
-                aria-live="polite"
-              >
-                dependency formula
-              </span>
-            )}
           </div>
         );
       }}
