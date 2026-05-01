@@ -26,6 +26,16 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
 
   const targetItem = items.find((i) => i.id === newDep.targetItemId);
 
+  // Derive group visual order: a group's position = the minimum item.order among its members.
+  // Groups with a lower min order appear higher on the board.
+  const groupMinOrder: Record<string, number> = {};
+  for (const i of items) {
+    if (groupMinOrder[i.groupId] === undefined || i.order < groupMinOrder[i.groupId]) {
+      groupMinOrder[i.groupId] = i.order;
+    }
+  }
+  const targetGroupOrder = targetItem ? (groupMinOrder[targetItem.groupId] ?? 0) : 0;
+
   // b. Items below in this group (after target by order, same group)
   const candidatesBelow = targetItem
     ? items
@@ -49,14 +59,17 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
       )
     : [];
 
-  // d. Items below on the board: below in same group + all items in other groups
-  //    (excluding source and original target)
+  // d. Items below on the board: items below target in its group + items in groups
+  //    that appear after the target's group (by derived group order).
   const candidatesBelowBoard = targetItem
     ? items.filter(
         (i) =>
           i.id !== targetItem.id &&
           i.id !== newDep.sourceItemId &&
-          (i.groupId !== targetItem.groupId || i.order > targetItem.order),
+          (
+            (i.groupId === targetItem.groupId && i.order > targetItem.order) ||
+            (i.groupId !== targetItem.groupId && (groupMinOrder[i.groupId] ?? 0) > targetGroupOrder)
+          ),
       )
     : [];
 
@@ -99,7 +112,7 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center pb-8 pointer-events-none"
+      className="fixed inset-0 z-[10003] flex items-end justify-center pb-8 pointer-events-none"
       role="dialog"
       aria-modal="true"
       aria-label="Apply dependency rule"
