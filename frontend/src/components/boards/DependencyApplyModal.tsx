@@ -5,7 +5,7 @@ import { useUpdateItem } from '../../hooks/queries/useItemQueries';
 interface Props {
   /** The newly created dependency that triggered this modal */
   newDep: TimeRangeDependency;
-  /** All items on the board, used to find rows below in the same group */
+  /** All items on the board, used to find candidate rows */
   items: Item[];
   onClose: () => void;
   /** Called when the user explicitly cancels — removes the newly created dep */
@@ -24,29 +24,50 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
     return () => window.removeEventListener('keydown', handler);
   }, [onCancel]);
 
-  // Items in the same group that come after the target item (by order)
   const targetItem = items.find((i) => i.id === newDep.targetItemId);
-  const candidatesInGroup = targetItem
+
+  // b. Items below in this group (after target by order, same group)
+  const candidatesBelow = targetItem
     ? items
         .filter(
           (i) =>
             i.groupId === targetItem.groupId &&
             i.id !== targetItem.id &&
+            i.id !== newDep.sourceItemId &&
             i.order > targetItem.order,
         )
         .sort((a, b) => a.order - b.order)
     : [];
 
-  // All items on the board that can receive the dependency — everyone except
-  // the original target (already linked) and the source itself (self-loop).
-  const candidatesOnBoard = items.filter(
+  // c. All items in this group (same group, excluding source and original target)
+  const candidatesAllGroup = targetItem
+    ? items.filter(
+        (i) =>
+          i.groupId === targetItem.groupId &&
+          i.id !== targetItem.id &&
+          i.id !== newDep.sourceItemId,
+      )
+    : [];
+
+  // d. Items below on the board: below in same group + all items in other groups
+  //    (excluding source and original target)
+  const candidatesBelowBoard = targetItem
+    ? items.filter(
+        (i) =>
+          i.id !== targetItem.id &&
+          i.id !== newDep.sourceItemId &&
+          (i.groupId !== targetItem.groupId || i.order > targetItem.order),
+      )
+    : [];
+
+  // e. All items on the board (excluding source and original target)
+  const candidatesAllBoard = items.filter(
     (i) => i.id !== newDep.targetItemId && i.id !== newDep.sourceItemId,
   );
 
   const applyToItems = (targets: Item[]) => {
     const newDepIds: string[] = [];
     for (const targetIt of targets) {
-      // Skip items that already have a dependency with the same source column → target column
       const existingDeps = targetIt.dependencies ?? [];
       const alreadyLinked = existingDeps.some(
         (d) =>
@@ -55,11 +76,8 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
       );
       if (alreadyLinked) continue;
 
-      // Always use the original source item — picking any same-group item caused
-      // unintended rows (e.g. the first row) to become source cells.
       const sourceItem = items.find((i) => i.id === newDep.sourceItemId);
       if (!sourceItem) continue;
-      // Prevent self-loop: source and target must be different items
       if (sourceItem.id === targetIt.id) continue;
 
       const dep: TimeRangeDependency = {
@@ -74,7 +92,7 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
       updateItem({ id: targetIt.id, patch: { dependencies: [...existingDeps, dep] } });
       newDepIds.push(dep.id);
     }
-    // Always include the original dep so it flashes too
+    // Include the original dep so it flashes too
     onApply([newDep.id, ...newDepIds]);
     onClose();
   };
@@ -93,42 +111,76 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
         </p>
 
         <div className="flex flex-col gap-2">
-          {candidatesInGroup.length > 0 && (
-            <button
-              type="button"
-              onClick={() => applyToItems(candidatesInGroup)}
-              className="w-full text-left text-sm px-4 py-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium transition-colors"
-              aria-label={`Apply to ${candidatesInGroup.length} items below in this group`}
-            >
-              Apply to items below in this group
-              <span className="ml-2 text-xs font-normal text-indigo-400">
-                ({candidatesInGroup.length} item{candidatesInGroup.length !== 1 ? 's' : ''})
-              </span>
-            </button>
-          )}
-
-          {candidatesOnBoard.length > 0 && (
-            <button
-              type="button"
-              onClick={() => applyToItems(candidatesOnBoard)}
-              className="w-full text-left text-sm px-4 py-2.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium transition-colors"
-              aria-label={`Apply to all ${candidatesOnBoard.length} other items on the board`}
-            >
-              Apply to all items on the board
-              <span className="ml-2 text-xs font-normal text-purple-400">
-                ({candidatesOnBoard.length} item{candidatesOnBoard.length !== 1 ? 's' : ''})
-              </span>
-            </button>
-          )}
-
+          {/* a. Just this one */}
           <button
             type="button"
             onClick={() => { onApply([newDep.id]); onClose(); }}
-            className="w-full text-center text-sm px-4 py-2 rounded-lg text-gray-500 hover:bg-gray-50 transition-colors"
+            className="w-full text-left text-sm px-4 py-2.5 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-700 font-medium transition-colors"
             aria-label="Keep only this one dependency"
           >
             Just this one
+            <span className="ml-2 text-xs font-normal text-gray-400">(1 item)</span>
           </button>
+
+          {/* b. Apply to items below in this group */}
+          {candidatesBelow.length > 0 && (
+            <button
+              type="button"
+              onClick={() => applyToItems(candidatesBelow)}
+              className="w-full text-left text-sm px-4 py-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium transition-colors"
+              aria-label={`Apply to ${candidatesBelow.length + 1} items below in this group`}
+            >
+              Apply to items below in this group
+              <span className="ml-2 text-xs font-normal text-indigo-400">
+                ({candidatesBelow.length + 1} item{candidatesBelow.length + 1 !== 1 ? 's' : ''})
+              </span>
+            </button>
+          )}
+
+          {/* c. Apply to all items in this group */}
+          {candidatesAllGroup.length > 0 && (
+            <button
+              type="button"
+              onClick={() => applyToItems(candidatesAllGroup)}
+              className="w-full text-left text-sm px-4 py-2.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium transition-colors"
+              aria-label={`Apply to all ${candidatesAllGroup.length + 1} items in this group`}
+            >
+              Apply to all items in this group
+              <span className="ml-2 text-xs font-normal text-indigo-400">
+                ({candidatesAllGroup.length + 1} item{candidatesAllGroup.length + 1 !== 1 ? 's' : ''})
+              </span>
+            </button>
+          )}
+
+          {/* d. Apply to items below on the board */}
+          {candidatesBelowBoard.length > 0 && (
+            <button
+              type="button"
+              onClick={() => applyToItems(candidatesBelowBoard)}
+              className="w-full text-left text-sm px-4 py-2.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium transition-colors"
+              aria-label={`Apply to ${candidatesBelowBoard.length + 1} items below on the board`}
+            >
+              Apply to items below on the board
+              <span className="ml-2 text-xs font-normal text-purple-400">
+                ({candidatesBelowBoard.length + 1} item{candidatesBelowBoard.length + 1 !== 1 ? 's' : ''})
+              </span>
+            </button>
+          )}
+
+          {/* e. Apply to all items on the board */}
+          {candidatesAllBoard.length > 0 && (
+            <button
+              type="button"
+              onClick={() => applyToItems(candidatesAllBoard)}
+              className="w-full text-left text-sm px-4 py-2.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 font-medium transition-colors"
+              aria-label={`Apply to all ${candidatesAllBoard.length + 1} items on the board`}
+            >
+              Apply to all items on the board
+              <span className="ml-2 text-xs font-normal text-purple-400">
+                ({candidatesAllBoard.length + 1} item{candidatesAllBoard.length + 1 !== 1 ? 's' : ''})
+              </span>
+            </button>
+          )}
 
           <button
             type="button"

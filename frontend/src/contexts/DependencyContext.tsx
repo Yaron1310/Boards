@@ -126,13 +126,6 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
   const addJustCreatedDepIds = useCallback((ids: string[]) => {
     if (ids.length === 0) return;
     setJustCreatedDepIds((prev) => new Set([...prev, ...ids]));
-    setTimeout(() => {
-      setJustCreatedDepIds((prev) => {
-        const next = new Set(prev);
-        ids.forEach((id) => next.delete(id));
-        return next;
-      });
-    }, 3500);
   }, []);
 
   const cellEls = useRef<Map<string, HTMLElement>>(new Map());
