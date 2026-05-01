@@ -56,17 +56,9 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
       );
       if (alreadyLinked) continue;
 
-      // Find the source item that corresponds to this target's row.
-      // Convention: look for an item in the same group as targetIt that has a value in sourceColumnId.
-      const sourceItem = items.find(
-        (i) =>
-          i.groupId === targetIt.groupId &&
-          i.id !== targetIt.id &&
-          i.values[newDep.sourceColumnId] != null,
-      ) ?? items.find(
-        (i) => i.id === newDep.sourceItemId,
-      );
-
+      // Always use the original source item — picking any same-group item caused
+      // unintended rows (e.g. the first row) to become source cells.
+      const sourceItem = items.find((i) => i.id === newDep.sourceItemId);
       if (!sourceItem) continue;
       // Prevent self-loop: source and target must be different items
       if (sourceItem.id === targetIt.id) continue;

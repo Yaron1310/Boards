@@ -69,13 +69,14 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, isNew, containerE
   const { getCellRect } = useDependency();
   const [coords, setCoords] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const [showRemove, setShowRemove] = useState(false);
-  // Stay visible for 2 s when this dep was just drawn, then fade out.
+  // Stay visible for 2 s when isNew flips true (after modal choice), then fade out.
   const [showNew, setShowNew] = useState(isNew);
   useEffect(() => {
     if (!isNew) return;
+    setShowNew(true);
     const t = setTimeout(() => setShowNew(false), 2000);
     return () => clearTimeout(t);
-  }, []); // intentionally mount-only
+  }, [isNew]); // re-runs whenever isNew changes, including the post-mount flip
 
   // Always recalculate — not gated on isHighlighted so the invisible hit-area
   // stays in place and mouse-enter fires correctly, preventing flicker.
@@ -86,15 +87,24 @@ const DepLine: React.FC<DepLineProps> = ({ dep, isHighlighted, isNew, containerE
       if (!srcRect || !tgtRect) { setCoords(null); return; }
       const src = blueDotCoords(srcRect);
       const tgt = orangeDotCoords(tgtRect);
-      setCoords({ x1: src.x, y1: src.y, x2: tgt.x, y2: tgt.y });
+      // Skip state update when values haven't changed to avoid spurious re-renders.
+      setCoords((prev) => {
+        if (prev && prev.x1 === src.x && prev.y1 === src.y && prev.x2 === tgt.x && prev.y2 === tgt.y) return prev;
+        return { x1: src.x, y1: src.y, x2: tgt.x, y2: tgt.y };
+      });
     };
 
     recalc();
     containerEl.addEventListener('scroll', recalc);
     window.addEventListener('resize', recalc);
+    // Recalculate when rows or columns are added/removed — DOM structural changes
+    // shift cell positions without firing scroll or resize events.
+    const mo = new MutationObserver(() => requestAnimationFrame(recalc));
+    mo.observe(containerEl, { childList: true, subtree: true });
     return () => {
       containerEl.removeEventListener('scroll', recalc);
       window.removeEventListener('resize', recalc);
+      mo.disconnect();
     };
   }, [dep, getCellRect, containerEl]);
 
