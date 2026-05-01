@@ -2,12 +2,11 @@ import React, { useState } from 'react';
 import { evaluateFormula } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
-import { calculateColumnWidth, ITEM_SECTION_WIDTH } from '../../utils/columnWidths';
+import { calculateColumnWidth } from '../../utils/columnWidths';
 
 interface Props {
   items: Item[];
   columns: Column[];
-  groupColor?: string;
 }
 
 type Mode = 'sum' | 'avg';
@@ -32,18 +31,21 @@ const AGGREGATABLE_TYPES = new Set([
   ColumnType.SIMPLE_FORMULA,
 ]);
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
+interface SummaryCellProps {
+  col: Column;
+  items: Item[];
+  numberCols: Column[];
+}
+
+const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols }) => {
   const [mode, setMode] = useState<Mode>('sum');
 
-  const hasAggregatable = columns.some((c) => AGGREGATABLE_TYPES.has(c.type));
-  if (!hasAggregatable) return null;
+  const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
+  const colWidth = calculateColumnWidth(col.name, col.type);
 
-  const nonArchived = items.filter((i) => !i.isArchived);
-  const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
-
-  function computeCell(col: Column): string | null {
+  function computeValue(): string | null {
     if (col.type === ColumnType.NUMBER) {
-      const vals = nonArchived
+      const vals = items
         .map((i) => i.values[col.id])
         .filter((v) => v != null && v !== '')
         .map((v) => Number(v))
@@ -55,7 +57,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
     }
 
     if (col.type === ColumnType.TIME) {
-      const mins = nonArchived
+      const mins = items
         .map((i) => parseTimeToMinutes((i.values[col.id] as string) ?? ''))
         .filter((m): m is number => m !== null);
       if (mins.length === 0) return null;
@@ -64,7 +66,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
     }
 
     if (col.type === ColumnType.TIME_RANGE) {
-      const days = nonArchived
+      const days = items
         .map((i) => (i.values[col.id] as TimeRangeValue | null | undefined)?.durationDays)
         .filter((d): d is number => d != null && !isNaN(d));
       if (days.length === 0) return null;
@@ -75,14 +77,14 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
     }
 
     if (col.type === ColumnType.CHECKBOX) {
-      const checked = nonArchived.filter((i) => Boolean(i.values[col.id])).length;
-      return `${checked}/${nonArchived.length}`;
+      const checked = items.filter((i) => Boolean(i.values[col.id])).length;
+      return `${checked}/${items.length}`;
     }
 
     if (col.type === ColumnType.SIMPLE_FORMULA) {
       const settings = col.settings as SimpleFormulaColumnSettings;
       const defaultFormula = settings?.defaultFormula ?? '';
-      const vals = nonArchived
+      const vals = items
         .map((i) => {
           const stored = i.values[col.id];
           const formula = typeof stored === 'string' ? stored : defaultFormula;
@@ -104,53 +106,65 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
     return null;
   }
 
+  const value = isAggregatable ? computeValue() : null;
+
+  // Checkbox never toggles — always shows X/Y
+  const isCheckbox = col.type === ColumnType.CHECKBOX;
+
   return (
     <div
-      role="row"
-      aria-label={`Group summary — ${mode === 'sum' ? 'sum' : 'average'}`}
-      className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] bg-gray-50/80 w-max rounded-bl-xl"
+      role="gridcell"
+      aria-label={`${col.name} ${mode === 'sum' ? 'sum' : 'average'}: ${value ?? 'none'}`}
+      style={{ width: `${colWidth}px` }}
+      className="flex flex-shrink-0 items-center justify-center gap-1.5 border-r border-[#d2d2d4] last:border-r-0 py-1.5 px-2"
     >
-      {/* Left section — toggle button */}
-      <div
-        className={`flex flex-shrink-0 items-center ${ITEM_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 bg-gray-50/80 z-[1] px-3 py-1.5`}
-        style={groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
-      >
+      {isAggregatable && !isCheckbox && (
         <button
           type="button"
           onClick={() => setMode((m) => (m === 'sum' ? 'avg' : 'sum'))}
-          className={`flex items-center justify-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-colors select-none ${
+          className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors select-none flex-shrink-0 ${
             mode === 'sum'
               ? 'bg-blue-500 text-white'
               : 'bg-green-400 text-black'
           }`}
-          aria-label={mode === 'sum' ? 'Switch to average' : 'Switch to sum'}
+          aria-label={mode === 'sum' ? `Switch ${col.name} to average` : `Switch ${col.name} to sum`}
           title={mode === 'sum' ? 'Showing sum — click for average' : 'Showing average — click for sum'}
         >
           {mode === 'sum' ? 'Sum' : 'Ave'}
         </button>
-      </div>
+      )}
+      {value !== null ? (
+        <span className="text-xs font-medium text-gray-600 truncate">
+          {value}
+        </span>
+      ) : (
+        <span className="text-gray-300 text-xs select-none">—</span>
+      )}
+    </div>
+  );
+};
 
-      {/* Column summary cells */}
-      {columns.map((col) => {
-        const value = computeCell(col);
-        return (
-          <div
-            key={col.id}
-            role="gridcell"
-            aria-label={`${col.name} ${mode === 'sum' ? 'sum' : 'average'}: ${value ?? 'none'}`}
-            style={{ width: `${calculateColumnWidth(col.name, col.type)}px` }}
-            className="flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0 py-1.5 px-2"
-          >
-            {value !== null ? (
-              <span className="text-xs font-medium text-gray-600 truncate">
-                {value}
-              </span>
-            ) : (
-              <span className="text-gray-300 text-xs select-none">—</span>
-            )}
-          </div>
-        );
-      })}
+const GroupSummaryRow: React.FC<Props> = ({ items, columns }) => {
+  const hasAggregatable = columns.some((c) => AGGREGATABLE_TYPES.has(c.type));
+  if (!hasAggregatable) return null;
+
+  const nonArchived = items.filter((i) => !i.isArchived);
+  const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
+
+  return (
+    <div
+      role="row"
+      aria-label="Group summary row"
+      className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] bg-gray-50/80 w-max rounded-bl-xl"
+    >
+      {columns.map((col) => (
+        <SummaryCell
+          key={col.id}
+          col={col}
+          items={nonArchived}
+          numberCols={numberCols}
+        />
+      ))}
     </div>
   );
 };
