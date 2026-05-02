@@ -15,9 +15,10 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-ki
 import { useBoard, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
 import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries';
 import { useItems, useReorderItems } from '../../hooks/queries/useItemQueries';
+import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
-import { UserRole } from '../../types';
+import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
 import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu } from 'react-icons/fi';
@@ -59,6 +60,27 @@ interface BoardContentProps {
   allItems: Item[];
 }
 
+type SortState = { columnId: string; direction: 'asc' | 'desc' };
+
+function compareItemValues(a: unknown, b: unknown, colType: ColumnType, direction: 'asc' | 'desc'): number {
+  const mult = direction === 'asc' ? 1 : -1;
+  if (a == null && b == null) return 0;
+  if (a == null) return 1;
+  if (b == null) return -1;
+  switch (colType) {
+    case ColumnType.NUMBER:
+    case ColumnType.SIMPLE_FORMULA:
+      return (Number(a) - Number(b)) * mult;
+    case ColumnType.CHECKBOX:
+      return ((a ? 1 : 0) - (b ? 1 : 0)) * mult;
+    case ColumnType.TAGS:
+      return (Array.isArray(a) ? (a[0] ?? '') : String(a))
+        .localeCompare(Array.isArray(b) ? (b[0] ?? '') : String(b)) * mult;
+    default:
+      return String(a).localeCompare(String(b)) * mult;
+  }
+}
+
 const BoardContent: React.FC<BoardContentProps> = ({
   boardId,
   board,
@@ -77,6 +99,22 @@ const BoardContent: React.FC<BoardContentProps> = ({
   setShowAddColumn,
   allItems,
 }) => {
+  const { data: columns = [] } = useColumns(boardId);
+  const [sort, setSort] = React.useState<SortState | null>(null);
+
+  const sortedItemsByGroup = React.useMemo<Record<string, Item[]>>(() => {
+    if (!sort) return localItemsByGroup;
+    const col = columns.find((c) => c.id === sort.columnId);
+    if (!col) return localItemsByGroup;
+    const result: Record<string, Item[]> = {};
+    for (const [gid, items] of Object.entries(localItemsByGroup)) {
+      result[gid] = [...items].sort((a, b) =>
+        compareItemValues(a.values[sort.columnId], b.values[sort.columnId], col.type, sort.direction),
+      );
+    }
+    return result;
+  }, [sort, localItemsByGroup, columns]);
+
   const {
     boardContainerRef,
     drawState,
@@ -123,6 +161,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
         <ColumnHeader
           boardId={boardId}
           canManage={canManage}
+          onSortChange={setSort}
           onAddColumn={() => setShowAddColumn(true)}
         />
 
@@ -151,7 +190,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                     boardId={board.id}
                     workspaceId={board.workspaceId}
                     canManage={canManage && !board.isArchived}
-                    items={localItemsByGroup[group.id] ?? []}
+                    items={sortedItemsByGroup[group.id] ?? []}
                     onOpenDetail={setDetailItem}
                   />
                 ))}

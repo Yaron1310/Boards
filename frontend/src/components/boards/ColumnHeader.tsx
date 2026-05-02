@@ -211,8 +211,10 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
         <button
           type="button"
           onClick={() => onSort(column)}
-          className={`opacity-0 group-hover:opacity-100 transition-opacity rounded p-0.5 ${
-            isActive ? '!opacity-100 text-indigo-600' : 'text-gray-400 hover:text-gray-600'
+          className={`opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-1 ${
+            isActive
+              ? '!opacity-100 text-indigo-600 bg-indigo-100'
+              : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
           }`}
           aria-label={
             isActive
