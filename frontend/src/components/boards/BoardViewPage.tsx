@@ -21,14 +21,14 @@ import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX } from 'react-icons/fi';
 import ColumnHeader from './ColumnHeader';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
 import AddColumnModal from './AddColumnModal';
 import BoardArchiveModal from './BoardArchiveModal';
-import BoardFilterDropdown, { itemMatchesSearch, itemMatchesFilter } from './BoardFilterDropdown';
+import BoardFilterDropdown, { itemMatchesSearch, itemMatchesFilters } from './BoardFilterDropdown';
 import type { ActiveFilter } from './BoardFilterDropdown';
 import BoardInviteModal from './BoardInviteModal';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
@@ -40,6 +40,36 @@ import DependencyApplyModal from './DependencyApplyModal';
 type DragData =
   | { type: 'group'; group: Group }
   | { type: 'item'; item: Item };
+
+// Chip shown in the top bar for each active filter
+const FilterChip: React.FC<{ filter: ActiveFilter; onRemove: () => void }> = ({ filter, onRemove }) => {
+  const label =
+    filter.type === 'date'   ? filter.value :
+    filter.type === 'user'   ? filter.label :
+    filter.type === 'status' ? filter.label :
+    filter.value;
+
+  return (
+    <div className="flex items-center gap-1 pl-2 pr-1 py-1 text-xs rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 flex-shrink-0">
+      {filter.type === 'status' && (
+        <span
+          className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: filter.color }}
+          aria-hidden="true"
+        />
+      )}
+      <span className="max-w-[90px] truncate">{label}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-indigo-400 hover:text-indigo-700 flex-shrink-0 p-0.5 rounded-full hover:bg-indigo-200 transition-colors"
+        aria-label={`Remove ${label} filter`}
+      >
+        <FiX size={10} aria-hidden="true" />
+      </button>
+    </div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Inner component — lives inside DependencyProvider so it can use useDependency
@@ -63,7 +93,7 @@ interface BoardContentProps {
   setShowAddColumn: (v: boolean) => void;
   allItems: Item[];
   searchText: string;
-  activeFilter: ActiveFilter | null;
+  activeFilters: ActiveFilter[];
 }
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' };
@@ -105,7 +135,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
   setShowAddColumn,
   allItems,
   searchText,
-  activeFilter,
+  activeFilters,
 }) => {
   const { data: columns = [] } = useColumns(boardId);
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
@@ -125,17 +155,17 @@ const BoardContent: React.FC<BoardContentProps> = ({
   }, [sort, localItemsByGroup, columns]);
 
   const displayItemsByGroup = React.useMemo<Record<string, Item[]>>(() => {
-    if (!searchText && !activeFilter) return sortedItemsByGroup;
+    if (!searchText && activeFilters.length === 0) return sortedItemsByGroup;
     const result: Record<string, Item[]> = {};
     for (const [gid, items] of Object.entries(sortedItemsByGroup)) {
       result[gid] = items.filter(
         (item) =>
           itemMatchesSearch(item, columns, allUsers, searchText) &&
-          itemMatchesFilter(item, columns, activeFilter),
+          itemMatchesFilters(item, columns, activeFilters),
       );
     }
     return result;
-  }, [searchText, activeFilter, sortedItemsByGroup, columns, allUsers]);
+  }, [searchText, activeFilters, sortedItemsByGroup, columns, allUsers]);
 
   const {
     boardContainerRef,
@@ -321,7 +351,7 @@ const BoardViewPage: React.FC = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [searchText, setSearchText] = useState('');
-  const [activeFilter, setActiveFilter] = useState<ActiveFilter | null>(null);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
 
   // Local optimistic state for DnD
   const [localGroups, setLocalGroups] = useState<Group[]>([]);
@@ -599,16 +629,16 @@ const BoardViewPage: React.FC = () => {
             )}
           </div>
 
-          {/* Search field */}
-          <div className="flex-1 flex items-center gap-2 min-w-0">
-            <div className="relative flex-1 max-w-xs">
+          {/* Search + filter row */}
+          <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
+            <div className="relative">
               <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
               <input
                 type="text"
                 placeholder="Search items…"
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-44 pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 aria-label="Search items by any field value"
               />
             </div>
@@ -616,9 +646,31 @@ const BoardViewPage: React.FC = () => {
             <BoardFilterDropdown
               boardId={boardId ?? ''}
               allItems={allItems}
-              activeFilter={activeFilter}
-              onFilterChange={setActiveFilter}
+              activeFilters={activeFilters}
+              onFilterChange={setActiveFilters}
             />
+
+            {/* Active filter chips */}
+            {activeFilters.map((f) => (
+              <FilterChip
+                key={`${f.type}-${f.value}`}
+                filter={f}
+                onRemove={() => setActiveFilters((prev) => prev.filter((x) => !(x.type === f.type && x.value === f.value)))}
+              />
+            ))}
+
+            {/* Clear all */}
+            {(searchText.trim() !== '' || activeFilters.length > 0) && (
+              <button
+                type="button"
+                onClick={() => { setSearchText(''); setActiveFilters([]); }}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
+                aria-label="Clear all filters and search"
+              >
+                <FiX size={11} aria-hidden="true" />
+                Clear
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -668,7 +720,7 @@ const BoardViewPage: React.FC = () => {
             setShowAddColumn={setShowAddColumn}
             allItems={allItems}
             searchText={searchText}
-            activeFilter={activeFilter}
+            activeFilters={activeFilters}
           />
         </DependencyProvider>
         </FormulaEditProvider>

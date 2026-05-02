@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { FiFilter, FiX, FiChevronLeft, FiCalendar, FiUser, FiFlag, FiTag } from 'react-icons/fi';
+import { FiFilter, FiChevronLeft, FiCalendar, FiUser, FiFlag, FiTag, FiCheck } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { ColumnType } from '../../types';
@@ -14,8 +14,8 @@ export type ActiveFilter =
 interface Props {
   boardId: string;
   allItems: Item[];
-  activeFilter: ActiveFilter | null;
-  onFilterChange: (f: ActiveFilter | null) => void;
+  activeFilters: ActiveFilter[];
+  onFilterChange: (filters: ActiveFilter[]) => void;
 }
 
 type Step = 'root' | 'date' | 'user' | 'status' | 'tag';
@@ -34,7 +34,7 @@ function avatarColor(id: string): string {
   return AVATAR_BG[Math.abs(h) % AVATAR_BG.length];
 }
 
-const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter, onFilterChange }) => {
+const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilters, onFilterChange }) => {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('root');
   const ref = useRef<HTMLDivElement>(null);
@@ -54,7 +54,6 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  // Collect status options from all STATUS columns
   const statusOptions = useMemo<StatusOption[]>(() => {
     const seen = new Set<string>();
     const opts: StatusOption[] = [];
@@ -68,7 +67,6 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
     return opts;
   }, [columns]);
 
-  // Collect unique tags from all TAGS columns across all items
   const availableTags = useMemo<string[]>(() => {
     const tagCols = columns.filter((c) => c.type === ColumnType.TAGS).map((c) => c.id);
     const seen = new Set<string>();
@@ -81,7 +79,6 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
     return [...seen].sort();
   }, [allItems, columns]);
 
-  // Collect unique users from all PERSON columns across all items
   const availableUsers = useMemo<User[]>(() => {
     const personCols = columns.filter((c) => c.type === ColumnType.PERSON).map((c) => c.id);
     const userIds = new Set<string>();
@@ -94,63 +91,55 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
     return allUsers.filter((u) => userIds.has(u.id));
   }, [allItems, columns, allUsers]);
 
-  const close = () => { setOpen(false); setStep('root'); };
+  const isFilterActive = (type: string, value: string) =>
+    activeFilters.some((f) => f.type === type && f.value === value);
 
-  const applyFilter = (f: ActiveFilter) => { onFilterChange(f); close(); };
+  const hasTypeActive = (type: string) => activeFilters.some((f) => f.type === type);
 
-  // Active filter chip label
-  const filterLabel = activeFilter
-    ? activeFilter.type === 'date'   ? activeFilter.value
-    : activeFilter.type === 'user'   ? activeFilter.label
-    : activeFilter.type === 'status' ? activeFilter.label
-    : activeFilter.value
-    : null;
+  // Toggle a user / status / tag filter (add if absent, remove if present)
+  const toggleFilter = (newFilter: ActiveFilter) => {
+    if (isFilterActive(newFilter.type, newFilter.value)) {
+      onFilterChange(activeFilters.filter((f) => !(f.type === newFilter.type && f.value === newFilter.value)));
+    } else {
+      onFilterChange([...activeFilters, newFilter]);
+    }
+  };
+
+  // Date replaces any existing date filter (only one date at a time makes sense)
+  const setDateFilter = (date: string) => {
+    const without = activeFilters.filter((f) => f.type !== 'date');
+    onFilterChange(date ? [...without, { type: 'date', value: date }] : without);
+  };
+
+  const currentDate = activeFilters.find((f) => f.type === 'date')?.value ?? '';
 
   return (
     <div className="relative flex-shrink-0" ref={ref}>
-      <div className="flex items-center gap-1">
-        <button
-          type="button"
-          onClick={() => { setOpen((v) => !v); setStep('root'); }}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
-            activeFilter
-              ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
-          }`}
-          aria-label="Filter items"
-          aria-expanded={open}
-          aria-haspopup="menu"
-        >
-          <FiFilter size={12} aria-hidden="true" />
-          Filter
-        </button>
-
-        {activeFilter && filterLabel && (
-          <div className="flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200">
-            {activeFilter.type === 'status' && (
-              <span
-                className="inline-block w-2 h-2 rounded-full flex-shrink-0"
-                style={{ backgroundColor: activeFilter.color }}
-                aria-hidden="true"
-              />
-            )}
-            <span className="max-w-[100px] truncate">{filterLabel}</span>
-            <button
-              type="button"
-              onClick={() => onFilterChange(null)}
-              className="text-indigo-500 hover:text-indigo-700 flex-shrink-0"
-              aria-label="Clear filter"
-            >
-              <FiX size={11} aria-hidden="true" />
-            </button>
-          </div>
+      <button
+        type="button"
+        onClick={() => { setOpen((v) => !v); setStep('root'); }}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+          activeFilters.length > 0
+            ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+            : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+        }`}
+        aria-label="Filter items"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <FiFilter size={12} aria-hidden="true" />
+        Filter
+        {activeFilters.length > 0 && (
+          <span className="ml-0.5 flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-indigo-600 text-white rounded-full">
+            {activeFilters.length}
+          </span>
         )}
-      </div>
+      </button>
 
       {open && (
         <div
           className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1"
-          style={{ minWidth: '180px' }}
+          style={{ minWidth: '190px' }}
           role="menu"
           aria-label="Filter options"
         >
@@ -166,7 +155,10 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
                   className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <span className="text-gray-400">{icon}</span>
-                  {label}
+                  <span className="flex-1 text-left">{label}</span>
+                  {hasTypeActive(s) && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" aria-hidden="true" />
+                  )}
                 </button>
               ))}
             </>
@@ -179,13 +171,20 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
                 <input
                   type="date"
                   autoFocus
-                  defaultValue={activeFilter?.type === 'date' ? activeFilter.value : ''}
-                  onChange={(e) => {
-                    if (e.target.value) applyFilter({ type: 'date', value: e.target.value });
-                  }}
+                  value={currentDate}
+                  onChange={(e) => setDateFilter(e.target.value)}
                   className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   aria-label="Select date to filter by"
                 />
+                {currentDate && (
+                  <button
+                    type="button"
+                    onClick={() => setDateFilter('')}
+                    className="mt-1.5 w-full text-xs text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    Clear date filter
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -201,8 +200,8 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
                     <UserRow
                       key={u.id}
                       user={u}
-                      isActive={activeFilter?.type === 'user' && activeFilter.value === u.id}
-                      onClick={() => applyFilter({ type: 'user', value: u.id, label: u.name, avatarUrl: u.profileImageUrl })}
+                      isActive={isFilterActive('user', u.id)}
+                      onClick={() => toggleFilter({ type: 'user', value: u.id, label: u.name, avatarUrl: u.profileImageUrl })}
                       avatarColor={avatarColor(u.id)}
                     />
                   ))
@@ -218,22 +217,24 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
                 {statusOptions.length === 0 ? (
                   <p className="px-3 py-2 text-xs text-gray-400">No status columns on this board</p>
                 ) : (
-                  statusOptions.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => applyFilter({ type: 'status', value: opt.id, label: opt.label, color: opt.color })}
-                      className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors ${
-                        activeFilter?.type === 'status' && activeFilter.value === opt.id
-                          ? 'bg-indigo-50 text-indigo-700'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: opt.color }} aria-hidden="true" />
-                      {opt.label}
-                    </button>
-                  ))
+                  statusOptions.map((opt) => {
+                    const active = isFilterActive('status', opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => toggleFilter({ type: 'status', value: opt.id, label: opt.label, color: opt.color })}
+                        className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors ${
+                          active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: opt.color }} aria-hidden="true" />
+                        <span className="flex-1 text-left">{opt.label}</span>
+                        {active && <FiCheck size={11} className="text-indigo-600 flex-shrink-0" aria-hidden="true" />}
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </>
@@ -246,21 +247,25 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilter,
                 {availableTags.length === 0 ? (
                   <p className="px-1 py-1 text-xs text-gray-400">No tags on this board</p>
                 ) : (
-                  availableTags.map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => applyFilter({ type: 'tag', value: tag })}
-                      className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
-                        activeFilter?.type === 'tag' && activeFilter.value === tag
-                          ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
-                          : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
-                      }`}
-                    >
-                      {tag}
-                    </button>
-                  ))
+                  availableTags.map((tag) => {
+                    const active = isFilterActive('tag', tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => toggleFilter({ type: 'tag', value: tag })}
+                        className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                          active
+                            ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                            : 'bg-gray-100 border-gray-200 text-gray-700 hover:bg-gray-200'
+                        }`}
+                      >
+                        {active && <FiCheck size={9} aria-hidden="true" />}
+                        {tag}
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </>
@@ -313,7 +318,8 @@ const UserRow: React.FC<{
           {user.name?.[0]?.toUpperCase() ?? '?'}
         </div>
       )}
-      <span className="truncate">{user.name}</span>
+      <span className="flex-1 truncate text-left">{user.name}</span>
+      {isActive && <FiCheck size={11} className="text-indigo-600 flex-shrink-0" aria-hidden="true" />}
     </button>
   );
 };
@@ -366,9 +372,7 @@ export function itemMatchesSearch(
   return false;
 }
 
-export function itemMatchesFilter(item: Item, columns: Column[], filter: ActiveFilter | null): boolean {
-  if (!filter) return true;
-
+function itemMatchesSingleFilter(item: Item, columns: Column[], filter: ActiveFilter): boolean {
   switch (filter.type) {
     case 'date': {
       const dateCols = columns.filter(
@@ -406,4 +410,21 @@ export function itemMatchesFilter(item: Item, columns: Column[], filter: ActiveF
     default:
       return true;
   }
+}
+
+// AND between filter types, OR within the same type
+export function itemMatchesFilters(item: Item, columns: Column[], filters: ActiveFilter[]): boolean {
+  if (filters.length === 0) return true;
+
+  const byType = new Map<string, ActiveFilter[]>();
+  for (const f of filters) {
+    const arr = byType.get(f.type) ?? [];
+    arr.push(f);
+    byType.set(f.type, arr);
+  }
+
+  for (const [, typeFilters] of byType) {
+    if (!typeFilters.some((f) => itemMatchesSingleFilter(item, columns, f))) return false;
+  }
+  return true;
 }
