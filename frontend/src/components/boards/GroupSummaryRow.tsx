@@ -120,8 +120,8 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols }) => 
         <button
           type="button"
           onClick={() => setMode((m) => (m === 'sum' ? 'avg' : 'sum'))}
-          style={{ backgroundColor: mode === 'sum' ? '#3b82f6cf' : '#4ade8082' }}
-          className="absolute left-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-normal leading-none transition-colors select-none flex-shrink-0 text-gray-700"
+          style={{ backgroundColor: mode === 'sum' ? '#3b82f6cf' : '#4ade8082', color: mode === 'sum' ? 'white' : 'black' }}
+          className="absolute left-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-normal leading-none transition-colors select-none flex-shrink-0"
           aria-label={mode === 'sum' ? `Switch ${col.name} to average` : `Switch ${col.name} to sum`}
           title={mode === 'sum' ? 'Showing sum — click for average' : 'Showing average — click for sum'}
         >
