@@ -21,13 +21,17 @@ import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus } from 'react-icons/fi';
 import ColumnHeader from './ColumnHeader';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
 import AddColumnModal from './AddColumnModal';
 import BoardArchiveModal from './BoardArchiveModal';
+import BoardFilterDropdown, { itemMatchesSearch, itemMatchesFilter } from './BoardFilterDropdown';
+import type { ActiveFilter } from './BoardFilterDropdown';
+import BoardInviteModal from './BoardInviteModal';
+import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { DependencyProvider, useDependency } from '../../contexts/DependencyContext';
 import DependencyOverlay from './DependencyOverlay';
@@ -58,6 +62,8 @@ interface BoardContentProps {
   setDetailItem: (item: Item | null) => void;
   setShowAddColumn: (v: boolean) => void;
   allItems: Item[];
+  searchText: string;
+  activeFilter: ActiveFilter | null;
 }
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' };
@@ -98,8 +104,11 @@ const BoardContent: React.FC<BoardContentProps> = ({
   setDetailItem,
   setShowAddColumn,
   allItems,
+  searchText,
+  activeFilter,
 }) => {
   const { data: columns = [] } = useColumns(boardId);
+  const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
   const [sort, setSort] = React.useState<SortState | null>(null);
 
   const sortedItemsByGroup = React.useMemo<Record<string, Item[]>>(() => {
@@ -114,6 +123,19 @@ const BoardContent: React.FC<BoardContentProps> = ({
     }
     return result;
   }, [sort, localItemsByGroup, columns]);
+
+  const displayItemsByGroup = React.useMemo<Record<string, Item[]>>(() => {
+    if (!searchText && !activeFilter) return sortedItemsByGroup;
+    const result: Record<string, Item[]> = {};
+    for (const [gid, items] of Object.entries(sortedItemsByGroup)) {
+      result[gid] = items.filter(
+        (item) =>
+          itemMatchesSearch(item, columns, allUsers, searchText) &&
+          itemMatchesFilter(item, columns, activeFilter),
+      );
+    }
+    return result;
+  }, [searchText, activeFilter, sortedItemsByGroup, columns, allUsers]);
 
   const {
     boardContainerRef,
@@ -190,7 +212,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                     boardId={board.id}
                     workspaceId={board.workspaceId}
                     canManage={canManage && !board.isArchived}
-                    items={sortedItemsByGroup[group.id] ?? []}
+                    items={displayItemsByGroup[group.id] ?? []}
                     onOpenDetail={setDetailItem}
                   />
                 ))}
@@ -296,7 +318,10 @@ const BoardViewPage: React.FC = () => {
   const [showAddGroup, setShowAddGroup] = useState(false);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter | null>(null);
 
   // Local optimistic state for DnD
   const [localGroups, setLocalGroups] = useState<Group[]>([]);
@@ -543,7 +568,7 @@ const BoardViewPage: React.FC = () => {
             <FiChevronLeft size={18} aria-hidden="true" />
           </button>
 
-          <div className="flex-1 min-w-0">
+          <div className="flex-shrink-0 min-w-0 max-w-[260px]">
             {editingName && canManage ? (
               <input
                 ref={nameInputRef}
@@ -553,7 +578,7 @@ const BoardViewPage: React.FC = () => {
                 onBlur={() => void commitNameEdit()}
                 onKeyDown={handleNameKeyDown}
                 disabled={isSaving}
-                className="text-xl font-bold text-gray-800 bg-transparent border-b-2 border-indigo-500 outline-none w-full max-w-md"
+                className="text-xl font-bold text-gray-800 bg-transparent border-b-2 border-indigo-500 outline-none w-full"
                 aria-label="Edit board name"
               />
             ) : (
@@ -574,8 +599,41 @@ const BoardViewPage: React.FC = () => {
             )}
           </div>
 
-          {canManage && (
-            <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Search field */}
+          <div className="flex-1 flex items-center gap-2 min-w-0">
+            <div className="relative flex-1 max-w-xs">
+              <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+              <input
+                type="text"
+                placeholder="Search items…"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                aria-label="Search items by any field value"
+              />
+            </div>
+
+            <BoardFilterDropdown
+              boardId={boardId ?? ''}
+              allItems={allItems}
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+            />
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-indigo-600 border border-indigo-300 rounded-lg hover:bg-indigo-50 transition-colors"
+                aria-label="Invite users to this board"
+              >
+                <FiUserPlus size={13} aria-hidden="true" />
+                Invite
+              </button>
+            )}
+            {canManage && (
               <button
                 type="button"
                 onClick={() => setShowArchiveModal(true)}
@@ -585,8 +643,8 @@ const BoardViewPage: React.FC = () => {
                 <FiArchive size={13} aria-hidden="true" />
                 Archived
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Board content area with horizontal scrolling */}
@@ -609,6 +667,8 @@ const BoardViewPage: React.FC = () => {
             setDetailItem={setDetailItem}
             setShowAddColumn={setShowAddColumn}
             allItems={allItems}
+            searchText={searchText}
+            activeFilter={activeFilter}
           />
         </DependencyProvider>
         </FormulaEditProvider>
@@ -624,6 +684,14 @@ const BoardViewPage: React.FC = () => {
 
       {showArchiveModal && boardId && (
         <BoardArchiveModal boardId={boardId} onClose={() => setShowArchiveModal(false)} />
+      )}
+
+      {showInviteModal && boardId && board && (
+        <BoardInviteModal
+          boardId={boardId}
+          workspaceId={board.workspaceId}
+          onClose={() => setShowInviteModal(false)}
+        />
       )}
     </>
   );

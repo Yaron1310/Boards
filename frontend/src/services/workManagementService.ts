@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
@@ -295,3 +295,14 @@ export const getDashboardOverdue = (
   const qs = p.toString();
   return fetchWithAuth(`/api/dashboard/overdue${qs ? `?${qs}` : ''}`);
 };
+
+// ─── BOARD MEMBERS ───────────────────────────────────────────────────────────
+
+export const getBoardMembers = (boardId: string): Promise<BoardMember[]> =>
+  fetchWithAuth(`/api/boards/${boardId}/members`);
+
+export const addBoardMember = (boardId: string, userId: string, role: BoardRole): Promise<BoardMember> =>
+  fetchWithAuth(`/api/boards/${boardId}/members`, { method: 'POST', body: JSON.stringify({ userId, role }) });
+
+export const removeBoardMember = (boardId: string, userId: string): Promise<null> =>
+  fetchWithAuth(`/api/boards/${boardId}/members/${userId}`, { method: 'DELETE' });

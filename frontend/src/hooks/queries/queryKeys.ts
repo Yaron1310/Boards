@@ -37,4 +37,7 @@ export const queryKeys = {
     summary: (params: DashboardParams) => ['dashboard', 'summary', params] as const,
     overdue: (params: DashboardParams & DashboardPaginationParams) => ['dashboard', 'overdue', params] as const,
   },
+  boardMembers: {
+    all: (boardId: string) => ['boardMembers', boardId] as const,
+  },
 };
