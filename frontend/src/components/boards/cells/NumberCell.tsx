@@ -1,16 +1,36 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
+import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import type { Item, Column, NumberColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
+function colIndexToLetter(colIndex: number): string {
+  let letter = '';
+  let n = colIndex;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+}
+
 const NumberCell: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as number | null | undefined;
   const settings = column.settings as NumberColumnSettings;
   const { mutate } = useUpdateItem();
-  const { isFormulaEditing, insertColumnRef } = useFormulaEdit();
+  const { isFormulaEditing, insertCellAddress } = useFormulaEdit();
+  const { visibleItems, columns: boardColumns } = useBoardRender();
+
+  // Calculate cell address for formula insertion
+  const cellAddress = useMemo(() => {
+    const rowNum = visibleItems.findIndex((it) => it.id === item.id) + 1;
+    const colLetter = colIndexToLetter(boardColumns.findIndex((c) => c.id === column.id) + 2);
+    return `${colLetter}${rowNum}`;
+  }, [visibleItems, boardColumns, item.id, column.id]);
 
   const [draft, setDraft] = useState<string>(rawValue != null ? String(rawValue) : '');
 
@@ -34,8 +54,7 @@ const NumberCell: React.FC<Props> = ({ item, column }) => {
     return settings?.unit ? `${formatted} ${settings.unit}` : formatted;
   };
 
-  // When a formula cell in the same row is being edited, intercept clicks
-  // to insert this column's reference into the formula instead of entering edit mode.
+  // When a formula cell is being edited, intercept clicks to insert this cell's address
   if (isFormulaEditing) {
     const display = formatDisplay();
     return (
@@ -43,9 +62,10 @@ const NumberCell: React.FC<Props> = ({ item, column }) => {
         {() => (
           <div
             className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-100/60 transition-colors"
-            onMouseDown={(e) => { e.preventDefault(); insertColumnRef(rawValue != null ? String(rawValue) : '0'); }}
-            title={`Insert {${column.name}} into formula`}
-            aria-label={`Insert ${column.name} into formula`}
+            onMouseDown={(e) => { e.preventDefault(); insertCellAddress(cellAddress); }}
+            title={`Insert {${cellAddress}} into formula`}
+            aria-label={`Insert cell ${cellAddress} into formula`}
+            data-cell-address={cellAddress}
           >
             {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
           </div>

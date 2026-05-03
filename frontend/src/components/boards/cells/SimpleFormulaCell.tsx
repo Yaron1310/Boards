@@ -4,6 +4,7 @@ import { FiX } from 'react-icons/fi';
 import { useColumns, useUpdateColumn } from '../../../hooks/queries/useColumnQueries';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
+import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import { evaluateFormula } from '../../../utils/formulaEngine';
 import { ColumnType } from '../../../types';
 import type { Item, Column, SimpleFormulaColumnSettings } from '../../../types';
@@ -11,35 +12,47 @@ import { calculateColumnWidth } from '../../../utils/columnWidths';
 
 interface Props { item: Item; column: Column }
 
+function colIndexToLetter(colIndex: number): string {
+  let letter = '';
+  let n = colIndex;
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    letter = String.fromCharCode(65 + rem) + letter;
+    n = Math.floor((n - 1) / 26);
+  }
+  return letter;
+}
+
 const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
   const { data: columns = [] } = useColumns(item.boardId);
   const { mutate: updateItem } = useUpdateItem();
   const { mutateAsync: updateColumn } = useUpdateColumn(item.boardId);
   const { setInsertHandler } = useFormulaEdit();
+  const { visibleItems, columns: boardColumns } = useBoardRender();
   const colWidth = calculateColumnWidth(column.name, column.type);
 
   const settings = column.settings as SimpleFormulaColumnSettings;
   const defaultFormula: string = settings?.defaultFormula ?? '';
 
-  // Per-cell value semantics stored in item.values[column.id]:
-  //   null / undefined → use column defaultFormula
-  //   ''               → explicitly empty (no formula for this cell)
-  //   string (non-empty) → per-cell formula override
+  // Per-cell value semantics:
   const storedRaw = item.values[column.id];
   const storedValue: string | null =
     typeof storedRaw === 'string' ? storedRaw : null;
 
   const cellFormula: string =
     storedValue === null ? defaultFormula :
-    storedValue;  // '' stays '' (empty), non-empty string is the override
+    storedValue;
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(cellFormula);
-  // pendingFormula is set when the column has no default and user enters a formula,
-  // so we can ask "apply to all or just this cell?"
   const [pendingFormula, setPendingFormula] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const cursorRef = useRef<number>(0);
+
+  // Calculate this cell's row number (1-based)
+  const rowNumber = visibleItems.findIndex((it) => it.id === item.id) + 1;
+  // Calculate this column's letter (B for first column, C for second, etc.; A is Name)
+  const columnLetter = colIndexToLetter(boardColumns.findIndex((c) => c.id === column.id) + 2);
 
   useEffect(() => {
     if (!isEditing) setDraft(cellFormula);
@@ -57,13 +70,19 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
   }, [columns, item.values]);
 
   const result = React.useMemo(
-    () => (cellFormula ? evaluateFormula(cellFormula, columnValues) : null),
-    [cellFormula, columnValues],
+    () => (cellFormula ? evaluateFormula(cellFormula, columnValues, {
+      allItems: visibleItems,
+      columns: boardColumns,
+    }) : null),
+    [cellFormula, columnValues, visibleItems, boardColumns],
   );
 
   const previewResult = React.useMemo(
-    () => (isEditing ? evaluateFormula(draft, columnValues) : null),
-    [isEditing, draft, columnValues],
+    () => (isEditing ? evaluateFormula(draft, columnValues, {
+      allItems: visibleItems,
+      columns: boardColumns,
+    }) : null),
+    [isEditing, draft, columnValues, visibleItems, boardColumns],
   );
 
   const formatNumber = (n: number) =>
@@ -81,12 +100,26 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
     }
   };
 
+  const insertCellAddress = (cellAddress: string) => {
+    const input = inputRef.current;
+    const pos = input ? (input.selectionStart ?? draft.length) : draft.length;
+    const cellRef = `{${cellAddress}}`;
+    const next = draft.slice(0, pos) + cellRef + draft.slice(pos);
+    setDraft(next);
+    cursorRef.current = pos + cellRef.length;
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(cursorRef.current, cursorRef.current);
+      }
+    });
+  };
+
   const commit = () => {
     const trimmed = draft.trim();
     setInsertHandler(null);
     setIsEditing(false);
 
-    // Column has no default formula and user typed something → ask apply scope
     if (!defaultFormula && trimmed) {
       setPendingFormula(trimmed);
       return;
@@ -94,11 +127,9 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
 
     let newValue: string | null;
     if (!trimmed) {
-      // Empty draft: if there's a default, '' marks this cell as explicitly empty;
-      // if no default, null and '' are equivalent so use null (cleaner)
       newValue = defaultFormula ? '' : null;
     } else if (trimmed === defaultFormula.trim()) {
-      newValue = null; // matches default — no override needed
+      newValue = null;
     } else {
       newValue = trimmed;
     }
@@ -106,7 +137,6 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
     persistValue(newValue);
   };
 
-  // Clear-to-empty from inside the edit UI (the × next to the input)
   const clearToEmpty = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -121,7 +151,6 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
     setIsEditing(false);
   };
 
-  // × button in view mode: revert this cell to the column default
   const clearOverride = (e: React.MouseEvent) => {
     e.stopPropagation();
     persistValue(null);
@@ -129,22 +158,9 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
 
   useEffect(() => {
     if (!isEditing) return;
-    setInsertHandler((colName: string) => {
-      const input = inputRef.current;
-      const pos = input ? (input.selectionStart ?? draft.length) : draft.length;
-      const ref = `{${colName}}`;
-      const next = draft.slice(0, pos) + ref + draft.slice(pos);
-      setDraft(next);
-      cursorRef.current = pos + ref.length;
-      requestAnimationFrame(() => {
-        if (inputRef.current) {
-          inputRef.current.focus();
-          inputRef.current.setSelectionRange(cursorRef.current, cursorRef.current);
-        }
-      });
-    });
+    setInsertHandler(insertCellAddress);
     return () => setInsertHandler(null);
-  }, [isEditing, draft, setInsertHandler]);
+  }, [isEditing, insertCellAddress, setInsertHandler]);
 
   useEffect(() => {
     if (isEditing) {
@@ -155,11 +171,8 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
     }
   }, [isEditing]);
 
-  // Any explicitly-set value (including explicit empty '') counts as an override
   const hasOverride = storedValue !== null;
-  const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
 
-  // --- Apply-to-all modal handlers ---
   const handleApplyToAll = async () => {
     if (pendingFormula === null) return;
     const formula = pendingFormula;
@@ -169,10 +182,8 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
         id: column.id,
         patch: { settings: { ...settings, defaultFormula: formula } },
       });
-      // Clear any per-cell override so this cell also picks up the new default
       persistValue(null);
     } catch {
-      // On failure fall back to per-cell save
       persistValue(formula);
     }
   };
@@ -206,11 +217,10 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
               if (e.key === 'Escape') { e.preventDefault(); discard(); }
             }}
             className="flex-1 text-xs font-mono text-gray-800 bg-transparent outline-none min-w-0"
-            placeholder={defaultFormula || 'e.g. {Price} * {Qty}'}
+            placeholder={defaultFormula || 'e.g. {B2} * {C2}'}
             aria-label={`Formula for ${column.name}`}
             spellCheck={false}
           />
-          {/* Clear to empty — saves '' so this cell shows no value */}
           <button
             type="button"
             onMouseDown={clearToEmpty}
@@ -229,35 +239,9 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
           </span>
         </div>
 
-        {numberCols.length > 0 && (
-          <div className="px-2 pb-1.5 flex flex-wrap gap-1">
-            {numberCols.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  const input = inputRef.current;
-                  const pos = input ? (input.selectionStart ?? draft.length) : draft.length;
-                  const ref = `{${c.name}}`;
-                  const next = draft.slice(0, pos) + ref + draft.slice(pos);
-                  setDraft(next);
-                  cursorRef.current = pos + ref.length;
-                  requestAnimationFrame(() => {
-                    if (inputRef.current) {
-                      inputRef.current.focus();
-                      inputRef.current.setSelectionRange(cursorRef.current, cursorRef.current);
-                    }
-                  });
-                }}
-                className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded border border-indigo-200 hover:bg-indigo-100 transition-colors font-mono"
-                aria-label={`Insert reference to ${c.name}`}
-              >
-                {`{${c.name}}`}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="px-2 pb-1.5 text-[10px] text-gray-400">
+          Click any number cell to insert its address (e.g., C3)
+        </div>
       </div>
     );
   }
@@ -270,6 +254,7 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
         style={{ width: `${colWidth}px` }}
         className="relative flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0 bg-gray-50/60 hover:bg-indigo-50/30 cursor-pointer group/formula"
         onClick={startEdit}
+        data-cell-address={`${columnLetter}${rowNumber}`}
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') startEdit(e); }}
         title={cellFormula ? `= ${cellFormula}` : 'Click to enter formula'}
@@ -279,8 +264,6 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
             ? formatNumber(result)
             : <span className="text-gray-300 text-xs">—</span>}
         </span>
-        {/* Shown when a per-cell value is stored (override or explicit empty).
-            Clicking reverts this cell to the column default. */}
         {hasOverride && (
           <button
             type="button"
@@ -294,7 +277,6 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
         )}
       </div>
 
-      {/* Apply-to-all modal */}
       {pendingFormula !== null && ReactDOM.createPortal(
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"

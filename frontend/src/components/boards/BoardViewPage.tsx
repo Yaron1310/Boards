@@ -34,6 +34,7 @@ import type { ActiveFilter } from './BoardFilterDropdown';
 import BoardInviteModal from './BoardInviteModal';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
+import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import { DependencyProvider, useDependency } from '../../contexts/DependencyContext';
 import DependencyOverlay from './DependencyOverlay';
 import DependencyApplyModal from './DependencyApplyModal';
@@ -197,6 +198,16 @@ const BoardContent: React.FC<BoardContentProps> = ({
 
   const groupIds = localGroups.map((g) => g.id);
 
+  // Flatten visible items in display order for formula cell addressing
+  const visibleItems = useMemo(() => {
+    const items: Item[] = [];
+    for (const group of localGroups) {
+      const groupItems = displayItemsByGroup[group.id] ?? [];
+      items.push(...groupItems);
+    }
+    return items;
+  }, [localGroups, displayItemsByGroup]);
+
   return (
     <div className="flex-1 relative min-h-0">
       <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
@@ -235,19 +246,21 @@ const BoardContent: React.FC<BoardContentProps> = ({
                 <p>No groups yet. Add a group to start organising items.</p>
               </div>
             ) : (
-              <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
-                {localGroups.map((group) => (
-                  <GroupSection
-                    key={group.id}
-                    group={group}
-                    boardId={board.id}
-                    workspaceId={board.workspaceId}
-                    canManage={canManage && !board.isArchived}
-                    items={displayItemsByGroup[group.id] ?? []}
-                    onOpenDetail={setDetailItem}
-                  />
-                ))}
-              </SortableContext>
+              <BoardRenderProvider visibleItems={visibleItems} columns={columns}>
+                <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
+                  {localGroups.map((group) => (
+                    <GroupSection
+                      key={group.id}
+                      group={group}
+                      boardId={board.id}
+                      workspaceId={board.workspaceId}
+                      canManage={canManage && !board.isArchived}
+                      items={displayItemsByGroup[group.id] ?? []}
+                      onOpenDetail={setDetailItem}
+                    />
+                  ))}
+                </SortableContext>
+              </BoardRenderProvider>
             )}
 
             {canManage && !board.isArchived && showAddGroup && boardId && (
