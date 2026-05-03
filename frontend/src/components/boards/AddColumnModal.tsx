@@ -220,11 +220,6 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   // TAGS
   const [allowCustom, setAllowCustom] = useState(true);
 
-  // SIMPLE_FORMULA
-  const [formulaDefault, setFormulaDefault] = useState('');
-
-  const numberColumns = allColumns.filter((c) => c.type === ColumnType.NUMBER);
-
   const addStatusOption = () => {
     const id = `opt_${Date.now()}`;
     const color = STATUS_PALETTE[statusOptions.length % STATUS_PALETTE.length];
@@ -269,7 +264,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       case ColumnType.TAGS:
         return { allowCustom };
       case ColumnType.SIMPLE_FORMULA:
-        return { defaultFormula: formulaDefault.trim() };
+        return { defaultFormula: '' };
       default:
         return {};
     }
@@ -640,52 +635,6 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                   />
                   Allow custom tags
                 </label>
-              </div>
-            )}
-
-            {/* SIMPLE_FORMULA settings */}
-            {type === ColumnType.SIMPLE_FORMULA && (
-              <div className="space-y-3 pt-1 border-t border-gray-100">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Formula Settings</p>
-                <div>
-                  <label htmlFor="formula-default" className="block text-xs text-gray-600 mb-1">
-                    Default formula <span className="text-gray-400">(applied to all cells unless overridden)</span>
-                  </label>
-                  <div className="relative flex items-center">
-                    <span className="absolute left-2.5 text-xs font-mono text-indigo-400 select-none">=</span>
-                    <input
-                      id="formula-default"
-                      type="text"
-                      value={formulaDefault}
-                      onChange={(e) => setFormulaDefault(e.target.value)}
-                      placeholder={numberColumns.length > 0 ? `e.g. {${numberColumns[0]?.name}} * {${numberColumns[1]?.name ?? 'Col2'}}` : 'e.g. {Price} * {Qty}'}
-                      className="w-full pl-7 pr-2 py-1.5 border border-gray-300 rounded text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      aria-label="Default formula expression"
-                      spellCheck={false}
-                    />
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-1">
-                    Use <code className="bg-gray-100 px-1 rounded">{'{ColumnName}'}</code> to reference number columns. Supports +, −, ×, ÷ and parentheses.
-                  </p>
-                </div>
-                {numberColumns.length > 0 && (
-                  <div>
-                    <p className="text-[11px] text-gray-500 mb-1.5">Available columns:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {numberColumns.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          onClick={() => setFormulaDefault((prev) => prev + `{${c.name}}`)}
-                          className="text-[11px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded border border-indigo-200 hover:bg-indigo-100 transition-colors font-mono"
-                          aria-label={`Insert reference to ${c.name}`}
-                        >
-                          {`{${c.name}}`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 

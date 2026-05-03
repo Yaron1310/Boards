@@ -142,7 +142,12 @@ export async function exportBoardToXlsx(
       for (const col of columns) {
         if (col.type === ColumnType.SIMPLE_FORMULA) {
           const settings = col.settings as SimpleFormulaColumnSettings;
-          const formula = settings.defaultFormula;
+          const storedRaw = item.values[col.id];
+          // '' = explicitly empty; string = per-cell override; null/undefined = use column default
+          const formula =
+            storedRaw === '' ? null :
+            typeof storedRaw === 'string' ? storedRaw :
+            settings.defaultFormula || null;
           if (formula) {
             rowValues.push({ formula: convertToExcelFormula(formula, columns, currentRow) } as ExcelJS.CellFormulaValue);
           } else {
