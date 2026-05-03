@@ -5,18 +5,47 @@ import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
 import {
   FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX,
-  FiRotateCcw, FiLoader, FiInbox, FiTrash2,
+  FiRotateCcw, FiLoader, FiInbox, FiTrash2, FiDownload,
 } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import CreateBoardModal from './CreateBoardModal';
+import { importBoardFromXlsx } from '../../utils/importBoardFromXlsx';
 
 const BoardListPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [showArchiveModal, setShowArchiveModal] = React.useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
+  const [isImporting, setIsImporting] = React.useState(false);
+  const [importError, setImportError] = React.useState<string | null>(null);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImportClick = () => {
+    setImportError(null);
+    importInputRef.current?.click();
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !workspaceId) return;
+    e.target.value = '';
+
+    setIsImporting(true);
+    setImportError(null);
+    try {
+      const result = await importBoardFromXlsx(file, workspaceId);
+      await queryClient.invalidateQueries({ queryKey: ['boards'] });
+      navigate(`/boards/${result.boardId}`);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : 'Import failed. Please check the file format.');
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   const { data: boards = [], isLoading, error } = useBoards(workspaceId, false, !!workspaceId);
   const { data: archivedBoards = [], isLoading: archivedLoading, refetch: refetchArchived } = useBoards(
@@ -105,6 +134,32 @@ const BoardListPage: React.FC = () => {
             </button>
           )}
           {canManageBoards && (
+            <>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept=".xlsx"
+                className="hidden"
+                aria-hidden="true"
+                onChange={(e) => { void handleImportFile(e); }}
+              />
+              <button
+                type="button"
+                onClick={handleImportClick}
+                disabled={isImporting}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                aria-label="Import board from Excel file"
+              >
+                {isImporting ? (
+                  <FiLoader size={16} className="animate-spin" aria-hidden="true" />
+                ) : (
+                  <FiDownload size={16} aria-hidden="true" />
+                )}
+                {isImporting ? 'Importing…' : 'Import'}
+              </button>
+            </>
+          )}
+          {canManageBoards && (
             <button
               onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
@@ -116,6 +171,14 @@ const BoardListPage: React.FC = () => {
           )}
         </div>
       </div>
+      {importError && (
+        <div
+          className="mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"
+          role="alert"
+        >
+          {importError}
+        </div>
+      )}
 
       {boards.length === 0 ? (
         <p className="text-gray-500">No boards yet.</p>
