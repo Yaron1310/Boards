@@ -21,7 +21,8 @@ import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiDownload } from 'react-icons/fi';
+import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader from './ColumnHeader';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
@@ -334,6 +335,8 @@ const BoardViewPage: React.FC = () => {
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);
   const { data: groups = [], isLoading: groupsLoading } = useGroups(boardId ?? '', !!boardId);
   const { data: itemsPage } = useItems(itemParams, !!boardId);
+  const { data: columns = [] } = useColumns(boardId ?? '');
+  const { data: allUsersForExport = [] } = useUsersQuery({ limit: 200 });
 
   const { mutateAsync: updateBoard, isPending: isSaving } = useUpdateBoard();
   const { mutateAsync: reorderGroups } = useReorderGroups();
@@ -387,6 +390,18 @@ const BoardViewPage: React.FC = () => {
 
   // Flat list of all items across groups — used by DependencyProvider
   const allItems = useMemo(() => Object.values(localItemsByGroup).flat(), [localItemsByGroup]);
+
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = useCallback(async () => {
+    if (!board) return;
+    setIsExporting(true);
+    try {
+      await exportBoardToXlsx(board, localGroups, columns, localItemsByGroup, allUsersForExport);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [board, localGroups, columns, localItemsByGroup, allUsersForExport]);
 
   // Sync local state from server
   useEffect(() => {
@@ -696,6 +711,16 @@ const BoardViewPage: React.FC = () => {
                 Archived
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => void handleExport()}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Export board to Excel file"
+            >
+              <FiDownload size={13} aria-hidden="true" />
+              {isExporting ? 'Exporting…' : 'Export'}
+            </button>
           </div>
         </div>
 

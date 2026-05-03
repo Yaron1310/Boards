@@ -6,24 +6,11 @@ import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import type { Workspace, User } from '../../types';
 import { UserRole } from '../../types';
-import { FiPlusCircle, FiEdit, FiArchive, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiBriefcase, FiAlertCircle as FiErrorCircle, FiKey, FiCpu, FiLoader, FiUsers, FiUserPlus, FiList, FiInfo, FiCreditCard, FiShare } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiArchive, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiBriefcase, FiAlertCircle as FiErrorCircle, FiKey, FiCpu, FiLoader, FiUsers, FiUserPlus, FiList, FiInfo, FiCreditCard } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
 import TutorialSection from '../common/TutorialSection';
 import ConfirmationModal from './shared/ConfirmationModal';
 import ArchiveRestoreModal from './shared/ArchiveRestoreModal';
-const exportToCSV = (rows: Record<string, unknown>[], filename: string) => {
-    if (!rows.length) return;
-    const escape = (v: unknown) => {
-        const s = String(v ?? '');
-        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const headers = Object.keys(rows[0]);
-    const csv = [headers.map(escape).join(','), ...rows.map(r => headers.map(h => escape(r[h])).join(','))].join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-};
 
 const TokenUsageBar: React.FC<{ used: number; limit: number | null }> = ({ used, limit }) => {
     const formatTokens = (tokens: number) => {
@@ -457,21 +444,6 @@ const WorkspaceManagementPage: React.FC = () => {
         setAdminToRemove(null);
     };
 
-    const handleExportToExcel = () => {
-        const dataForExport = orgsWithComputedData.map(org => ({
-            'Name': org.name,
-            'Plan': org.planName || 'N/A',
-            'Billing via': org.subscriptionProvider?.replace('woocommerce', 'WordPress') || 'Manual',
-            'Payment Status': ['active', 'trialing'].includes(org.subscriptionStatus || '') ? 'On' : 'Off',
-            'Users': org.userCount,
-            'Tokens Used': org.tokensUsed,
-            'Token Limit': org.tokenLimit === null ? 'Unlimited' : org.tokenLimit,
-            'Type': org.isPersonal ? 'Individual Subscriber' : 'Corporate Client',
-        }));
-
-        exportToCSV(dataForExport, "Logyx_Workspaces_Export.csv");
-    };
-
   if (user?.role !== UserRole.ORGANIZATION_ADMIN && user?.role !== UserRole.SYSTEM_ADMIN) {
     return <div className="p-6 text-red-600">{t('admin.accessDenied')}</div>;
   }
@@ -488,13 +460,6 @@ const WorkspaceManagementPage: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   <button onClick={() => setIsArchiveModalOpen(true)} className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors text-sm w-full sm:w-auto">
                       <FiArchive className="mr-2" /> {t('common.viewArchived')}
-                  </button>
-                  <button
-                    onClick={handleExportToExcel}
-                    className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
-                    title={t('admin.exportWorkspaceList')}
-                  >
-                    <FiShare className="mr-2" /> {t('common.export')}
                   </button>
                   <button
                     onClick={() => setIsAddModalOpen(true)}
