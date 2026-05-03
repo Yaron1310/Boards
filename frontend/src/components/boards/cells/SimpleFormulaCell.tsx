@@ -49,10 +49,17 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const cursorRef = useRef<number>(0);
 
-  // Calculate this cell's row number (1-based)
-  const rowNumber = visibleItems.findIndex((it) => it.id === item.id) + 1;
+  // Calculate this cell's row number (1-based) and 0-based index
+  const rowIndex = visibleItems.findIndex((it) => it.id === item.id);
+  const rowNumber = rowIndex + 1;
   // Calculate this column's letter (B for first column, C for second, etc.; A is Name)
   const columnLetter = colIndexToLetter(boardColumns.findIndex((c) => c.id === column.id) + 2);
+
+  /** Strip row numbers from cell refs so the formula is row-relative: {C3} → {C} */
+  const makeRelativeFormula = (formula: string): string =>
+    formula.replace(/\{([A-Za-z]+)\d+\}/g, (_, col: string) => `{${col.toUpperCase()}}`);
+
+  const formulaContext = { allItems: visibleItems, columns: boardColumns, currentRowIndex: rowIndex };
 
   useEffect(() => {
     if (!isEditing) setDraft(cellFormula);
@@ -70,19 +77,15 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
   }, [columns, item.values]);
 
   const result = React.useMemo(
-    () => (cellFormula ? evaluateFormula(cellFormula, columnValues, {
-      allItems: visibleItems,
-      columns: boardColumns,
-    }) : null),
-    [cellFormula, columnValues, visibleItems, boardColumns],
+    () => (cellFormula ? evaluateFormula(cellFormula, columnValues, formulaContext) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cellFormula, columnValues, visibleItems, boardColumns, rowIndex],
   );
 
   const previewResult = React.useMemo(
-    () => (isEditing ? evaluateFormula(draft, columnValues, {
-      allItems: visibleItems,
-      columns: boardColumns,
-    }) : null),
-    [isEditing, draft, columnValues, visibleItems, boardColumns],
+    () => (isEditing ? evaluateFormula(draft, columnValues, formulaContext) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isEditing, draft, columnValues, visibleItems, boardColumns, rowIndex],
   );
 
   const formatNumber = (n: number) =>
@@ -175,16 +178,17 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
 
   const handleApplyToAll = async () => {
     if (pendingFormula === null) return;
-    const formula = pendingFormula;
+    // Strip row numbers so the default formula is row-relative: {C5} → {C}
+    const relativeFormula = makeRelativeFormula(pendingFormula);
     setPendingFormula(null);
     try {
       await updateColumn({
         id: column.id,
-        patch: { settings: { ...settings, defaultFormula: formula } },
+        patch: { settings: { ...settings, defaultFormula: relativeFormula } },
       });
       persistValue(null);
     } catch {
-      persistValue(formula);
+      persistValue(pendingFormula);
     }
   };
 

@@ -48,35 +48,14 @@ function isDark(hex: string): boolean {
   return (r * 299 + g * 587 + b * 114) / 1000 < 128;
 }
 
-function colIndexToLetter(colIndex: number): string {
-  let letter = '';
-  let n = colIndex;
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    letter = String.fromCharCode(65 + rem) + letter;
-    n = Math.floor((n - 1) / 26);
-  }
-  return letter;
-}
-
-function convertToExcelFormula(
-  formula: string,
-  columns: Column[],
-  rowNumber: number,
-): string {
-  // Col 1 (A) = Name, col 2 (B) = columns[0], col 3 (C) = columns[1], ...
-  const colNameToLetter = new Map<string, string>(
-    columns.map((col, i) => [col.name, colIndexToLetter(i + 2)]),
-  );
-
+function convertToExcelFormula(formula: string, rowNumber: number): string {
   const excelFormula = formula.replace(/\{([^}]+)\}/g, (_match, name: string) => {
     const trimmed = name.trim();
     const asNum = Number(trimmed);
     if (trimmed !== '' && !isNaN(asNum)) return trimmed; // numeric literal like {42}
-    const letter = colNameToLetter.get(trimmed);
-    return letter ? `${letter}${rowNumber}` : '0';
+    if (/^[A-Z]+\d+$/i.test(trimmed)) return trimmed.toUpperCase(); // {C3} → C3 (absolute)
+    return `${trimmed.toUpperCase()}${rowNumber}`; // {C} → C5 (relative → absolute for this row)
   });
-
   return `=${excelFormula}`;
 }
 
@@ -149,7 +128,7 @@ export async function exportBoardToXlsx(
             typeof storedRaw === 'string' ? storedRaw :
             settings.defaultFormula || null;
           if (formula) {
-            rowValues.push({ formula: convertToExcelFormula(formula, columns, currentRow) } as ExcelJS.CellFormulaValue);
+            rowValues.push({ formula: convertToExcelFormula(formula, currentRow) } as ExcelJS.CellFormulaValue);
           } else {
             rowValues.push('');
           }

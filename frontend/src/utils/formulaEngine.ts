@@ -14,6 +14,8 @@ export type ColumnValues = Record<string, number | null | undefined>;
 export interface FormulaContext {
   allItems: Item[];
   columns: Column[];
+  /** 0-based index of the current item in allItems — required for relative {C} refs */
+  currentRowIndex?: number;
 }
 
 class FormulaParser {
@@ -99,10 +101,9 @@ class FormulaParser {
       const asNum = Number(trimmed);
       if (trimmed !== '' && !isNaN(asNum)) return asNum;
 
-      // Try to parse as cell reference {C3}
-      if (this.context && /^[A-Z]+\d+$/i.test(trimmed)) {
-        const val = this.resolveCellRef(trimmed);
-        return val;
+      // Try to parse as cell reference: {C3} (absolute) or {C} (relative to current row)
+      if (this.context && /^[A-Z]+\d*$/i.test(trimmed)) {
+        return this.resolveCellRef(trimmed);
       }
 
       // Fall back: treat as column name (for backward compat, though we're not using this now)
@@ -123,25 +124,27 @@ class FormulaParser {
   private resolveCellRef(cellRef: string): number {
     if (!this.context) return 0;
 
-    // Parse {C3} → column C (index 2), row 3 (index 2, 0-based)
-    const match = cellRef.match(/^([A-Z]+)(\d+)$/i);
-    if (!match) return 0;
+    // {C3} = absolute (column C, row 3); {C} = relative (column C, current row)
+    const absMatch = cellRef.match(/^([A-Z]+)(\d+)$/i);
+    const relMatch = !absMatch ? cellRef.match(/^([A-Z]+)$/i) : null;
+    if (!absMatch && !relMatch) return 0;
 
-    const colLetter = match[1].toUpperCase();
-    const rowNum = parseInt(match[2], 10);
-
-    // Convert column letter to 0-based index
+    const colLetter = (absMatch ? absMatch[1] : relMatch![1]).toUpperCase();
     const colIndex = this.colLetterToIndex(colLetter);
-    if (colIndex < 0 || colIndex >= this.context.columns.length + 1) return 0; // +1 for Name column
+    if (colIndex < 0 || colIndex >= this.context.columns.length + 1) return 0;
+    if (colIndex === 0) return 0; // Column A is the Name — not numeric
 
-    // Convert row number to 0-based index
-    const rowIndex = rowNum - 1;
+    let rowIndex: number;
+    if (absMatch) {
+      rowIndex = parseInt(absMatch[2], 10) - 1; // 1-based → 0-based
+    } else {
+      if (this.context.currentRowIndex === undefined) return 0;
+      rowIndex = this.context.currentRowIndex;
+    }
     if (rowIndex < 0 || rowIndex >= this.context.allItems.length) return 0;
 
     const item = this.context.allItems[rowIndex];
     if (!item) return 0;
-
-    if (colIndex === 0) return 0; // Column A is the Name, which is not numeric
 
     // Column B is columns[0], Column C is columns[1], etc.
     const col = this.context.columns[colIndex - 1];
