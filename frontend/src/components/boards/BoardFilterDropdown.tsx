@@ -3,7 +3,8 @@ import { FiFilter, FiChevronLeft, FiCalendar, FiUser, FiFlag, FiTag, FiCheck } f
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { ColumnType } from '../../types';
-import type { Item, Column, StatusColumnSettings, StatusOption, User } from '../../types';
+import type { Item, Column, StatusColumnSettings, StatusOption, User, SimpleFormulaColumnSettings } from '../../types';
+import { evaluateFormula } from '../../utils/formulaEngine';
 
 export type ActiveFilter =
   | { type: 'date'; value: string }
@@ -341,6 +342,27 @@ export function itemMatchesSearch(
 
   for (const col of columns) {
     const val = item.values[col.id];
+
+    if (col.type === ColumnType.SIMPLE_FORMULA) {
+      const settings = col.settings as SimpleFormulaColumnSettings | undefined;
+      const formula = typeof val === 'string' ? val : (settings?.defaultFormula ?? '');
+      if (formula) {
+        const colValues: Record<string, number | null | undefined> = {};
+        for (const nc of columns) {
+          if (nc.type === ColumnType.NUMBER) {
+            const v = item.values[nc.id];
+            colValues[nc.name] = v != null ? Number(v) : undefined;
+          }
+        }
+        const result = evaluateFormula(formula, colValues);
+        if (result != null) {
+          const formatted = Number.isInteger(result) ? String(result) : result.toFixed(2);
+          if (formatted.includes(q)) return true;
+        }
+      }
+      continue;
+    }
+
     if (val == null) continue;
 
     switch (col.type) {
