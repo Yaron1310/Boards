@@ -21,7 +21,7 @@ import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiDownload } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload } from 'react-icons/fi';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader from './ColumnHeader';
 import GroupSection from './GroupSection';
@@ -718,7 +718,7 @@ const BoardViewPage: React.FC = () => {
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Export board to Excel file"
             >
-              <FiDownload size={13} aria-hidden="true" />
+              <FiUpload size={13} aria-hidden="true" />
               {isExporting ? 'Exporting…' : 'Export'}
             </button>
           </div>
