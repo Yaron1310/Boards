@@ -59,6 +59,12 @@ function parseRows(sheet: ExcelJS.Worksheet): RawCell[][] {
   return rows;
 }
 
+// Converts ExcelJS ARGB string (e.g. "FF6366F1") to a CSS hex color ("#6366f1").
+function argbToHex(argb: string | undefined): string | undefined {
+  if (!argb || argb.length < 8) return undefined;
+  return `#${argb.slice(2).toLowerCase()}`;
+}
+
 // ── Column spec ───────────────────────────────────────────────────────────────
 
 interface ColumnSpec {
@@ -117,6 +123,7 @@ export async function importBoardFromXlsx(
   // ── Parse group blocks ─────────────────────────────────────────────────────
   interface ParsedGroup {
     name: string;
+    color?: string;
     items: Array<{ name: string; rawCells: RawCell[] }>;
   }
 
@@ -126,6 +133,8 @@ export async function importBoardFromXlsx(
   while (cursor < rows.length) {
     const groupName = cellToText(rows[cursor]?.[0]).trim();
     if (!groupName) { cursor++; continue; }
+    // Read the font color from the original sheet cell (cursor is 0-indexed; sheet rows are 1-indexed)
+    const groupColor = argbToHex(sheet.getRow(cursor + 1).getCell(1).font?.color?.argb);
     cursor++;
 
     // Headers row: cell 0 = "Name", cells 1+ = column names
@@ -146,7 +155,7 @@ export async function importBoardFromXlsx(
     }
     cursor++; // skip empty spacer
 
-    parsedGroups.push({ name: groupName, items });
+    parsedGroups.push({ name: groupName, color: groupColor, items });
   }
 
   if (!parsedGroups.length) throw new Error('No groups found in file.');
@@ -170,7 +179,7 @@ export async function importBoardFromXlsx(
   let totalItems = 0;
   for (let gi = 0; gi < parsedGroups.length; gi++) {
     const pg = parsedGroups[gi];
-    const group = await wm.createGroup(board.id, { name: pg.name, order: gi });
+    const group = await wm.createGroup(board.id, { name: pg.name, order: gi, color: pg.color });
 
     for (let ii = 0; ii < pg.items.length; ii++) {
       const item = pg.items[ii];
