@@ -6,7 +6,8 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const LONG_TEXT_THRESHOLD = 1000;
+const LONG_TEXT_THRESHOLD = 100;
+const DEFAULT_MAX_LENGTH = 1000;
 
 const TextCell: React.FC<Props> = ({ item, column }) => {
   const rawValue = (item.values[column.id] ?? '') as string;
@@ -62,7 +63,7 @@ const TextCell: React.FC<Props> = ({ item, column }) => {
                   <textarea
                     value={draft}
                     autoFocus
-                    maxLength={settings?.maxLength}
+                    maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
                     rows={3}
                     className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none resize-none text-center"
                     onChange={(e) => setDraft(e.target.value)}
@@ -79,7 +80,7 @@ const TextCell: React.FC<Props> = ({ item, column }) => {
                   type="text"
                   value={draft}
                   autoFocus
-                  maxLength={settings?.maxLength}
+                  maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
                   className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none text-center"
                   onChange={(e) => setDraft(e.target.value)}
                   onBlur={() => commit(stopEdit)}
@@ -152,18 +153,16 @@ const TextCell: React.FC<Props> = ({ item, column }) => {
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={5}
-              maxLength={settings?.maxLength}
+              maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
               className="w-full px-3 py-2 text-sm text-gray-800 border border-gray-200 rounded-lg outline-none resize-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-shadow"
               onKeyDown={(e) => {
                 if (e.key === 'Escape') cancelModal();
               }}
               aria-label={column.name}
             />
-            {settings?.maxLength && (
-              <p className="text-xs text-gray-400 text-right -mt-1">
-                {draft.length} / {settings.maxLength}
-              </p>
-            )}
+            <p className="text-xs text-gray-400 text-right -mt-1">
+              {draft.length} / {settings?.maxLength ?? DEFAULT_MAX_LENGTH}
+            </p>
             <div className="flex justify-end gap-2">
               <button
                 type="button"
