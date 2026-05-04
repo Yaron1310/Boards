@@ -36,9 +36,11 @@ interface SummaryCellProps {
   col: Column;
   items: Item[];
   numberCols: Column[];
+  isFirst?: boolean;
+  groupColor?: string;
 }
 
-const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols }) => {
+const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFirst, groupColor }) => {
   const [mode, setMode] = useState<Mode>('sum');
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
@@ -116,6 +118,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols }) => 
       aria-label={`${col.name} ${mode === 'sum' ? 'sum' : 'average'}: ${value ?? 'none'}`}
       style={{ width: `${colWidth}px` }}
       className="relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2"
+      style={isFirst && groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
     >
       {isAggregatable && !isCheckbox && (
         <button
@@ -152,16 +155,17 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
       {/* Spacer aligned with the item name sticky section */}
       <div
         className={`flex-shrink-0 ${ITEM_SECTION_WIDTH} sticky left-4 z-[1] bg-gray-50/80`}
-        style={{ borderLeft: `4px solid ${groupColor}` }}
         aria-hidden="true"
       />
 
-      {columns.map((col) => (
+      {columns.map((col, index) => (
         <SummaryCell
           key={col.id}
           col={col}
           items={nonArchived}
           numberCols={numberCols}
+          isFirst={index === 0}
+          groupColor={groupColor}
         />
       ))}
     </div>
