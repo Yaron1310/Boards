@@ -765,7 +765,13 @@ const BoardViewPage: React.FC = () => {
       </div>
 
       {detailItem && (
-        <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
+        <FormulaEditProvider>
+          <DependencyProvider items={allItems}>
+            <BoardRenderProvider visibleItems={allItems} columns={columns}>
+              <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
+            </BoardRenderProvider>
+          </DependencyProvider>
+        </FormulaEditProvider>
       )}
 
       {showAddColumn && boardId && (
