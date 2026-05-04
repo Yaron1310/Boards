@@ -6,7 +6,7 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const LONG_TEXT_THRESHOLD = 15;
+const LONG_TEXT_THRESHOLD = 1000;
 
 const TextCell: React.FC<Props> = ({ item, column }) => {
   const rawValue = (item.values[column.id] ?? '') as string;

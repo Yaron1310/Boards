@@ -159,29 +159,26 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const itemIds = items.map((i) => i.id);
 
   return (
-    <section
+    <div
       ref={setGroupRef}
       style={groupStyle}
-      className="rounded-lg border border-gray-200 bg-white w-max"
+      className="flex flex-col pt-8"
       aria-label={`Group: ${group.name}`}
     >
-      {/* Group title bar — sticky, sits above the column headers */}
+      {/* Group title — sticky, floats above the table grid */}
       <div
-        className={`sticky left-4 flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 border-b border-[#d2d2d4] rounded-tl-md w-fit ${menuOpen ? 'z-[30]' : 'z-[2]'}`}
-        style={{ borderLeft: `4px solid ${groupColor}` }}
-        role="rowheader"
-        aria-label={`Group: ${group.name}`}
+        className={`sticky left-4 w-fit flex items-center gap-2 pb-2 ${menuOpen ? 'z-[30]' : 'z-[2]'}`}
       >
         {/* Group drag handle */}
         {canManage && (
           <div
-            className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none`}
+            className="flex items-center justify-center w-5 h-5 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none"
             aria-label="Drag to reorder group"
             aria-grabbed={isGroupDragging}
             {...groupDragAttributes}
             {...groupDragListeners}
           >
-            <FiMenu size={13} aria-hidden="true" />
+            <FiMenu size={14} aria-hidden="true" />
           </div>
         )}
 
@@ -190,14 +187,14 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           type="button"
           onClick={() => void toggleCollapse()}
           disabled={isUpdating}
-          className="flex items-center justify-center w-5 h-5 rounded transition-opacity flex-shrink-0 opacity-70 hover:opacity-100"
+          className="flex items-center justify-center w-6 h-6 rounded transition-opacity flex-shrink-0 opacity-80 hover:opacity-100"
           style={{ color: groupColor }}
           aria-label={isCollapsed ? `Expand group ${group.name}` : `Collapse group ${group.name}`}
           aria-expanded={!isCollapsed}
         >
           {isCollapsed
-            ? <FiChevronRight size={14} aria-hidden="true" />
-            : <FiChevronDown size={14} aria-hidden="true" />}
+            ? <FiChevronRight size={20} aria-hidden="true" />
+            : <FiChevronDown size={20} aria-hidden="true" />}
         </button>
 
         {/* Group name */}
@@ -210,13 +207,13 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             onBlur={() => void commitNameEdit()}
             onKeyDown={handleNameKeyDown}
             disabled={isUpdating}
-            className="text-sm font-semibold bg-transparent border-b outline-none min-w-0 max-w-[180px]"
+            className="text-xl font-bold bg-transparent border-b-2 outline-none min-w-0 max-w-[240px]"
             style={{ color: groupColor, borderColor: groupColor }}
             aria-label="Edit group name"
           />
         ) : (
           <h2
-            className={`text-sm font-semibold truncate max-w-[180px] ${
+            className={`text-xl font-bold truncate max-w-[240px] ${
               canManage ? 'cursor-pointer' : ''
             }`}
             style={{ color: groupColor }}
@@ -228,226 +225,232 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         )}
 
         {/* Item count */}
-        <span className="text-xs text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
+        <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
           {itemCount}
         </span>
 
         {/* Kebab menu */}
         {canManage && (
-          <div className="relative flex-shrink-0 ml-1" ref={menuRef}>
-              <button
-                type="button"
-                onClick={() => setMenuOpen((o) => !o)}
-                className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
-                aria-label={`Group options for ${group.name}`}
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
+          <div className="relative flex-shrink-0" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setMenuOpen((o) => !o)}
+              className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded transition-colors"
+              aria-label={`Group options for ${group.name}`}
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+            >
+              <FiMoreHorizontal size={14} aria-hidden="true" />
+            </button>
+
+            {menuOpen && (
+              <div
+                role="menu"
+                className="absolute left-0 top-full mt-1 w-36 border border-gray-200 rounded-lg shadow-lg z-[50] py-1 select-text"
+                style={{ backgroundColor: 'white' }}
+                aria-label="Group actions"
               >
-                <FiMoreHorizontal size={14} aria-hidden="true" />
-              </button>
-
-              {menuOpen && (
-                <div
-                  role="menu"
-                  className="absolute right-0 top-full mt-1 w-36 border border-gray-200 rounded-lg shadow-lg z-[50] py-1 select-text"
-                  style={{ backgroundColor: 'white' }}
-                  aria-label="Group actions"
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setEditingName(true);
+                  }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  aria-label="Rename group"
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setMenuOpen(false);
-                      setEditingName(true);
-                    }}
-                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    aria-label="Rename group"
-                  >
-                    <FiEdit2 size={13} aria-hidden="true" />
-                    Rename
-                  </button>
+                  <FiEdit2 size={13} aria-hidden="true" />
+                  Rename
+                </button>
 
-                  {confirmArchive ? (
-                    <div className="px-3 py-2 space-y-1">
-                      <p className="text-xs text-amber-600">Archive this group?</p>
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => void handleArchive()}
-                          disabled={isArchiving}
-                          className="flex-1 px-2 py-1 text-xs text-white bg-amber-500 rounded hover:bg-amber-600 transition-colors disabled:opacity-60"
-                          aria-label="Confirm archive group"
-                        >
-                          {isArchiving ? '…' : 'Archive'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmArchive(false)}
-                          className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                          aria-label="Cancel archive"
-                        >
-                          Cancel
-                        </button>
-                      </div>
+                {confirmArchive ? (
+                  <div className="px-3 py-2 space-y-1">
+                    <p className="text-xs text-amber-600">Archive this group?</p>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void handleArchive()}
+                        disabled={isArchiving}
+                        className="flex-1 px-2 py-1 text-xs text-white bg-amber-500 rounded hover:bg-amber-600 transition-colors disabled:opacity-60"
+                        aria-label="Confirm archive group"
+                      >
+                        {isArchiving ? '…' : 'Archive'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmArchive(false)}
+                        className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                        aria-label="Cancel archive"
+                      >
+                        Cancel
+                      </button>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => setConfirmArchive(true)}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 transition-colors"
-                      aria-label="Archive group"
-                    >
-                      <FiArchive size={13} aria-hidden="true" />
-                      Archive
-                    </button>
-                  )}
-
-                  {confirmDelete ? (
-                    <div className="px-3 py-2 space-y-1">
-                      <p className="text-xs text-red-600">Delete this group?</p>
-                      <div className="flex gap-1">
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete()}
-                          disabled={isDeleting}
-                          className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
-                          aria-label="Confirm delete group"
-                        >
-                          {isDeleting ? '…' : 'Delete'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDelete(false)}
-                          className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                          aria-label="Cancel delete"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => setConfirmDelete(true)}
-                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                      aria-label="Delete group"
-                    >
-                      <FiTrash2 size={13} aria-hidden="true" />
-                      Delete
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-      </div>
-
-      {/* Column headers row */}
-      <div
-        className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] bg-gray-50 w-max"
-        role="row"
-        aria-label={`Column headers for ${group.name}`}
-      >
-        {/* Left alignment placeholder — matches ItemRow left section */}
-        <div
-          className={`flex-shrink-0 ${GROUP_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1]`}
-          style={{ borderLeft: `4px solid ${groupColor}` }}
-        />
-
-        {/* Column headers — widths match the top header row */}
-        {columns.map((col) => (
-          <div
-            key={col.id}
-            role="columnheader"
-            style={{ width: `${calculateColumnWidth(col.name, col.type)}px` }}
-            className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600"
-            title={col.name}
-          >
-            <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
-            <span className="truncate">{col.name}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* Item rows */}
-      {!isCollapsed && (
-        <div role="rowgroup" aria-label={`Items in ${group.name}`} className="w-max">
-          {items.length === 0 ? (
-            <div className="px-4 py-4 text-xs text-gray-400 italic">
-              No items yet.
-            </div>
-          ) : (
-            <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
-              {items.map((item) => (
-                <ItemRow
-                  key={item.id}
-                  item={item}
-                  onOpenDetail={onOpenDetail}
-                  groupColor={groupColor}
-                />
-              ))}
-            </SortableContext>
-          )}
-
-          {/* Add item row */}
-          {canManage && (
-            <div>
-              <div className="sticky left-4 w-max bg-white z-[1]">
-                {addingItem ? (
-                  <div className="flex items-center gap-2 px-4 py-2">
-                    <input
-                      ref={addItemInputRef}
-                      type="text"
-                      value={newItemName}
-                      onChange={(e) => setNewItemName(e.target.value)}
-                      onKeyDown={handleAddItemKeyDown}
-                      onBlur={() => {
-                        if (!newItemName.trim()) {
-                          setAddingItem(false);
-                        }
-                      }}
-                      placeholder="Item name… (Enter to save, Esc to cancel)"
-                      disabled={isCreatingItem}
-                      className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      aria-label="New item name"
-                      aria-required="true"
-                    />
-                    {isCreatingItem && (
-                      <FiLoader className="animate-spin text-indigo-500 flex-shrink-0" size={14} aria-hidden="true" />
-                    )}
                   </div>
                 ) : (
                   <button
                     type="button"
-                    onClick={() => setAddingItem(true)}
-                    className="flex items-center gap-2 px-4 py-2 text-xs text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors"
-                    aria-label={`Add item to ${group.name}`}
+                    role="menuitem"
+                    onClick={() => setConfirmArchive(true)}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-amber-600 hover:bg-amber-50 transition-colors"
+                    aria-label="Archive group"
                   >
-                    <FiPlus size={13} aria-hidden="true" />
-                    Add Item
+                    <FiArchive size={13} aria-hidden="true" />
+                    Archive
+                  </button>
+                )}
+
+                {confirmDelete ? (
+                  <div className="px-3 py-2 space-y-1">
+                    <p className="text-xs text-red-600">Delete this group?</p>
+                    <div className="flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete()}
+                        disabled={isDeleting}
+                        className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
+                        aria-label="Confirm delete group"
+                      >
+                        {isDeleting ? '…' : 'Delete'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(false)}
+                        className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
+                        aria-label="Cancel delete"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    aria-label="Delete group"
+                  >
+                    <FiTrash2 size={13} aria-hidden="true" />
+                    Delete
                   </button>
                 )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        )}
+      </div>
 
-          {/* Sum / average summary row */}
-          <GroupSummaryRow items={items} columns={columns} />
-        </div>
-      )}
-
-      {/* Collapsed summary bar */}
-      {isCollapsed && (
+      {/* Board table */}
+      <section
+        className="rounded-lg border border-gray-200 bg-white w-max"
+        aria-label={`Items in group ${group.name}`}
+      >
+        {/* Column headers row */}
         <div
-          className="px-4 py-2 text-xs text-gray-400 bg-gray-50 border-t border-[#d2d2d4]"
-          aria-label={`${group.name} collapsed — ${itemCount} items`}
+          className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] bg-gray-50 w-max rounded-t-lg"
+          role="row"
+          aria-label={`Column headers for ${group.name}`}
         >
-          {itemCount} item{itemCount !== 1 ? 's' : ''} hidden
+          {/* Left alignment placeholder — matches ItemRow left section */}
+          <div
+            className={`flex-shrink-0 ${GROUP_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1] rounded-tl-lg`}
+            style={{ borderLeft: `4px solid ${groupColor}` }}
+          />
+
+          {/* Column headers — widths match the top header row */}
+          {columns.map((col) => (
+            <div
+              key={col.id}
+              role="columnheader"
+              style={{ width: `${calculateColumnWidth(col.name, col.type)}px` }}
+              className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600"
+              title={col.name}
+            >
+              <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
+              <span className="truncate">{col.name}</span>
+            </div>
+          ))}
         </div>
-      )}
-    </section>
+
+        {/* Item rows */}
+        {!isCollapsed && (
+          <div role="rowgroup" aria-label={`Items in ${group.name}`} className="w-max">
+            {items.length === 0 ? (
+              <div className="px-4 py-4 text-xs text-gray-400 italic">
+                No items yet.
+              </div>
+            ) : (
+              <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+                {items.map((item) => (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    onOpenDetail={onOpenDetail}
+                    groupColor={groupColor}
+                  />
+                ))}
+              </SortableContext>
+            )}
+
+            {/* Add item row */}
+            {canManage && (
+              <div>
+                <div className="sticky left-4 w-max bg-white z-[1]">
+                  {addingItem ? (
+                    <div className="flex items-center gap-2 px-4 py-2">
+                      <input
+                        ref={addItemInputRef}
+                        type="text"
+                        value={newItemName}
+                        onChange={(e) => setNewItemName(e.target.value)}
+                        onKeyDown={handleAddItemKeyDown}
+                        onBlur={() => {
+                          if (!newItemName.trim()) {
+                            setAddingItem(false);
+                          }
+                        }}
+                        placeholder="Item name… (Enter to save, Esc to cancel)"
+                        disabled={isCreatingItem}
+                        className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        aria-label="New item name"
+                        aria-required="true"
+                      />
+                      {isCreatingItem && (
+                        <FiLoader className="animate-spin text-indigo-500 flex-shrink-0" size={14} aria-hidden="true" />
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAddingItem(true)}
+                      className="flex items-center gap-2 px-4 py-2 text-xs text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/60 transition-colors"
+                      aria-label={`Add item to ${group.name}`}
+                    >
+                      <FiPlus size={13} aria-hidden="true" />
+                      Add Item
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sum / average summary row */}
+            <GroupSummaryRow items={items} columns={columns} />
+          </div>
+        )}
+
+        {/* Collapsed summary bar */}
+        {isCollapsed && (
+          <div
+            className="px-4 py-2 text-xs text-gray-400 bg-gray-50 border-t border-[#d2d2d4]"
+            aria-label={`${group.name} collapsed — ${itemCount} items`}
+          >
+            {itemCount} item{itemCount !== 1 ? 's' : ''} hidden
+          </div>
+        )}
+      </section>
+    </div>
   );
 };
 
