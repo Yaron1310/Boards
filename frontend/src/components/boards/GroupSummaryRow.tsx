@@ -7,7 +7,6 @@ import { calculateColumnWidth, ITEM_SECTION_WIDTH } from '../../utils/columnWidt
 interface Props {
   items: Item[];
   columns: Column[];
-  groupColor: string;
 }
 
 type Mode = 'sum' | 'avg';
@@ -37,10 +36,9 @@ interface SummaryCellProps {
   items: Item[];
   numberCols: Column[];
   isFirst?: boolean;
-  groupColor?: string;
 }
 
-const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFirst, groupColor }) => {
+const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFirst }) => {
   const [mode, setMode] = useState<Mode>('sum');
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
@@ -117,8 +115,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
       role="gridcell"
       aria-label={`${col.name} ${mode === 'sum' ? 'sum' : 'average'}: ${value ?? 'none'}`}
       style={{ width: `${colWidth}px` }}
-      className="relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2"
-      style={isFirst && groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
+      className={`relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-1.5 px-2${isFirst ? ' border-l border-[#d2d2d4]' : ''}`}
     >
       {isAggregatable && !isCheckbox && (
         <button
@@ -132,14 +129,14 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
           {mode === 'sum' ? 'Sum' : 'Ave'}
         </button>
       )}
-      <span className="flex-1 text-center text-sm font-normal text-gray-500 truncate">
+      <span className="flex-1 text-center text-xs font-normal text-gray-500 truncate">
         {value ?? <span className="text-gray-300">—</span>}
       </span>
     </div>
   );
 };
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
+const GroupSummaryRow: React.FC<Props> = ({ items, columns }) => {
   const hasAggregatable = columns.some((c) => AGGREGATABLE_TYPES.has(c.type));
   if (!hasAggregatable) return null;
 
@@ -153,10 +150,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
       className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] bg-gray-50/80 w-max rounded-bl-xl"
     >
       {/* Spacer aligned with the item name sticky section */}
-      <div
-        className={`flex-shrink-0 ${ITEM_SECTION_WIDTH} sticky left-4 z-[1] bg-gray-50/80`}
-        aria-hidden="true"
-      />
+      <div className={`flex-shrink-0 ${ITEM_SECTION_WIDTH}`} aria-hidden="true" />
 
       {columns.map((col, index) => (
         <SummaryCell
@@ -165,7 +159,6 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
           items={nonArchived}
           numberCols={numberCols}
           isFirst={index === 0}
-          groupColor={groupColor}
         />
       ))}
     </div>
