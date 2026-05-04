@@ -165,76 +165,76 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       className="rounded-lg border border-gray-200 bg-white w-max"
       aria-label={`Group: ${group.name}`}
     >
-      {/* Group header with columns */}
+      {/* Group title bar — sticky, sits above the column headers */}
       <div
-        className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] bg-gray-50 w-max rounded-tl-xl"
-        role="row"
-        aria-label={`Group header: ${group.name}`}
+        className={`sticky left-4 flex items-center gap-1.5 px-2 py-1.5 bg-gray-50 border-b border-[#d2d2d4] rounded-tl-md w-fit ${menuOpen ? 'z-[30]' : 'z-[2]'}`}
+        style={{ borderLeft: `4px solid ${groupColor}` }}
+        role="rowheader"
+        aria-label={`Group: ${group.name}`}
       >
-        {/* Left section — fixed width to match ItemRow alignment */}
-        <div className={`flex flex-shrink-0 items-stretch ${GROUP_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 bg-gray-50 rounded-tl-md ${menuOpen ? 'z-[30]' : 'z-[1]'}`} style={{ borderLeft: `4px solid ${groupColor}` }}>
-          {/* Group drag handle */}
-          {canManage && (
-            <div
-              className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} text-gray-500 hover:text-gray-700 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none`}
-              aria-label="Drag to reorder group"
-              aria-grabbed={isGroupDragging}
-              {...groupDragAttributes}
-              {...groupDragListeners}
-            >
-              <FiMenu size={13} aria-hidden="true" />
-            </div>
-          )}
-
-          {/* Collapse toggle */}
-          <button
-            type="button"
-            onClick={() => void toggleCollapse()}
-            disabled={isUpdating}
-            className="flex items-center justify-center w-5 h-5 self-center text-gray-400 hover:text-gray-600 rounded transition-colors flex-shrink-0"
-            aria-label={isCollapsed ? `Expand group ${group.name}` : `Collapse group ${group.name}`}
-            aria-expanded={!isCollapsed}
+        {/* Group drag handle */}
+        {canManage && (
+          <div
+            className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing flex-shrink-0 touch-none`}
+            aria-label="Drag to reorder group"
+            aria-grabbed={isGroupDragging}
+            {...groupDragAttributes}
+            {...groupDragListeners}
           >
-            {isCollapsed
-              ? <FiChevronRight size={14} aria-hidden="true" />
-              : <FiChevronDown size={14} aria-hidden="true" />}
-          </button>
-
-          {/* Group name and info */}
-          <div className="flex items-center gap-1 px-2 py-2 flex-1 min-w-0" role="rowheader">
-            {editingName && canManage ? (
-              <input
-                ref={nameInputRef}
-                type="text"
-                value={nameValue}
-                onChange={(e) => setNameValue(e.target.value)}
-                onBlur={() => void commitNameEdit()}
-                onKeyDown={handleNameKeyDown}
-                disabled={isUpdating}
-                className="text-base font-semibold text-gray-800 bg-transparent border-b border-indigo-500 outline-none"
-                aria-label="Edit group name"
-              />
-            ) : (
-              <h2
-                className={`text-base font-semibold text-gray-800 truncate flex-1 ${
-                  canManage ? 'cursor-pointer hover:text-indigo-600 transition-colors' : ''
-                }`}
-                onClick={() => canManage && setEditingName(true)}
-                title={canManage ? 'Click to rename' : undefined}
-              >
-                {group.name}
-              </h2>
-            )}
-
-            {/* Item count */}
-            <span className="text-xs text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
-              {itemCount}
-            </span>
+            <FiMenu size={13} aria-hidden="true" />
           </div>
+        )}
 
-          {/* Kebab menu */}
-          {canManage && (
-            <div className="relative flex-shrink-0" ref={menuRef}>
+        {/* Collapse toggle */}
+        <button
+          type="button"
+          onClick={() => void toggleCollapse()}
+          disabled={isUpdating}
+          className="flex items-center justify-center w-5 h-5 rounded transition-opacity flex-shrink-0 opacity-70 hover:opacity-100"
+          style={{ color: groupColor }}
+          aria-label={isCollapsed ? `Expand group ${group.name}` : `Collapse group ${group.name}`}
+          aria-expanded={!isCollapsed}
+        >
+          {isCollapsed
+            ? <FiChevronRight size={14} aria-hidden="true" />
+            : <FiChevronDown size={14} aria-hidden="true" />}
+        </button>
+
+        {/* Group name */}
+        {editingName && canManage ? (
+          <input
+            ref={nameInputRef}
+            type="text"
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value)}
+            onBlur={() => void commitNameEdit()}
+            onKeyDown={handleNameKeyDown}
+            disabled={isUpdating}
+            className="text-sm font-semibold bg-transparent border-b outline-none min-w-0 max-w-[180px]"
+            style={{ color: groupColor, borderColor: groupColor }}
+            aria-label="Edit group name"
+          />
+        ) : (
+          <h2
+            className={`text-sm font-semibold truncate max-w-[180px] ${
+              canManage ? 'cursor-pointer' : ''
+            }`}
+            style={{ color: groupColor }}
+            onClick={() => canManage && setEditingName(true)}
+            title={canManage ? 'Click to rename' : undefined}
+          >
+            {group.name}
+          </h2>
+        )}
+
+        {/* Item count */}
+        <span className="text-xs text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
+          {itemCount}
+        </span>
+
+        {/* Kebab menu */}
+        {canManage && (
+          <div className="relative flex-shrink-0 ml-1" ref={menuRef}>
               <button
                 type="button"
                 onClick={() => setMenuOpen((o) => !o)}
@@ -342,7 +342,19 @@ const GroupSection: React.FC<GroupSectionProps> = ({
               )}
             </div>
           )}
-        </div>
+      </div>
+
+      {/* Column headers row */}
+      <div
+        className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] bg-gray-50 w-max"
+        role="row"
+        aria-label={`Column headers for ${group.name}`}
+      >
+        {/* Left alignment placeholder — matches ItemRow left section */}
+        <div
+          className={`flex-shrink-0 ${GROUP_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1]`}
+          style={{ borderLeft: `4px solid ${groupColor}` }}
+        />
 
         {/* Column headers — widths match the top header row */}
         {columns.map((col) => (
