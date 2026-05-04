@@ -6,7 +6,7 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const LONG_TEXT_THRESHOLD = 100;
+const LONG_TEXT_THRESHOLD = 16;
 const DEFAULT_MAX_LENGTH = 1000;
 
 const TextCell: React.FC<Props> = ({ item, column }) => {

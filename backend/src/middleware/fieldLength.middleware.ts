@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 
-const DEFAULT_MAX_LENGTH = 500;
+const DEFAULT_MAX_LENGTH = 1000;
 
 /**
  * Fields that are legitimately large and are exempt from the default 500-char limit.
