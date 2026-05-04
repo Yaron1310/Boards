@@ -2,6 +2,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import type { CreateItemData, UpdateItemData, ListItemsParams, ReorderItemUpdate } from '@/services/workManagementService';
+import type { Item, PaginatedResponse } from '@/types';
+
+function mergeItemPatch(item: Item, patch: UpdateItemData): Item {
+  return {
+    ...item,
+    ...(patch.name !== undefined && { name: patch.name }),
+    ...(patch.status !== undefined && { status: patch.status }),
+    ...(patch.dueDate !== undefined && { dueDate: patch.dueDate }),
+    ...(patch.assignees !== undefined && { assignees: patch.assignees }),
+    ...(patch.dependencies !== undefined && { dependencies: patch.dependencies }),
+    ...(patch.values !== undefined && { values: { ...item.values, ...patch.values } }),
+  };
+}
 
 export const useItems = (params: ListItemsParams = {}, enabled = true) =>
   useQuery({
@@ -33,6 +46,35 @@ export const useUpdateItem = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdateItemData }) => wm.updateItem(id, patch),
+
+    onMutate: async ({ id, patch }) => {
+      await qc.cancelQueries({ queryKey: ['items'] });
+
+      type CacheEntry = { key: readonly unknown[]; value: unknown };
+      const snapshots: CacheEntry[] = [];
+
+      for (const [key, value] of qc.getQueriesData<PaginatedResponse<Item> | Item>({ queryKey: ['items'] })) {
+        if (!value) continue;
+        snapshots.push({ key, value });
+
+        if ('data' in value && Array.isArray((value as PaginatedResponse<Item>).data)) {
+          const list = value as PaginatedResponse<Item>;
+          qc.setQueryData(key, {
+            ...list,
+            data: list.data.map((item) => item.id === id ? mergeItemPatch(item, patch) : item),
+          });
+        } else if ((value as Item).id === id) {
+          qc.setQueryData(key, mergeItemPatch(value as Item, patch));
+        }
+      }
+
+      return { snapshots };
+    },
+
+    onError: (_err, _vars, context) => {
+      context?.snapshots.forEach(({ key, value }) => qc.setQueryData(key, value));
+    },
+
     onSuccess: (updated) => {
       qc.setQueryData(queryKeys.items.one(updated.id), updated);
       void qc.invalidateQueries({ queryKey: ['items'] });

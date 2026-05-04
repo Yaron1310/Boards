@@ -138,7 +138,6 @@ const TextCell: React.FC<Props> = ({ item, column }) => {
       {modalOpen && ReactDOM.createPortal(
         <div
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9998]"
-          onClick={cancelModal}
           role="dialog"
           aria-modal="true"
           aria-label={`Edit ${column.name}`}
