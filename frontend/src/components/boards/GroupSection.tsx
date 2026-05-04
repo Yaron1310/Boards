@@ -343,7 +343,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
       {/* Board table */}
       <section
-        className="rounded-lg border border-gray-200 bg-white w-max"
+        className="rounded-lg border border-gray-200 bg-white w-max shadow-md"
         aria-label={`Items in group ${group.name}`}
       >
         {/* Column headers row */}
@@ -436,7 +436,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             )}
 
             {/* Sum / average summary row */}
-            <GroupSummaryRow items={items} columns={columns} />
+            <GroupSummaryRow items={items} columns={columns} groupColor={groupColor} />
           </div>
         )}
 
