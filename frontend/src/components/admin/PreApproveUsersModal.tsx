@@ -10,7 +10,7 @@ import readXlsxFile from 'read-excel-file';
 interface PreApproveUsersModalProps {
     isOpen: boolean;
     onClose: () => void;
-    workspace: Workspace | null;
+    workspace: WorkHub | null;
     maxUsers: number | null;
     currentRegularUsersCount: number;
     pendingInvitesCount: number;
@@ -50,7 +50,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
 
     useEffect(() => {
         if (isOpen && workspace) {
-            console.log('%c[DEBUG] PreApproveUsersModal rendering', 'color: purple; font-weight: bold;', { isOpen, workspace });
+            console.log('%c[DEBUG] PreApproveUsersModal rendering', 'color: purple; font-weight: bold;', { isOpen, WorkHub });
             console.log('%c[DEBUG] PreApproveUsersModal: Full preApprovedUsers list from context:', 'color: purple;', preApprovedUsers);
         }
     }, [isOpen, workspace, preApprovedUsers]);

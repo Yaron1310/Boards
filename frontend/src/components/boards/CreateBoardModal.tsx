@@ -23,7 +23,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
   const { mutateAsync: createBoard, isPending } = useCreateBoard();
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
 
-  const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
+  const WorkHubs = allWorkspaces.filter((w) => !w.isPersonal);
 
   useEffect(() => {
     if (workspaces.length === 0) return;
@@ -91,11 +91,11 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
           <div className="px-6 py-5 space-y-4">
             <div>
               <label htmlFor="board-workspace" className="block text-sm font-medium text-gray-700 mb-1">
-                Workspace <span aria-hidden="true" className="text-red-500">*</span>
+                WorkHub <span aria-hidden="true" className="text-red-500">*</span>
               </label>
               {workspaces.length === 0 ? (
                 <p className="text-sm text-amber-600">
-                  No workspaces found. Create a workspace first before adding boards.
+                  No WorkHubs found. Create a WorkHub first before adding boards.
                 </p>
               ) : (
                 <select

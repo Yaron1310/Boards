@@ -40,7 +40,7 @@ const TokenUsageBar: React.FC<{ used: number; limit: number | null }> = ({ used,
     );
 };
 
-type OrgWithComputedData = Workspace & {
+type OrgWithComputedData = WorkHub & {
     userCount: number;
     tokensUsed: number;
     tokenLimit: number | null;
@@ -309,7 +309,7 @@ const WorkspaceManagementPage: React.FC = () => {
         case 'individual':
             return `Individual Subscribers ${count}`;
         default:
-            return `All Workspaces ${count}`;
+            return `All WorkHubs ${count}`;
     }
   }, [searchTerm, filterStatus, viewType, orgsWithComputedData.length]);
 
@@ -339,7 +339,7 @@ const WorkspaceManagementPage: React.FC = () => {
         setIsSaving(false);
       }
     } else {
-      setModalError('Workspace Name is required.');
+      setModalError('WorkHub Name is required.');
     }
   };
   
@@ -686,7 +686,7 @@ const WorkspaceManagementPage: React.FC = () => {
           ? handleConfirmArchiveWithDeps
           : handleConfirmArchive}
         isLoading={isSaving}
-        title="Confirm Workspace Archive"
+        title="Confirm WorkHub Archive"
         message={<>Are you sure you want to archive "<strong>{archiveConfirmData?.resource.name}</strong>"?</>}
         confirmText="Confirm Archive"
         dependencies={archiveConfirmData?.dependencies}

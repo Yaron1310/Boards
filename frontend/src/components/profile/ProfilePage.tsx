@@ -89,7 +89,7 @@ const ProfilePage: React.FC = () => {
       ? users.find((u) => u.id === routeUserId)
       : authUser;
   
-    // Authorization check for Workspace Admins viewing another user's profile.
+    // Authorization check for WorkHub Admins viewing another user's profile.
     if (
       authUser?.role === UserRole.WORKSPACE_ADMIN &&
       userToDisplay &&
@@ -378,7 +378,7 @@ const ProfilePage: React.FC = () => {
     }
 
     if (!orgToRemoveId) {
-        setProfileUpdateMessage({ type: 'error', text: "Could not determine which workspace to remove the user from." });
+        setProfileUpdateMessage({ type: 'error', text: "Could not determine which WorkHub to remove the user from." });
         return;
     }
 

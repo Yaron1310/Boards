@@ -40,7 +40,7 @@ const AdminDashboardPage: React.FC = () => {
       return (usage.used / usage.limit) * 100;
   }, [user, organizationUsage, orgUsage]);
 
-  // --- Workspace Admin Metrics ---
+  // --- WorkHub Admin Metrics ---
   const organizationMetrics = useMemo(() => {
     if (user?.role !== UserRole.ORGANIZATION_ADMIN) return null;
 
@@ -52,7 +52,7 @@ const AdminDashboardPage: React.FC = () => {
         return created && created >= startOfMonth;
     }).length;
 
-    // Workspace Performance
+    // WorkHub Performance
     const orgPerformance = workspaces
         .filter(org => !org.isPersonal && org.name !== 'Default Workspace')
         .map(org => {
@@ -75,7 +75,7 @@ const AdminDashboardPage: React.FC = () => {
     };
   }, [user, users, workspaces, orgTokenUsage]);
 
-  // --- Workspace Manager Metrics ---
+  // --- WorkHub Manager Metrics ---
   const orgMetrics = useMemo(() => {
     if (user?.role !== UserRole.WORKSPACE_ADMIN) return null;
 
@@ -93,7 +93,7 @@ const AdminDashboardPage: React.FC = () => {
   const totalUsers = users.length;
   const totalWorkspaces = workspaces.filter(org => !org.isPersonal).length;
 
-  // For Workspace Admins, the `users` list from useData() is scoped to their workspace.
+  // For WorkHub Admins, the `users` list from useData() is scoped to their workspace.
   const managerOrgUsers = user.role === UserRole.WORKSPACE_ADMIN ? users.length : 0;
 
 
@@ -191,7 +191,7 @@ const AdminDashboardPage: React.FC = () => {
 
         {user.role === UserRole.ORGANIZATION_ADMIN && organizationMetrics && (
             <div className="space-y-8">
-                {/* Workspace Performance Table */}
+                {/* WorkHub Performance Table */}
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                     <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                         <h3 className="text-lg font-bold text-gray-800 flex items-center">

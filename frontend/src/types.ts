@@ -5,7 +5,7 @@ export enum UserRole {
   SYSTEM_ADMIN = 'system_admin',
 }
 
-export interface Workspace {
+export interface WorkHub {
   id: string;
   name: string;
   orgId: string;
@@ -306,7 +306,7 @@ export interface Group {
   updatedAt: Date | string;
 }
 
-// --- Item (flat, stored at workspace level) ---
+// --- Item (flat, stored at WorkHub level) ---
 
 export interface Item {
   id: string;

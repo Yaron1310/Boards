@@ -279,7 +279,7 @@ const AccessibilityContent: React.FC = () => {
             <div>
                 <h2 className="text-xl font-semibold text-gray-800 mb-3">{t('legal.accessibility.section12')}</h2>
                 <p>
-                    Accessibility laws and enforcement vary by jurisdiction. Workspaces operating in or serving users in
+                    Accessibility laws and enforcement vary by jurisdiction. WorkHubs operating in or serving users in
                     other territories (for example, the EU, UK, or the US) may be subject to additional or different
                     obligations beyond those described here. We aim to align our platform with international best practices
                     (WCAG 2.1 AA) to reduce cross-jurisdictional risk, but this statement does not alter legal obligations

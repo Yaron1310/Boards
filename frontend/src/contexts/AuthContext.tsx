@@ -60,7 +60,7 @@ const getStoredUser = (): User | null => {
     return userString ? JSON.parse(userString) : null;
 };
 const storeSelectedOrg = (org: Workspace) => localStorage.setItem('authSelectedOrg', JSON.stringify(org));
-const getSelectedOrg = (): Workspace | null => {
+const getSelectedOrg = (): WorkHub | null => {
     const orgString = localStorage.getItem('authSelectedOrg');
     return orgString ? JSON.parse(orgString) : null;
 };
@@ -264,7 +264,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       if (data.multiContext) {
         if (!data.user.workspaces || data.user.workspaces.length === 0) {
-             // Payment flow user with no workspaces yet
+             // Payment flow user with no WorkHubs yet
              console.log('[AUTH_FLOW] Payment flow user logged in (no orgs). Setting partial state.');
              setUser(data.user);
         } else {
@@ -387,7 +387,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setAuthError(null);
     try {
         const data = await apiService.registerOrganizationAdmin(userData, planId, recaptchaToken);
-        console.log('[AUTH_FLOW] Workspace admin registered. Handling partial login.');
+        console.log('[AUTH_FLOW] WorkHub admin registered. Handling partial login.');
         setUser(data.user);
         setToken('cookie');
         storeUser(data.user);
@@ -503,7 +503,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (currentUser && currentUser.id === updatedUserData.id) {
         const safeUserData = {
             ...updatedUserData,
-            // SECURITY: Forcefully preserve the current session role and workspace context.
+            // SECURITY: Forcefully preserve the current session role and WorkHub context.
             // Even if the backend calculates a "better" role based on DB state,
             // the active session must not change role without a full login/switch event.
             role: currentUser.role,
@@ -613,7 +613,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     }
 
-    // 2. Workspace Admin roles
+    // 2. WorkHub Admin roles
     const academiesForAdminRole = systemAdmin
         ? (userForContexts.allAcademies || [])
         : assignedOrganizationAdmins.map(orgId => {
@@ -634,10 +634,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
     });
 
-    // 3. Workspace Admin roles
+    // 3. WorkHub Admin roles
     assignedOrgAdmins.forEach(orgId => {
       const org = userForContexts.workspaces.find(o => o.id === orgId);
-      // Only hide if it's a personal workspace in an workspace they manage
+      // Only hide if it's a personal WorkHub in an WorkHub they manage
       const isManagedPersonalOrg = org?.isPersonal && organizationAdminOrganizationIds.has(org.orgId);
       if (org && !isManagedPersonalOrg && !organizationAdminOrganizationIds.has(org.orgId)) {
         const contextValue = JSON.stringify({ role: 'workspace_admin', workspaceId: org.id });
@@ -650,7 +650,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // 4. Regular User roles
     userForContexts.workspaces.forEach(org => {
-      // Only hide if it's a personal workspace in an workspace they manage
+      // Only hide if it's a personal WorkHub in an WorkHub they manage
       const isManagedPersonalOrg = org.isPersonal && organizationAdminOrganizationIds.has(org.orgId);
       if (org.name === 'Default Workspace' || isManagedPersonalOrg || systemAdmin) return;
 

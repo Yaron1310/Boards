@@ -5,7 +5,7 @@ import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 
 const WorkspaceHomePage: React.FC = () => {
   const { data: allWorkspaces = [], isLoading } = useWorkspacesQuery();
-  const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
+  const WorkHubs = allWorkspaces.filter((w) => !w.isPersonal);
 
   if (isLoading) {
     return (
@@ -19,19 +19,19 @@ const WorkspaceHomePage: React.FC = () => {
     <div className="p-6 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Workspaces</h1>
       {workspaces.length === 0 ? (
-        <p className="text-gray-500">No workspaces found. Create one from the admin panel.</p>
+        <p className="text-gray-500">No WorkHubs found. Create one from the admin panel.</p>
       ) : (
         <div
           className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           role="list"
-          aria-label="Workspaces"
+          aria-label="WorkHubs"
         >
           {workspaces.map((ws) => (
             <Link
               key={ws.id}
               to={`/workspaces/${ws.id}/boards`}
               role="listitem"
-              aria-label={`Open workspace ${ws.name}`}
+              aria-label={`Open WorkHub ${ws.name}`}
               className="flex items-center gap-4 p-5 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all"
             >
               <div className="flex-shrink-0 w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">

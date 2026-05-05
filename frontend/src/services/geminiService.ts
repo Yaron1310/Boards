@@ -176,7 +176,7 @@ export const logoutFromBackend = async (): Promise<void> => {
     });
 };
 
-// --- Workspace Setup ---
+// --- WorkHub Setup ---
 export const setupOrganization = async (organizationName: string): Promise<{ message: string }> => {
     return fetchWithAuth('/api/workspaces/setup', {
         method: 'POST',
@@ -204,7 +204,7 @@ export const addOrganizationAdmin = async (orgId: string, email: string): Promis
 export const removeOrganizationAdmin = async (orgId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${orgId}/admins/${userId}`, { method: 'DELETE' });
 
 
-// --- Workspaces ---
+// --- WorkHubs ---
 export const getWorkspaces = async (filterType?: 'corporate' | 'individual' | 'all'): Promise<Workspace[]> => {
     let url = '/api/workspaces';
     if (filterType && filterType !== 'all') {
@@ -251,7 +251,7 @@ export const getPreApprovedUsersFromBackend = async (params?: { limit?: number; 
 export const deletePreApprovedUserFromBackend = async (preApprovedUserId: string): Promise<null> => fetchWithAuth(`/api/users/pre-approved/${preApprovedUserId}`, { method: 'DELETE' });
 
 // User's own profile updates
-export const getMyUserDetails = async (): Promise<{ user: User, selectedWorkspace: Workspace }> => fetchWithAuth('/api/users/me/details');
+export const getMyUserDetails = async (): Promise<{ user: User, selectedWorkspace: WorkHub }> => fetchWithAuth('/api/users/me/details');
 export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
 export const updateMyPassword = async (passwords: { currentPassword?: string; newPassword: string }): Promise<{ message: string }> => fetchWithAuth('/api/users/me/password', { method: 'PUT', body: JSON.stringify(passwords) });
 const blobToBase64 = (blob: Blob): Promise<string> =>
@@ -270,7 +270,7 @@ export const updateMyProfileImage = async (imageData: string | Blob): Promise<Us
     return fetchWithAuth('/api/users/me/profile-image', { method: 'PUT', body: JSON.stringify({ imageUrl: imageData }) });
 };
 
-// --- Workspace Settings / Theme ---
+// --- WorkHub Settings / Theme ---
 export const getThemeSettingsFromBackend = async (): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/theme');
 export const updateThemeSettingsOnBackend = async (settings: Partial<OrganizationSettings> & { logoUpload?: Blob | string; }): Promise<OrganizationSettings> => {
     if (settings.logoUpload instanceof Blob) {

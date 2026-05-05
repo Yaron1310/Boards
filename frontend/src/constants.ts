@@ -25,7 +25,7 @@ console.log(
 export const APP_NAME = 'Logyx';
 
 
-// Default workspaces can still be defined here if needed for frontend fallbacks or initial setup,
+// Default WorkHubs can still be defined here if needed for frontend fallbacks or initial setup,
 // but primary source should be the backend.
 export const DEFAULT_WORKSPACES = [
   { id: 'org1', name: 'Mindful Solutions Inc.' },

@@ -23,7 +23,7 @@ const GoogleAuthCallbackPage: React.FC = () => {
     // planId might be passed back from backend if it was in the state
     const urlPlanId = searchParams.get('planId'); 
 
-    // Check for new Google user flow (needs workspace selection - rare legacy flow)
+    // Check for new Google user flow (needs WorkHub selection - rare legacy flow)
     const userIdToComplete = searchParams.get('user_id');
     const name = searchParams.get('name');
     const email = searchParams.get('email');

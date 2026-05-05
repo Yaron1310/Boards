@@ -188,7 +188,7 @@ interface DashboardFilterBarProps {
 
 const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispatch }) => {
   const { user } = useAuth();
-  const workspaces = user?.workspaces ?? [];
+  const WorkHubs = user?.workspaces ?? [];
 
   const { data: usersData } = useQuery({
     queryKey: ['users', 'workspace', filters.workspaceId],
@@ -212,7 +212,7 @@ const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispat
       role="search"
       aria-label="Dashboard filters"
     >
-      {/* Workspace selector */}
+      {/* WorkHub selector */}
       <div className="flex flex-col gap-1">
         <label
           htmlFor="filter-workspace"

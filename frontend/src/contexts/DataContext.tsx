@@ -118,7 +118,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Derived state from React Query ---
   const organizations = academiesQuery.data ?? [];
-  const workspaces = workspacesQuery.data ?? [];
+  const WorkHubs = workspacesQuery.data ?? [];
   const archivedWorkspaces = archivedWorkspacesQuery.data ?? [];
   const users = usersQuery.data ?? [];
   const preApprovedUsers = preApprovedUsersQuery.data ?? [];
@@ -188,7 +188,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (filterType && filterType !== 'all') {
       await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.filtered(filterType) });
     }
-    // Always invalidate the main workspaces query (filterType: undefined) since
+    // Always invalidate the main WorkHubs query (filterType: undefined) since
     // that's what DataContext uses. 'all' and undefined fetch the same unfiltered data.
     await queryClient.invalidateQueries({ queryKey: queryKeys.workspaces.all });
   }, [queryClient]);
@@ -244,7 +244,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
   const addOrganizationAdmin = async (orgId: string, email: string) => {
     const { addOrganizationAdmin: addOrganizationAdminApi } = await api();
-    return handleApiCall(() => addOrganizationAdminApi(orgId, email), () => fetchUsers(), 'Failed to add workspace admin.');
+    return handleApiCall(() => addOrganizationAdminApi(orgId, email), () => fetchUsers(), 'Failed to add WorkHub admin.');
   };
   const removeOrganizationAdmin = async (orgId: string, userId: string) => {
     const { removeOrganizationAdmin: removeOrganizationAdminApi } = await api();
@@ -335,10 +335,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return success === null;
   };
 
-  // Workspace Settings
+  // WorkHub Settings
   const updateOrganizationSettings = async (settings: Partial<OrganizationSettings> & { logoUpload?: string }) => {
     const { updateThemeSettingsOnBackend } = await api();
-    const result = await handleApiCall(() => updateThemeSettingsOnBackend(settings), undefined, 'Failed to update workspace settings.');
+    const result = await handleApiCall(() => updateThemeSettingsOnBackend(settings), undefined, 'Failed to update WorkHub settings.');
     if (result) {
       await fetchOrganizationSettings();
     }

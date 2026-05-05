@@ -99,7 +99,7 @@ const TutorialSettingsPage: React.FC = () => {
                 </h1>
                 
                 <p className="text-gray-600 mb-6">
-                    Configure tutorial videos for Workspace Admin pages. When enabled, a "Watch a tutorial" link will appear on the corresponding page for Workspace Admins.
+                    Configure tutorial videos for WorkHub Admin pages. When enabled, a "Watch a tutorial" link will appear on the corresponding page for WorkHub Admins.
                 </p>
 
                 {feedback && (

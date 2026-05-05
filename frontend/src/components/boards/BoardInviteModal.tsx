@@ -47,7 +47,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, workspaceId, onClose }) =>
 
   const memberIds = useMemo(() => new Set(boardMembers.map((m) => m.userId)), [boardMembers]);
 
-  // Show only regular (non-admin) workspace users not already on the board
+  // Show only regular (non-admin) WorkHub users not already on the board
   const candidates = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allUsers.filter((u) => {
@@ -90,7 +90,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, workspaceId, onClose }) =>
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div>
             <h2 className="text-sm font-semibold text-gray-800">Invite to board</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Add workspace members as board editors</p>
+            <p className="text-xs text-gray-500 mt-0.5">Add WorkHub members as board editors</p>
           </div>
           <button
             type="button"
@@ -170,7 +170,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, workspaceId, onClose }) =>
 
               {candidates.length === 0 && alreadyMembers.length === 0 && (
                 <p className="px-4 py-8 text-center text-xs text-gray-400">
-                  {search ? 'No users match your search.' : 'All workspace members are already on this board.'}
+                  {search ? 'No users match your search.' : 'All WorkHub members are already on this board.'}
                 </p>
               )}
             </>
@@ -180,7 +180,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, workspaceId, onClose }) =>
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-xl">
           <p className="text-[11px] text-gray-400">
-            Users are added as <strong className="text-gray-500">editors</strong>. Only workspace members can be added.
+            Users are added as <strong className="text-gray-500">editors</strong>. Only WorkHub members can be added.
           </p>
         </div>
       </div>
