@@ -44,7 +44,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
         {canCreateBoard && (
           <button
             type="button"
-            onClick={() => { navigate(`/workspaces/${workspace.id}/boards`); onNavigate(); }}
+            onClick={() => { navigate(`/WorkHubs/${workspace.id}/boards`); onNavigate(); }}
             className="rounded p-0.5 transition-opacity hover:opacity-100 flex-shrink-0"
             style={{ color: sidebarLinkColor, opacity: 0.7 }}
             aria-label={`Open ${workspace.name} boards`}
@@ -707,7 +707,7 @@ const MainLayout: React.FC = () => {
   const adminNavItems: AdminNavItem[] = [
      { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
      { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
-     { name: t('layout.workspaces'), path: '/admin/workspaces', icon: <FiGrid className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN] },
+     { name: t('layout.workspaces'), path: '/admin/WorkHubs', icon: <FiGrid className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN] },
   ];
 
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);

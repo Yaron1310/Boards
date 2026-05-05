@@ -114,7 +114,7 @@ const BoardListPage: React.FC = () => {
       <div className="mb-4">
         <button
           type="button"
-          onClick={() => navigate('/workspaces')}
+          onClick={() => navigate('/WorkHubs')}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
           aria-label={`Back to ${t('layout.workspaces').toLowerCase()}`}
         >

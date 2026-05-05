@@ -186,7 +186,7 @@ const App: React.FC = () => {
     );
   }
 
-  const redirectPath = user?.role === UserRole.SYSTEM_ADMIN ? '/admin' : '/workspaces';
+  const redirectPath = user?.role === UserRole.SYSTEM_ADMIN ? '/admin' : '/WorkHubs';
 
   return (
     <>
@@ -218,7 +218,7 @@ const App: React.FC = () => {
             />
 
             <Route
-              path="/workspaces"
+              path="/WorkHubs"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <WorkspaceHomePage />
@@ -226,7 +226,7 @@ const App: React.FC = () => {
               }
             />
             <Route
-              path="/workspaces/:workspaceId/boards"
+              path="/WorkHubs/:workspaceId/boards"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <BoardListPage />
@@ -275,7 +275,7 @@ const App: React.FC = () => {
               }
             />
             <Route
-              path="/admin/workspaces"
+              path="/admin/WorkHubs"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN]}>
                   <WorkspaceManagementPage />

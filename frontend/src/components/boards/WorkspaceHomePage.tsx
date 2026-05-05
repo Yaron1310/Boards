@@ -31,7 +31,7 @@ const WorkspaceHomePage: React.FC = () => {
           {workspaces.map((ws) => (
             <Link
               key={ws.id}
-              to={`/workspaces/${ws.id}/boards`}
+              to={`/WorkHubs/${ws.id}/boards`}
               role="listitem"
               aria-label={`Open WorkHub ${ws.name}`}
               className="flex items-center gap-4 p-5 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all"

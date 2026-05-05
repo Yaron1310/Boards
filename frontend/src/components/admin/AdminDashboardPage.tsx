@@ -197,7 +197,7 @@ const AdminDashboardPage: React.FC = () => {
                         <h3 className="text-lg font-bold text-gray-800 flex items-center">
                             <FiTrendingUp className="mr-2 text-blue-500" /> {t('admin.orgPerformance')}
                         </h3>
-                        <Link to="/admin/workspaces" className="text-sm text-blue-600 hover:text-blue-800 flex items-center font-medium">
+                        <Link to="/admin/WorkHubs" className="text-sm text-blue-600 hover:text-blue-800 flex items-center font-medium">
                             {t('admin.manageOrgs')} <FiChevronRight className="ml-1 rtl-flip" />
                         </Link>
                     </div>
