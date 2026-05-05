@@ -31,7 +31,6 @@ const ProfilePage = React.lazy(() => import('./components/profile/ProfilePage'))
 // -- Workspace/org-admin chunk --
 const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'));
 const UserManagementPage = React.lazy(() => import('./components/admin/UserManagementPage'));
-const WorkspaceManagementPage = React.lazy(() => import('./components/admin/OrganizationManagementPage'));
 const AcademyHubPage = React.lazy(() => import('./components/admin/AcademyHubPage'));
 const ThemeSettingsPage = React.lazy(() => import('./components/admin/ThemeSettingsPage'));
 
@@ -70,7 +69,6 @@ const App: React.FC = () => {
       void import('./components/admin/AdminDashboardPage');
     }
     if (userRole === UserRole.ORGANIZATION_ADMIN) {
-      void import('./components/admin/OrganizationManagementPage');
       void import('./components/admin/AcademyHubPage');
     }
     if (userRole === UserRole.SYSTEM_ADMIN) {
@@ -271,14 +269,6 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN]}>
                   <ProfilePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/WorkHubs"
-              element={
-                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN]}>
-                  <WorkspaceManagementPage />
                 </ProtectedRoute>
               }
             />
