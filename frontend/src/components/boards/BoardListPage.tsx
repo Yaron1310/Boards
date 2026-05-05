@@ -1,5 +1,6 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
@@ -15,6 +16,7 @@ import { importBoardFromXlsx } from '../../utils/importBoardFromXlsx';
 const BoardListPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = React.useState(false);
