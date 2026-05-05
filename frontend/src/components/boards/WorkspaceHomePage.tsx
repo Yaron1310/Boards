@@ -14,10 +14,21 @@ import PreApproveUsersModal from '../admin/PreApproveUsersModal';
 import ConfirmationModal from '../admin/shared/ConfirmationModal';
 import ArchiveRestoreModal from '../admin/shared/ArchiveRestoreModal';
 
+const WORKSPACE_COLORS = [
+  { name: 'Pink', value: '#FFB3C1' },
+  { name: 'Blue', value: '#ADD8E6' },
+  { name: 'Green', value: '#90EE90' },
+  { name: 'Yellow', value: '#FFFF99' },
+  { name: 'Purple', value: '#D8BFD8' },
+  { name: 'Orange', value: '#FFCC99' },
+  { name: 'Cyan', value: '#AFEEEE' },
+  { name: 'Rose', value: '#FFB6C1' },
+];
+
 // --- MODAL COMPONENTS ---
 
 const AddWorkspaceModal = ({
-  isOpen, onClose, onSave, isSaving, name, setName, error,
+  isOpen, onClose, onSave, isSaving, name, setName, error, color, setColor,
 }: any) => {
   const { t } = useTranslation();
   if (!isOpen) return null;
@@ -43,6 +54,24 @@ const AddWorkspaceModal = ({
                 required aria-required="true" placeholder={t('admin.enterWorkspaceName')}
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Color
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {WORKSPACE_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setColor(c.value)}
+                    className={`w-8 h-8 rounded-lg border-2 transition-all ${color === c.value ? 'border-gray-800' : 'border-gray-300'}`}
+                    style={{ backgroundColor: `${c.value}33` }}
+                    aria-label={`Select ${c.name} color`}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            </div>
           </form>
         </div>
         <div className="flex justify-end space-x-3 p-6 border-t bg-gray-50 rounded-b-lg">
@@ -57,7 +86,7 @@ const AddWorkspaceModal = ({
   );
 };
 
-const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEditData, onManageAdmins, onPreApprove, onArchive }: any) => {
+const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEditData, onManageAdmins, onPreApprove, onArchive, color, setColor }: any) => {
   const { t } = useTranslation();
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -80,6 +109,24 @@ const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEd
                 {t('admin.workspaceName')} <span aria-hidden="true">*</span>
               </label>
               <input type="text" name="name" id="name" value={editData.name} onChange={handleInputChange} className="mt-1 w-full p-2 border border-gray-300 rounded-md" required aria-required="true" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Color
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {WORKSPACE_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setColor(c.value)}
+                    className={`w-8 h-8 rounded-lg border-2 transition-all ${color === c.value ? 'border-gray-800' : 'border-gray-300'}`}
+                    style={{ backgroundColor: `${c.value}33` }}
+                    aria-label={`Select ${c.name} color`}
+                    title={c.name}
+                  />
+                ))}
+              </div>
             </div>
           </form>
           <div className="pt-6 mt-6 border-t">
@@ -132,8 +179,10 @@ const WorkspaceHomePage: React.FC = () => {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
+  const [newOrgColor, setNewOrgColor] = useState(WORKSPACE_COLORS[0].value);
   const [orgToEdit, setOrgToEdit] = useState<Workspace | null>(null);
   const [editOrgData, setEditOrgData] = useState<{ name: string }>({ name: '' });
+  const [editOrgColor, setEditOrgColor] = useState('');
   const [archiveConfirmData, setArchiveConfirmData] = useState<{ resource: Workspace; dependencies?: any } | null>(null);
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
   const [preApproveModalOrg, setPreApproveModalOrg] = useState<Workspace | null>(null);
@@ -189,7 +238,9 @@ const WorkspaceHomePage: React.FC = () => {
     const newOrg = await addWorkspace(newOrgName.trim(), user!.orgId);
     setIsSaving(false);
     if (newOrg) {
+      localStorage.setItem(`workspaceColor_${newOrg.id}`, newOrgColor);
       setNewOrgName('');
+      setNewOrgColor(WORKSPACE_COLORS[0].value);
       setIsAddModalOpen(false);
       setFeedbackMessage({ type: 'success', text: `Workspace "${newOrg.name}" added successfully.` });
     } else if (!dataError) {
@@ -200,6 +251,8 @@ const WorkspaceHomePage: React.FC = () => {
   const handleOpenEditModal = (ws: Workspace) => {
     clearFeedback();
     setEditOrgData({ name: ws.name });
+    const savedColor = localStorage.getItem(`workspaceColor_${ws.id}`) || WORKSPACE_COLORS[0].value;
+    setEditOrgColor(savedColor);
     setOrgToEdit(ws);
   };
 
@@ -210,6 +263,7 @@ const WorkspaceHomePage: React.FC = () => {
       const success = await updateWorkspace(orgToEdit.id, { name: editOrgData.name.trim(), isPersonal: orgToEdit.isPersonal });
       setIsSaving(false);
       if (success) {
+        localStorage.setItem(`workspaceColor_${orgToEdit.id}`, editOrgColor);
         setFeedbackMessage({ type: 'success', text: `Workspace "${editOrgData.name}" updated.` });
         setOrgToEdit(null);
       } else if (!dataError) {
@@ -323,34 +377,38 @@ const WorkspaceHomePage: React.FC = () => {
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="WorkHubs">
-          {workspaces.map((ws) => (
-            <div key={ws.id} className="relative group" role="listitem">
-              <Link
-                to={`/WorkHubs/${ws.id}/boards`}
-                aria-label={`Open WorkHub ${ws.name}`}
-                className="flex items-center gap-4 p-5 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all"
-              >
-                <div className="flex-shrink-0 w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center">
-                  <FiBriefcase className="text-indigo-600" size={20} aria-hidden="true" />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-800 truncate">{ws.name}</p>
-                  {ws.organizationName && (
-                    <p className="text-xs text-gray-500 truncate">{ws.organizationName}</p>
-                  )}
-                </div>
-              </Link>
-              {isOrgAdmin && (
-                <button
-                  onClick={(e) => { e.preventDefault(); handleOpenEditModal(ws); }}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                  aria-label={`Edit WorkHub ${ws.name}`}
+          {workspaces.map((ws) => {
+            const wsColor = localStorage.getItem(`workspaceColor_${ws.id}`) || WORKSPACE_COLORS[0].value;
+            return (
+              <div key={ws.id} className="relative group" role="listitem">
+                <Link
+                  to={`/WorkHubs/${ws.id}/boards`}
+                  aria-label={`Open WorkHub ${ws.name}`}
+                  className="flex items-center gap-4 p-5 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all"
+                  style={{ backgroundColor: `${wsColor}33` }}
                 >
-                  <FiEdit size={14} aria-hidden="true" />
-                </button>
-              )}
-            </div>
-          ))}
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${wsColor}66` }}>
+                    <FiBriefcase className="text-gray-700" size={20} aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-800 truncate">{ws.name}</p>
+                    {ws.organizationName && (
+                      <p className="text-xs text-gray-500 truncate">{ws.organizationName}</p>
+                    )}
+                  </div>
+                </Link>
+                {isOrgAdmin && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); handleOpenEditModal(ws); }}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                    aria-label={`Edit WorkHub ${ws.name}`}
+                  >
+                    <FiEdit size={14} aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -364,6 +422,8 @@ const WorkspaceHomePage: React.FC = () => {
             name={newOrgName}
             setName={setNewOrgName}
             error={modalError}
+            color={newOrgColor}
+            setColor={setNewOrgColor}
           />
 
           {orgToEdit && (
@@ -378,6 +438,8 @@ const WorkspaceHomePage: React.FC = () => {
               onManageAdmins={() => { setOrgToEdit(null); clearFeedback(); setShowAdminModal(orgToEdit); }}
               onPreApprove={() => { setOrgToEdit(null); setPreApproveModalOrg(orgToEdit); }}
               onArchive={() => { setOrgToEdit(null); handleAttemptArchive(orgToEdit!); }}
+              color={editOrgColor}
+              setColor={setEditOrgColor}
             />
           )}
 

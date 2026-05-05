@@ -12,6 +12,17 @@ import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
 import CookieConsent from '../legal/CookieConsent';
 
+const WORKSPACE_COLORS = [
+  { name: 'Pink', value: '#FFB3C1' },
+  { name: 'Blue', value: '#ADD8E6' },
+  { name: 'Green', value: '#90EE90' },
+  { name: 'Yellow', value: '#FFFF99' },
+  { name: 'Purple', value: '#D8BFD8' },
+  { name: 'Orange', value: '#FFCC99' },
+  { name: 'Cyan', value: '#AFEEEE' },
+  { name: 'Rose', value: '#FFB6C1' },
+];
+
 // --- WORKSPACES + BOARDS NAV SECTION ---
 
 interface WorkspaceBoardsGroupProps {
@@ -125,17 +136,21 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
             aria-label="WorkHubs"
             className="absolute left-4 right-4 z-50 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden max-h-52 overflow-y-auto"
           >
-            {workspaces.map((ws) => (
-              <li
-                key={ws.id}
-                role="option"
-                aria-selected={ws.id === selectedId}
-                onClick={() => { setSelectedId(ws.id); setIsDropdownOpen(false); }}
-                className={`px-3 py-2 text-sm cursor-pointer text-gray-800 hover:bg-indigo-50 ${ws.id === selectedId ? 'bg-indigo-50 font-semibold' : ''}`}
-              >
-                {ws.name}
-              </li>
-            ))}
+            {workspaces.map((ws) => {
+              const wsColor = localStorage.getItem(`workspaceColor_${ws.id}`) || '#FFB3C1';
+              return (
+                <li
+                  key={ws.id}
+                  role="option"
+                  aria-selected={ws.id === selectedId}
+                  onClick={() => { setSelectedId(ws.id); setIsDropdownOpen(false); }}
+                  className={`px-3 py-2 text-sm cursor-pointer text-gray-800 hover:bg-indigo-50 flex items-center gap-2 ${ws.id === selectedId ? 'bg-indigo-50 font-semibold' : ''}`}
+                >
+                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: wsColor }} aria-hidden="true" />
+                  {ws.name}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
