@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  FiBriefcase, FiEdit, FiPlusCircle, FiArchive, FiSave, FiXCircle,
+  FiGrid, FiEdit, FiPlusCircle, FiArchive, FiSave, FiXCircle,
   FiLoader, FiUsers, FiUserPlus, FiAlertTriangle, FiCheckCircle,
   FiAlertCircle as FiErrorCircle,
 } from 'react-icons/fi';
@@ -388,7 +388,7 @@ const WorkspaceHomePage: React.FC = () => {
                   style={{ backgroundColor: `${wsColor}33` }}
                 >
                   <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${wsColor}66` }}>
-                    <FiBriefcase className="text-gray-700" size={20} aria-hidden="true" />
+                    <FiGrid className="text-gray-700" size={20} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-800 truncate">{ws.name}</p>
