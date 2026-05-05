@@ -110,7 +110,7 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
           type="button"
           onClick={() => setIsDropdownOpen((v) => !v)}
           className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm"
-          style={{ color: sidebarLinkColor, backgroundColor: 'rgba(255,255,255,0.12)' }}
+          style={{ color: sidebarLinkColor, backgroundColor: 'rgba(255,255,255,0.12)', border: `2px solid ${sidebarLinkColor}` }}
           aria-haspopup="listbox"
           aria-expanded={isDropdownOpen}
           aria-label="Select WorkHub"
