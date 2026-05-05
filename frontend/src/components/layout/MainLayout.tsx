@@ -3,12 +3,11 @@ import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiPieChart, FiMail, FiLayout, FiPlus, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiPieChart, FiMail, FiLayout, FiPlus, FiChevronDown, FiChevronRight, FiTrello } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 
-import OrganizationHubIcon from '../common/AcademyHubIcon';
 import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
 import CookieConsent from '../legal/CookieConsent';
@@ -39,6 +38,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
           aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${workspace.name}`}
         >
           {isExpanded ? <FiChevronDown size={12} aria-hidden="true" /> : <FiChevronRight size={12} aria-hidden="true" />}
+          <FiGrid size={12} aria-hidden="true" />
           <span className="truncate">{workspace.name}</span>
         </button>
         {canCreateBoard && (
@@ -451,7 +451,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       `sidebar-nav-item flex items-center px-4 py-3 rounded-lg text-base transition-colors duration-150 ${isActive ? 'active font-semibold' : 'hover:text-white'}`
                   }
                 >
-                  <OrganizationHubIcon className={iconClassName} /> {t('layout.organizationHub')}
+                  <FiGrid className={iconClassName} /> {t('layout.organizationHub')}
                 </NavLink>
               </div>
 
@@ -701,7 +701,7 @@ const MainLayout: React.FC = () => {
   const logoCircle = organizationSettings?.logoCircle ?? true;
 
   const navItems: NavItem[] = [
-    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
+    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiTrello className={iconClassName} style={{ transform: 'rotate(180deg)' }} />, roles: [UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
   ];
 
   const adminNavItems: AdminNavItem[] = [

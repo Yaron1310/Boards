@@ -449,7 +449,7 @@
   },
   "layout": {
     "adminDashboard": "לוח בקרה",
-    "workspaces": "אקדמיות",
+    "workspaces": "WorkHubs",
     "academyPayouts": "תשלומי אקדמיה",
     "tokenLimits": "מגבלות טוקנים",
     "tutorialsSettings": "הגדרות הדרכות",
@@ -459,7 +459,7 @@
     "aiMentor": "מנטור AI",
     "questionnaires": "שאלונים",
     "userManagement": "ניהול משתמשים",
-    "workspaces": "ארגונים",
+    "workspaces": "WorkHubs",
     "courseManagement": "ניהול קורסים",
     "aiMentorSettings": "הגדרות מנטור AI",
     "questionnaireSettings": "הגדרות שאלון",
