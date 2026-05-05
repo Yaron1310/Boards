@@ -33,7 +33,7 @@
     "allPlans": "All Plans",
     "allRoles": "All Roles",
     "allStatuses": "All Statuses",
-    "allWorkHubs": "All WorkHubs",
+    "allWorkspaces": "All WorkHubs",
     "archiveOrganization": "Archive WorkHub",
     "archiveWorkspace": "Archive WorkHub",
     "archivedOn": "Archived on: {{date}}",
@@ -91,7 +91,7 @@
     "manageOrganizationAdmins": "Manage Organization Admins",
     "manageOrganizations": "Manage WorkHubs",
     "manageOrgs": "Manage Orgs",
-    "manageWorkHubs": "Manage WorkHubs",
+    "manageWorkspaces": "Manage WorkHubs",
     "managerDashboard": "{{name}} Manager Dashboard",
     "managerEmail": "Manager Email",
     "manualDirect": "Manual / Direct",
@@ -110,7 +110,7 @@
     "noPlanAssigned": "No plan assigned",
     "noRecentActivity": "No recent activity found.",
     "noUsersFound": "No users found",
-    "noWorkHubsFound": "No WorkHubs Found",
+    "noWorkspacesFound": "No WorkHubs Found",
     "officialWebsite": "Official Website",
     "onlyAdmin": "Only admins can perform this action",
     "orgMonthlyTokenUsage": "WorkHub Monthly Token Usage",
@@ -163,7 +163,7 @@
     "totalRevenueCollected": "Total Revenue Collected",
     "totalTokenCosts": "Total Token Costs",
     "totalUsers": "Total Users",
-    "totalWorkHubs": "Total WorkHubs",
+    "totalWorkspaces": "Total WorkHubs",
     "twitterUrl": "Twitter URL",
     "unlimitedUserSlots": "Unlimited User Slots",
     "uploadFile": "Upload File",
@@ -173,8 +173,8 @@
     "wordpressPlugin": "WordPress Plugin",
     "wordpressPluginIntegration": "WordPress Plugin Integration",
     "WorkHub": "WorkHub",
-    "WorkHubManagement": "WorkHub Management",
-    "WorkHubName": "WorkHub Name",
+    "workspaceManagement": "WorkHub Management",
+    "workspaceName": "WorkHub Name",
     "academyHub": {
       "academyBilling": "WorkHub Billing",
       "academyName": "WorkHub Name",
@@ -693,7 +693,8 @@
       "removeAdminPrivileges": "Remove Admin Privileges",
       "removing": "Removing",
       "saveChanges": "Save Changes",
-      "title": "Title"
+      "title": "Title",
+      "plan": "Plan"
     },
     "plan": {
       "accessExpirationTrigger": "Access Expiration Trigger...",
@@ -1404,7 +1405,7 @@
     "tokenLimits": "Token Limits",
     "tutorialsSettings": "Tutorials Settings",
     "userManagement": "User Management",
-    "WorkHubs": "WorkHubs"
+    "workspaces": "WorkHubs"
   },
   "legal": {
     "aiCanMakeMistakes": "AI can make mistakes.",
@@ -1671,7 +1672,7 @@
     "viewArchivedAIMentorInsights": "View Archived AI Mentor Insights",
     "viewArchivedInsights": "View Archived Insights",
     "welcomeTo": "Welcome to",
-    "WorkHubs": "WorkHubs"
+    "workspaces": "WorkHubs"
   },
   "questionnaire": {
     "accessDenied": "Access Denied",
