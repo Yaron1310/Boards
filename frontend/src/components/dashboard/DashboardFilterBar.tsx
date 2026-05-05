@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { getUsers } from '../../services/geminiService';
@@ -187,6 +188,7 @@ interface DashboardFilterBarProps {
 }
 
 const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispatch }) => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const workspaces = user?.workspaces ?? [];
 
