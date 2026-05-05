@@ -451,7 +451,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       `sidebar-nav-item flex items-center px-4 py-3 rounded-lg text-base transition-colors duration-150 ${isActive ? 'active font-semibold' : 'hover:text-white'}`
                   }
                 >
-                  <FiGrid className={iconClassName} /> {t('layout.organizationHub')}
+                  <FiBriefcase className={iconClassName} /> {t('layout.organizationHub')}
                 </NavLink>
               </div>
 
@@ -707,7 +707,7 @@ const MainLayout: React.FC = () => {
   const adminNavItems: AdminNavItem[] = [
      { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
      { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
-     { name: t('layout.workspaces'), path: '/admin/workspaces', icon: <FiBriefcase className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN] },
+     { name: t('layout.workspaces'), path: '/admin/workspaces', icon: <FiGrid className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN] },
   ];
 
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);
