@@ -81,7 +81,8 @@
     "role": "תפקיד",
     "saveChanges": "שמור שינויים",
     "unableToLoad": "לא ניתן לטעון",
-    "viewArchived": "הצג ארכיון"
+    "viewArchived": "הצג ארכיון",
+    "workspace": "WorkHub"
   },
   "auth": {
     "signIn": "התחברות",

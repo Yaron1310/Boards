@@ -1,15 +1,17 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FiBriefcase } from 'react-icons/fi';
+import { useTranslation } from 'react-i18next';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 
 const WorkspaceHomePage: React.FC = () => {
+  const { t } = useTranslation();
   const { data: allWorkspaces = [], isLoading } = useWorkspacesQuery();
   const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64" role="status" aria-label="Loading workspaces">
+      <div className="flex justify-center items-center h-64" role="status" aria-label={t('common.loading')}>
         <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -17,7 +19,7 @@ const WorkspaceHomePage: React.FC = () => {
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Workspaces</h1>
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">{t('layout.workspaces')}</h1>
       {workspaces.length === 0 ? (
         <p className="text-gray-500">No WorkHubs found. Create one from the admin panel.</p>
       ) : (

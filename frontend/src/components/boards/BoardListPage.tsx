@@ -114,10 +114,10 @@ const BoardListPage: React.FC = () => {
           type="button"
           onClick={() => navigate('/workspaces')}
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-          aria-label="Back to workspaces"
+          aria-label={`Back to ${t('layout.workspaces').toLowerCase()}`}
         >
           <FiArrowLeft size={15} aria-hidden="true" />
-          Workspaces
+          {t('layout.workspaces')}
         </button>
       </div>
       <div className="flex items-center justify-between mb-6">

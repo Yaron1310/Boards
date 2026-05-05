@@ -218,16 +218,16 @@ const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispat
           htmlFor="filter-workspace"
           className="text-xs font-medium text-gray-500 uppercase tracking-wide"
         >
-          Workspace
+          {t('common.workspace')}
         </label>
         <select
           id="filter-workspace"
           value={filters.workspaceId}
           onChange={e => dispatch({ type: 'SET_WORKSPACE', workspaceId: e.target.value })}
           className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[150px]"
-          aria-label="Select workspace"
+          aria-label={`Select ${t('common.workspace')}`}
         >
-          <option value="">All Workspaces</option>
+          <option value="">{t('admin.allWorkspaces')}</option>
           {workspaces.map(ws => (
             <option key={ws.id} value={ws.id}>
               {ws.name}
