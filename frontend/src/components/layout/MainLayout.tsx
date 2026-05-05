@@ -3,7 +3,7 @@ import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiPieChart, FiMail, FiLayout, FiPlus, FiChevronDown, FiChevronRight, FiTrello } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiPieChart, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
@@ -18,41 +18,25 @@ interface WorkspaceBoardsGroupProps {
   workspace: { id: string; name: string };
   sidebarLinkColor: string;
   onNavigate: () => void;
-  canCreateBoard: boolean;
 }
 
-const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate, canCreateBoard }) => {
-  const navigate = useNavigate();
+const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const { data: boards = [] } = useBoards(workspace.id, false, true);
 
   return (
     <div className="mb-1">
-      <div className="flex items-center justify-between px-4 mb-0.5">
-        <button
-          type="button"
-          onClick={() => setIsExpanded((v) => !v)}
-          className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider transition-opacity hover:opacity-100 flex-1 min-w-0 text-left"
-          style={{ color: sidebarLinkColor, opacity: 0.7 }}
-          aria-expanded={isExpanded}
-          aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${workspace.name}`}
-        >
-          {isExpanded ? <FiChevronDown size={12} aria-hidden="true" /> : <FiChevronRight size={12} aria-hidden="true" />}
-          <FiGrid size={12} aria-hidden="true" />
-          <span className="truncate">{workspace.name}</span>
-        </button>
-        {canCreateBoard && (
-          <button
-            type="button"
-            onClick={() => { navigate(`/WorkHubs/${workspace.id}/boards`); onNavigate(); }}
-            className="rounded p-0.5 transition-opacity hover:opacity-100 flex-shrink-0"
-            style={{ color: sidebarLinkColor, opacity: 0.7 }}
-            aria-label={`Open ${workspace.name} boards`}
-          >
-            <FiPlus size={14} aria-hidden="true" />
-          </button>
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={() => setIsExpanded((v) => !v)}
+        className="flex items-center gap-1 px-4 mb-0.5 text-xs font-semibold uppercase tracking-wider transition-opacity hover:opacity-100 w-full text-left"
+        style={{ color: sidebarLinkColor, opacity: 0.7 }}
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? 'Collapse boards' : 'Expand boards'}
+      >
+        {isExpanded ? <FiChevronDown size={12} aria-hidden="true" /> : <FiChevronRight size={12} aria-hidden="true" />}
+        <span>Boards</span>
+      </button>
       {isExpanded && (
         <ul role="list" aria-label={`${workspace.name} boards`}>
           {boards.length === 0 && (
@@ -87,26 +71,83 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
 interface WorkspacesNavSectionProps {
   sidebarLinkColor: string;
   onNavigate: () => void;
-  canCreateBoard: boolean;
 }
 
-const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate, canCreateBoard }) => {
+const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate }) => {
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
   const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState('');
+
+  useEffect(() => {
+    if (!selectedId && workspaces.length > 0) {
+      setSelectedId(workspaces[0].id);
+    }
+  }, [workspaces, selectedId]);
+
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isDropdownOpen]);
 
   if (workspaces.length === 0) return null;
 
+  const selectedWorkspace = workspaces.find((w) => w.id === selectedId) ?? null;
+  const selectedName = selectedWorkspace?.name ?? 'Select WorkHub…';
+
   return (
     <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
-      {workspaces.map((workspace) => (
+      {/* WorkHub dropdown */}
+      <div className="px-4 mb-2 relative" ref={dropdownRef}>
+        <button
+          type="button"
+          onClick={() => setIsDropdownOpen((v) => !v)}
+          className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm"
+          style={{ color: sidebarLinkColor, backgroundColor: 'rgba(255,255,255,0.12)' }}
+          aria-haspopup="listbox"
+          aria-expanded={isDropdownOpen}
+          aria-label="Select WorkHub"
+        >
+          <span className="truncate">{selectedName}</span>
+          <FiChevronDown size={14} aria-hidden="true" className="ml-2 flex-shrink-0" style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+        </button>
+
+        {isDropdownOpen && (
+          <ul
+            role="listbox"
+            aria-label="WorkHubs"
+            className="absolute left-4 right-4 z-50 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden max-h-52 overflow-y-auto"
+          >
+            {workspaces.map((ws) => (
+              <li
+                key={ws.id}
+                role="option"
+                aria-selected={ws.id === selectedId}
+                onClick={() => { setSelectedId(ws.id); setIsDropdownOpen(false); }}
+                className={`px-3 py-2 text-sm cursor-pointer text-gray-800 hover:bg-indigo-50 ${ws.id === selectedId ? 'bg-indigo-50 font-semibold' : ''}`}
+              >
+                {ws.name}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Boards for selected workspace */}
+      {selectedWorkspace && (
         <WorkspaceBoardsGroup
-          key={workspace.id}
-          workspace={workspace}
+          workspace={selectedWorkspace}
           sidebarLinkColor={sidebarLinkColor}
           onNavigate={onNavigate}
-          canCreateBoard={canCreateBoard}
         />
-      ))}
+      )}
     </div>
   );
 };
@@ -155,7 +196,6 @@ interface SidebarContentProps {
   user: User | null;
   selectedWorkspaceIsPersonal: boolean;
   selectedWorkspaceId: string;
-  canCreateBoard: boolean;
   onOpenLegal: () => void;
   onOpenAccessibility: () => void;
 }
@@ -271,7 +311,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     user,
     selectedWorkspaceIsPersonal,
     selectedWorkspaceId,
-    canCreateBoard,
     onOpenLegal,
     onOpenAccessibility
 }) => {
@@ -458,7 +497,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               <WorkspacesNavSection
                 sidebarLinkColor={sidebarLinkColor}
                 onNavigate={() => setIsSidebarOpen(false)}
-                canCreateBoard={canCreateBoard}
               />
 
               {availableAdminNavItems.length > 0 && (
@@ -714,10 +752,6 @@ const MainLayout: React.FC = () => {
   const availableAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role) && (item.show !== false));
 
   const selectedWorkspaceId = selectedWorkspace?.id ?? '';
-  const canCreateBoard =
-    user.role === UserRole.WORKSPACE_ADMIN ||
-    user.role === UserRole.ORGANIZATION_ADMIN ||
-    user.role === UserRole.SYSTEM_ADMIN;
 
   return (
     <div className="flex h-dynamic-screen bg-gray-100">
@@ -744,7 +778,7 @@ const MainLayout: React.FC = () => {
             user={user}
             selectedWorkspaceIsPersonal={selectedWorkspace.isPersonal || false}
             selectedWorkspaceId={selectedWorkspaceId}
-            canCreateBoard={canCreateBoard}
+
             onOpenLegal={() => setShowLegalModal(true)}
             onOpenAccessibility={() => setShowAccessibilityModal(true)}
           />
@@ -771,7 +805,7 @@ const MainLayout: React.FC = () => {
                 user={user}
                 selectedWorkspaceIsPersonal={selectedWorkspace.isPersonal || false}
                 selectedWorkspaceId={selectedWorkspaceId}
-                canCreateBoard={canCreateBoard}
+    
                 onOpenLegal={() => setShowLegalModal(true)}
                 onOpenAccessibility={() => setShowAccessibilityModal(true)}
             />
