@@ -23,7 +23,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
   const { mutateAsync: createBoard, isPending } = useCreateBoard();
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
 
-  const WorkHubs = allWorkspaces.filter((w) => !w.isPersonal);
+  const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
 
   useEffect(() => {
     if (workspaces.length === 0) return;

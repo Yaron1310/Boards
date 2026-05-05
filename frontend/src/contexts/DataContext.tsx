@@ -118,7 +118,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // --- Derived state from React Query ---
   const organizations = academiesQuery.data ?? [];
-  const WorkHubs = workspacesQuery.data ?? [];
+  const workspaces = workspacesQuery.data ?? [];
   const archivedWorkspaces = archivedWorkspacesQuery.data ?? [];
   const users = usersQuery.data ?? [];
   const preApprovedUsers = preApprovedUsersQuery.data ?? [];

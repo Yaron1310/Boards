@@ -188,7 +188,7 @@ interface DashboardFilterBarProps {
 
 const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispatch }) => {
   const { user } = useAuth();
-  const WorkHubs = user?.workspaces ?? [];
+  const workspaces = user?.workspaces ?? [];
 
   const { data: usersData } = useQuery({
     queryKey: ['users', 'workspace', filters.workspaceId],

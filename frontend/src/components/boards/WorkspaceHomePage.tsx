@@ -5,7 +5,7 @@ import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 
 const WorkspaceHomePage: React.FC = () => {
   const { data: allWorkspaces = [], isLoading } = useWorkspacesQuery();
-  const WorkHubs = allWorkspaces.filter((w) => !w.isPersonal);
+  const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
 
   if (isLoading) {
     return (
