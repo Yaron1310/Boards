@@ -6,6 +6,8 @@ import { useCreateBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
+const BOARD_EMOJIS = ['📋', '🎯', '🚀', '📊', '📈', '🎨', '💡', '🔧', '⚡', '🏆', '✅', '📝', '🎭', '🌟', '📱', '🔐', '🌐', '💼', '📦', '🎪', '🎬', '🎸', '🍕', '🌈'];
+
 interface CreateBoardModalProps {
   workspaceId?: string;
   onClose: () => void;
@@ -16,6 +18,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('');
+  const [selectedEmoji, setSelectedEmoji] = useState('');
   const [error, setError] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
@@ -44,8 +47,9 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
     }
     setError('');
     try {
+      const finalName = selectedEmoji ? `${selectedEmoji} ${trimmed}` : trimmed;
       const board = await createBoard({
-        name: trimmed,
+        name: finalName,
         description: description.trim() || undefined,
         workspaceId: selectedWorkspaceId,
       });
@@ -112,6 +116,35 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, onClos
                   ))}
                 </select>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Icon
+              </label>
+              <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 rounded-lg border border-gray-200">
+                <button
+                  key="none"
+                  type="button"
+                  onClick={() => setSelectedEmoji('')}
+                  className={`px-2 py-1 rounded text-sm transition-all ${!selectedEmoji ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-300 text-gray-700 hover:border-gray-400'}`}
+                  aria-label="No emoji"
+                >
+                  None
+                </button>
+                {BOARD_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setSelectedEmoji(emoji)}
+                    className={`text-lg px-2 py-1 rounded transition-all ${selectedEmoji === emoji ? 'bg-indigo-100 border-2 border-indigo-500' : 'hover:bg-gray-100 border border-gray-300'}`}
+                    aria-label={`Select ${emoji} emoji`}
+                    title={emoji}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>
