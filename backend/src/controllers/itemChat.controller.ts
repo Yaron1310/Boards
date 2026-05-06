@@ -6,6 +6,21 @@ import { itemsCollection, itemChatMessagesCollection, boardMembersCollection, us
 import { JwtUserPayload, DBItem, DBUser, DBBoardMember, DBChatMessage, DBChatAttachment } from '../types/index.js';
 import { assertItemAccess } from '../utils/workManagementAuth.js';
 
+const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+const ALLOWED_MIME_TYPES = new Set([
+  'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/plain',
+  'text/csv',
+]);
+
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
 }
@@ -57,20 +72,44 @@ export const getChatMessages = async (req: Request, res: Response) => {
   }
 };
 
+interface IncomingAttachment {
+  name: string;
+  mimeType: string;
+  size: number;
+  base64: string; // data:<mime>;base64,<data>  or raw base64
+}
+
 // ---------------------------------------------------------------------------
-// POST /items/:id/chat
+// POST /items/:id/chat   (JSON body: { text, attachments? })
 // ---------------------------------------------------------------------------
 export const postChatMessage = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const id = req.params.itemId ?? req.params.id;
   const text: string = typeof req.body.text === 'string' ? req.body.text.trim() : '';
-  const files = req.files as Express.Multer.File[] | undefined;
+  const rawAttachments: IncomingAttachment[] = Array.isArray(req.body.attachments)
+    ? req.body.attachments
+    : [];
 
-  if (!text && (!files || files.length === 0)) {
+  if (!text && rawAttachments.length === 0) {
     return res.status(400).json({ message: 'Message must contain text or at least one attachment.' });
   }
   if (text.length > 4000) {
     return res.status(400).json({ message: 'Message text must be 4000 characters or fewer.' });
+  }
+  if (rawAttachments.length > 5) {
+    return res.status(400).json({ message: 'Maximum 5 attachments per message.' });
+  }
+
+  // Validate each attachment before touching the DB
+  for (const att of rawAttachments) {
+    if (!ALLOWED_MIME_TYPES.has(att.mimeType)) {
+      return res.status(400).json({ message: `File type not allowed: ${att.mimeType}` });
+    }
+    const base64Data = att.base64.replace(/^data:[^;]+;base64,/, '');
+    const estimatedBytes = Math.ceil(base64Data.length * 0.75);
+    if (estimatedBytes > MAX_FILE_SIZE_BYTES) {
+      return res.status(400).json({ message: `File "${att.name}" exceeds the 10 MB limit.` });
+    }
   }
 
   try {
@@ -80,10 +119,8 @@ export const postChatMessage = async (req: Request, res: Response) => {
     const item = snapshotToData<DBItem>(doc)!;
     const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
     const memberData = memberDoc.exists ? (memberDoc.data() as DBBoardMember) : null;
-    // Require at least editor-level access to post a message
     assertItemAccess(user, item, 'update', memberData);
 
-    // Fetch author details
     const authorDoc = await usersCollection.doc(user.id).get();
     const authorData = authorDoc.exists ? (authorDoc.data() as DBUser) : null;
     const authorName = authorData?.name ?? user.id;
@@ -93,25 +130,13 @@ export const postChatMessage = async (req: Request, res: Response) => {
     const messageId = messageRef.id;
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
 
-    // Upload attachments (if any)
+    // Upload attachments to Firebase Storage
     const attachments: DBChatAttachment[] = [];
-    if (files && files.length > 0) {
-      for (const file of files) {
-        const url = await uploadChatFileToStorage(
-          file.buffer,
-          user.orgId,
-          id,
-          messageId,
-          file.originalname,
-          file.mimetype,
-        );
-        attachments.push({
-          url,
-          name: file.originalname,
-          mimeType: file.mimetype,
-          size: file.size,
-        });
-      }
+    for (const att of rawAttachments) {
+      const base64Data = att.base64.replace(/^data:[^;]+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      const url = await uploadChatFileToStorage(buffer, user.orgId, id, messageId, att.name, att.mimeType);
+      attachments.push({ url, name: att.name, mimeType: att.mimeType, size: att.size });
     }
 
     const messageData: Record<string, unknown> = {
@@ -125,7 +150,6 @@ export const postChatMessage = async (req: Request, res: Response) => {
       createdAt: timestamp,
     };
 
-    // Use a batch: create the message + increment counters on item
     const batch = db.batch();
     batch.set(messageRef, messageData);
     batch.update(itemsCollection(user.orgId).doc(id), {

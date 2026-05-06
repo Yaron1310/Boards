@@ -310,25 +310,37 @@ export const removeBoardMember = (boardId: string, userId: string): Promise<null
 
 // ─── ITEM CHAT ────────────────────────────────────────────────────────────────
 
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export const listChatMessages = (itemId: string): Promise<ChatMessage[]> =>
   fetchWithAuth(`/api/items/${itemId}/chat`);
 
-export const postChatMessage = (
+export const postChatMessage = async (
   itemId: string,
   text: string,
   files?: File[],
 ): Promise<ChatMessage> => {
-  if (!files || files.length === 0) {
-    // No files — send as JSON to avoid Cloud Run multipart stream issues
-    return fetchWithAuth(`/api/items/${itemId}/chat`, {
-      method: 'POST',
-      body: JSON.stringify({ text }),
-    });
-  }
-  const form = new FormData();
-  form.append('text', text);
-  for (const file of files) {
-    form.append('files', file);
-  }
-  return fetchWithAuth(`/api/items/${itemId}/chat`, { method: 'POST', body: form });
+  const attachments =
+    files && files.length > 0
+      ? await Promise.all(
+          files.map(async (f) => ({
+            name: f.name,
+            mimeType: f.type,
+            size: f.size,
+            base64: await fileToBase64(f),
+          })),
+        )
+      : [];
+
+  return fetchWithAuth(`/api/items/${itemId}/chat`, {
+    method: 'POST',
+    body: JSON.stringify({ text, attachments }),
+  });
 };
