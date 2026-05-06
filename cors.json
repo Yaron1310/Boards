@@ -1,0 +1,13 @@
+[
+  {
+    "origin": [
+      "https://boards-f313e.web.app",
+      "https://boards.logyx.co.il",
+      "http://boards.logyx.co.il",
+      "http://localhost:5173"
+    ],
+    "method": ["PUT"],
+    "responseHeader": ["Content-Type", "x-goog-acl"],
+    "maxAgeSeconds": 3600
+  }
+]
