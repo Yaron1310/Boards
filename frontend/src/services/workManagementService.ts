@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
@@ -307,3 +307,23 @@ export const addBoardMember = (boardId: string, userId: string, role: BoardRole)
 
 export const removeBoardMember = (boardId: string, userId: string): Promise<null> =>
   fetchWithAuth(`/api/boards/${boardId}/members/${userId}`, { method: 'DELETE' });
+
+// ─── ITEM CHAT ────────────────────────────────────────────────────────────────
+
+export const listChatMessages = (itemId: string): Promise<ChatMessage[]> =>
+  fetchWithAuth(`/api/items/${itemId}/chat`);
+
+export const postChatMessage = (
+  itemId: string,
+  text: string,
+  files?: File[],
+): Promise<ChatMessage> => {
+  const form = new FormData();
+  form.append('text', text);
+  if (files) {
+    for (const file of files) {
+      form.append('files', file);
+    }
+  }
+  return fetchWithAuth(`/api/items/${itemId}/chat`, { method: 'POST', body: form });
+};

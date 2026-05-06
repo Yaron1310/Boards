@@ -323,10 +323,33 @@ export interface Item {
   dueDate?: Date | string;
   // Cell dependency links — stored on the target item (the dependent one)
   dependencies?: TimeRangeDependency[];
+  // Chat denormalized counters
+  chatMessageCount?: number;
+  chatLastMessageAt?: Date | string;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+// --- Chat ---
+
+export interface ChatAttachment {
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  itemId: string;
+  authorId: string;
+  authorName: string;
+  authorProfileImageUrl?: string;
+  text: string;
+  attachments?: ChatAttachment[];
+  createdAt: Date | string;
 }
 
 // =============================================================================

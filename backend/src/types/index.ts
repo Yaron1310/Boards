@@ -328,10 +328,33 @@ export interface DBItem {
   assignees?: string[];     // mirrors values[personColumnId] — userIds
   dueDate?: admin.firestore.Timestamp | Date | any; // mirrors values[dateColumnId]
   dependencies?: TimeRangeDependency[];
+  // Chat denormalized counters (updated on each new chat message)
+  chatMessageCount?: number;
+  chatLastMessageAt?: admin.firestore.Timestamp | Date | any;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
+// --- Chat Message ---
+
+export interface DBChatMessage {
+  id: string;
+  itemId: string;
+  authorId: string;
+  authorName: string;
+  authorProfileImageUrl?: string;
+  text: string;
+  attachments?: DBChatAttachment[];
+  createdAt: admin.firestore.Timestamp | Date | any;
+}
+
+export interface DBChatAttachment {
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
 }
 
 // --- AUDIT LOGGING ---

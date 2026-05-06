@@ -40,4 +40,7 @@ export const queryKeys = {
   boardMembers: {
     all: (boardId: string) => ['boardMembers', boardId] as const,
   },
+  chat: {
+    messages: (itemId: string) => ['chat', itemId, 'messages'] as const,
+  },
 };

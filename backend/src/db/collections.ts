@@ -45,3 +45,8 @@ export const boardMembersCollection = (orgId: string, boardId: string) =>
 // /organizations/{orgId}/notifications/{notificationId}
 export const notificationsCollection = (orgId: string) =>
   db.collection('organizations').doc(orgId).collection('notifications');
+
+// Item chat messages (subcollection on each item):
+// /organizations/{orgId}/items/{itemId}/chatMessages/{messageId}
+export const itemChatMessagesCollection = (orgId: string, itemId: string) =>
+  itemsCollection(orgId).doc(itemId).collection('chatMessages');
