@@ -43,5 +43,5 @@ const chatFileFilter = (_req: Express.Request, file: Express.Multer.File, cb: mu
 export const uploadChatFiles = multer({
     storage,
     fileFilter: chatFileFilter,
-    limits: { fileSize: 20 * 1024 * 1024 }, // 20MB per file
+    limits: { fileSize: 10 * 1024 * 1024 }, // 10MB per file
 }).array('files', 5); // up to 5 files at once
