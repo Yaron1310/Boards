@@ -99,10 +99,11 @@ interface PopoverProps {
   onChange: (c: CellConfig) => void;
   onClose: () => void;
   isCheckbox: boolean;
+  isTimeType: boolean;
 }
 
 const SummaryPopover: React.FC<PopoverProps> = ({
-  anchorRect, config, onChange, onClose, isCheckbox,
+  anchorRect, config, onChange, onClose, isCheckbox, isTimeType,
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [customUnit, setCustomUnit] = useState<string>(
@@ -155,12 +156,27 @@ const SummaryPopover: React.FC<PopoverProps> = ({
       className="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 p-4 w-[340px]"
       style={{ top, left }}
     >
-      {/* Unit */}
-      {!isCheckbox && (
+      {/* Calculation */}
+      <p className="text-sm font-semibold text-gray-700 mb-2">Calculation</p>
+      <div className="flex items-center gap-1.5 flex-wrap mb-4">
+        {availableCalcs.map((c) => (
+          <button
+            key={c}
+            type="button"
+            onClick={() => setCalc(c)}
+            className={`px-2.5 py-1 text-sm rounded border transition-all ${config.calc === c ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}
+            aria-pressed={config.calc === c}
+          >
+            {CALC_LABEL[c]}
+          </button>
+        ))}
+      </div>
+
+      {/* Unit — hidden for time/checkbox columns */}
+      {!isTimeType && !isCheckbox && (
         <>
           <p className="text-sm font-semibold text-gray-700 mb-2">Unit</p>
-          <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-            {/* None */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
               onClick={() => setUnit('')}
@@ -169,7 +185,6 @@ const SummaryPopover: React.FC<PopoverProps> = ({
             >
               None
             </button>
-            {/* Preset units */}
             {PRESET_UNITS.map((u) => (
               <button
                 key={u}
@@ -181,7 +196,6 @@ const SummaryPopover: React.FC<PopoverProps> = ({
                 {u}
               </button>
             ))}
-            {/* Custom input */}
             <input
               type="text"
               value={customUnit}
@@ -190,7 +204,6 @@ const SummaryPopover: React.FC<PopoverProps> = ({
               className={`flex-1 min-w-[90px] px-2 py-1 text-sm rounded border transition-all outline-none focus:ring-2 focus:ring-blue-400 ${isCustomActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}`}
               aria-label="Custom unit"
             />
-            {/* L/R alignment */}
             <div className="flex border border-gray-300 rounded overflow-hidden ml-1">
               <button
                 type="button"
@@ -214,22 +227,6 @@ const SummaryPopover: React.FC<PopoverProps> = ({
           </div>
         </>
       )}
-
-      {/* Calculation */}
-      <p className="text-sm font-semibold text-gray-700 mb-2">Calculation</p>
-      <div className="flex items-center gap-1.5 flex-wrap">
-        {availableCalcs.map((c) => (
-          <button
-            key={c}
-            type="button"
-            onClick={() => setCalc(c)}
-            className={`px-2.5 py-1 text-sm rounded border transition-all ${config.calc === c ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}
-            aria-pressed={config.calc === c}
-          >
-            {CALC_LABEL[c]}
-          </button>
-        ))}
-      </div>
     </div>,
     modalRoot,
   );
@@ -400,6 +397,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
           onChange={handleChange}
           onClose={() => setAnchorRect(null)}
           isCheckbox={isCheckbox}
+          isTimeType={isTimeType}
         />
       )}
     </div>
