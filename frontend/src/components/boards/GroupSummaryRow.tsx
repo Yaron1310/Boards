@@ -420,7 +420,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
 
   const nonArchived = items.filter((i) => !i.isArchived);
   const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
-  const solidBg = blendWithWhite(groupColor, 0.25);
+  const solidBg = blendWithWhite(groupColor, 0.15);
 
   return (
     <div
@@ -431,7 +431,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
     >
       <div
         className={`flex-shrink-0 ${ITEM_SECTION_WIDTH} sticky left-4 z-[1]`}
-        style={{ backgroundColor: solidBg }}
+        style={{ backgroundColor: solidBg, borderBottomLeftRadius: '6px' }}
         aria-hidden="true"
       />
       {columns.map((col, index) => (
