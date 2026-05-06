@@ -445,7 +445,31 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
       nextStart && nextEnd
         ? Math.max(0, Math.round((new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / 86_400_000))
         : (rawValue?.durationDays ?? 1);
-    mutate({ id: item.id, patch: { values: { [column.id]: { start: nextStart, end: nextEnd, durationDays } } } });
+
+    // When this cell is formula-driven, update each incoming dep's offsetDays so
+    // the formula produces the user's new start date going forward.
+    let updatedDependencies: typeof item.dependencies | undefined;
+    if (nextStart && depsIn.length > 0) {
+      updatedDependencies = (item.dependencies ?? []).map((dep) => {
+        const incoming = depsIn.find((d) => d.id === dep.id);
+        if (!incoming) return dep;
+        const srcEnd = (allItems.find((i) => i.id === incoming.sourceItemId)
+          ?.values[incoming.sourceColumnId] as { end?: string | Date } | null | undefined)?.end;
+        if (!srcEnd) return dep;
+        const newOffset = Math.round(
+          (new Date(nextStart).getTime() - new Date(srcEnd as string).getTime()) / 86_400_000,
+        );
+        return { ...dep, offsetDays: newOffset };
+      });
+    }
+
+    mutate({
+      id: item.id,
+      patch: {
+        values: { [column.id]: { start: nextStart, end: nextEnd, durationDays } },
+        ...(updatedDependencies ? { dependencies: updatedDependencies } : {}),
+      },
+    });
     setHovered(false);
     stopEdit();
   };
