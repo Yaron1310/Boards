@@ -318,12 +318,17 @@ export const postChatMessage = (
   text: string,
   files?: File[],
 ): Promise<ChatMessage> => {
+  if (!files || files.length === 0) {
+    // No files — send as JSON to avoid Cloud Run multipart stream issues
+    return fetchWithAuth(`/api/items/${itemId}/chat`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    });
+  }
   const form = new FormData();
   form.append('text', text);
-  if (files) {
-    for (const file of files) {
-      form.append('files', file);
-    }
+  for (const file of files) {
+    form.append('files', file);
   }
   return fetchWithAuth(`/api/items/${itemId}/chat`, { method: 'POST', body: form });
 };
