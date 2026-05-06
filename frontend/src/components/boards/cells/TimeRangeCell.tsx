@@ -551,8 +551,8 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
               <div className="h-7 w-full" aria-hidden="true" />
               {createPortal(
                 <DateRangePicker
-                  initialStart={start}
-                  initialEnd={end}
+                  initialStart={isComputed ? toDateInput(displayStart) : start}
+                  initialEnd={isComputed ? toDateInput(displayEnd) : end}
                   anchorEl={cellRef.current}
                   onCommit={(s, e) => {
                     setStart(s);
