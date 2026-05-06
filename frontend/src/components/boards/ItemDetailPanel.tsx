@@ -97,7 +97,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   return (
     <>
       <div
-        className="fixed inset-0 z-40 bg-black/20"
+        className="fixed inset-0 z-[10100] bg-black/20"
         onClick={onClose}
         aria-hidden="true"
       />
@@ -107,7 +107,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
         role="dialog"
         aria-modal="true"
         aria-labelledby="item-detail-title"
-        className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col"
+        className="fixed right-0 top-0 bottom-0 z-[10150] w-full max-w-md bg-white shadow-2xl flex flex-col"
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-200 flex-shrink-0">

@@ -140,14 +140,14 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-[10200] flex items-center justify-center bg-black/40"
       role="dialog"
       aria-modal="true"
       aria-label={`Chat for ${item.name}`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="flex flex-col w-full max-w-lg h-[600px] bg-white rounded-2xl shadow-2xl overflow-hidden"
+        className="flex flex-col w-full max-w-[35rem] h-[600px] bg-white rounded-2xl shadow-2xl overflow-hidden"
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
