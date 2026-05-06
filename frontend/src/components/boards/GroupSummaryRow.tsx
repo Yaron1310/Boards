@@ -35,6 +35,23 @@ function median(vals: number[]): number {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
+/** Blend a hex colour with white to produce a solid opaque tint.
+ *  alpha=0 → pure white, alpha=1 → original colour. */
+function blendWithWhite(hex: string, alpha = 0.25): string {
+  const h = hex.replace('#', '');
+  const full = h.length === 3
+    ? h.split('').map((c) => c + c).join('')
+    : h.slice(0, 6); // strip alpha channel if 8-char
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return '#f3f4f6';
+  const rOut = Math.round(r * alpha + 255 * (1 - alpha));
+  const gOut = Math.round(g * alpha + 255 * (1 - alpha));
+  const bOut = Math.round(b * alpha + 255 * (1 - alpha));
+  return `rgb(${rOut},${gOut},${bOut})`;
+}
+
 function loadConfig(colId: string, defaultCalc: CalcMode = 'sum'): CellConfig {
   try {
     const stored = localStorage.getItem(`summaryCell_${colId}`);
@@ -82,11 +99,10 @@ interface PopoverProps {
   onChange: (c: CellConfig) => void;
   onClose: () => void;
   isCheckbox: boolean;
-  isTimeType: boolean;
 }
 
 const SummaryPopover: React.FC<PopoverProps> = ({
-  anchorRect, config, onChange, onClose, isCheckbox, isTimeType,
+  anchorRect, config, onChange, onClose, isCheckbox,
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [customUnit, setCustomUnit] = useState<string>(
@@ -140,7 +156,7 @@ const SummaryPopover: React.FC<PopoverProps> = ({
       style={{ top, left }}
     >
       {/* Unit */}
-      {!isTimeType && !isCheckbox && (
+      {!isCheckbox && (
         <>
           <p className="text-sm font-semibold text-gray-700 mb-2">Unit</p>
           <div className="flex items-center gap-1.5 mb-4 flex-wrap">
@@ -384,7 +400,6 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
           onChange={handleChange}
           onClose={() => setAnchorRect(null)}
           isCheckbox={isCheckbox}
-          isTimeType={isTimeType}
         />
       )}
     </div>
@@ -405,17 +420,18 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
 
   const nonArchived = items.filter((i) => !i.isArchived);
   const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
+  const solidBg = blendWithWhite(groupColor, 0.25);
 
   return (
     <div
       role="row"
       aria-label="Group summary row"
       className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] w-max rounded-bl-xl"
-      style={{ backgroundColor: `${groupColor}16` }}
+      style={{ backgroundColor: solidBg }}
     >
       <div
         className={`flex-shrink-0 ${ITEM_SECTION_WIDTH} sticky left-4 z-[1]`}
-        style={{ backgroundColor: `${groupColor}16` }}
+        style={{ backgroundColor: solidBg }}
         aria-hidden="true"
       />
       {columns.map((col, index) => (
