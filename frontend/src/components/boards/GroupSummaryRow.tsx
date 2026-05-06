@@ -334,7 +334,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
           if (Array.isArray(v)) return v.length > 0;
           return true;
         }).length;
-        return `${filled}/${items.length}`;
+        return String(filled);
       }
       return null;
     }
@@ -342,7 +342,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
     if (isCheckbox) {
       if (calc === 'count') {
         const checked = items.filter((i) => Boolean(i.values[col.id])).length;
-        return `${checked}/${items.length}`;
+        return String(checked);
       }
       return null;
     }

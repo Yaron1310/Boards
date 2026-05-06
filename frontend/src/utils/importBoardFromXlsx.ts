@@ -191,7 +191,13 @@ export async function importBoardFromXlsx(
         if (spec.type === ColumnType.TIME_RANGE) {
           const startIso = cellToDateIso(rawValues[spec.rawIndices[0]]);
           const endIso = cellToDateIso(rawValues[spec.rawIndices[1]]);
-          if (startIso || endIso) values[id] = { start: startIso, end: endIso };
+          if (startIso || endIso) {
+            const startMs = startIso ? new Date(startIso).getTime() : NaN;
+            const endMs = endIso ? new Date(endIso).getTime() : NaN;
+            const durMs = endMs - startMs;
+            const durationDays = !isNaN(durMs) && durMs > 0 ? Math.round(durMs / 86_400_000) : undefined;
+            values[id] = { start: startIso, end: endIso, ...(durationDays !== undefined ? { durationDays } : {}) };
+          }
         } else {
           const text = cellToText(rawValues[spec.rawIndices[0]]).trim();
           if (text) values[id] = text;
