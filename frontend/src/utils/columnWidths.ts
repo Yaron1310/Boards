@@ -4,10 +4,10 @@ export const COLUMN_TYPE_MIN_WIDTHS: Partial<Record<ColumnType, number>> = {
   [ColumnType.TIME_RANGE]: 205,
 };
 
-export const ITEM_NAME_WIDTH = 'w-[238px]';
-export const ITEM_NAME_MIN_WIDTH = 'min-w-[238px]';
-export const GROUP_SECTION_WIDTH = 'w-[222px]';
-export const ITEM_SECTION_WIDTH = 'w-[222px]';
+export const ITEM_NAME_WIDTH = 'w-[298px]';
+export const ITEM_NAME_MIN_WIDTH = 'min-w-[298px]';
+export const GROUP_SECTION_WIDTH = 'w-[282px]';
+export const ITEM_SECTION_WIDTH = 'w-[282px]';
 export const DRAG_HANDLE_WIDTH = 'w-5';
 export const CHECKBOX_WIDTH = 'w-6';
 

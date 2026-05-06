@@ -122,7 +122,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => 
 
         {/* Row actions — inside sticky section */}
         <div
-          className="flex items-center gap-0.5 pr-1.5 flex-shrink-0"
+          className="flex items-center gap-2 pr-1.5 flex-shrink-0"
           role="gridcell"
           aria-label="Row actions"
         >
@@ -191,7 +191,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => 
             className="relative flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
             aria-label={`Open chat for ${item.name}`}
           >
-            <FiMessageSquare size={13} aria-hidden="true" />
+            <FiMessageSquare size={16} aria-hidden="true" />
             {unreadCount > 0 && (
               <span
                 className="absolute -top-1 -right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full leading-none"
