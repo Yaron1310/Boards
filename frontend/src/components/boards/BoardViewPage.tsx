@@ -114,6 +114,21 @@ function compareItemValues(a: unknown, b: unknown, colType: ColumnType, directio
     case ColumnType.TAGS:
       return (Array.isArray(a) ? (a[0] ?? '') : String(a))
         .localeCompare(Array.isArray(b) ? (b[0] ?? '') : String(b)) * mult;
+    case ColumnType.TIME_RANGE: {
+      const aStart = (a as { start?: string } | null)?.start ?? '';
+      const bStart = (b as { start?: string } | null)?.start ?? '';
+      if (!aStart && !bStart) return 0;
+      if (!aStart) return mult;
+      if (!bStart) return -mult;
+      return aStart.localeCompare(bStart) * mult;
+    }
+    case ColumnType.TIME: {
+      const toMins = (v: unknown) => {
+        const parts = String(v).split(':').map(Number);
+        return (isNaN(parts[0]) ? 0 : parts[0]) * 60 + (isNaN(parts[1]) ? 0 : parts[1]);
+      };
+      return (toMins(a) - toMins(b)) * mult;
+    }
     default:
       return String(a).localeCompare(String(b)) * mult;
   }
