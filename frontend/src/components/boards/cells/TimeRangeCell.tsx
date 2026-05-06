@@ -272,8 +272,74 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// (Dependency formulas are propagated on explicit date edits, not passively)
+// Dependency formula helpers
 // ---------------------------------------------------------------------------
+
+const resolveEffectiveDates = (
+  rawValue: TimeRangeValue | null | undefined,
+  depsIn: TimeRangeDependency[],
+  allItems: Item[],
+): { start: Date | null; end: Date | null; isComputed: boolean } => {
+  const rawStart = toDate(rawValue?.start);
+  const rawEnd = toDate(rawValue?.end);
+
+  if (!rawStart) return { start: rawStart, end: rawEnd, isComputed: false };
+
+  for (const dep of depsIn) {
+    const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
+      ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
+    const srcEnd = toDate(srcVal?.end);
+    if (!srcEnd) continue;
+
+    const newStart = new Date(srcEnd);
+    newStart.setDate(newStart.getDate() + dep.offsetDays);
+
+    const durMs = rawEnd ? Math.max(0, rawEnd.getTime() - rawStart.getTime()) : 0;
+    const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+
+    return { start: newStart, end: newEnd, isComputed: true };
+  }
+  return { start: rawStart, end: rawEnd, isComputed: false };
+};
+
+interface ComputedTarget {
+  dep: TimeRangeDependency;
+  targetItemId: string;
+  targetColumnId: string;
+  start: string;
+  end: string | null;
+  durationDays: number;
+}
+
+const computeTargetEffective = (dep: TimeRangeDependency, allItems: Item[]): ComputedTarget | null => {
+  const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
+    ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
+  const srcEnd = toDate(srcVal?.end);
+  if (!srcEnd) return null;
+
+  const tgtItem = allItems.find((i) => i.id === dep.targetItemId);
+  if (!tgtItem) return null;
+  const tgtVal = tgtItem.values[dep.targetColumnId] as TimeRangeValue | null | undefined;
+
+  if (!toDate(tgtVal?.start)) return null;
+
+  const newStart = new Date(srcEnd);
+  newStart.setDate(newStart.getDate() + dep.offsetDays);
+
+  const rawStart = toDate(tgtVal?.start);
+  const rawEnd = toDate(tgtVal?.end);
+  const durMs = rawStart && rawEnd ? Math.max(0, rawEnd.getTime() - rawStart.getTime()) : 0;
+  const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+
+  return {
+    dep,
+    targetItemId: dep.targetItemId,
+    targetColumnId: dep.targetColumnId,
+    start: newStart.toISOString(),
+    end: newEnd?.toISOString() ?? null,
+    durationDays: durMs > 0 ? Math.round(durMs / 86_400_000) : (tgtVal?.durationDays ?? 1),
+  };
+};
 
 // ---------------------------------------------------------------------------
 // Traffic light
@@ -307,9 +373,13 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   const [hovered, setHovered] = useState(false);
   const [showDepMenu, setShowDepMenu] = useState<'in' | 'out' | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ x: number; y: number } | null>(null);
+  const [removeConfirm, setRemoveConfirm] = useState<{
+    depsToRemove: TimeRangeDependency[];
+    computedTargets: ComputedTarget[];
+  } | null>(null);
   const cellRef = useRef<HTMLDivElement | null>(null);
 
-  const closeMenu = () => setShowDepMenu(null);
+  const closeMenu = () => { setShowDepMenu(null); setRemoveConfirm(null); };
 
   const openDepMenu = (type: 'in' | 'out', btn: EventTarget & HTMLButtonElement) => {
     const r = btn.getBoundingClientRect();
@@ -359,8 +429,9 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     setEnd(toDateInput(rawValue?.end));
   }, [rawValue]);
 
-  const displayStart = toDate(rawValue?.start);
-  const displayEnd = toDate(rawValue?.end);
+  const depsIn = getDepsTo(item.id, column.id);
+  const { start: displayStart, end: displayEnd, isComputed } = resolveEffectiveDates(rawValue, depsIn, allItems);
+
   const isDependentCell = hasDepsIn;
 
   // ---------------------------------------------------------------------------
@@ -375,32 +446,6 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
         ? Math.max(0, Math.round((new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / 86_400_000))
         : (rawValue?.durationDays ?? 1);
     mutate({ id: item.id, patch: { values: { [column.id]: { start: nextStart, end: nextEnd, durationDays } } } });
-
-    // Propagate to dependent target cells when this source changes
-    if (nextEnd) {
-      for (const dep of getDepsFrom(item.id, column.id)) {
-        const tgtItem = allItems.find((i) => i.id === dep.targetItemId);
-        if (!tgtItem) continue;
-        const tgtVal = tgtItem.values[dep.targetColumnId] as TimeRangeValue | null | undefined;
-        if (!tgtVal?.start) continue; // don't touch cells that have no dates yet
-        const newStartMs = new Date(nextEnd).getTime() + dep.offsetDays * 86_400_000;
-        const tgtDur = tgtVal.durationDays ?? 0;
-        const newEndMs = tgtDur > 0 ? newStartMs + tgtDur * 86_400_000 : null;
-        mutate({
-          id: dep.targetItemId,
-          patch: {
-            values: {
-              [dep.targetColumnId]: {
-                start: new Date(newStartMs).toISOString(),
-                end: newEndMs ? new Date(newEndMs).toISOString() : (tgtVal.end ?? null),
-                durationDays: tgtDur,
-              },
-            },
-          },
-        });
-      }
-    }
-
     setHovered(false);
     stopEdit();
   };
@@ -410,12 +455,50 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   // ---------------------------------------------------------------------------
 
   const triggerRemoveIn = (dep: TimeRangeDependency) => {
-    removeDependency(dep);
-    closeMenu();
+    if (isComputed && displayStart) {
+      const durMs = displayEnd ? Math.max(0, displayEnd.getTime() - displayStart.getTime()) : 0;
+      setRemoveConfirm({
+        depsToRemove: [dep],
+        computedTargets: [{
+          dep,
+          targetItemId: item.id,
+          targetColumnId: column.id,
+          start: displayStart.toISOString(),
+          end: displayEnd?.toISOString() ?? null,
+          durationDays: durMs > 0 ? Math.round(durMs / 86_400_000) : (rawValue?.durationDays ?? 1),
+        }],
+      });
+    } else {
+      removeDependency(dep);
+      closeMenu();
+    }
   };
 
   const triggerRemoveOut = () => {
-    getDepsFrom(item.id, column.id).forEach((d) => removeDependency(d));
+    const deps = getDepsFrom(item.id, column.id);
+    const computedTargets = deps
+      .map((dep) => computeTargetEffective(dep, allItems))
+      .filter((x): x is ComputedTarget => x !== null);
+    if (computedTargets.length > 0) {
+      setRemoveConfirm({ depsToRemove: deps, computedTargets });
+    } else {
+      deps.forEach((d) => removeDependency(d));
+      closeMenu();
+    }
+  };
+
+  const handleKeepDates = () => {
+    if (!removeConfirm) return;
+    for (const t of removeConfirm.computedTargets) {
+      mutate({ id: t.targetItemId, patch: { values: { [t.targetColumnId]: { start: t.start, end: t.end, durationDays: t.durationDays } } } });
+    }
+    removeConfirm.depsToRemove.forEach((d) => removeDependency(d));
+    closeMenu();
+  };
+
+  const handleRevertDates = () => {
+    if (!removeConfirm) return;
+    removeConfirm.depsToRemove.forEach((d) => removeDependency(d));
     closeMenu();
   };
 
@@ -603,7 +686,45 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                 aria-label="Dependency options"
                 onClick={(e) => e.stopPropagation()}
               >
-                <>
+                {removeConfirm ? (
+                  <>
+                    <p className="px-3 pt-2 pb-1 text-[11px] font-semibold text-gray-700 leading-snug">
+                      {removeConfirm.computedTargets.length === 1 && removeConfirm.computedTargets[0].targetItemId === item.id
+                        ? 'This cell shows formula-driven dates.'
+                        : `${removeConfirm.computedTargets.length} target cell(s) show formula-driven dates.`}
+                    </p>
+                    <p className="px-3 pb-2 text-[10px] text-gray-400">
+                      Keep the current dates or revert to the original?
+                    </p>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-xs text-indigo-600 hover:bg-indigo-50 font-medium"
+                      onClick={handleKeepDates}
+                      aria-label="Keep formula-computed dates after removing link"
+                    >
+                      Keep current dates
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                      onClick={handleRevertDates}
+                      aria-label="Revert to original dates after removing link"
+                    >
+                      Revert to original dates
+                    </button>
+                    <div className="border-t border-gray-100 mt-1">
+                      <button
+                        type="button"
+                        className="w-full text-center px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50"
+                        onClick={closeMenu}
+                        aria-label="Cancel removal"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
                     <p className="px-3 pt-1 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
                       {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
                     </p>

@@ -182,13 +182,25 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
         return;
       }
 
+      // Compute offsetDays from the actual dates so the formula keeps the
+      // target's existing start date on creation — no visual change on link draw.
+      const srcEnd = (items.find((i) => i.id === source.itemId)
+        ?.values[source.columnId] as { end?: string | Date } | null | undefined)?.end;
+      const tgtItem0 = items.find((i) => i.id === target.itemId);
+      const tgtStart = (tgtItem0?.values[target.columnId] as { start?: string | Date } | null | undefined)?.start;
+      let offsetDays = 0;
+      if (srcEnd && tgtStart) {
+        const diffMs = new Date(tgtStart as string).getTime() - new Date(srcEnd as string).getTime();
+        offsetDays = Math.round(diffMs / 86_400_000);
+      }
+
       const newDep: TimeRangeDependency = {
         id: crypto.randomUUID(),
         sourceItemId: source.itemId,
         sourceColumnId: source.columnId,
         targetItemId: target.itemId,
         targetColumnId: target.columnId,
-        offsetDays: 0,
+        offsetDays,
       };
 
       if (hasCycle(allDeps, newDep)) {
