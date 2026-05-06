@@ -54,39 +54,31 @@ export const getChatMessages = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// POST /items/:itemId/chat/upload-url
+// POST /items/:itemId/chat/file
 //
-// Returns a short-lived signed PUT URL so the browser can upload a file
-// directly to Firebase Storage without the bytes ever passing through this
-// server.  Auth + size/type checks happen here; the actual upload is a plain
-// HTTP PUT from the client to Google's storage endpoint.
+// Receives a single file as raw binary (express.raw() in the route).
+// Content-Type header = the file's MIME type.
+// X-Filename header   = URL-encoded original filename.
 //
-// Prerequisites (one-time setup):
-//   1. Grant the Cloud Run service account the "Service Account Token Creator"
-//      role so it can sign URLs:
-//        gcloud projects add-iam-policy-binding PROJECT_ID \
-//          --member="serviceAccount:SA_EMAIL" \
-//          --role="roles/iam.serviceAccountTokenCreator"
-//   2. Configure CORS on the Storage bucket so browsers can PUT from your
-//      domain (run once from any machine with gsutil):
-//        gsutil cors set cors.json gs://YOUR_BUCKET
-//      where cors.json contains:
-//        [{"origin":["https://your-app.web.app","http://localhost:5173"],
-//          "method":["PUT"],"responseHeader":["Content-Type","x-goog-acl"],
-//          "maxAgeSeconds":3600}]
+// Uses the same file.save() + public:true pattern as profile image uploads —
+// no signed URL or extra IAM permissions required.
 // ---------------------------------------------------------------------------
-export const getChatUploadUrl = async (req: Request, res: Response) => {
+export const uploadChatFile = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const id = req.params.itemId ?? req.params.id;
-  const { filename, mimeType, size } = req.body;
+  const mimeType = (req.headers['content-type'] || '').split(';')[0].trim();
+  const rawFilename = req.headers['x-filename'];
+  const filename = typeof rawFilename === 'string'
+    ? decodeURIComponent(rawFilename).trim()
+    : 'file';
 
-  if (typeof filename !== 'string' || !filename.trim()) {
-    return res.status(400).json({ message: 'filename is required.' });
-  }
-  if (typeof mimeType !== 'string' || !ALLOWED_MIME_TYPES.has(mimeType)) {
+  if (!ALLOWED_MIME_TYPES.has(mimeType)) {
     return res.status(400).json({ message: `File type not allowed: ${mimeType}` });
   }
-  if (typeof size !== 'number' || size <= 0 || size > MAX_FILE_SIZE_BYTES) {
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    return res.status(400).json({ message: 'No file data received.' });
+  }
+  if (req.body.length > MAX_FILE_SIZE_BYTES) {
     return res.status(400).json({ message: 'File exceeds the 10 MB limit.' });
   }
 
@@ -99,25 +91,26 @@ export const getChatUploadUrl = async (req: Request, res: Response) => {
     const memberData = memberDoc.exists ? (memberDoc.data() as DBBoardMember) : null;
     assertItemAccess(user, item, 'update', memberData);
 
-    const safeName = filename.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
     const uniqueId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
     const storagePath = `chatFiles/${user.orgId}/${id}/${uniqueId}_${safeName}`;
-    const file = storage.bucket().file(storagePath);
+    const storageFile = storage.bucket().file(storagePath);
 
-    const [uploadUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'write',
-      expires: Date.now() + 5 * 60 * 1000, // 5 minutes
-      contentType: mimeType,
-      // x-goog-acl tells Storage to make the object publicly readable on upload
-      extensionHeaders: { 'x-goog-acl': 'public-read' },
+    await storageFile.save(req.body, {
+      metadata: { contentType: mimeType },
+      public: true,
     });
 
-    res.json({ uploadUrl, downloadUrl: file.publicUrl() });
+    res.status(201).json({
+      url: storageFile.publicUrl(),
+      name: filename,
+      mimeType,
+      size: req.body.length,
+    });
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
-    logger.error(`Error generating upload URL for item ${req.params.itemId ?? req.params.id}:`, err);
-    res.status(500).json({ message: 'Failed to generate upload URL.' });
+    logger.error(`Error uploading chat file for item ${id}:`, err);
+    res.status(500).json({ message: 'Failed to upload file.' });
   }
 };
 

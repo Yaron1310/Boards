@@ -313,33 +313,18 @@ export const removeBoardMember = (boardId: string, userId: string): Promise<null
 export const listChatMessages = (itemId: string): Promise<ChatMessage[]> =>
   fetchWithAuth(`/api/items/${itemId}/chat`);
 
-async function uploadFileToStorage(
+async function uploadFileToBackend(
   itemId: string,
   file: File,
 ): Promise<{ url: string; name: string; mimeType: string; size: number }> {
-  // 1. Ask our backend for a short-lived signed PUT URL for this file
-  const { uploadUrl, downloadUrl } = await fetchWithAuth(
-    `/api/items/${itemId}/chat/upload-url`,
-    {
-      method: 'POST',
-      body: JSON.stringify({ filename: file.name, mimeType: file.type, size: file.size }),
-    },
-  ) as { uploadUrl: string; downloadUrl: string };
-
-  // 2. PUT the file directly to Firebase Storage — bypasses our backend entirely
-  const uploadRes = await fetch(uploadUrl, {
-    method: 'PUT',
+  return fetchWithAuth(`/api/items/${itemId}/chat/file`, {
+    method: 'POST',
     headers: {
       'Content-Type': file.type,
-      'x-goog-acl': 'public-read',
+      'X-Filename': encodeURIComponent(file.name),
     },
     body: file,
-  });
-  if (!uploadRes.ok) {
-    throw new Error(`Storage upload failed: ${uploadRes.status}`);
-  }
-
-  return { url: downloadUrl, name: file.name, mimeType: file.type, size: file.size };
+  }) as Promise<{ url: string; name: string; mimeType: string; size: number }>;
 }
 
 export const postChatMessage = async (
@@ -347,10 +332,9 @@ export const postChatMessage = async (
   text: string,
   files?: File[],
 ): Promise<ChatMessage> => {
-  // Upload all files in parallel directly to Storage, then send only metadata
   const attachments =
     files && files.length > 0
-      ? await Promise.all(files.map((f) => uploadFileToStorage(itemId, f)))
+      ? await Promise.all(files.map((f) => uploadFileToBackend(itemId, f)))
       : [];
 
   return fetchWithAuth(`/api/items/${itemId}/chat`, {

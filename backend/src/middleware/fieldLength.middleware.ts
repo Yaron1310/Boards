@@ -62,7 +62,7 @@ function findViolation(
  * in req.body. Fields listed in LARGE_FIELD_LIMITS are exempt from the default limit.
  */
 export const enforceFieldLength = (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.body || typeof req.body !== 'object') {
+    if (!req.body || typeof req.body !== 'object' || Buffer.isBuffer(req.body)) {
         next();
         return;
     }

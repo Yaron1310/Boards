@@ -41,11 +41,15 @@ export const createApp = async (): Promise<Application> => {
     app.use(cookieParser());
     app.use(express.json({
         limit: '10mb',
-        // Skip JSON parsing for multipart/form-data (let multer handle it)
+        // Only parse requests whose Content-Type looks like JSON or text.
+        // Multipart and binary types (images, PDFs, …) are handled at route level
+        // by express.raw(), so we must not consume the stream here.
         type: (req) => {
-            const contentType = req.headers['content-type'] || '';
-            return !contentType.includes('multipart/form-data') ? 'application/json' : false;
-        }
+            const ct = req.headers['content-type'] || '';
+            if (ct.includes('multipart/form-data')) return false;
+            if (ct && !ct.includes('json') && !ct.includes('text') && !ct.includes('urlencoded')) return false;
+            return 'application/json';
+        },
     }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     app.use(enforceFieldLength);
