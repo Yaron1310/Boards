@@ -112,6 +112,7 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
 
   const selectedWorkspace = workspaces.find((w) => w.id === selectedId) ?? null;
   const selectedName = selectedWorkspace?.name ?? 'Select WorkHub…';
+  const selectedColor = selectedWorkspace ? (localStorage.getItem(`workspaceColor_${selectedWorkspace.id}`) || '#FFB3C1') : '#FFB3C1';
 
   return (
     <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
@@ -126,7 +127,10 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
           aria-expanded={isDropdownOpen}
           aria-label="Select WorkHub"
         >
-          <span className="truncate">{selectedName}</span>
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: selectedColor }} aria-hidden="true" />
+            <span className="truncate">{selectedName}</span>
+          </div>
           <FiChevronDown size={14} aria-hidden="true" className="ml-2 flex-shrink-0" style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
         </button>
 

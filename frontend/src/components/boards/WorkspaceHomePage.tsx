@@ -14,16 +14,29 @@ import PreApproveUsersModal from '../admin/PreApproveUsersModal';
 import ConfirmationModal from '../admin/shared/ConfirmationModal';
 import ArchiveRestoreModal from '../admin/shared/ArchiveRestoreModal';
 
-const WORKSPACE_COLORS = [
-  { name: 'Pink', value: '#FFB3C1' },
-  { name: 'Blue', value: '#ADD8E6' },
-  { name: 'Green', value: '#90EE90' },
-  { name: 'Yellow', value: '#FFFF99' },
-  { name: 'Purple', value: '#D8BFD8' },
-  { name: 'Orange', value: '#FFCC99' },
-  { name: 'Cyan', value: '#AFEEEE' },
-  { name: 'Rose', value: '#FFB6C1' },
+// 8 distinct base hues × 3 opacity rows
+const BASE_HUE_COLORS = [
+  { name: 'Red',    value: '#E53E3E' },
+  { name: 'Orange', value: '#ED8936' },
+  { name: 'Yellow', value: '#ECC94B' },
+  { name: 'Green',  value: '#48BB78' },
+  { name: 'Teal',   value: '#38B2AC' },
+  { name: 'Blue',   value: '#4299E1' },
+  { name: 'Purple', value: '#9F7AEA' },
+  { name: 'Indigo', value: '#667EEA' },
 ];
+
+const WORKSPACE_COLOR_ROWS = [
+  // Row 1: full opacity (solid)
+  BASE_HUE_COLORS.map((c) => ({ name: c.name, value: c.value })),
+  // Row 2: 50% opacity (hex alpha 80)
+  BASE_HUE_COLORS.map((c) => ({ name: `${c.name} Light`, value: `${c.value}80` })),
+  // Row 3: 80% transparent = 20% opacity (hex alpha 33)
+  BASE_HUE_COLORS.map((c) => ({ name: `${c.name} Pale`, value: `${c.value}33` })),
+];
+
+// Flat list kept for backward compat
+const WORKSPACE_COLORS = WORKSPACE_COLOR_ROWS.flat();
 
 // --- MODAL COMPONENTS ---
 
@@ -58,17 +71,21 @@ const AddWorkspaceModal = ({
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Color
               </label>
-              <div className="flex flex-wrap gap-2">
-                {WORKSPACE_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setColor(c.value)}
-                    className={`w-8 h-8 rounded-lg border-2 transition-all ${color === c.value ? 'border-gray-800' : 'border-gray-300'}`}
-                    style={{ backgroundColor: `${c.value}33` }}
-                    aria-label={`Select ${c.name} color`}
-                    title={c.name}
-                  />
+              <div className="space-y-2">
+                {WORKSPACE_COLOR_ROWS.map((row, rowIdx) => (
+                  <div key={rowIdx} className="flex gap-2">
+                    {row.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setColor(c.value)}
+                        className={`w-8 h-8 rounded-lg border-2 transition-all ${color === c.value ? 'border-gray-800 scale-110' : 'border-gray-300 hover:border-gray-500'}`}
+                        style={{ backgroundColor: c.value }}
+                        aria-label={`Select ${c.name} color`}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
@@ -114,17 +131,21 @@ const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEd
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Color
               </label>
-              <div className="flex flex-wrap gap-2">
-                {WORKSPACE_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setColor(c.value)}
-                    className={`w-8 h-8 rounded-lg border-2 transition-all ${color === c.value ? 'border-gray-800' : 'border-gray-300'}`}
-                    style={{ backgroundColor: `${c.value}33` }}
-                    aria-label={`Select ${c.name} color`}
-                    title={c.name}
-                  />
+              <div className="space-y-2">
+                {WORKSPACE_COLOR_ROWS.map((row, rowIdx) => (
+                  <div key={rowIdx} className="flex gap-2">
+                    {row.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setColor(c.value)}
+                        className={`w-8 h-8 rounded-lg border-2 transition-all ${color === c.value ? 'border-gray-800 scale-110' : 'border-gray-300 hover:border-gray-500'}`}
+                        style={{ backgroundColor: c.value }}
+                        aria-label={`Select ${c.name} color`}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
@@ -179,7 +200,7 @@ const WorkspaceHomePage: React.FC = () => {
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgColor, setNewOrgColor] = useState(WORKSPACE_COLORS[0].value);
+  const [newOrgColor, setNewOrgColor] = useState(WORKSPACE_COLOR_ROWS[0][0].value);
   const [orgToEdit, setOrgToEdit] = useState<Workspace | null>(null);
   const [editOrgData, setEditOrgData] = useState<{ name: string }>({ name: '' });
   const [editOrgColor, setEditOrgColor] = useState('');
@@ -251,7 +272,7 @@ const WorkspaceHomePage: React.FC = () => {
   const handleOpenEditModal = (ws: Workspace) => {
     clearFeedback();
     setEditOrgData({ name: ws.name });
-    const savedColor = localStorage.getItem(`workspaceColor_${ws.id}`) || WORKSPACE_COLORS[0].value;
+    const savedColor = localStorage.getItem(`workspaceColor_${ws.id}`) || WORKSPACE_COLOR_ROWS[0][0].value;
     setEditOrgColor(savedColor);
     setOrgToEdit(ws);
   };
@@ -378,16 +399,16 @@ const WorkspaceHomePage: React.FC = () => {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="WorkHubs">
           {workspaces.map((ws) => {
-            const wsColor = localStorage.getItem(`workspaceColor_${ws.id}`) || WORKSPACE_COLORS[0].value;
+            const wsColor = localStorage.getItem(`workspaceColor_${ws.id}`) || WORKSPACE_COLOR_ROWS[0][0].value;
             return (
               <div key={ws.id} className="relative group" role="listitem">
                 <Link
                   to={`/WorkHubs/${ws.id}/boards`}
                   aria-label={`Open WorkHub ${ws.name}`}
                   className="flex items-center gap-4 p-5 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all"
-                  style={{ backgroundColor: `${wsColor}33` }}
+                  style={{ backgroundColor: wsColor }}
                 >
-                  <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${wsColor}66` }}>
+                  <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-white bg-opacity-40">
                     <FiGrid className="text-gray-700" size={20} aria-hidden="true" />
                   </div>
                   <div className="min-w-0">

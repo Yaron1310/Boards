@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
+import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { UserRole } from '../../types';
 import {
@@ -48,6 +49,10 @@ const BoardListPage: React.FC = () => {
       setIsImporting(false);
     }
   };
+
+  const { data: allWorkspaces = [] } = useWorkspacesQuery();
+  const currentWorkspace = allWorkspaces.find((w) => w.id === workspaceId);
+  const workspaceName = currentWorkspace?.name ?? 'Boards';
 
   const { data: boards = [], isLoading, error } = useBoards(workspaceId, false, !!workspaceId);
   const { data: archivedBoards = [], isLoading: archivedLoading, refetch: refetchArchived } = useBoards(
@@ -123,7 +128,7 @@ const BoardListPage: React.FC = () => {
         </button>
       </div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">Boards</h1>
+        <h1 className="text-2xl font-bold text-gray-800">{workspaceName}</h1>
         <div className="flex items-center gap-3">
           {canManageBoards && (
             <button
