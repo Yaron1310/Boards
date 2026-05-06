@@ -413,7 +413,11 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
       className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] w-max rounded-bl-xl"
       style={{ backgroundColor: `${groupColor}16` }}
     >
-      <div className={`flex-shrink-0 ${ITEM_SECTION_WIDTH}`} aria-hidden="true" />
+      <div
+        className={`flex-shrink-0 ${ITEM_SECTION_WIDTH} sticky left-4 z-[1]`}
+        style={{ backgroundColor: `${groupColor}16` }}
+        aria-hidden="true"
+      />
       {columns.map((col, index) => (
         <SummaryCell
           key={col.id}
