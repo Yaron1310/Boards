@@ -73,6 +73,7 @@ export interface UpdateBoardData {
   name?: string;
   description?: string;
   order?: number;
+  workspaceId?: string;
 }
 
 export const createBoard = (data: CreateBoardData): Promise<Board> =>

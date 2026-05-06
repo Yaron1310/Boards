@@ -4,14 +4,15 @@ import { useTranslation } from 'react-i18next';
 import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { useAuth } from '../../hooks/useAuth';
-import { UserRole } from '../../types';
+import { UserRole, Board } from '../../types';
 import {
-  FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX,
+  FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX, FiEdit,
   FiRotateCcw, FiLoader, FiInbox, FiTrash2, FiDownload,
 } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import CreateBoardModal from './CreateBoardModal';
+import EditBoardModal from './EditBoardModal';
 import { importBoardFromXlsx } from '../../utils/importBoardFromXlsx';
 
 const BoardListPage: React.FC = () => {
@@ -21,6 +22,7 @@ const BoardListPage: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = React.useState(false);
+  const [editingBoard, setEditingBoard] = React.useState<Board | null>(null);
   const [showArchiveModal, setShowArchiveModal] = React.useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
   const [isImporting, setIsImporting] = React.useState(false);
@@ -245,6 +247,15 @@ const BoardListPage: React.FC = () => {
                     <>
                       <button
                         type="button"
+                        onClick={() => setEditingBoard(board)}
+                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                        aria-label={`Edit board ${board.name}`}
+                        title="Edit"
+                      >
+                        <FiEdit size={15} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => void handleArchive(board.id)}
                         className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
                         aria-label={`Archive board ${board.name}`}
@@ -274,6 +285,13 @@ const BoardListPage: React.FC = () => {
         <CreateBoardModal
           workspaceId={workspaceId}
           onClose={() => setShowCreateModal(false)}
+        />
+      )}
+
+      {editingBoard && (
+        <EditBoardModal
+          board={editingBoard}
+          onClose={() => setEditingBoard(null)}
         />
       )}
 

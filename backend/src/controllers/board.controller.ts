@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { boardsCollection, boardVersionsCollection, groupsCollection, workspacesCollection, boardMembersCollection } from '../db/collections.js';
+import { boardsCollection, boardVersionsCollection, groupsCollection, workspacesCollection, boardMembersCollection, itemsCollection } from '../db/collections.js';
 import { JwtUserPayload, DBBoard, DBBoardMember } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -178,7 +178,7 @@ export const getBoardById = async (req: Request, res: Response) => {
 export const updateBoard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { id } = req.params;
-  const { name, description, order } = req.body;
+  const { name, description, order, workspaceId: newWorkspaceId } = req.body;
 
   try {
     const doc = await boardsCollection(user.orgId).doc(id).get();
@@ -193,6 +193,32 @@ export const updateBoard = async (req: Request, res: Response) => {
     if (name !== undefined) updateData.name = sanitizeText(String(name));
     if (description !== undefined) updateData.description = description ? sanitizeText(String(description)) : null;
     if (order !== undefined) updateData.order = Number(order);
+
+    // Handle workspace move
+    if (newWorkspaceId !== undefined && newWorkspaceId !== board.workspaceId) {
+      if (typeof newWorkspaceId !== 'string' || !newWorkspaceId) {
+        return res.status(400).json({ message: 'Invalid workspaceId.' });
+      }
+      const wsDoc = await workspacesCollection.doc(newWorkspaceId).get();
+      if (!wsDoc.exists || (wsDoc.data() as { orgId?: string })?.orgId !== user.orgId) {
+        return res.status(400).json({ message: 'Target WorkHub not found in this organization.' });
+      }
+      updateData.workspaceId = newWorkspaceId;
+
+      // Batch-update denormalized workspaceId on all items belonging to this board
+      const itemsSnap = await itemsCollection(user.orgId).where('boardId', '==', id).get();
+      if (!itemsSnap.empty) {
+        const BATCH_SIZE = 400;
+        const docs = itemsSnap.docs;
+        for (let i = 0; i < docs.length; i += BATCH_SIZE) {
+          const batch = db.batch();
+          docs.slice(i, i + BATCH_SIZE).forEach((d) => {
+            batch.update(d.ref, { workspaceId: newWorkspaceId });
+          });
+          await batch.commit();
+        }
+      }
+    }
 
     await boardsCollection(user.orgId).doc(id).update(updateData);
     const updated = snapshotToData<DBBoard>(await boardsCollection(user.orgId).doc(id).get());
