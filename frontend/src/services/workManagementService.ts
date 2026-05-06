@@ -310,33 +310,47 @@ export const removeBoardMember = (boardId: string, userId: string): Promise<null
 
 // ─── ITEM CHAT ────────────────────────────────────────────────────────────────
 
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 export const listChatMessages = (itemId: string): Promise<ChatMessage[]> =>
   fetchWithAuth(`/api/items/${itemId}/chat`);
+
+async function uploadFileToStorage(
+  itemId: string,
+  file: File,
+): Promise<{ url: string; name: string; mimeType: string; size: number }> {
+  // 1. Ask our backend for a short-lived signed PUT URL for this file
+  const { uploadUrl, downloadUrl } = await fetchWithAuth(
+    `/api/items/${itemId}/chat/upload-url`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ filename: file.name, mimeType: file.type, size: file.size }),
+    },
+  ) as { uploadUrl: string; downloadUrl: string };
+
+  // 2. PUT the file directly to Firebase Storage — bypasses our backend entirely
+  const uploadRes = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': file.type,
+      'x-goog-acl': 'public-read',
+    },
+    body: file,
+  });
+  if (!uploadRes.ok) {
+    throw new Error(`Storage upload failed: ${uploadRes.status}`);
+  }
+
+  return { url: downloadUrl, name: file.name, mimeType: file.type, size: file.size };
+}
 
 export const postChatMessage = async (
   itemId: string,
   text: string,
   files?: File[],
 ): Promise<ChatMessage> => {
+  // Upload all files in parallel directly to Storage, then send only metadata
   const attachments =
     files && files.length > 0
-      ? await Promise.all(
-          files.map(async (f) => ({
-            name: f.name,
-            mimeType: f.type,
-            size: f.size,
-            base64: await fileToBase64(f),
-          })),
-        )
+      ? await Promise.all(files.map((f) => uploadFileToStorage(itemId, f)))
       : [];
 
   return fetchWithAuth(`/api/items/${itemId}/chat`, {

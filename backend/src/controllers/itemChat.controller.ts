@@ -25,26 +25,8 @@ function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
 }
 
-async function uploadChatFileToStorage(
-  buffer: Buffer,
-  orgId: string,
-  itemId: string,
-  messageId: string,
-  originalName: string,
-  contentType: string,
-): Promise<string> {
-  const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const path = `chatFiles/${orgId}/${itemId}/${messageId}_${safeName}`;
-  const file = storage.bucket().file(path);
-  await file.save(buffer, {
-    metadata: { contentType, cacheControl: 'public, max-age=86400' },
-    public: true,
-  });
-  return file.publicUrl();
-}
-
 // ---------------------------------------------------------------------------
-// GET /items/:id/chat
+// GET /items/:itemId/chat
 // ---------------------------------------------------------------------------
 export const getChatMessages = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
@@ -63,8 +45,7 @@ export const getChatMessages = async (req: Request, res: Response) => {
       .orderBy('createdAt', 'asc')
       .get();
 
-    const messages = querySnapshotToArray<DBChatMessage>(snap);
-    res.json(messages);
+    res.json(querySnapshotToArray<DBChatMessage>(snap));
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error(`Error fetching chat for item ${req.params.itemId ?? req.params.id}:`, err);
@@ -72,21 +53,86 @@ export const getChatMessages = async (req: Request, res: Response) => {
   }
 };
 
-interface IncomingAttachment {
-  name: string;
-  mimeType: string;
-  size: number;
-  base64: string; // data:<mime>;base64,<data>  or raw base64
-}
+// ---------------------------------------------------------------------------
+// POST /items/:itemId/chat/upload-url
+//
+// Returns a short-lived signed PUT URL so the browser can upload a file
+// directly to Firebase Storage without the bytes ever passing through this
+// server.  Auth + size/type checks happen here; the actual upload is a plain
+// HTTP PUT from the client to Google's storage endpoint.
+//
+// Prerequisites (one-time setup):
+//   1. Grant the Cloud Run service account the "Service Account Token Creator"
+//      role so it can sign URLs:
+//        gcloud projects add-iam-policy-binding PROJECT_ID \
+//          --member="serviceAccount:SA_EMAIL" \
+//          --role="roles/iam.serviceAccountTokenCreator"
+//   2. Configure CORS on the Storage bucket so browsers can PUT from your
+//      domain (run once from any machine with gsutil):
+//        gsutil cors set cors.json gs://YOUR_BUCKET
+//      where cors.json contains:
+//        [{"origin":["https://your-app.web.app","http://localhost:5173"],
+//          "method":["PUT"],"responseHeader":["Content-Type","x-goog-acl"],
+//          "maxAgeSeconds":3600}]
+// ---------------------------------------------------------------------------
+export const getChatUploadUrl = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const id = req.params.itemId ?? req.params.id;
+  const { filename, mimeType, size } = req.body;
+
+  if (typeof filename !== 'string' || !filename.trim()) {
+    return res.status(400).json({ message: 'filename is required.' });
+  }
+  if (typeof mimeType !== 'string' || !ALLOWED_MIME_TYPES.has(mimeType)) {
+    return res.status(400).json({ message: `File type not allowed: ${mimeType}` });
+  }
+  if (typeof size !== 'number' || size <= 0 || size > MAX_FILE_SIZE_BYTES) {
+    return res.status(400).json({ message: 'File exceeds the 10 MB limit.' });
+  }
+
+  try {
+    const doc = await itemsCollection(user.orgId).doc(id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
+
+    const item = snapshotToData<DBItem>(doc)!;
+    const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? (memberDoc.data() as DBBoardMember) : null;
+    assertItemAccess(user, item, 'update', memberData);
+
+    const safeName = filename.trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+    const uniqueId = Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+    const storagePath = `chatFiles/${user.orgId}/${id}/${uniqueId}_${safeName}`;
+    const file = storage.bucket().file(storagePath);
+
+    const [uploadUrl] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'write',
+      expires: Date.now() + 5 * 60 * 1000, // 5 minutes
+      contentType: mimeType,
+      // x-goog-acl tells Storage to make the object publicly readable on upload
+      extensionHeaders: { 'x-goog-acl': 'public-read' },
+    });
+
+    res.json({ uploadUrl, downloadUrl: file.publicUrl() });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error generating upload URL for item ${req.params.itemId ?? req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to generate upload URL.' });
+  }
+};
 
 // ---------------------------------------------------------------------------
-// POST /items/:id/chat   (JSON body: { text, attachments? })
+// POST /items/:itemId/chat
+//
+// JSON body: { text: string, attachments?: [{ url, name, mimeType, size }] }
+// Files are already in Storage at this point — this endpoint only writes
+// metadata to Firestore.
 // ---------------------------------------------------------------------------
 export const postChatMessage = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const id = req.params.itemId ?? req.params.id;
   const text: string = typeof req.body.text === 'string' ? req.body.text.trim() : '';
-  const rawAttachments: IncomingAttachment[] = Array.isArray(req.body.attachments)
+  const rawAttachments: DBChatAttachment[] = Array.isArray(req.body.attachments)
     ? req.body.attachments
     : [];
 
@@ -100,18 +146,6 @@ export const postChatMessage = async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'Maximum 5 attachments per message.' });
   }
 
-  // Validate each attachment before touching the DB
-  for (const att of rawAttachments) {
-    if (!ALLOWED_MIME_TYPES.has(att.mimeType)) {
-      return res.status(400).json({ message: `File type not allowed: ${att.mimeType}` });
-    }
-    const base64Data = att.base64.replace(/^data:[^;]+;base64,/, '');
-    const estimatedBytes = Math.ceil(base64Data.length * 0.75);
-    if (estimatedBytes > MAX_FILE_SIZE_BYTES) {
-      return res.status(400).json({ message: `File "${att.name}" exceeds the 10 MB limit.` });
-    }
-  }
-
   try {
     const doc = await itemsCollection(user.orgId).doc(id).get();
     if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
@@ -123,30 +157,18 @@ export const postChatMessage = async (req: Request, res: Response) => {
 
     const authorDoc = await usersCollection.doc(user.id).get();
     const authorData = authorDoc.exists ? (authorDoc.data() as DBUser) : null;
-    const authorName = authorData?.name ?? user.id;
-    const authorProfileImageUrl = authorData?.profileImageUrl ?? '';
 
     const messageRef = itemChatMessagesCollection(user.orgId, id).doc();
-    const messageId = messageRef.id;
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
 
-    // Upload attachments to Firebase Storage
-    const attachments: DBChatAttachment[] = [];
-    for (const att of rawAttachments) {
-      const base64Data = att.base64.replace(/^data:[^;]+;base64,/, '');
-      const buffer = Buffer.from(base64Data, 'base64');
-      const url = await uploadChatFileToStorage(buffer, user.orgId, id, messageId, att.name, att.mimeType);
-      attachments.push({ url, name: att.name, mimeType: att.mimeType, size: att.size });
-    }
-
     const messageData: Record<string, unknown> = {
-      id: messageId,
+      id: messageRef.id,
       itemId: id,
       authorId: user.id,
-      authorName,
-      authorProfileImageUrl,
+      authorName: authorData?.name ?? user.id,
+      authorProfileImageUrl: authorData?.profileImageUrl ?? '',
       text,
-      attachments,
+      attachments: rawAttachments,
       createdAt: timestamp,
     };
 
