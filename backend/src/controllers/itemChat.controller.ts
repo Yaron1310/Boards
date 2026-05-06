@@ -33,7 +33,7 @@ async function uploadChatFileToStorage(
 // ---------------------------------------------------------------------------
 export const getChatMessages = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  const { id } = req.params;
+  const id = req.params.itemId ?? req.params.id;
 
   try {
     const doc = await itemsCollection(user.orgId).doc(id).get();
@@ -52,7 +52,7 @@ export const getChatMessages = async (req: Request, res: Response) => {
     res.json(messages);
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
-    logger.error(`Error fetching chat for item ${req.params.id}:`, err);
+    logger.error(`Error fetching chat for item ${req.params.itemId ?? req.params.id}:`, err);
     res.status(500).json({ message: 'Failed to fetch chat messages.' });
   }
 };
@@ -62,7 +62,7 @@ export const getChatMessages = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 export const postChatMessage = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  const { id } = req.params;
+  const id = req.params.itemId ?? req.params.id;
   const text: string = typeof req.body.text === 'string' ? req.body.text.trim() : '';
   const files = req.files as Express.Multer.File[] | undefined;
 
@@ -138,7 +138,7 @@ export const postChatMessage = async (req: Request, res: Response) => {
     res.status(201).json(created);
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
-    logger.error(`Error posting chat message for item ${req.params.id}:`, err);
+    logger.error(`Error posting chat message for item ${req.params.itemId ?? req.params.id}:`, err);
     res.status(500).json({ message: 'Failed to post chat message.' });
   }
 };

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader } from 'react-icons/fi';
+import { createPortal } from 'react-dom';
+import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader, FiMessageSquare } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useItem, useUpdateItem, useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
 import { useAuth } from '../../hooks/useAuth';
@@ -7,6 +8,7 @@ import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import ItemChatModal, { getUnreadCount } from './ItemChatModal';
 
 interface ItemDetailPanelProps {
   item: Item;
@@ -27,6 +29,9 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(item.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+
+  const unreadCount = user ? getUnreadCount(user.id, item) : 0;
   const nameInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef);
@@ -135,6 +140,22 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
           </div>
           <button
             type="button"
+            onClick={() => setChatOpen(true)}
+            className="relative flex items-center justify-center p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors flex-shrink-0"
+            aria-label={`Open chat for ${item.name}`}
+          >
+            <FiMessageSquare size={16} aria-hidden="true" />
+            {unreadCount > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full leading-none"
+                aria-label={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
+              >
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 flex-shrink-0"
             aria-label="Close item detail panel"
@@ -235,6 +256,11 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
           </div>
         )}
       </div>
+
+      {chatOpen && createPortal(
+        <ItemChatModal item={item} onClose={() => setChatOpen(false)} />,
+        document.body,
+      )}
     </>
   );
 };

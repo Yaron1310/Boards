@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageCircle } from 'react-icons/fi';
+import { createPortal } from 'react-dom';
+import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare } from 'react-icons/fi';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
@@ -190,7 +191,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => 
             className="relative flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
             aria-label={`Open chat for ${item.name}`}
           >
-            <FiMessageCircle size={13} aria-hidden="true" />
+            <FiMessageSquare size={13} aria-hidden="true" />
             {unreadCount > 0 && (
               <span
                 className="absolute -top-1 -right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full leading-none"
@@ -208,9 +209,10 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => 
         <ColumnCell key={col.id} item={item} column={col} />
       ))}
 
-      {/* Chat modal — rendered outside the row to avoid overflow clipping */}
-      {chatOpen && (
-        <ItemChatModal item={item} onClose={() => setChatOpen(false)} />
+      {/* Chat modal — portalled to body to escape DnD transform stacking context */}
+      {chatOpen && createPortal(
+        <ItemChatModal item={item} onClose={() => setChatOpen(false)} />,
+        document.body,
       )}
     </div>
   );
