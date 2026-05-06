@@ -79,6 +79,19 @@ const AGGREGATABLE_TYPES = new Set([
   ColumnType.SIMPLE_FORMULA,
 ]);
 
+// Column types that only support count (non-empty values)
+const COUNT_ONLY_TYPES = new Set([
+  ColumnType.TEXT,
+  ColumnType.EMAIL,
+  ColumnType.PERSON,
+  ColumnType.DROPDOWN,
+  ColumnType.STATUS,
+  ColumnType.TAGS,
+  ColumnType.LOCATION,
+  ColumnType.PHONE,
+  ColumnType.DATE,
+]);
+
 const CALC_LABEL: Record<CalcMode, string> = {
   none: 'None', sum: 'Sum', avg: 'Average', median: 'Median',
   min: 'Min', max: 'Max', count: 'Count',
@@ -100,10 +113,11 @@ interface PopoverProps {
   onClose: () => void;
   isCheckbox: boolean;
   isTimeType: boolean;
+  isCountOnly: boolean;
 }
 
 const SummaryPopover: React.FC<PopoverProps> = ({
-  anchorRect, config, onChange, onClose, isCheckbox, isTimeType,
+  anchorRect, config, onChange, onClose, isCheckbox, isTimeType, isCountOnly,
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [customUnit, setCustomUnit] = useState<string>(
@@ -141,7 +155,7 @@ const SummaryPopover: React.FC<PopoverProps> = ({
   const isCustomActive = !PRESET_UNITS.includes(config.unit) && config.unit !== '';
   const isNoneUnitActive = config.unit === '';
 
-  const availableCalcs = isCheckbox
+  const availableCalcs = (isCheckbox || isCountOnly)
     ? (['none', 'count'] as CalcMode[])
     : ALL_CALCS;
 
@@ -172,8 +186,8 @@ const SummaryPopover: React.FC<PopoverProps> = ({
         ))}
       </div>
 
-      {/* Unit — hidden for time/checkbox columns */}
-      {!isTimeType && !isCheckbox && (
+      {/* Unit — hidden for time/checkbox/count-only columns */}
+      {!isTimeType && !isCheckbox && !isCountOnly && (
         <>
           <p className="text-sm font-semibold text-gray-700 mb-2">Unit</p>
           <div className="flex items-center gap-1.5 flex-wrap">
@@ -244,13 +258,15 @@ interface SummaryCellProps {
 const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFirst }) => {
   const isCheckbox = col.type === ColumnType.CHECKBOX;
   const isTimeType = col.type === ColumnType.TIME || col.type === ColumnType.TIME_RANGE;
-  const defaultCalc: CalcMode = isCheckbox ? 'count' : 'sum';
+  const isCountOnly = COUNT_ONLY_TYPES.has(col.type);
+  const defaultCalc: CalcMode = (isCheckbox || isCountOnly) ? 'count' : 'sum';
 
   const [config, setConfig] = useState<CellConfig>(() => loadConfig(col.id, defaultCalc));
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
+  const isInteractive = isAggregatable || isCountOnly;
   const colWidth = calculateColumnWidth(col.name, col.type);
 
   const handleChange = useCallback((c: CellConfig) => {
@@ -310,6 +326,19 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
     const { calc } = config;
     if (calc === 'none') return null;
 
+    if (isCountOnly) {
+      if (calc === 'count') {
+        const filled = items.filter((i) => {
+          const v = i.values[col.id];
+          if (v == null || v === '') return false;
+          if (Array.isArray(v)) return v.length > 0;
+          return true;
+        }).length;
+        return `${filled}/${items.length}`;
+      }
+      return null;
+    }
+
     if (isCheckbox) {
       if (calc === 'count') {
         const checked = items.filter((i) => Boolean(i.values[col.id])).length;
@@ -359,8 +388,8 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
     return applyUnit(formatted, config.unit, config.unitAlign);
   }
 
-  const value = isAggregatable ? computeValue() : null;
-  const badge = isAggregatable && config.calc !== 'none' ? CALC_BADGE[config.calc] : null;
+  const value = isInteractive ? computeValue() : null;
+  const badge = isInteractive && config.calc !== 'none' ? CALC_BADGE[config.calc] : null;
 
   return (
     <div
@@ -369,7 +398,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
       style={{ width: `${colWidth}px` }}
       className={`relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2${isFirst ? ' border-l border-[#d2d2d4]' : ''}`}
     >
-      {isAggregatable && (
+      {isInteractive && (
         <button
           ref={btnRef}
           type="button"
@@ -398,6 +427,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
           onClose={() => setAnchorRect(null)}
           isCheckbox={isCheckbox}
           isTimeType={isTimeType}
+          isCountOnly={isCountOnly}
         />
       )}
     </div>
@@ -413,8 +443,10 @@ interface Props {
 }
 
 const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
-  const hasAggregatable = columns.some((c) => AGGREGATABLE_TYPES.has(c.type));
-  if (!hasAggregatable) return null;
+  const hasSummaryColumns = columns.some(
+    (c) => AGGREGATABLE_TYPES.has(c.type) || COUNT_ONLY_TYPES.has(c.type),
+  );
+  if (!hasSummaryColumns) return null;
 
   const nonArchived = items.filter((i) => !i.isArchived);
   const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
