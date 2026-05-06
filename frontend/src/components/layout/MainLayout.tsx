@@ -619,7 +619,7 @@ const ContentLoader: React.FC = () => (
 const MainLayout: React.FC = () => {
   const { t, i18n } = useTranslation();
   const { user, logout, selectedWorkspace, loading: authLoading } = useAuth();
-  const { organizationSettings } = useData();
+  const { organizationSettings, isLoading: dataLoading } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -675,10 +675,7 @@ const MainLayout: React.FC = () => {
   const isThemeMissing = user && user.role !== UserRole.SYSTEM_ADMIN && !organizationSettings;
   const isThemeMismatched = user && user.role !== UserRole.SYSTEM_ADMIN && selectedWorkspace && organizationSettings && organizationSettings.id !== selectedWorkspace.orgId;
 
-  // isThemeMissing (organizationSettings not yet loaded) is intentionally excluded here.
-  // The layout renders fine with default theme fallbacks while organizationSettings loads
-  // in the background — blocking the entire UI causes blank content after tab restore.
-  if (authLoading || isThemeMismatched) {
+  if (authLoading || isThemeMismatched || (isThemeMissing && dataLoading)) {
     return (
       <div className="flex justify-center items-center h-screen w-screen bg-gray-100">
         <FiLoader className="animate-spin h-12 w-12 text-blue-500" />

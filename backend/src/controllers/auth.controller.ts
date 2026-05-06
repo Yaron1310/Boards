@@ -31,7 +31,7 @@ const AUTH_COOKIE_OPTIONS = {
     secure: isProduction,
     sameSite: isProduction ? 'none' as const : 'lax' as const,
     path: '/',
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours — matches JWT expiry
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days — matches JWT expiry
 };
 
 const PARTIAL_COOKIE_OPTIONS = {
@@ -217,7 +217,7 @@ export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceI
         selectedWorkspaceId: selectedWorkspace.id,
         orgId: orgId
     };
-    const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
+    const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '7d' });
 
     const userForFrontend = await formatUserForFrontend(user, { role: effectiveRole });
 
