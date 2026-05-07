@@ -16,7 +16,8 @@ const MS_PER_WEEK = 7 * MS_PER_DAY;
 
 function parseDate(s: string | null | undefined): Date | null {
   if (!s) return null;
-  const d = new Date(s + 'T00:00:00');
+  const datePart = s.includes('T') ? s.slice(0, 10) : s;
+  const d = new Date(datePart + 'T00:00:00');
   return isNaN(d.getTime()) ? null : d;
 }
 
