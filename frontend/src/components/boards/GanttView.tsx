@@ -184,7 +184,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
                       {/* Sticky name column */}
                       <div
                         className="sticky left-0 z-10 flex items-center bg-white group-hover:bg-indigo-50/30 border-r border-[#d2d2d4] flex-shrink-0 text-sm text-gray-800"
-                        style={{ width: NAME_W, minWidth: NAME_W, paddingLeft: 10 }}
+                        style={{ width: NAME_W, minWidth: NAME_W, paddingLeft: 25 }}
                         role="gridcell"
                       >
                         <span className="truncate">{item.name}</span>
