@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { Item, Column, Group } from '../../types';
 import { ColumnType } from '../../types';
 
@@ -37,8 +37,20 @@ function formatWeek(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function formatTooltipDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+interface TooltipState {
+  x: number;
+  y: number;
+  startDate: Date;
+  endDate: Date;
+}
+
 const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) => {
   const timeRangeCol = columns.find((c) => c.type === ColumnType.TIME_RANGE);
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
   const today = useMemo(() => {
     const d = new Date();
@@ -89,138 +101,175 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
   const totalWidth = NAME_W + timelineWidth;
 
   return (
-    <div className="h-full overflow-auto">
-      {/* Header */}
-      <div
-        className="sticky top-0 z-20 flex bg-gray-50 border-b border-[#d2d2d4] select-none"
-        style={{ width: totalWidth }}
-        role="row"
-        aria-label="Gantt timeline header"
-      >
+    <>
+      <div className="h-full overflow-auto">
+        {/* Header */}
         <div
-          className="sticky left-0 z-20 flex-shrink-0 bg-gray-50 border-r border-[#d2d2d4] flex items-center px-4 text-sm font-semibold text-gray-600"
-          style={{ width: NAME_W, minWidth: NAME_W, height: 36 }}
-          role="columnheader"
+          className="sticky top-0 z-20 flex bg-gray-50 border-b border-[#d2d2d4] select-none"
+          style={{ width: totalWidth }}
+          role="row"
+          aria-label="Gantt timeline header"
         >
-          Item
-        </div>
-        <div className="flex" style={{ width: timelineWidth }}>
-          {weeks.map((week, i) => (
-            <div
-              key={i}
-              className="flex-shrink-0 flex items-center px-2 text-xs text-gray-500 border-r border-[#d2d2d4]"
-              style={{ width: WEEK_PX, height: 36 }}
-              role="columnheader"
-              aria-label={`Week of ${formatWeek(week)}`}
-            >
-              {formatWeek(week)}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Body */}
-      <div role="rowgroup" style={{ width: totalWidth }}>
-        {groups.map((group) => {
-          const items = itemsByGroup[group.id] ?? [];
-          if (items.length === 0) return null;
-          return (
-            <React.Fragment key={group.id}>
-              {/* Group header */}
+          <div
+            className="sticky left-0 z-20 flex-shrink-0 bg-gray-50 border-r border-[#d2d2d4] flex items-center px-4 text-sm font-semibold text-gray-600"
+            style={{ width: NAME_W, minWidth: NAME_W, height: 36 }}
+            role="columnheader"
+          >
+            Item
+          </div>
+          <div className="flex" style={{ width: timelineWidth }}>
+            {weeks.map((week, i) => (
               <div
-                className="flex items-center gap-2 px-4 bg-gray-50 border-b border-[#d2d2d4]"
-                style={{ height: 28 }}
-                role="row"
-                aria-label={`Group: ${group.name}`}
+                key={i}
+                className="flex-shrink-0 flex items-center px-2 text-xs text-gray-500 border-r border-[#d2d2d4]"
+                style={{ width: WEEK_PX, height: 36 }}
+                role="columnheader"
+                aria-label={`Week of ${formatWeek(week)}`}
               >
-                <span
-                  className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                  style={{ background: group.color ?? '#6366f1' }}
-                  aria-hidden="true"
-                />
-                <span className="text-xs font-semibold text-gray-600 truncate">{group.name}</span>
+                {formatWeek(week)}
               </div>
+            ))}
+          </div>
+        </div>
 
-              {/* Item rows */}
-              {items.map((item) => {
-                const val = item.values[timeRangeCol.id] as { start?: string; end?: string } | null;
-                const startDate = parseDate(val?.start);
-                const endDate = parseDate(val?.end);
-
-                let barLeft: number | null = null;
-                let barWidth: number | null = null;
-                if (startDate && endDate) {
-                  barLeft = (startDate.getTime() - timelineStart.getTime()) / MS_PER_WEEK * WEEK_PX;
-                  barWidth = Math.max(8, (endDate.getTime() - startDate.getTime() + MS_PER_DAY) / MS_PER_WEEK * WEEK_PX);
-                }
-
-                return (
+        {/* Body */}
+        <div role="rowgroup" style={{ width: totalWidth }}>
+          {groups.map((group) => {
+            const items = itemsByGroup[group.id] ?? [];
+            if (items.length === 0) return null;
+            return (
+              <React.Fragment key={group.id}>
+                {/* Group header — content is sticky-left */}
+                <div
+                  className="flex border-b border-[#d2d2d4]"
+                  style={{ height: 28 }}
+                  role="row"
+                  aria-label={`Group: ${group.name}`}
+                >
                   <div
-                    key={item.id}
-                    className="flex border-b border-[#d2d2d4] group hover:bg-indigo-50/30"
-                    style={{ height: ROW_H }}
-                    role="row"
-                    aria-label={item.name}
+                    className="sticky left-0 z-10 flex items-center gap-2 px-4 bg-gray-50 flex-shrink-0"
+                    style={{ width: NAME_W, minWidth: NAME_W }}
                   >
-                    {/* Sticky name column */}
-                    <div
-                      className="sticky left-0 z-10 flex items-center px-4 bg-white group-hover:bg-indigo-50/30 border-r border-[#d2d2d4] flex-shrink-0 text-sm text-gray-800"
-                      style={{ width: NAME_W, minWidth: NAME_W }}
-                      role="gridcell"
-                    >
-                      <span className="truncate">{item.name}</span>
-                    </div>
-
-                    {/* Timeline area */}
-                    <div
-                      className="relative flex-shrink-0"
-                      style={{ width: timelineWidth }}
-                      role="gridcell"
-                      aria-label={startDate && endDate ? `${val?.start} to ${val?.end}` : 'No date set'}
-                    >
-                      {/* Week grid lines */}
-                      {weeks.map((_, i) => (
-                        <div
-                          key={i}
-                          className="absolute top-0 bottom-0 border-r border-[#ebebed]"
-                          style={{ left: (i + 1) * WEEK_PX - 1 }}
-                          aria-hidden="true"
-                        />
-                      ))}
-
-                      {/* Today marker */}
-                      {showToday && (
-                        <div
-                          className="absolute top-0 bottom-0 w-px bg-red-400 z-10"
-                          style={{ left: Math.round(todayOffset) }}
-                          aria-hidden="true"
-                        />
-                      )}
-
-                      {/* Gantt bar */}
-                      {barLeft !== null && barWidth !== null && (
-                        <div
-                          className="absolute top-1/2 -translate-y-1/2"
-                          style={{
-                            left: barLeft,
-                            width: barWidth,
-                            height: 22,
-                            borderRadius: 6,
-                            background: 'linear-gradient(90deg, #6366f1, #3b82f6)',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                          }}
-                          aria-hidden="true"
-                        />
-                      )}
-                    </div>
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ background: group.color ?? '#6366f1' }}
+                      aria-hidden="true"
+                    />
+                    <span className="text-xs font-semibold text-gray-600 truncate">{group.name}</span>
                   </div>
-                );
-              })}
-            </React.Fragment>
-          );
-        })}
+                  <div className="flex-1 bg-gray-50" aria-hidden="true" />
+                </div>
+
+                {/* Item rows */}
+                {items.map((item) => {
+                  const val = item.values[timeRangeCol.id] as { start?: string; end?: string } | null;
+                  const startDate = parseDate(val?.start);
+                  const endDate = parseDate(val?.end);
+
+                  let barLeft: number | null = null;
+                  let barWidth: number | null = null;
+                  if (startDate && endDate) {
+                    barLeft = (startDate.getTime() - timelineStart.getTime()) / MS_PER_WEEK * WEEK_PX;
+                    barWidth = Math.max(8, (endDate.getTime() - startDate.getTime() + MS_PER_DAY) / MS_PER_WEEK * WEEK_PX);
+                  }
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex border-b border-[#d2d2d4] group hover:bg-indigo-50/30"
+                      style={{ height: ROW_H }}
+                      role="row"
+                      aria-label={item.name}
+                    >
+                      {/* Sticky name column */}
+                      <div
+                        className="sticky left-0 z-10 flex items-center bg-white group-hover:bg-indigo-50/30 border-r border-[#d2d2d4] flex-shrink-0 text-sm text-gray-800"
+                        style={{ width: NAME_W, minWidth: NAME_W, paddingLeft: 10 }}
+                        role="gridcell"
+                      >
+                        <span className="truncate">{item.name}</span>
+                      </div>
+
+                      {/* Timeline area */}
+                      <div
+                        className="relative flex-shrink-0"
+                        style={{ width: timelineWidth }}
+                        role="gridcell"
+                        aria-label={startDate && endDate ? `${val?.start} to ${val?.end}` : 'No date set'}
+                      >
+                        {/* Week grid lines */}
+                        {weeks.map((_, i) => (
+                          <div
+                            key={i}
+                            className="absolute top-0 bottom-0 border-r border-[#ebebed]"
+                            style={{ left: (i + 1) * WEEK_PX - 1 }}
+                            aria-hidden="true"
+                          />
+                        ))}
+
+                        {/* Today marker */}
+                        {showToday && (
+                          <div
+                            className="absolute top-0 bottom-0 w-px bg-red-400 z-10"
+                            style={{ left: Math.round(todayOffset) }}
+                            aria-hidden="true"
+                          />
+                        )}
+
+                        {/* Gantt bar */}
+                        {barLeft !== null && barWidth !== null && startDate && endDate && (
+                          <div
+                            className="absolute top-1/2 -translate-y-1/2 cursor-default"
+                            style={{
+                              left: barLeft,
+                              width: barWidth,
+                              height: 22,
+                              borderRadius: 6,
+                              background: 'linear-gradient(90deg, #6366f1, #3b82f6)',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                            }}
+                            aria-label={`${item.name}: ${formatTooltipDate(startDate)} to ${formatTooltipDate(endDate)}`}
+                            onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY, startDate, endDate })}
+                            onMouseMove={(e) => setTooltip((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null)}
+                            onMouseLeave={() => setTooltip(null)}
+                          />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </React.Fragment>
+            );
+          })}
+        </div>
       </div>
-    </div>
+
+      {/* Tooltip — fixed so it escapes overflow clipping */}
+      {tooltip && (() => {
+        const days = Math.round((tooltip.endDate.getTime() - tooltip.startDate.getTime()) / MS_PER_DAY) + 1;
+        return (
+          <div
+            className="fixed z-[9999] pointer-events-none"
+            style={{ left: tooltip.x + 14, top: tooltip.y - 52 }}
+            role="tooltip"
+          >
+            <div className="bg-white border border-gray-200 rounded-lg shadow-[0_4px_20px_rgba(0,0,0,0.12)] px-3 py-2 flex items-center gap-2 whitespace-nowrap">
+              <span className="text-xs font-medium text-gray-700">{formatTooltipDate(tooltip.startDate)}</span>
+              <svg
+                width="14" height="8" viewBox="0 0 14 8" fill="none"
+                className="flex-shrink-0 text-indigo-400"
+                aria-hidden="true"
+              >
+                <line x1="0" y1="4" x2="10" y2="4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <polyline points="7 1 11 4 7 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+              </svg>
+              <span className="text-xs font-medium text-gray-700">{formatTooltipDate(tooltip.endDate)}</span>
+              <span className="text-xs font-semibold text-indigo-500 ml-0.5">({days}d)</span>
+            </div>
+          </div>
+        );
+      })()}
+    </>
   );
 };
 
