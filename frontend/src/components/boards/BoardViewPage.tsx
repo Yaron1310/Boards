@@ -396,9 +396,19 @@ const BoardViewPage: React.FC = () => {
   const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [searchText, setSearchText] = useState('');
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
-  const [boardView, setBoardView] = useState<BoardView>('table');
+  const [boardView, setBoardView] = useState<BoardView>(() => {
+    const key = `boardView:${user?.id ?? 'anon'}:${boardId ?? ''}`;
+    const saved = localStorage.getItem(key);
+    return (saved === 'table' || saved === 'rows' || saved === 'gantt') ? saved : 'table';
+  });
   const [viewMenuOpen, setViewMenuOpen] = useState(false);
   const viewMenuRef = useRef<HTMLDivElement>(null);
+
+  const setAndPersistBoardView = (view: BoardView) => {
+    const key = `boardView:${user?.id ?? 'anon'}:${boardId ?? ''}`;
+    localStorage.setItem(key, view);
+    setBoardView(view);
+  };
 
   // Local optimistic state for DnD
   const [localGroups, setLocalGroups] = useState<Group[]>([]);
@@ -476,7 +486,7 @@ const BoardViewPage: React.FC = () => {
   const hasTimeRange = columns.some((c) => c.type === ColumnType.TIME_RANGE);
 
   useEffect(() => {
-    if (boardView === 'gantt' && !hasTimeRange) setBoardView('table');
+    if (boardView === 'gantt' && !hasTimeRange) setAndPersistBoardView('table');
   }, [boardView, hasTimeRange]);
 
   useEffect(() => {
@@ -776,7 +786,7 @@ const BoardViewPage: React.FC = () => {
                       type="button"
                       role="option"
                       aria-selected={boardView === view}
-                      onClick={() => { setBoardView(view); setViewMenuOpen(false); }}
+                      onClick={() => { setAndPersistBoardView(view); setViewMenuOpen(false); }}
                       className={`w-full text-left px-3 py-2 text-sm capitalize transition-colors ${boardView === view ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
                     >
                       {view === 'table' ? 'Table' : view === 'rows' ? 'Rows' : 'Gantt'}
