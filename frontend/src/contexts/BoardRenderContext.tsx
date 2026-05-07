@@ -1,9 +1,12 @@
 import React, { createContext, useContext } from 'react';
 import type { Item, Column } from '../types';
 
+export type BoardView = 'table' | 'rows' | 'gantt';
+
 interface BoardRenderContextValue {
   visibleItems: Item[];
   columns: Column[];
+  boardView: BoardView;
 }
 
 const BoardRenderContext = createContext<BoardRenderContextValue | null>(null);
@@ -11,10 +14,11 @@ const BoardRenderContext = createContext<BoardRenderContextValue | null>(null);
 export const BoardRenderProvider: React.FC<{
   visibleItems: Item[];
   columns: Column[];
+  boardView?: BoardView;
   children: React.ReactNode;
-}> = ({ visibleItems, columns, children }) => {
+}> = ({ visibleItems, columns, boardView = 'table', children }) => {
   return (
-    <BoardRenderContext.Provider value={{ visibleItems, columns }}>
+    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView }}>
       {children}
     </BoardRenderContext.Provider>
   );

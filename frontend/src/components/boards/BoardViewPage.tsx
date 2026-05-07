@@ -21,9 +21,10 @@ import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiLayout, FiChevronDown } from 'react-icons/fi';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader from './ColumnHeader';
+import GanttView from './GanttView';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
@@ -35,6 +36,7 @@ import BoardInviteModal from './BoardInviteModal';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
+import type { BoardView } from '../../contexts/BoardRenderContext';
 import { DependencyProvider, useDependency } from '../../contexts/DependencyContext';
 import DependencyOverlay from './DependencyOverlay';
 import DependencyApplyModal from './DependencyApplyModal';
@@ -96,6 +98,7 @@ interface BoardContentProps {
   allItems: Item[];
   searchText: string;
   activeFilters: ActiveFilter[];
+  boardView: BoardView;
 }
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' };
@@ -153,6 +156,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
   allItems,
   searchText,
   activeFilters,
+  boardView,
 }) => {
   const { data: columns = [] } = useColumns(boardId);
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
@@ -230,97 +234,106 @@ const BoardContent: React.FC<BoardContentProps> = ({
       {/* SVG overlay — position:fixed, renders at viewport level outside all scroll containers */}
       <DependencyOverlay />
 
-      <div
-        ref={boardContainerRef as React.RefObject<HTMLDivElement>}
-        className="h-full overflow-x-auto overflow-y-auto"
-        role="grid"
-        aria-label={`Board: ${board.name}`}
-        onMouseMove={handleMouseMove}
-      >
-        <ColumnHeader
-          boardId={boardId}
-          canManage={canManage}
-          onSortChange={setSort}
-          onAddColumn={() => setShowAddColumn(true)}
+      {boardView === 'gantt' ? (
+        <GanttView
+          groups={localGroups}
+          itemsByGroup={displayItemsByGroup}
+          columns={columns}
         />
-
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
+      ) : (
+        <div
+          ref={boardContainerRef as React.RefObject<HTMLDivElement>}
+          className="h-full overflow-x-auto overflow-y-auto"
+          role="grid"
+          aria-label={`Board: ${board.name}`}
+          onMouseMove={handleMouseMove}
         >
-          <div className="p-4 space-y-4" role="region" aria-label="Board groups">
-            {groupsLoading ? (
-              <div className="flex justify-center items-center py-16" role="status" aria-label="Loading groups">
-                <FiLoader className="animate-spin h-6 w-6 text-indigo-400" aria-hidden="true" />
-              </div>
-            ) : localGroups.length === 0 && !showAddGroup ? (
-              <div className="text-center py-16 text-gray-400 text-sm">
-                <p>No groups yet. Add a group to start organising items.</p>
-              </div>
-            ) : (
-              <BoardRenderProvider visibleItems={visibleItems} columns={columns}>
-                <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
-                  {localGroups.map((group) => (
-                    <GroupSection
-                      key={group.id}
-                      group={group}
-                      boardId={board.id}
-                      workspaceId={board.workspaceId}
-                      canManage={canManage && !board.isArchived}
-                      items={displayItemsByGroup[group.id] ?? []}
-                      onOpenDetail={setDetailItem}
-                    />
-                  ))}
-                </SortableContext>
-              </BoardRenderProvider>
-            )}
+          <ColumnHeader
+            boardId={boardId}
+            canManage={canManage}
+            onSortChange={setSort}
+            onAddColumn={() => setShowAddColumn(true)}
+            boardView={boardView}
+          />
 
-            {canManage && !board.isArchived && showAddGroup && boardId && (
-              <AddGroupForm boardId={boardId} onClose={() => setShowAddGroup(false)} />
-            )}
-          </div>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="p-4 space-y-4" role="region" aria-label="Board groups">
+              {groupsLoading ? (
+                <div className="flex justify-center items-center py-16" role="status" aria-label="Loading groups">
+                  <FiLoader className="animate-spin h-6 w-6 text-indigo-400" aria-hidden="true" />
+                </div>
+              ) : localGroups.length === 0 && !showAddGroup ? (
+                <div className="text-center py-16 text-gray-400 text-sm">
+                  <p>No groups yet. Add a group to start organising items.</p>
+                </div>
+              ) : (
+                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView}>
+                  <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
+                    {localGroups.map((group) => (
+                      <GroupSection
+                        key={group.id}
+                        group={group}
+                        boardId={board.id}
+                        workspaceId={board.workspaceId}
+                        canManage={canManage && !board.isArchived}
+                        items={displayItemsByGroup[group.id] ?? []}
+                        onOpenDetail={setDetailItem}
+                      />
+                    ))}
+                  </SortableContext>
+                </BoardRenderProvider>
+              )}
 
-          <DragOverlay>
-            {activeDrag?.type === 'group' && (
-              <div
-                className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-300 rounded-lg shadow-xl opacity-90 cursor-grabbing select-none"
-                style={{ borderLeft: `4px solid ${activeDrag.group.color ?? '#6366f1'}` }}
-                aria-hidden="true"
-              >
-                <FiMenu size={13} className="text-gray-400" />
-                <span className="text-sm font-semibold text-gray-800">{activeDrag.group.name}</span>
-              </div>
-            )}
-            {activeDrag?.type === 'item' && (
-              <div
-                className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-300 rounded shadow-xl opacity-90 cursor-grabbing select-none"
-                aria-hidden="true"
-              >
-                <span className="text-sm text-gray-800">{activeDrag.item.name}</span>
-              </div>
-            )}
-          </DragOverlay>
-        </DndContext>
-
-        {canManage && !board.isArchived && !showAddGroup && (
-          <div className="px-4 pb-6">
-            <div className="sticky left-4 w-max">
-              <button
-                type="button"
-                onClick={() => setShowAddGroup(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors"
-                aria-label="Add new group"
-              >
-                <FiPlus size={15} aria-hidden="true" />
-                Add Group
-              </button>
+              {canManage && !board.isArchived && showAddGroup && boardId && (
+                <AddGroupForm boardId={boardId} onClose={() => setShowAddGroup(false)} />
+              )}
             </div>
-          </div>
-        )}
-      </div>
+
+            <DragOverlay>
+              {activeDrag?.type === 'group' && (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-300 rounded-lg shadow-xl opacity-90 cursor-grabbing select-none"
+                  style={{ borderLeft: `4px solid ${activeDrag.group.color ?? '#6366f1'}` }}
+                  aria-hidden="true"
+                >
+                  <FiMenu size={13} className="text-gray-400" />
+                  <span className="text-sm font-semibold text-gray-800">{activeDrag.group.name}</span>
+                </div>
+              )}
+              {activeDrag?.type === 'item' && (
+                <div
+                  className="flex items-center gap-2 px-3 py-2 bg-white border border-indigo-300 rounded shadow-xl opacity-90 cursor-grabbing select-none"
+                  aria-hidden="true"
+                >
+                  <span className="text-sm text-gray-800">{activeDrag.item.name}</span>
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
+
+          {canManage && !board.isArchived && !showAddGroup && (
+            <div className="px-4 pb-6">
+              <div className="sticky left-4 w-max">
+                <button
+                  type="button"
+                  onClick={() => setShowAddGroup(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                  aria-label="Add new group"
+                >
+                  <FiPlus size={15} aria-hidden="true" />
+                  Add Group
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Circular dependency toast */}
       {showCircularToast && (
@@ -383,6 +396,9 @@ const BoardViewPage: React.FC = () => {
   const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [searchText, setSearchText] = useState('');
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [boardView, setBoardView] = useState<BoardView>('table');
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const viewMenuRef = useRef<HTMLDivElement>(null);
 
   // Local optimistic state for DnD
   const [localGroups, setLocalGroups] = useState<Group[]>([]);
@@ -456,6 +472,23 @@ const BoardViewPage: React.FC = () => {
   useEffect(() => {
     if (editingName) nameInputRef.current?.select();
   }, [editingName]);
+
+  const hasTimeRange = columns.some((c) => c.type === ColumnType.TIME_RANGE);
+
+  useEffect(() => {
+    if (boardView === 'gantt' && !hasTimeRange) setBoardView('table');
+  }, [boardView, hasTimeRange]);
+
+  useEffect(() => {
+    if (!viewMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
+        setViewMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [viewMenuOpen]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -717,6 +750,42 @@ const BoardViewPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            {/* View switcher */}
+            <div ref={viewMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setViewMenuOpen((v) => !v)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                aria-label="Change board view"
+                aria-expanded={viewMenuOpen}
+                aria-haspopup="listbox"
+              >
+                <FiLayout size={13} aria-hidden="true" />
+                View
+                <FiChevronDown size={11} className={`transition-transform duration-150 ${viewMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+              </button>
+              {viewMenuOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]"
+                  role="listbox"
+                  aria-label="Board view options"
+                >
+                  {(['table', 'rows', ...(hasTimeRange ? ['gantt'] : [])] as BoardView[]).map((view) => (
+                    <button
+                      key={view}
+                      type="button"
+                      role="option"
+                      aria-selected={boardView === view}
+                      onClick={() => { setBoardView(view); setViewMenuOpen(false); }}
+                      className={`w-full text-left px-3 py-2 text-sm capitalize transition-colors ${boardView === view ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
+                    >
+                      {view === 'table' ? 'Table' : view === 'rows' ? 'Rows' : 'Gantt'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {canManage && (
               <button
                 type="button"
@@ -774,6 +843,7 @@ const BoardViewPage: React.FC = () => {
             allItems={allItems}
             searchText={searchText}
             activeFilters={activeFilters}
+            boardView={boardView}
           />
         </DependencyProvider>
         </FormulaEditProvider>

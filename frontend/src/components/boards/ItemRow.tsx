@@ -10,6 +10,7 @@ import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
 import { ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
+import { useBoardRender } from '../../contexts/BoardRenderContext';
 import ItemChatModal, { getUnreadCount } from './ItemChatModal';
 
 interface ItemRowProps {
@@ -21,6 +22,7 @@ interface ItemRowProps {
 const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => {
   const { user } = useAuth();
   const { data: columns = [] } = useColumns(item.boardId);
+  const { boardView } = useBoardRender();
 
   const { mutateAsync: archiveItem, isPending: isArchiving } = useArchiveItem();
   const { mutateAsync: restoreItem, isPending: isRestoring } = useRestoreItem();
@@ -91,7 +93,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => 
     >
       {/* Left section — drag handle, item name, and row actions */}
       <div
-        className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 z-[1] bg-white group-hover:bg-indigo-50`}
+        className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} sticky left-4 z-[1] bg-white group-hover:bg-indigo-50`}
         style={groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
       >
         {/* Drag handle */}

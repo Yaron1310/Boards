@@ -26,6 +26,7 @@ import {
 } from 'react-icons/fi';
 import { calculateColumnWidth, ITEM_NAME_WIDTH } from '../../utils/columnWidths';
 import AddColumnModal from './AddColumnModal';
+import type { BoardView } from '../../contexts/BoardRenderContext';
 
 interface SortState {
   columnId: string;
@@ -37,6 +38,7 @@ interface ColumnHeaderProps {
   canManage: boolean;
   onSortChange?: (sort: SortState | null) => void;
   onAddColumn?: () => void;
+  boardView?: BoardView;
 }
 
 export const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
@@ -91,9 +93,10 @@ interface ColumnHeaderCellProps {
   onSort: (col: Column) => void;
   canManage: boolean;
   boardId: string;
+  boardView?: BoardView;
 }
 
-const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSort, canManage, boardId }) => {
+const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSort, canManage, boardId, boardView }) => {
   const isActive = sort?.columnId === column.id;
   const icon = COLUMN_TYPE_ICONS[column.type];
   const label = COLUMN_TYPE_LABELS[column.type];
@@ -181,7 +184,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
       ref={setNodeRef}
       style={{ ...style, width: `${colWidth}px` }}
       role="columnheader"
-      className={`flex flex-shrink-0 items-center px-3 py-2 border-r border-[#d2d2d4] last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
+      className={`flex flex-shrink-0 items-center px-3 py-2 ${boardView !== 'rows' ? 'border-r border-[#d2d2d4] last:border-r-0' : ''} group${isDragging ? ' bg-indigo-50' : ''}`}
     >
       {/* Drag handle */}
       {canManage && (
@@ -352,7 +355,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   );
 };
 
-const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortChange, onAddColumn }) => {
+const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortChange, onAddColumn, boardView }) => {
   const { data: columns = [], isLoading } = useColumns(boardId);
   const { mutateAsync: reorderColumns } = useReorderColumns(boardId);
   const [sort, setSort] = useState<SortState | null>(null);
@@ -440,7 +443,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
         {/* Item name column — fixed */}
         <div
           role="columnheader"
-          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1]`}
+          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1]`}
         >
           Item
         </div>
@@ -455,6 +458,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
               onSort={handleSort}
               canManage={canManage}
               boardId={boardId}
+              boardView={boardView}
             />
           ))}
         </SortableContext>
