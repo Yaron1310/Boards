@@ -80,22 +80,37 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
 
   const applyToItems = (targets: Item[]) => {
     const newDepIds: string[] = [];
-    for (const targetIt of targets) {
+
+    // Sort targets by visual order (group position, then item order within group)
+    // so the chain flows top-to-bottom as rendered on the board.
+    const sortedTargets = [...targets].sort((a, b) => {
+      const aGroupOrder = groupMinOrder[a.groupId] ?? 0;
+      const bGroupOrder = groupMinOrder[b.groupId] ?? 0;
+      if (aGroupOrder !== bGroupOrder) return aGroupOrder - bGroupOrder;
+      return a.order - b.order;
+    });
+
+    // Build a chain: newDep already links source → target.
+    // Each additional item depends on the previous one, not the original source.
+    let prevItemId = newDep.targetItemId;
+
+    for (const targetIt of sortedTargets) {
+      if (targetIt.id === prevItemId) continue;
+
       const existingDeps = targetIt.dependencies ?? [];
       const alreadyLinked = existingDeps.some(
         (d) =>
           d.sourceColumnId === newDep.sourceColumnId &&
           d.targetColumnId === newDep.targetColumnId,
       );
-      if (alreadyLinked) continue;
-
-      const sourceItem = items.find((i) => i.id === newDep.sourceItemId);
-      if (!sourceItem) continue;
-      if (sourceItem.id === targetIt.id) continue;
+      if (alreadyLinked) {
+        prevItemId = targetIt.id;
+        continue;
+      }
 
       const dep: TimeRangeDependency = {
         id: crypto.randomUUID(),
-        sourceItemId: sourceItem.id,
+        sourceItemId: prevItemId,
         sourceColumnId: newDep.sourceColumnId,
         targetItemId: targetIt.id,
         targetColumnId: newDep.targetColumnId,
@@ -104,6 +119,7 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
 
       updateItem({ id: targetIt.id, patch: { dependencies: [...existingDeps, dep] } });
       newDepIds.push(dep.id);
+      prevItemId = targetIt.id;
     }
     // Include the original dep so it flashes too
     onApply([newDep.id, ...newDepIds]);
