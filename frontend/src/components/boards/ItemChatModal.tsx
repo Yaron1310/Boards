@@ -77,8 +77,10 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
   const [dragOver, setDragOver] = useState(false);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const initialScrollDone = useRef(false);
 
   // Derive stable list of unique author IDs for colour mapping
   const authorIds = Array.from(new Set(messages.map((m) => m.authorId)));
@@ -90,9 +92,17 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
     localStorage.setItem(seenKey(user.id, item.id), String(total));
   }, [user, item.id, item.chatMessageCount, messages.length]);
 
-  // Auto-scroll to bottom on new messages
+  // Instant scroll on initial load; smooth scroll for subsequent new messages
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messages.length === 0) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    if (!initialScrollDone.current) {
+      container.scrollTop = container.scrollHeight;
+      initialScrollDone.current = true;
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages.length]);
 
   const handleSend = useCallback(async () => {
@@ -140,18 +150,13 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
 
   return (
     <div
-      className="fixed inset-0 z-[10200] flex items-center justify-center bg-black/40"
-      role="dialog"
-      aria-modal="true"
+      className="fixed right-0 top-0 bottom-0 z-[10200] w-full max-w-[26rem] bg-white shadow-2xl flex flex-col"
+      role="region"
       aria-label={`Chat for ${item.name}`}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
     >
-      <div
-        className="flex flex-col w-full max-w-[35rem] h-[600px] bg-white rounded-2xl shadow-2xl overflow-hidden"
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-indigo-600 text-white flex-shrink-0">
           <div className="flex flex-col min-w-0">
@@ -169,7 +174,7 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
         </div>
 
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-1 bg-gray-50">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-1 bg-gray-50">
           {isLoading && (
             <div className="text-center text-sm text-gray-400 py-8">Loading messages…</div>
           )}
@@ -320,7 +325,6 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
             <FiSend size={16} aria-hidden="true" />
           </button>
         </div>
-      </div>
     </div>
   );
 };
