@@ -214,8 +214,8 @@ export const getWorkspaces = async (filterType?: 'corporate' | 'individual' | 'a
 };
 export const getArchivedWorkspaces = async (): Promise<Workspace[]> => fetchWithAuth('/api/workspaces/archived');
 export const restoreWorkspace = async (id: string): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}/restore`, { method: 'PUT' });
-export const addWorkspaceToBackend = async (name: string, orgId: string, planId?: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name, orgId, planId }) });
-export const updateWorkspaceOnBackend = async (id: string, data: { name?: string, planId?: string, subscriptionProvider?: string }): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const addWorkspaceToBackend = async (name: string, orgId: string, planId?: string, color?: string): Promise<Workspace> => fetchWithAuth('/api/workspaces', { method: 'POST', body: JSON.stringify({ name, orgId, planId, color }) });
+export const updateWorkspaceOnBackend = async (id: string, data: { name?: string, planId?: string, subscriptionProvider?: string, color?: string }): Promise<Workspace> => fetchWithAuth(`/api/workspaces/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteWorkspaceFromBackend = async (id: string, force = false): Promise<null> => {
     return fetchWithAuth(`/api/workspaces/${id}${force ? '?force=true' : ''}`, { method: 'DELETE' });
 };
@@ -252,7 +252,8 @@ export const deletePreApprovedUserFromBackend = async (preApprovedUserId: string
 
 // User's own profile updates
 export const getMyUserDetails = async (): Promise<{ user: User, selectedWorkspace: WorkHub }> => fetchWithAuth('/api/users/me/details');
-export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
+export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string; preferences?: { darkContrast?: boolean } }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
+export const markChatSeen = async (itemId: string): Promise<void> => fetchWithAuth(`/api/items/${itemId}/chat/seen`, { method: 'POST' });
 export const updateMyPassword = async (passwords: { currentPassword?: string; newPassword: string }): Promise<{ message: string }> => fetchWithAuth('/api/users/me/password', { method: 'PUT', body: JSON.stringify(passwords) });
 const blobToBase64 = (blob: Blob): Promise<string> =>
     new Promise((resolve, reject) => {

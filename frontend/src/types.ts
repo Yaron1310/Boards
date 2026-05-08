@@ -9,6 +9,7 @@ export interface WorkHub {
   id: string;
   name: string;
   orgId: string;
+  color?: string;
   organizationName?: string;
   isPersonal?: boolean;
   status?: 'active' | 'archived';
@@ -86,6 +87,9 @@ export interface User {
   profileImageUrl?: string;
   preferredLanguage?: string;
   hasPassword?: boolean;
+  preferences?: {
+    darkContrast?: boolean;
+  };
   tokenUsage?: {
     used: number;
     limit: number | null;
@@ -233,6 +237,11 @@ export interface Column {
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
+  summaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -326,6 +335,7 @@ export interface Item {
   // Chat denormalized counters
   chatMessageCount?: number;
   chatLastMessageAt?: Date | string;
+  chatSeenBy?: Record<string, number>;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: Date | string;

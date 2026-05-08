@@ -240,7 +240,7 @@ export const reorderColumns = async (req: Request, res: Response) => {
 export const updateColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId, id } = req.params;
-  const { name, settings } = req.body;
+  const { name, settings, summaryConfig } = req.body;
 
   try {
     const doc = await columnsCollection(user.orgId, boardId).doc(id).get();
@@ -260,6 +260,7 @@ export const updateColumn = async (req: Request, res: Response) => {
     };
     if (name !== undefined) updateData.name = sanitizeText(String(name));
     if (settings !== undefined) updateData.settings = settings;
+    if (summaryConfig !== undefined) updateData.summaryConfig = summaryConfig;
 
     await columnsCollection(user.orgId, boardId).doc(id).update(updateData);
     const updated = snapshotToData<DBColumn>(await columnsCollection(user.orgId, boardId).doc(id).get());

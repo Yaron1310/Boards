@@ -54,6 +54,10 @@ export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 // Token is now stored in httpOnly cookies (managed by the backend).
 // Only user/org data is cached in localStorage for faster initial renders.
+function applyDarkContrast(enabled: boolean) {
+  document.documentElement.classList.toggle('dark-contrast', enabled);
+}
+
 const storeUser = (userData: User) => localStorage.setItem('authUser', JSON.stringify(userData));
 const getStoredUser = (): User | null => {
     const userString = localStorage.getItem('authUser');
@@ -100,6 +104,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [userForContextSelection, setUserForContextSelection] = useState<(Omit<User, 'role'> & { workspaces: Workspace[], allAcademies?: Workspace[] }) | null>(null);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
 
+  // Apply dark-contrast CSS class whenever the user's preference changes
+  useEffect(() => {
+    applyDarkContrast(user?.preferences?.darkContrast ?? false);
+  }, [user?.preferences?.darkContrast]);
 
   useEffect(() => {
     // Initialize Auth Plugins

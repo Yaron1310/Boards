@@ -181,3 +181,34 @@ export const postChatMessage = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Failed to post chat message.' });
   }
 };
+
+// ---------------------------------------------------------------------------
+// POST /items/:itemId/chat/seen
+// Records that the current user has seen all messages up to the item's
+// current chatMessageCount, enabling cross-device unread badge accuracy.
+// ---------------------------------------------------------------------------
+export const markChatSeen = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const id = req.params.itemId ?? req.params.id;
+
+  try {
+    const doc = await itemsCollection(user.orgId).doc(id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
+
+    const item = snapshotToData<DBItem>(doc)!;
+    const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? (memberDoc.data() as DBBoardMember) : null;
+    assertItemAccess(user, item, 'read', memberData);
+
+    const seenCount = item.chatMessageCount ?? 0;
+    await itemsCollection(user.orgId).doc(id).update({
+      [`chatSeenBy.${user.id}`]: seenCount,
+    });
+
+    res.json({ seenCount });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error marking chat seen for item ${id}:`, err);
+    res.status(500).json({ message: 'Failed to mark chat as seen.' });
+  }
+};

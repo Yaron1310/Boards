@@ -112,7 +112,7 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
 
   const selectedWorkspace = workspaces.find((w) => w.id === selectedId) ?? null;
   const selectedName = selectedWorkspace?.name ?? 'Select WorkHub…';
-  const selectedColor = selectedWorkspace ? (localStorage.getItem(`workspaceColor_${selectedWorkspace.id}`) || '#FFB3C1') : '#FFB3C1';
+  const selectedColor = selectedWorkspace?.color ?? '#FFB3C1';
 
   return (
     <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
@@ -141,7 +141,7 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
             className="absolute left-4 right-4 z-50 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden max-h-52 overflow-y-auto"
           >
             {workspaces.map((ws) => {
-              const wsColor = localStorage.getItem(`workspaceColor_${ws.id}`) || '#FFB3C1';
+              const wsColor = ws.color ?? '#FFB3C1';
               return (
                 <li
                   key={ws.id}

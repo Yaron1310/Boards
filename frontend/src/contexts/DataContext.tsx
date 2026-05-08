@@ -50,8 +50,8 @@ interface DataContextType {
   archivedWorkspaces: Workspace[];
   fetchWorkspaces: (filterType?: 'corporate' | 'individual' | 'all') => Promise<void>;
   fetchArchivedWorkspaces: () => Promise<void>;
-  addWorkspace: (name: string, orgId: string, planId?: string) => Promise<Workspace | null>;
-  updateWorkspace: (id: string, data: { name?: string; planId?: string }) => Promise<boolean>;
+  addWorkspace: (name: string, orgId: string, planId?: string, color?: string) => Promise<Workspace | null>;
+  updateWorkspace: (id: string, data: { name?: string; planId?: string; color?: string }) => Promise<boolean>;
   deleteWorkspace: (id: string, force?: boolean) => Promise<{ isConflict: boolean; dependencies?: any }>;
   confirmArchiveWorkspace: (id: string) => Promise<boolean>;
   restoreWorkspace: (id: string) => Promise<boolean>;
@@ -252,11 +252,11 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // Workspaces
-  const addWorkspace = async (name: string, orgId: string, planId?: string) => {
+  const addWorkspace = async (name: string, orgId: string, planId?: string, color?: string) => {
     const { addWorkspaceToBackend } = await api();
-    return handleApiCall(() => addWorkspaceToBackend(name, orgId, planId), () => fetchWorkspaces(), 'Failed to add workspace.');
+    return handleApiCall(() => addWorkspaceToBackend(name, orgId, planId, color), () => fetchWorkspaces(), 'Failed to add workspace.');
   };
-  const updateWorkspace = async (id: string, data: { name?: string; planId?: string; subscriptionProvider?: string; isPersonal?: boolean }) => {
+  const updateWorkspace = async (id: string, data: { name?: string; planId?: string; subscriptionProvider?: string; isPersonal?: boolean; color?: string }) => {
     const { updateWorkspaceOnBackend } = await api();
     const updated = await handleApiCall(() => updateWorkspaceOnBackend(id, data), () => fetchWorkspaces(), 'Failed to update workspace.');
     return !!updated;

@@ -395,7 +395,7 @@ const ALLOWED_LANGUAGE_CODES = ['en', 'es', 'he'];
 export const updateMyUserDetails = async (req: Request, res: Response) => {
     const userPayload = req.user as JwtUserPayload;
     const userId = userPayload.id;
-    const { name, email, preferredLanguage } = req.body;
+    const { name, email, preferredLanguage, preferences } = req.body;
     try {
         const userRef = usersCollection.doc(userId);
         const updates: any = {};
@@ -413,6 +413,9 @@ export const updateMyUserDetails = async (req: Request, res: Response) => {
                 return res.status(400).json({ message: 'Invalid language code.' });
             }
             updates.preferredLanguage = preferredLanguage;
+        }
+        if (preferences !== undefined && typeof preferences === 'object') {
+            updates.preferences = preferences;
         }
 
         await userRef.update(updates);

@@ -4,6 +4,7 @@ import { evaluateFormula } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
 import { calculateColumnWidth, ITEM_SECTION_WIDTH } from '../../utils/columnWidths';
+import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,16 +53,15 @@ function blendWithWhite(hex: string, alpha = 0.25): string {
   return `rgb(${rOut},${gOut},${bOut})`;
 }
 
-function loadConfig(colId: string, defaultCalc: CalcMode = 'sum'): CellConfig {
-  try {
-    const stored = localStorage.getItem(`summaryCell_${colId}`);
-    if (stored) return JSON.parse(stored) as CellConfig;
-  } catch { /* ignore */ }
+function configFromColumn(col: Column, defaultCalc: CalcMode = 'sum'): CellConfig {
+  if (col.summaryConfig) {
+    return {
+      calc: (col.summaryConfig.calc as CalcMode) || defaultCalc,
+      unit: col.summaryConfig.unit ?? '',
+      unitAlign: col.summaryConfig.unitAlign ?? 'left',
+    };
+  }
   return { calc: defaultCalc, unit: '', unitAlign: 'left' };
-}
-
-function saveConfig(colId: string, config: CellConfig) {
-  try { localStorage.setItem(`summaryCell_${colId}`, JSON.stringify(config)); } catch { /* ignore */ }
 }
 
 function applyUnit(value: string, unit: string, align: 'left' | 'right'): string {
@@ -261,18 +261,25 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
   const isCountOnly = COUNT_ONLY_TYPES.has(col.type);
   const defaultCalc: CalcMode = (isCheckbox || isCountOnly) ? 'count' : 'sum';
 
-  const [config, setConfig] = useState<CellConfig>(() => loadConfig(col.id, defaultCalc));
+  const [config, setConfig] = useState<CellConfig>(() => configFromColumn(col, defaultCalc));
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
+  const { mutate: updateColumn } = useUpdateColumn(col.boardId);
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
   const isInteractive = isAggregatable || isCountOnly;
   const colWidth = calculateColumnWidth(col.name, col.type);
 
+  // Keep local state in sync if the column data is refreshed from the server
+  useEffect(() => {
+    setConfig(configFromColumn(col, defaultCalc));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [col.summaryConfig]);
+
   const handleChange = useCallback((c: CellConfig) => {
     setConfig(c);
-    saveConfig(col.id, c);
-  }, [col.id]);
+    updateColumn({ id: col.id, patch: { summaryConfig: c } });
+  }, [col.id, updateColumn]);
 
   const handleOpen = () => {
     if (btnRef.current) {

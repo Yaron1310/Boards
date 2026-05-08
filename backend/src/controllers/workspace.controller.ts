@@ -40,7 +40,7 @@ export const getAllWorkspaces = async (req: Request, res: Response) => {
 
 export const createWorkspace = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
-    const { name, orgId } = req.body;
+    const { name, orgId, color } = req.body;
 
     if (!name) return res.status(400).json({ message: 'Workspace name is required.' });
 
@@ -54,6 +54,7 @@ export const createWorkspace = async (req: Request, res: Response) => {
             name: sanitizeText(name),
             orgId: targetOrganizationId,
             status: 'active',
+            ...(color ? { color: sanitizeText(color) } : {}),
         };
         const timestamp = admin.firestore.FieldValue.serverTimestamp();
         await newDocRef.set({ ...newOrg, createdAt: timestamp, updatedAt: timestamp });
@@ -68,7 +69,7 @@ export const createWorkspace = async (req: Request, res: Response) => {
 
 export const updateWorkspace = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { name } = req.body;
+    const { name, color } = req.body;
     const user = req.user as JwtUserPayload;
 
     try {
@@ -81,6 +82,7 @@ export const updateWorkspace = async (req: Request, res: Response) => {
 
         const updateData: any = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
         if (name) updateData.name = sanitizeText(name);
+        if (color !== undefined) updateData.color = sanitizeText(color);
 
         await docRef.update(updateData);
 

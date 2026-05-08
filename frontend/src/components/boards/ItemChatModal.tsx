@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile } from 'react-icons/fi';
 import { useChatMessages, usePostChatMessage } from '../../hooks/queries/useItemChatQueries';
 import { useAuth } from '../../hooks/useAuth';
+import { markChatSeen } from '../../services/geminiService';
 import type { Item, ChatMessage, ChatAttachment } from '../../types';
 
 // Stable colour palette — one colour per unique authorId
@@ -51,14 +52,9 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// localStorage key for last-seen message count per user/item
-function seenKey(userId: string, itemId: string): string {
-  return `chatSeen:${userId}:${itemId}`;
-}
-
 export function getUnreadCount(userId: string, item: Item): number {
   const total = item.chatMessageCount ?? 0;
-  const seen = parseInt(localStorage.getItem(seenKey(userId, item.id)) ?? '0', 10);
+  const seen = item.chatSeenBy?.[userId] ?? 0;
   return Math.max(0, total - seen);
 }
 
@@ -85,12 +81,11 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
   // Derive stable list of unique author IDs for colour mapping
   const authorIds = Array.from(new Set(messages.map((m) => m.authorId)));
 
-  // Mark messages as seen whenever the modal is open and messages are loaded
+  // Mark messages as seen on the backend whenever the sidebar is open and messages are loaded
   useEffect(() => {
     if (!user || !messages.length) return;
-    const total = item.chatMessageCount ?? messages.length;
-    localStorage.setItem(seenKey(user.id, item.id), String(total));
-  }, [user, item.id, item.chatMessageCount, messages.length]);
+    void markChatSeen(item.id);
+  }, [user, item.id, messages.length]);
 
   // Instant scroll on initial load; smooth scroll for subsequent new messages
   useEffect(() => {

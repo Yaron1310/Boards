@@ -240,6 +240,7 @@ export interface CreateColumnData {
 export interface UpdateColumnData {
   name?: string;
   settings?: ColumnSettings;
+  summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' } | null;
 }
 
 export interface ReorderColumnItem {

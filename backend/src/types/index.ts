@@ -13,6 +13,7 @@ export interface DBWorkspace {
   id: string;
   name: string;
   orgId: string;
+  color?: string;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt?: admin.firestore.Timestamp | Date | any;
   isPersonal?: boolean;
@@ -77,6 +78,9 @@ export interface DBUser {
   lockoutUntil?: admin.firestore.Timestamp | Date | null | any;
   primaryOrganizationId?: string;
   defaultWorkspaceId?: string;
+  preferences?: {
+    darkContrast?: boolean;
+  };
 }
 
 export interface DBMembership {
@@ -245,6 +249,11 @@ export interface DBColumn {
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
+  summaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
@@ -331,6 +340,8 @@ export interface DBItem {
   // Chat denormalized counters (updated on each new chat message)
   chatMessageCount?: number;
   chatLastMessageAt?: admin.firestore.Timestamp | Date | any;
+  // Per-user seen counts for unread badge: { [userId]: seenCount }
+  chatSeenBy?: Record<string, number>;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: admin.firestore.Timestamp | Date | any;

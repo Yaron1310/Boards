@@ -256,10 +256,9 @@ const WorkspaceHomePage: React.FC = () => {
     clearFeedback();
     if (!newOrgName.trim()) { setModalError('WorkHub Name is required.'); return; }
     setIsSaving(true);
-    const newOrg = await addWorkspace(newOrgName.trim(), user!.orgId);
+    const newOrg = await addWorkspace(newOrgName.trim(), user!.orgId, undefined, newOrgColor);
     setIsSaving(false);
     if (newOrg) {
-      localStorage.setItem(`workspaceColor_${newOrg.id}`, newOrgColor);
       setNewOrgName('');
       setNewOrgColor(WORKSPACE_COLORS[0].value);
       setIsAddModalOpen(false);
@@ -272,8 +271,7 @@ const WorkspaceHomePage: React.FC = () => {
   const handleOpenEditModal = (ws: Workspace) => {
     clearFeedback();
     setEditOrgData({ name: ws.name });
-    const savedColor = localStorage.getItem(`workspaceColor_${ws.id}`) || WORKSPACE_COLOR_ROWS[0][0].value;
-    setEditOrgColor(savedColor);
+    setEditOrgColor(ws.color || WORKSPACE_COLOR_ROWS[0][0].value);
     setOrgToEdit(ws);
   };
 
@@ -281,10 +279,9 @@ const WorkspaceHomePage: React.FC = () => {
     clearFeedback();
     if (orgToEdit && editOrgData.name.trim()) {
       setIsSaving(true);
-      const success = await updateWorkspace(orgToEdit.id, { name: editOrgData.name.trim(), isPersonal: orgToEdit.isPersonal });
+      const success = await updateWorkspace(orgToEdit.id, { name: editOrgData.name.trim(), isPersonal: orgToEdit.isPersonal, color: editOrgColor });
       setIsSaving(false);
       if (success) {
-        localStorage.setItem(`workspaceColor_${orgToEdit.id}`, editOrgColor);
         setFeedbackMessage({ type: 'success', text: `Workspace "${editOrgData.name}" updated.` });
         setOrgToEdit(null);
       } else if (!dataError) {
@@ -399,7 +396,7 @@ const WorkspaceHomePage: React.FC = () => {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" role="list" aria-label="WorkHubs">
           {workspaces.map((ws) => {
-            const wsColor = localStorage.getItem(`workspaceColor_${ws.id}`) || WORKSPACE_COLOR_ROWS[0][0].value;
+            const wsColor = ws.color || WORKSPACE_COLOR_ROWS[0][0].value;
             return (
               <div key={ws.id} className="relative group" role="listitem">
                 <Link
