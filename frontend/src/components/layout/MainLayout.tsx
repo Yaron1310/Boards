@@ -128,7 +128,7 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
           aria-label="Select WorkHub"
         >
           <div className="flex items-center gap-2 min-w-0">
-            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: selectedColor }} aria-hidden="true" />
+            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: selectedColor, border: '1px solid #b6b6b6' }} aria-hidden="true" />
             <span className="truncate">{selectedName}</span>
           </div>
           <FiChevronDown size={14} aria-hidden="true" className="ml-2 flex-shrink-0" style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
@@ -150,7 +150,7 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
                   onClick={() => { setSelectedId(ws.id); setIsDropdownOpen(false); }}
                   className={`px-3 py-2 text-sm cursor-pointer text-gray-800 hover:bg-indigo-50 flex items-center gap-2 ${ws.id === selectedId ? 'bg-indigo-50 font-semibold' : ''}`}
                 >
-                  <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: wsColor }} aria-hidden="true" />
+                  <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: wsColor, border: '1px solid #b6b6b6' }} aria-hidden="true" />
                   {ws.name}
                 </li>
               );
