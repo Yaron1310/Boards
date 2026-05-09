@@ -275,6 +275,48 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
 // Dependency formula helpers
 // ---------------------------------------------------------------------------
 
+// Recursively resolves the effective (computed) start/end for any cell in a
+// dependency chain, so that C uses B's computed end (not B's raw stored end).
+const resolveChainedEffective = (
+  itemId: string,
+  columnId: string,
+  allItems: Item[],
+  visited: Set<string>,
+): { start: Date | null; end: Date | null } => {
+  const key = `${itemId}::${columnId}`;
+  if (visited.has(key)) return { start: null, end: null };
+  visited.add(key);
+
+  const srcItem = allItems.find((i) => i.id === itemId);
+  if (!srcItem) return { start: null, end: null };
+
+  const rawValue = srcItem.values[columnId] as TimeRangeValue | null | undefined;
+  const rawStart = toDate(rawValue?.start);
+  const rawEnd = toDate(rawValue?.end);
+
+  const depsIn = (srcItem.dependencies ?? []).filter(
+    (d) => d.targetItemId === itemId && d.targetColumnId === columnId,
+  );
+
+  if (!rawStart) return { start: rawStart, end: rawEnd };
+
+  for (const dep of depsIn) {
+    const srcEffective = resolveChainedEffective(dep.sourceItemId, dep.sourceColumnId, allItems, visited);
+    const srcEnd = srcEffective.end;
+    if (!srcEnd) continue;
+
+    const newStart = new Date(srcEnd);
+    newStart.setDate(newStart.getDate() + dep.offsetDays);
+
+    const durMs = rawEnd ? Math.max(0, rawEnd.getTime() - rawStart.getTime()) : 0;
+    const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+
+    return { start: newStart, end: newEnd };
+  }
+
+  return { start: rawStart, end: rawEnd };
+};
+
 const resolveEffectiveDates = (
   rawValue: TimeRangeValue | null | undefined,
   depsIn: TimeRangeDependency[],
@@ -286,9 +328,8 @@ const resolveEffectiveDates = (
   if (!rawStart) return { start: rawStart, end: rawEnd, isComputed: false };
 
   for (const dep of depsIn) {
-    const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
-      ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
-    const srcEnd = toDate(srcVal?.end);
+    const srcEffective = resolveChainedEffective(dep.sourceItemId, dep.sourceColumnId, allItems, new Set());
+    const srcEnd = srcEffective.end;
     if (!srcEnd) continue;
 
     const newStart = new Date(srcEnd);
@@ -312,9 +353,8 @@ interface ComputedTarget {
 }
 
 const computeTargetEffective = (dep: TimeRangeDependency, allItems: Item[]): ComputedTarget | null => {
-  const srcVal = allItems.find((i) => i.id === dep.sourceItemId)
-    ?.values[dep.sourceColumnId] as TimeRangeValue | null | undefined;
-  const srcEnd = toDate(srcVal?.end);
+  const srcEffective = resolveChainedEffective(dep.sourceItemId, dep.sourceColumnId, allItems, new Set());
+  const srcEnd = srcEffective.end;
   if (!srcEnd) return null;
 
   const tgtItem = allItems.find((i) => i.id === dep.targetItemId);
@@ -410,6 +450,19 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     items: allItems,
   } = useDependency();
 
+  // Recursively collect all downstream deps in the chain starting from itemId/colId
+  const collectChainDeps = (itemId: string, colId: string, visited = new Set<string>()): TimeRangeDependency[] => {
+    const key = `${itemId}::${colId}`;
+    if (visited.has(key)) return [];
+    visited.add(key);
+    const direct = getDepsFrom(itemId, colId);
+    const result: TimeRangeDependency[] = [...direct];
+    for (const dep of direct) {
+      result.push(...collectChainDeps(dep.targetItemId, dep.targetColumnId, visited));
+    }
+    return result;
+  };
+
   const cellRefId = { itemId: item.id, columnId: column.id };
   const isDrawing = drawState !== null;
   const isSource = drawState?.source.itemId === item.id && drawState?.source.columnId === column.id;
@@ -498,8 +551,8 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
     }
   };
 
-  const triggerRemoveOut = () => {
-    const deps = getDepsFrom(item.id, column.id);
+  const triggerRemoveOut = (scope: 'one' | 'all') => {
+    const deps = scope === 'all' ? collectChainDeps(item.id, column.id) : getDepsFrom(item.id, column.id);
     const computedTargets = deps
       .map((dep) => computeTargetEffective(dep, allItems))
       .filter((x): x is ComputedTarget => x !== null);
@@ -747,14 +800,34 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                       {showDepMenu === 'in' ? 'Incoming' : 'Outgoing'} dependencies
                     </p>
                     {showDepMenu === 'out' ? (
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                        onClick={triggerRemoveOut}
-                      >
-                        <span className="text-red-400">✕</span>
-                        Remove all links ({getDepsFrom(item.id, column.id).length})
-                      </button>
+                      (() => {
+                        const directDeps = getDepsFrom(item.id, column.id);
+                        const chainDeps = collectChainDeps(item.id, column.id);
+                        return (
+                          <>
+                            <button
+                              type="button"
+                              className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              onClick={() => triggerRemoveOut('one')}
+                              aria-label={`Remove outgoing link (${directDeps.length})`}
+                            >
+                              <span className="text-red-400">✕</span>
+                              Remove just this link ({directDeps.length})
+                            </button>
+                            {chainDeps.length > directDeps.length && (
+                              <button
+                                type="button"
+                                className="w-full text-left px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                onClick={() => triggerRemoveOut('all')}
+                                aria-label={`Remove all downstream links (${chainDeps.length})`}
+                              >
+                                <span className="text-red-400">✕</span>
+                                Remove all below ({chainDeps.length})
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()
                     ) : (
                       getDepsTo(item.id, column.id).map((dep) => (
                         <button
