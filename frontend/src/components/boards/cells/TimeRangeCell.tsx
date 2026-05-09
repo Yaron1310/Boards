@@ -611,20 +611,14 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
                       <span className="text-center leading-tight">{durationText}</span>
                     ) : (
                       <>
-                        <span className="flex items-center gap-0.5">
-                          <TrafficLight date={displayStart} type="start" />
-                          {formatDate(displayStart) || '?'}
-                        </span>
-                        <span className="ml-1.5 flex items-center">
+                        <span>{formatDate(displayStart) || '?'}</span>
+                        <span className="mx-1 flex items-center">
                           <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-none stroke-white stroke-[2.5]">
                             <line x1="1" y1="12" x2="19" y2="12" />
                             <polyline points="13 6 19 12 13 18" />
                           </svg>
                         </span>
-                        <span className="flex items-center gap-0.5 ml-0.5">
-                          <TrafficLight date={displayEnd} type="end" />
-                          {formatDate(displayEnd) || '?'}
-                        </span>
+                        <span>{formatDate(displayEnd) || '?'}</span>
                       </>
                     )}
                   </div>

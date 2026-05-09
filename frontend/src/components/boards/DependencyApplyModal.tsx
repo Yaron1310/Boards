@@ -92,10 +92,22 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
 
     // Build a chain: newDep already links source → target.
     // Each additional item depends on the previous one, not the original source.
+    // Empty cells (no value in the target column) are skipped — prevItemId does
+    // NOT advance so the chain connects the next non-empty cell to the last one.
     let prevItemId = newDep.targetItemId;
 
     for (const targetIt of sortedTargets) {
       if (targetIt.id === prevItemId) continue;
+
+      // Skip items that have no value in the target column (empty cells)
+      const cellValue = targetIt.values[newDep.targetColumnId];
+      const isEmpty =
+        cellValue == null ||
+        (typeof cellValue === 'object' &&
+          !Array.isArray(cellValue) &&
+          !(cellValue as Record<string, unknown>).start &&
+          !(cellValue as Record<string, unknown>).end);
+      if (isEmpty) continue;
 
       const existingDeps = targetIt.dependencies ?? [];
       const alreadyLinked = existingDeps.some(
