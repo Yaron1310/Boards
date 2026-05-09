@@ -1,6 +1,39 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { Item, Column, Group } from '../../types';
 import { ColumnType } from '../../types';
+import { useUpdateItem } from '../../hooks/queries';
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+const WEEK_PX = 120;
+const DAY_PX = 38;
+const ROW_H = 36;
+const NAME_W = 282;
+const HANDLE_W = 8;
+const MS_PER_DAY = 86_400_000;
+const MS_PER_WEEK = 7 * MS_PER_DAY;
+const DAY_ABBREVS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+type TimeUnit = 'weeks' | 'days';
+
+interface DragState {
+  itemId: string;
+  colId: string;
+  edge: 'start' | 'end';
+  origStart: Date;
+  origEnd: Date;
+  mouseX: number;
+  pxPerDay: number;
+  currentStart: Date;
+  currentEnd: Date;
+}
+
+interface TooltipState {
+  x: number;
+  y: number;
+  startDate: Date;
+  endDate: Date;
+}
 
 interface GanttViewProps {
   groups: Group[];
@@ -8,17 +41,25 @@ interface GanttViewProps {
   columns: Column[];
 }
 
-const WEEK_PX = 120;
-const ROW_H = 36;
-const NAME_W = 282;
-const MS_PER_DAY = 86_400_000;
-const MS_PER_WEEK = 7 * MS_PER_DAY;
-
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 function parseDate(s: string | null | undefined): Date | null {
   if (!s) return null;
   const datePart = s.includes('T') ? s.slice(0, 10) : s;
   const d = new Date(datePart + 'T00:00:00');
   return isNaN(d.getTime()) ? null : d;
+}
+
+function toDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function addLocalDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
 }
 
 function weekStart(d: Date): Date {
@@ -33,7 +74,7 @@ function addWeeks(d: Date, n: number): Date {
   return new Date(d.getTime() + n * MS_PER_WEEK);
 }
 
-function formatWeek(d: Date): string {
+function formatWeekLabel(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
@@ -41,16 +82,29 @@ function formatTooltipDate(d: Date): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-interface TooltipState {
-  x: number;
-  y: number;
-  startDate: Date;
-  endDate: Date;
+function formatDragDate(d: Date): string {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
 const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) => {
   const timeRangeCol = columns.find((c) => c.type === ColumnType.TIME_RANGE);
+
+  const [timeUnit, setTimeUnit] = useState<TimeUnit>('weeks');
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [preview, setPreview] = useState<Record<string, { start: Date; end: Date }>>({});
+  const [dragLabel, setDragLabel] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  const dragRef = useRef<DragState | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Keep mutable refs in sync so global event handlers can access current values
+  const timeRangeColRef = useRef(timeRangeCol);
+  timeRangeColRef.current = timeRangeCol;
+
+  const { mutate: saveItem } = useUpdateItem();
+  const saveItemRef = useRef(saveItem);
+  saveItemRef.current = saveItem;
 
   const today = useMemo(() => {
     const d = new Date();
@@ -58,7 +112,8 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
     return d;
   }, []);
 
-  const { weeks, timelineStart } = useMemo(() => {
+  // ── Timeline date range (unit-independent) ──────────────────────────────
+  const { timelineStart, timelineEnd } = useMemo(() => {
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
 
@@ -74,22 +129,144 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
       }
     }
 
-    const start = weekStart(minDate ?? today);
-    const effectiveStart = addWeeks(start, -1);
-    const effectiveEnd = maxDate ? new Date(maxDate.getTime() + MS_PER_DAY) : addWeeks(effectiveStart, 9);
-    const rawWeeks = Math.ceil((effectiveEnd.getTime() - effectiveStart.getTime()) / MS_PER_WEEK);
-    const totalWeeks = Math.max(8, rawWeeks + 2);
+    const base = weekStart(minDate ?? today);
+    const tStart = addWeeks(base, -1);
+    const tEnd = maxDate
+      ? addWeeks(new Date(maxDate.getTime()), 3)
+      : addWeeks(tStart, 12);
 
-    const ws: Date[] = [];
-    for (let i = 0; i < totalWeeks; i++) ws.push(addWeeks(effectiveStart, i));
-
-    return { weeks: ws, timelineStart: effectiveStart };
+    return { timelineStart: tStart, timelineEnd: tEnd };
   }, [timeRangeCol, itemsByGroup, today]);
 
-  const timelineWidth = weeks.length * WEEK_PX;
-  const todayOffset = (today.getTime() - timelineStart.getTime()) / MS_PER_WEEK * WEEK_PX;
+  // ── Column array (week starts or individual days) ───────────────────────
+  const timeColumns = useMemo<Date[]>(() => {
+    if (timeUnit === 'weeks') {
+      const count = Math.max(8, Math.ceil((timelineEnd.getTime() - timelineStart.getTime()) / MS_PER_WEEK) + 2);
+      return Array.from({ length: count }, (_, i) => addWeeks(timelineStart, i));
+    }
+    const count = Math.max(56, Math.ceil((timelineEnd.getTime() - timelineStart.getTime()) / MS_PER_DAY) + 14);
+    return Array.from({ length: count }, (_, i) => addLocalDays(timelineStart, i));
+  }, [timeUnit, timelineStart, timelineEnd]);
+
+  // ── Layout metrics ──────────────────────────────────────────────────────
+  const columnPx = timeUnit === 'weeks' ? WEEK_PX : DAY_PX;
+  const pxPerDay = timeUnit === 'weeks' ? WEEK_PX / 7 : DAY_PX;
+  const timelineWidth = timeColumns.length * columnPx;
+  const totalWidth = NAME_W + timelineWidth;
+  const todayOffset = (today.getTime() - timelineStart.getTime()) / MS_PER_DAY * pxPerDay;
   const showToday = todayOffset >= 0 && todayOffset <= timelineWidth;
 
+  // ── Bar geometry ────────────────────────────────────────────────────────
+  function getBarGeometry(startDate: Date, endDate: Date) {
+    const left = (startDate.getTime() - timelineStart.getTime()) / MS_PER_DAY * pxPerDay;
+    const width = Math.max(pxPerDay * 0.5, (endDate.getTime() - startDate.getTime() + MS_PER_DAY) / MS_PER_DAY * pxPerDay);
+    return { left, width };
+  }
+
+  // ── Display dates with preview override ────────────────────────────────
+  function getItemDates(item: Item): { start: Date; end: Date } | null {
+    if (preview[item.id]) return preview[item.id];
+    if (!timeRangeCol) return null;
+    const val = item.values[timeRangeCol.id] as { start?: string; end?: string } | null;
+    const start = parseDate(val?.start);
+    const end = parseDate(val?.end);
+    return start && end ? { start, end } : null;
+  }
+
+  // ── Resize drag start ───────────────────────────────────────────────────
+  function handleResizeStart(
+    e: React.MouseEvent,
+    item: Item,
+    edge: 'start' | 'end',
+    startDate: Date,
+    endDate: Date,
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    dragRef.current = {
+      itemId: item.id,
+      colId: timeRangeColRef.current?.id ?? '',
+      edge,
+      origStart: startDate,
+      origEnd: endDate,
+      mouseX: e.clientX,
+      pxPerDay,
+      currentStart: startDate,
+      currentEnd: endDate,
+    };
+  }
+
+  // ── Global mouse move / up (stable effect — all data via refs) ──────────
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+
+      const deltaX = e.clientX - d.mouseX;
+      const deltaDays = Math.round(deltaX / d.pxPerDay);
+
+      let newStart = d.origStart;
+      let newEnd = d.origEnd;
+
+      if (d.edge === 'start') {
+        const candidate = addLocalDays(d.origStart, deltaDays);
+        newStart = candidate < d.origEnd ? candidate : addLocalDays(d.origEnd, -1);
+      } else {
+        const candidate = addLocalDays(d.origEnd, deltaDays);
+        newEnd = candidate > d.origStart ? candidate : addLocalDays(d.origStart, 1);
+      }
+
+      d.currentStart = newStart;
+      d.currentEnd = newEnd;
+
+      setPreview((prev) => ({ ...prev, [d.itemId]: { start: newStart, end: newEnd } }));
+      setDragLabel({
+        x: e.clientX,
+        y: e.clientY,
+        text: d.edge === 'start' ? formatDragDate(newStart) : formatDragDate(newEnd),
+      });
+    };
+
+    const onUp = () => {
+      const d = dragRef.current;
+      if (!d) return;
+      const { itemId, colId, currentStart, currentEnd } = d;
+      dragRef.current = null;
+      setPreview({});
+      setDragLabel(null);
+
+      if (colId) {
+        saveItemRef.current({
+          id: itemId,
+          patch: {
+            values: {
+              [colId]: {
+                start: toDateString(currentStart),
+                end: toDateString(currentEnd),
+              },
+            },
+          },
+        });
+      }
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []); // stable: everything accessed via refs or stable setters
+
+  // ── Auto-scroll to center on today when unit changes ───────────────────
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const todayPx = NAME_W + (today.getTime() - timelineStart.getTime()) / MS_PER_DAY * pxPerDay;
+    container.scrollLeft = Math.max(0, todayPx - container.clientWidth / 2);
+  }, [timeUnit, today, timelineStart, pxPerDay]);
+
+  // ──────────────────────────────────────────────────────────────────────────
   if (!timeRangeCol) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400 text-sm">
@@ -98,11 +275,50 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
     );
   }
 
-  const totalWidth = NAME_W + timelineWidth;
+  const isCurrentlyDragging = Object.keys(preview).length > 0;
 
   return (
-    <>
-      <div className="h-full overflow-auto">
+    <div className="h-full flex flex-col">
+      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
+      <div
+        className="flex items-center gap-3 px-4 py-2 border-b border-[#d2d2d4] bg-white flex-shrink-0"
+        style={{ userSelect: 'none' }}
+      >
+        <span className="text-sm font-semibold text-gray-600">Timeline</span>
+        <div
+          className="flex bg-gray-100 rounded-lg p-0.5"
+          role="group"
+          aria-label="Timeline unit toggle"
+        >
+          <button
+            type="button"
+            onClick={() => setTimeUnit('weeks')}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              timeUnit === 'weeks'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            aria-pressed={timeUnit === 'weeks'}
+          >
+            Weeks
+          </button>
+          <button
+            type="button"
+            onClick={() => setTimeUnit('days')}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+              timeUnit === 'days'
+                ? 'bg-white text-indigo-600 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+            aria-pressed={timeUnit === 'days'}
+          >
+            Days
+          </button>
+        </div>
+      </div>
+
+      {/* ── Scrollable gantt ─────────────────────────────────────────────── */}
+      <div ref={containerRef} className="flex-1 overflow-auto">
         {/* Header */}
         <div
           className="sticky top-0 z-20 flex bg-gray-50 border-b border-[#d2d2d4] select-none"
@@ -112,23 +328,60 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
         >
           <div
             className="sticky left-0 z-20 flex-shrink-0 bg-gray-50 border-r border-[#d2d2d4] flex items-center px-4 text-sm font-semibold text-gray-600"
-            style={{ width: NAME_W, minWidth: NAME_W, height: 36 }}
+            style={{ width: NAME_W, minWidth: NAME_W, height: ROW_H }}
             role="columnheader"
           >
             Item
           </div>
           <div className="flex" style={{ width: timelineWidth }}>
-            {weeks.map((week, i) => (
-              <div
-                key={i}
-                className="flex-shrink-0 flex items-center px-2 text-xs text-gray-500 border-r border-[#d2d2d4]"
-                style={{ width: WEEK_PX, height: 36 }}
-                role="columnheader"
-                aria-label={`Week of ${formatWeek(week)}`}
-              >
-                {formatWeek(week)}
-              </div>
-            ))}
+            {timeUnit === 'weeks'
+              ? timeColumns.map((col, i) => (
+                  <div
+                    key={i}
+                    className="flex-shrink-0 flex items-center px-2 text-xs text-gray-500 border-r border-[#d2d2d4]"
+                    style={{ width: WEEK_PX, height: ROW_H }}
+                    role="columnheader"
+                    aria-label={`Week of ${formatWeekLabel(col)}`}
+                  >
+                    {formatWeekLabel(col)}
+                  </div>
+                ))
+              : timeColumns.map((col, i) => {
+                  const isNewMonth = i === 0 || col.getMonth() !== timeColumns[i - 1].getMonth();
+                  const isWeekStart = col.getDay() === 1;
+                  const isWeekend = col.getDay() === 0 || col.getDay() === 6;
+                  const isToday = col.toDateString() === today.toDateString();
+                  return (
+                    <div
+                      key={i}
+                      className={`flex-shrink-0 flex flex-col items-center justify-center border-r ${
+                        isWeekStart ? 'border-[#b8b8bc]' : 'border-[#e8e8ea]'
+                      } ${isWeekend ? 'bg-gray-100/60' : ''}`}
+                      style={{ width: DAY_PX, height: ROW_H }}
+                      role="columnheader"
+                      aria-label={col.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    >
+                      <span
+                        className={`text-[9px] leading-none mb-0.5 ${
+                          isNewMonth
+                            ? 'text-indigo-500 font-semibold uppercase tracking-wide'
+                            : 'text-gray-400'
+                        }`}
+                      >
+                        {isNewMonth
+                          ? col.toLocaleDateString('en-US', { month: 'short' })
+                          : DAY_ABBREVS[col.getDay()]}
+                      </span>
+                      <span
+                        className={`text-[11px] font-medium leading-none ${
+                          isToday ? 'text-red-500 font-bold' : 'text-gray-600'
+                        }`}
+                      >
+                        {col.getDate()}
+                      </span>
+                    </div>
+                  );
+                })}
           </div>
         </div>
 
@@ -137,9 +390,10 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
           {groups.map((group) => {
             const items = itemsByGroup[group.id] ?? [];
             if (items.length === 0) return null;
+
             return (
               <React.Fragment key={group.id}>
-                {/* Group header — content is sticky-left */}
+                {/* Group header */}
                 <div
                   className="flex border-b border-[#d2d2d4]"
                   style={{ height: 28 }}
@@ -162,16 +416,9 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
 
                 {/* Item rows */}
                 {items.map((item) => {
-                  const val = item.values[timeRangeCol.id] as { start?: string; end?: string } | null;
-                  const startDate = parseDate(val?.start);
-                  const endDate = parseDate(val?.end);
-
-                  let barLeft: number | null = null;
-                  let barWidth: number | null = null;
-                  if (startDate && endDate) {
-                    barLeft = (startDate.getTime() - timelineStart.getTime()) / MS_PER_WEEK * WEEK_PX;
-                    barWidth = Math.max(8, (endDate.getTime() - startDate.getTime() + MS_PER_DAY) / MS_PER_WEEK * WEEK_PX);
-                  }
+                  const dates = getItemDates(item);
+                  const barGeom = dates ? getBarGeometry(dates.start, dates.end) : null;
+                  const isBeingDragged = !!preview[item.id];
 
                   return (
                     <div
@@ -195,17 +442,31 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
                         className="relative flex-shrink-0"
                         style={{ width: timelineWidth }}
                         role="gridcell"
-                        aria-label={startDate && endDate ? `${val?.start} to ${val?.end}` : 'No date set'}
+                        aria-label={dates ? `${toDateString(dates.start)} to ${toDateString(dates.end)}` : 'No date set'}
                       >
-                        {/* Week grid lines */}
-                        {weeks.map((_, i) => (
-                          <div
-                            key={i}
-                            className="absolute top-0 bottom-0 border-r border-[#ebebed]"
-                            style={{ left: (i + 1) * WEEK_PX - 1 }}
-                            aria-hidden="true"
-                          />
-                        ))}
+                        {/* Grid lines + weekend shading */}
+                        {timeColumns.map((col, i) => {
+                          const isWeekend = timeUnit === 'days' && (col.getDay() === 0 || col.getDay() === 6);
+                          const isWeekBoundary = timeUnit === 'days' && col.getDay() === 1;
+                          return (
+                            <React.Fragment key={i}>
+                              {isWeekend && (
+                                <div
+                                  className="absolute top-0 bottom-0 bg-gray-100/50"
+                                  style={{ left: i * columnPx, width: columnPx }}
+                                  aria-hidden="true"
+                                />
+                              )}
+                              <div
+                                className={`absolute top-0 bottom-0 w-px ${
+                                  isWeekBoundary ? 'bg-gray-300' : 'bg-[#ebebed]'
+                                }`}
+                                style={{ left: (i + 1) * columnPx - 1 }}
+                                aria-hidden="true"
+                              />
+                            </React.Fragment>
+                          );
+                        })}
 
                         {/* Today marker */}
                         {showToday && (
@@ -217,22 +478,60 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
                         )}
 
                         {/* Gantt bar */}
-                        {barLeft !== null && barWidth !== null && startDate && endDate && (
+                        {barGeom && dates && (
                           <div
-                            className="absolute top-1/2 -translate-y-1/2 cursor-default"
+                            className="absolute top-1/2 -translate-y-1/2 select-none"
                             style={{
-                              left: barLeft,
-                              width: barWidth,
+                              left: barGeom.left,
+                              width: barGeom.width,
                               height: 22,
                               borderRadius: 6,
-                              background: 'linear-gradient(90deg, #6366f1, #3b82f6)',
-                              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                              background: isBeingDragged
+                                ? 'linear-gradient(90deg, #4f46e5, #2563eb)'
+                                : 'linear-gradient(90deg, #6366f1, #3b82f6)',
+                              boxShadow: isBeingDragged
+                                ? '0 4px 16px rgba(99,102,241,0.45)'
+                                : '0 2px 8px rgba(0,0,0,0.1)',
+                              zIndex: 5,
+                              transition: isBeingDragged ? 'none' : 'left 0.15s, width 0.15s',
                             }}
-                            aria-label={`${item.name}: ${formatTooltipDate(startDate)} to ${formatTooltipDate(endDate)}`}
-                            onMouseEnter={(e) => setTooltip({ x: e.clientX, y: e.clientY, startDate, endDate })}
-                            onMouseMove={(e) => setTooltip((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null)}
+                            aria-label={`${item.name}: ${formatTooltipDate(dates.start)} to ${formatTooltipDate(dates.end)}`}
+                            onMouseEnter={(e) => {
+                              if (!isCurrentlyDragging) {
+                                setTooltip({ x: e.clientX, y: e.clientY, startDate: dates.start, endDate: dates.end });
+                              }
+                            }}
+                            onMouseMove={(e) => {
+                              if (!isCurrentlyDragging) {
+                                setTooltip((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                              }
+                            }}
                             onMouseLeave={() => setTooltip(null)}
-                          />
+                          >
+                            {/* Left edge handle — changes start date */}
+                            <div
+                              className="absolute top-0 bottom-0 z-10 flex items-center justify-center rounded-l-[6px]"
+                              style={{ left: 0, width: HANDLE_W, cursor: 'ew-resize' }}
+                              onMouseDown={(e) => handleResizeStart(e, item, 'start', dates.start, dates.end)}
+                              role="slider"
+                              aria-label={`${item.name} start date`}
+                              aria-valuenow={dates.start.getTime()}
+                            >
+                              <div className="w-px h-3 bg-white/70 rounded-full pointer-events-none" />
+                            </div>
+
+                            {/* Right edge handle — changes end date */}
+                            <div
+                              className="absolute top-0 bottom-0 z-10 flex items-center justify-center rounded-r-[6px]"
+                              style={{ right: 0, width: HANDLE_W, cursor: 'ew-resize' }}
+                              onMouseDown={(e) => handleResizeStart(e, item, 'end', dates.start, dates.end)}
+                              role="slider"
+                              aria-label={`${item.name} end date`}
+                              aria-valuenow={dates.end.getTime()}
+                            >
+                              <div className="w-px h-3 bg-white/70 rounded-full pointer-events-none" />
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -244,8 +543,8 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
         </div>
       </div>
 
-      {/* Tooltip — fixed so it escapes overflow clipping */}
-      {tooltip && (() => {
+      {/* Hover tooltip (hidden during drag) */}
+      {tooltip && !isCurrentlyDragging && (() => {
         const days = Math.round((tooltip.endDate.getTime() - tooltip.startDate.getTime()) / MS_PER_DAY) + 1;
         return (
           <div
@@ -269,7 +568,20 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
           </div>
         );
       })()}
-    </>
+
+      {/* Drag date label — follows cursor during resize */}
+      {dragLabel && (
+        <div
+          className="fixed z-[9999] pointer-events-none"
+          style={{ left: dragLabel.x + 12, top: dragLabel.y - 36 }}
+          aria-hidden="true"
+        >
+          <div className="bg-indigo-700 text-white text-xs font-semibold px-2.5 py-1 rounded-md shadow-lg whitespace-nowrap">
+            {dragLabel.text}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
