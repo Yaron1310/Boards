@@ -14,7 +14,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { useBoard, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
 import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries';
-import { useItems, useReorderItems } from '../../hooks/queries/useItemQueries';
+import { useItems, useReorderItems, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
@@ -99,6 +99,7 @@ interface BoardContentProps {
   searchText: string;
   activeFilters: ActiveFilter[];
   boardView: BoardView;
+  onGanttItemUpdate: (itemId: string, groupId: string, colId: string, start: string, end: string) => void;
 }
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' };
@@ -157,6 +158,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
   searchText,
   activeFilters,
   boardView,
+  onGanttItemUpdate,
 }) => {
   const { data: columns = [] } = useColumns(boardId);
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
@@ -231,14 +233,15 @@ const BoardContent: React.FC<BoardContentProps> = ({
     <div className="flex-1 relative min-h-0">
       <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
 
-      {/* SVG overlay — position:fixed, renders at viewport level outside all scroll containers */}
-      <DependencyOverlay />
+      {/* SVG overlay — only in table/rows views; Gantt has no cells to connect */}
+      {boardView !== 'gantt' && <DependencyOverlay />}
 
       {boardView === 'gantt' ? (
         <GanttView
           groups={localGroups}
           itemsByGroup={displayItemsByGroup}
           columns={columns}
+          onItemUpdate={onGanttItemUpdate}
         />
       ) : (
         <div
@@ -382,6 +385,7 @@ const BoardViewPage: React.FC = () => {
   const { mutateAsync: updateBoard, isPending: isSaving } = useUpdateBoard();
   const { mutateAsync: reorderGroups } = useReorderGroups();
   const { mutateAsync: reorderItems } = useReorderItems();
+  const { mutate: updateItemMutate } = useUpdateItem();
 
   // ETag-style live updates — checks version timestamp before pulling full data
   useLiveBoardVersion(boardId);
@@ -441,6 +445,23 @@ const BoardViewPage: React.FC = () => {
     }
     return map;
   }, [itemsPage]);
+
+  // Called by GanttView when a bar is resized — updates local state immediately
+  // and persists to DB, so the same data source is reflected in both views.
+  const handleGanttItemUpdate = React.useCallback(
+    (itemId: string, groupId: string, colId: string, start: string, end: string) => {
+      setLocalItemsByGroup((prev) => ({
+        ...prev,
+        [groupId]: (prev[groupId] ?? []).map((it) =>
+          it.id === itemId
+            ? { ...it, values: { ...it.values, [colId]: { start, end } } }
+            : it,
+        ),
+      }));
+      updateItemMutate({ id: itemId, patch: { values: { [colId]: { start, end } } } });
+    },
+    [updateItemMutate],
+  );
 
   // Flat list of all items across groups — used by DependencyProvider
   const allItems = useMemo(() => Object.values(localItemsByGroup).flat(), [localItemsByGroup]);
@@ -854,6 +875,7 @@ const BoardViewPage: React.FC = () => {
             searchText={searchText}
             activeFilters={activeFilters}
             boardView={boardView}
+            onGanttItemUpdate={handleGanttItemUpdate}
           />
         </DependencyProvider>
         </FormulaEditProvider>

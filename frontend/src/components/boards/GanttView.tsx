@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import type { Item, Column, Group } from '../../types';
 import { ColumnType } from '../../types';
-import { useUpdateItem } from '../../hooks/queries';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const WEEK_PX = 120;
@@ -18,6 +17,7 @@ type TimeUnit = 'weeks' | 'days';
 
 interface DragState {
   itemId: string;
+  groupId: string;
   colId: string;
   edge: 'start' | 'end';
   origStart: Date;
@@ -39,6 +39,7 @@ interface GanttViewProps {
   groups: Group[];
   itemsByGroup: Record<string, Item[]>;
   columns: Column[];
+  onItemUpdate: (itemId: string, groupId: string, colId: string, start: string, end: string) => void;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,7 +88,7 @@ function formatDragDate(d: Date): string {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) => {
+const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, onItemUpdate }) => {
   const timeRangeCol = columns.find((c) => c.type === ColumnType.TIME_RANGE);
 
   const [timeUnit, setTimeUnit] = useState<TimeUnit>('weeks');
@@ -102,9 +103,8 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
   const timeRangeColRef = useRef(timeRangeCol);
   timeRangeColRef.current = timeRangeCol;
 
-  const { mutate: saveItem } = useUpdateItem();
-  const saveItemRef = useRef(saveItem);
-  saveItemRef.current = saveItem;
+  const onItemUpdateRef = useRef(onItemUpdate);
+  onItemUpdateRef.current = onItemUpdate;
 
   const today = useMemo(() => {
     const d = new Date();
@@ -185,6 +185,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
     e.stopPropagation();
     dragRef.current = {
       itemId: item.id,
+      groupId: item.groupId,
       colId: timeRangeColRef.current?.id ?? '',
       edge,
       origStart: startDate,
@@ -230,23 +231,19 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
     const onUp = () => {
       const d = dragRef.current;
       if (!d) return;
-      const { itemId, colId, currentStart, currentEnd } = d;
+      const { itemId, groupId, colId, currentStart, currentEnd } = d;
       dragRef.current = null;
       setPreview({});
       setDragLabel(null);
 
       if (colId) {
-        saveItemRef.current({
-          id: itemId,
-          patch: {
-            values: {
-              [colId]: {
-                start: toDateString(currentStart),
-                end: toDateString(currentEnd),
-              },
-            },
-          },
-        });
+        onItemUpdateRef.current(
+          itemId,
+          groupId,
+          colId,
+          toDateString(currentStart),
+          toDateString(currentEnd),
+        );
       }
     };
 
@@ -278,47 +275,9 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
   const isCurrentlyDragging = Object.keys(preview).length > 0;
 
   return (
-    <div className="h-full flex flex-col">
-      {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div
-        className="flex items-center gap-3 px-4 py-2 border-b border-[#d2d2d4] bg-white flex-shrink-0"
-        style={{ userSelect: 'none' }}
-      >
-        <span className="text-sm font-semibold text-gray-600">Timeline</span>
-        <div
-          className="flex bg-gray-100 rounded-lg p-0.5"
-          role="group"
-          aria-label="Timeline unit toggle"
-        >
-          <button
-            type="button"
-            onClick={() => setTimeUnit('weeks')}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-              timeUnit === 'weeks'
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-            aria-pressed={timeUnit === 'weeks'}
-          >
-            Weeks
-          </button>
-          <button
-            type="button"
-            onClick={() => setTimeUnit('days')}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
-              timeUnit === 'days'
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
-            aria-pressed={timeUnit === 'days'}
-          >
-            Days
-          </button>
-        </div>
-      </div>
-
+    <>
       {/* ── Scrollable gantt ─────────────────────────────────────────────── */}
-      <div ref={containerRef} className="flex-1 overflow-auto">
+      <div ref={containerRef} className="h-full overflow-auto">
         {/* Header */}
         <div
           className="sticky top-0 z-20 flex bg-gray-50 border-b border-[#d2d2d4] select-none"
@@ -327,11 +286,20 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
           aria-label="Gantt timeline header"
         >
           <div
-            className="sticky left-0 z-20 flex-shrink-0 bg-gray-50 border-r border-[#d2d2d4] flex items-center px-4 text-sm font-semibold text-gray-600"
+            className="sticky left-0 z-20 flex-shrink-0 bg-gray-50 border-r border-[#d2d2d4] flex items-center justify-between px-3 text-sm font-semibold text-gray-600"
             style={{ width: NAME_W, minWidth: NAME_W, height: ROW_H }}
             role="columnheader"
           >
-            Item
+            <span>Item</span>
+            <button
+              type="button"
+              onClick={() => setTimeUnit((u) => u === 'weeks' ? 'days' : 'weeks')}
+              className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-gray-200 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 transition-colors select-none"
+              aria-label={`Switch to ${timeUnit === 'weeks' ? 'days' : 'weeks'} view`}
+              aria-pressed={timeUnit === 'days'}
+            >
+              {timeUnit === 'weeks' ? 'Weeks' : 'Days'}
+            </button>
           </div>
           <div className="flex" style={{ width: timelineWidth }}>
             {timeUnit === 'weeks'
@@ -581,7 +549,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns }) 
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
