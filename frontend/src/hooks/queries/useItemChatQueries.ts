@@ -21,7 +21,19 @@ export const usePostChatMessage = (itemId: string) => {
       qc.setQueryData<ChatMessage[]>(queryKeys.chat.messages(itemId), (old) =>
         old ? [...old, newMsg] : [newMsg],
       );
-      // Invalidate items so chatMessageCount/chatLastMessageAt refresh
+      void qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+};
+
+export const useDeleteChatMessage = (itemId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (messageId: string) => wm.deleteChatMessage(itemId, messageId),
+    onSuccess: (_data, messageId) => {
+      qc.setQueryData<ChatMessage[]>(queryKeys.chat.messages(itemId), (old) =>
+        old ? old.filter((m) => m.id !== messageId) : [],
+      );
       void qc.invalidateQueries({ queryKey: ['items'] });
     },
   });

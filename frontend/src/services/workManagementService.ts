@@ -343,3 +343,6 @@ export const postChatMessage = async (
     body: JSON.stringify({ text, attachments }),
   });
 };
+
+export const deleteChatMessage = (itemId: string, messageId: string): Promise<void> =>
+  fetchWithAuth(`/api/items/${itemId}/chat/${messageId}`, { method: 'DELETE' });

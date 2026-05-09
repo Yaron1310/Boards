@@ -183,6 +183,48 @@ export const postChatMessage = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
+// DELETE /items/:itemId/chat/:messageId
+// Only the original author may delete their own message.
+// ---------------------------------------------------------------------------
+export const deleteChatMessage = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const itemId = req.params.itemId ?? req.params.id;
+  const messageId = req.params.messageId;
+
+  try {
+    const itemDoc = await itemsCollection(user.orgId).doc(itemId).get();
+    if (!itemDoc.exists) return res.status(404).json({ message: 'Item not found.' });
+
+    const item = snapshotToData<DBItem>(itemDoc)!;
+    const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? (memberDoc.data() as DBBoardMember) : null;
+    assertItemAccess(user, item, 'read', memberData);
+
+    const msgRef = itemChatMessagesCollection(user.orgId, itemId).doc(messageId);
+    const msgDoc = await msgRef.get();
+    if (!msgDoc.exists) return res.status(404).json({ message: 'Message not found.' });
+
+    const msg = snapshotToData<DBChatMessage>(msgDoc)!;
+    if (msg.authorId !== user.id) {
+      return res.status(403).json({ message: 'You can only delete your own messages.' });
+    }
+
+    const batch = db.batch();
+    batch.delete(msgRef);
+    batch.update(itemsCollection(user.orgId).doc(itemId), {
+      chatMessageCount: admin.firestore.FieldValue.increment(-1),
+    });
+    await batch.commit();
+
+    res.status(200).json({ deleted: true });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error deleting chat message ${messageId} for item ${itemId}:`, err);
+    res.status(500).json({ message: 'Failed to delete message.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
 // POST /items/:itemId/chat/seen
 // Records that the current user has seen all messages up to the item's
 // current chatMessageCount, enabling cross-device unread badge accuracy.

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile } from 'react-icons/fi';
-import { useChatMessages, usePostChatMessage } from '../../hooks/queries/useItemChatQueries';
+import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile, FiTrash2 } from 'react-icons/fi';
+import { useQueryClient } from '@tanstack/react-query';
+import { useChatMessages, usePostChatMessage, useDeleteChatMessage } from '../../hooks/queries/useItemChatQueries';
 import { useAuth } from '../../hooks/useAuth';
 import { markChatSeen } from '../../services/geminiService';
 import type { Item, ChatMessage, ChatAttachment } from '../../types';
@@ -65,8 +66,10 @@ interface ItemChatModalProps {
 
 const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
   const { user } = useAuth();
+  const qc = useQueryClient();
   const { data: messages = [], isLoading } = useChatMessages(item.id);
   const { mutateAsync: postMessage, isPending: isSending } = usePostChatMessage(item.id);
+  const { mutate: deleteMessage } = useDeleteChatMessage(item.id);
 
   const [text, setText] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
@@ -81,23 +84,28 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
   // Derive stable list of unique author IDs for colour mapping
   const authorIds = Array.from(new Set(messages.map((m) => m.authorId)));
 
-  // Mark messages as seen on the backend whenever the sidebar is open and messages are loaded
+  // Mark messages as seen; invalidate items cache so the badge clears immediately
   useEffect(() => {
     if (!user || !messages.length) return;
-    void markChatSeen(item.id);
-  }, [user, item.id, messages.length]);
+    void markChatSeen(item.id).then(() => {
+      void qc.invalidateQueries({ queryKey: ['items'] });
+    });
+  }, [user, item.id, messages.length, qc]);
 
-  // Instant scroll on initial load; smooth scroll for subsequent new messages
+  // Defer scroll to next animation frame so the browser has finished layout before we read scrollHeight
   useEffect(() => {
     if (messages.length === 0) return;
     const container = messagesContainerRef.current;
     if (!container) return;
-    if (!initialScrollDone.current) {
-      container.scrollTop = container.scrollHeight;
-      initialScrollDone.current = true;
-    } else {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+    const frame = requestAnimationFrame(() => {
+      if (!initialScrollDone.current) {
+        container.scrollTop = container.scrollHeight;
+        initialScrollDone.current = true;
+      } else {
+        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [messages.length]);
 
   const handleSend = useCallback(async () => {
@@ -196,7 +204,7 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
                 return (
                   <div
                     key={msg.id}
-                    className={`flex items-end gap-2 mb-1 ${isMine ? 'flex-row-reverse' : 'flex-row'}`}
+                    className={`flex items-end gap-2 mb-1 group/msg ${isMine ? 'flex-row-reverse' : 'flex-row'}`}
                   >
                     {/* Avatar */}
                     <div className={`w-7 h-7 flex-shrink-0 ${showAvatar ? 'visible' : 'invisible'}`}>
@@ -241,6 +249,18 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
                         {formatTime(msg.createdAt)}
                       </span>
                     </div>
+
+                    {/* Delete button — only for own messages, visible on hover */}
+                    {isMine && (
+                      <button
+                        type="button"
+                        onClick={() => deleteMessage(msg.id)}
+                        className="flex-shrink-0 self-center p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover/msg:opacity-100 transition-opacity"
+                        aria-label="Delete message"
+                      >
+                        <FiTrash2 size={14} aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
                 );
               })}

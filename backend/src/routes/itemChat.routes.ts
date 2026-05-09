@@ -10,3 +10,4 @@ itemChatRouter.get('/', itemChatController.getChatMessages);
 itemChatRouter.post('/file', express.raw({ type: () => true, limit: '10mb' }), itemChatController.uploadChatFile);
 itemChatRouter.post('/seen', itemChatController.markChatSeen);
 itemChatRouter.post('/', itemChatController.postChatMessage);
+itemChatRouter.delete('/:messageId', itemChatController.deleteChatMessage);
