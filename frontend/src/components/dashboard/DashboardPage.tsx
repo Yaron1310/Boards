@@ -1,5 +1,7 @@
 import React, { useReducer, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useAuthSession } from '../../hooks/useAuthSession';
+import { useOrgSnapshot } from '../../hooks/useOrgSnapshot';
 import DashboardFilterBar, {
   filterReducer,
   toDashboardParams,
@@ -45,6 +47,8 @@ function applyStateToSearchParams(
 // ---------------------------------------------------------------------------
 
 const DashboardPage: React.FC = () => {
+  const { selectedWorkspace } = useAuthSession();
+  useOrgSnapshot(selectedWorkspace?.orgId);
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [filters, dispatch] = useReducer(

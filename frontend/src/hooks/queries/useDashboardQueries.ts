@@ -8,8 +8,7 @@ export const useDashboardSummary = (params: DashboardParams = {}) =>
   useQuery({
     queryKey: queryKeys.dashboard.summary(params),
     queryFn: () => getDashboardSummary(params),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
+    staleTime: Infinity, // useOrgSnapshot invalidates this via onSnapshot on boardVersions
   });
 
 export const useDashboardOverdue = (params: DashboardParams & DashboardPaginationParams = {}) =>

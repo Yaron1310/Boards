@@ -3,6 +3,7 @@ import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile, FiTrash2 } from 
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatMessages, usePostChatMessage, useDeleteChatMessage } from '../../hooks/queries/useItemChatQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
+import { useChatSnapshot } from '../../hooks/useChatSnapshot';
 import { markChatSeen } from '../../services/geminiService';
 import type { Item, ChatMessage, ChatAttachment } from '../../types';
 
@@ -65,8 +66,9 @@ interface ItemChatModalProps {
 }
 
 const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
-  const { user } = useAuthSession();
+  const { user, selectedWorkspace } = useAuthSession();
   const qc = useQueryClient();
+  useChatSnapshot(item.id, selectedWorkspace?.orgId);
   const { data: messages = [], isLoading } = useChatMessages(item.id);
   const { mutateAsync: postMessage, isPending: isSending } = usePostChatMessage(item.id);
   const { mutate: deleteMessage } = useDeleteChatMessage(item.id);

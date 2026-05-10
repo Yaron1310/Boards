@@ -8,8 +8,7 @@ export const useChatMessages = (itemId: string, enabled = true) =>
     queryKey: queryKeys.chat.messages(itemId),
     queryFn: () => wm.listChatMessages(itemId),
     enabled: enabled && !!itemId,
-    staleTime: 10 * 1000,
-    refetchInterval: 15 * 1000,
+    staleTime: Infinity, // useChatSnapshot keeps this live via onSnapshot
   });
 
 export const usePostChatMessage = (itemId: string) => {

@@ -14,6 +14,11 @@ service cloud.firestore {
       match /items/{itemId} {
         allow read: if isOrgMember(orgId);
         allow write: if false;
+
+        match /chatMessages/{messageId} {
+          allow read: if isOrgMember(orgId);
+          allow write: if false;
+        }
       }
 
       // Boards and their subcollections
@@ -37,7 +42,7 @@ service cloud.firestore {
         }
       }
 
-      // Board version documents (lightweight ETag — kept for fallback polling)
+      // Board version documents — used by useOrgSnapshot to detect any board mutation
       match /boardVersions/{boardId} {
         allow read: if isOrgMember(orgId);
         allow write: if false;
