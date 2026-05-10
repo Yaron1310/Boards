@@ -39,6 +39,7 @@ export function useBoardSnapshot(boardId: string | undefined, orgId: string | un
   const qc = useQueryClient();
 
   useEffect(() => {
+    console.log('[useBoardSnapshot] effect — boardId:', boardId ?? 'undefined', '| orgId:', orgId ?? 'undefined');
     if (!boardId || !orgId) return;
 
     const handleError = (err: FirestoreError) => {
