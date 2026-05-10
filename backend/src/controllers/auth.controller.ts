@@ -219,10 +219,14 @@ export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceI
     };
     const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '7d' });
 
-    const userForFrontend = await formatUserForFrontend(user, { role: effectiveRole });
+    const [userForFrontend, firebaseToken] = await Promise.all([
+        formatUserForFrontend(user, { role: effectiveRole }),
+        admin.auth().createCustomToken(user.id, { orgId, role: effectiveRole }),
+    ]);
 
     return {
         accessToken,
+        firebaseToken,
         user: userForFrontend,
         selectedWorkspace: {
             id: selectedWorkspace.id,

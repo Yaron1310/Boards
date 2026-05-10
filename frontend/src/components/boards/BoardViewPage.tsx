@@ -17,7 +17,7 @@ import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries
 import { useItems, useReorderItems, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useAuth } from '../../hooks/useAuth';
-import { useLiveBoardVersion } from '../../hooks/useLiveBoardVersion';
+import { useBoardSnapshot } from '../../hooks/useBoardSnapshot';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
@@ -387,8 +387,8 @@ const BoardViewPage: React.FC = () => {
   const { mutateAsync: reorderItems } = useReorderItems();
   const { mutate: updateItemMutate } = useUpdateItem();
 
-  // ETag-style live updates — checks version timestamp before pulling full data
-  useLiveBoardVersion(boardId);
+  // Real-time updates via Firestore onSnapshot (requires Firebase custom token auth)
+  useBoardSnapshot(boardId, user?.orgId);
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');

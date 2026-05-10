@@ -5,6 +5,8 @@ import { BACKEND_API_URL } from '../constants';
 import * as apiService from '../services/geminiService';
 import { Capacitor } from '@capacitor/core';
 import i18n from '../i18n';
+import { signInWithCustomToken } from 'firebase/auth';
+import { firebaseAuth } from '../firebase';
 
 interface AuthContextType {
   user: User | null;
@@ -242,6 +244,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUser(data.user);
     setToken(data.accessToken);
     setSelectedWorkspace(data.selectedWorkspace);
+
+    if (data.firebaseToken) {
+      signInWithCustomToken(firebaseAuth, data.firebaseToken).catch(() => {
+        // Non-critical: real-time sync falls back gracefully if Firebase Auth fails
+      });
+    }
 
     storeUser(data.user);
     storeSelectedOrg(data.selectedWorkspace);
