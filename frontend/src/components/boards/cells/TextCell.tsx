@@ -9,7 +9,7 @@ interface Props { item: Item; column: Column }
 const LONG_TEXT_THRESHOLD = 16;
 const DEFAULT_MAX_LENGTH = 1000;
 
-const TextCell: React.FC<Props> = ({ item, column }) => {
+const TextCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = (item.values[column.id] ?? '') as string;
   const settings = column.settings as TextColumnSettings;
   const { mutate } = useUpdateItem();
@@ -186,4 +186,5 @@ const TextCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const TextCell = React.memo(TextCellInner);
 export default TextCell;

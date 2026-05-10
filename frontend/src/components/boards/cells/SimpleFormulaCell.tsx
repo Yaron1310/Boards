@@ -23,7 +23,7 @@ function colIndexToLetter(colIndex: number): string {
   return letter;
 }
 
-const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
+const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   const { data: columns = [] } = useColumns(item.boardId);
   const { mutate: updateItem } = useUpdateItem();
   const { mutateAsync: updateColumn } = useUpdateColumn(item.boardId);
@@ -333,4 +333,5 @@ const SimpleFormulaCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const SimpleFormulaCell = React.memo(SimpleFormulaCellInner);
 export default SimpleFormulaCell;

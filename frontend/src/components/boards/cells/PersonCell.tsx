@@ -120,7 +120,7 @@ const ProfileTooltip: React.FC<{
   );
 };
 
-const PersonCell: React.FC<Props> = ({ item, column }) => {
+const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   const selected = (item.values[column.id] ?? []) as string[];
   const settings = column.settings as PersonColumnSettings;
   const multiple = settings?.multiple ?? true;
@@ -256,4 +256,5 @@ const PersonCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const PersonCell = React.memo(PersonCellInner);
 export default PersonCell;

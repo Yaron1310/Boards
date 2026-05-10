@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import ReactDOM from 'react-dom';
 import { FiX, FiRotateCcw, FiLoader, FiInbox } from 'react-icons/fi';
 import { useArchivedGroups, useGroups, useRestoreGroup } from '../../hooks/queries/useGroupQueries';
@@ -13,17 +13,14 @@ const BoardArchiveModal: React.FC<BoardArchiveModalProps> = ({ boardId, onClose 
   const { data: archivedGroups = [], isLoading: groupsLoading } = useArchivedGroups(boardId);
   const { data: activeGroups = [] } = useGroups(boardId);
 
-  const { data: allItemsPage, isLoading: itemsLoading } = useItems(
+  const { data: archivedItems = [], isLoading: itemsLoading } = useItems(
     { boardId, includeArchived: true, limit: 500 },
     !!boardId,
-  );
-  const archivedItems = useMemo(
-    () => (allItemsPage?.data ?? []).filter((i) => i.isArchived),
-    [allItemsPage],
+    (page) => page.data.filter((i) => i.isArchived),
   );
 
   // Build group name lookup from both active and archived groups
-  const groupNameById = useMemo(() => {
+  const groupNameById = React.useMemo(() => {
     const map: Record<string, string> = {};
     activeGroups.forEach((g) => { map[g.id] = g.name; });
     archivedGroups.forEach((g) => { map[g.id] = g.name; });

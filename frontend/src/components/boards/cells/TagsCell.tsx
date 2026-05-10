@@ -5,7 +5,7 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const TagsCell: React.FC<Props> = ({ item, column }) => {
+const TagsCellInner: React.FC<Props> = ({ item, column }) => {
   const itemValue = item.values[column.id];
   const rawValue = useMemo(() => (itemValue ?? []) as string[], [itemValue]);
   const { mutate } = useUpdateItem();
@@ -99,4 +99,5 @@ const TagsCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const TagsCell = React.memo(TagsCellInner);
 export default TagsCell;

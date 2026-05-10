@@ -21,7 +21,7 @@ interface ColumnCellProps {
   column: Column;
 }
 
-const ColumnCell: React.FC<ColumnCellProps> = ({ item, column }) => {
+const ColumnCellInner: React.FC<ColumnCellProps> = ({ item, column }) => {
   switch (column.type) {
     case ColumnType.TEXT:          return <TextCell item={item} column={column} />;
     case ColumnType.NUMBER:        return <NumberCell item={item} column={column} />;
@@ -41,4 +41,5 @@ const ColumnCell: React.FC<ColumnCellProps> = ({ item, column }) => {
   }
 };
 
+const ColumnCell = React.memo(ColumnCellInner);
 export default ColumnCell;

@@ -5,7 +5,7 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const DropdownCell: React.FC<Props> = ({ item, column }) => {
+const DropdownCellInner: React.FC<Props> = ({ item, column }) => {
   const selected = (item.values[column.id] ?? []) as string[];
   const settings = column.settings as DropdownColumnSettings;
   const multiple = settings?.multiple ?? false;
@@ -78,4 +78,5 @@ const DropdownCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const DropdownCell = React.memo(DropdownCellInner);
 export default DropdownCell;

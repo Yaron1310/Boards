@@ -5,7 +5,7 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const LocationCell: React.FC<Props> = ({ item, column }) => {
+const LocationCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as LocationValue | null | undefined;
   const address = rawValue?.address ?? '';
   const { mutate } = useUpdateItem();
@@ -51,4 +51,5 @@ const LocationCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const LocationCell = React.memo(LocationCellInner);
 export default LocationCell;

@@ -27,7 +27,7 @@ function getContrastText(hex: string): string {
   return luminance > 0.6 ? '#1F2937' : '#FFFFFF'; // Dark gray or White
 }
 
-const StatusCell: React.FC<Props> = ({ item, column }) => {
+const StatusCellInner: React.FC<Props> = ({ item, column }) => {
   const value = (item.values[column.id] ?? '') as string;
   const settings = column.settings as StatusColumnSettings;
   const { mutate } = useUpdateItem();
@@ -206,4 +206,5 @@ const StatusCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const StatusCell = React.memo(StatusCellInner);
 export default StatusCell;

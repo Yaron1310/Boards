@@ -405,7 +405,7 @@ const TrafficLight: React.FC<{ date: Date | null; type: 'start' | 'end' }> = ({ 
 // Component
 // ---------------------------------------------------------------------------
 
-const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
+const TimeRangeCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as TimeRangeValue | null | undefined;
   const { mutate } = useUpdateItem();
   const [start, setStart] = useState(toDateInput(rawValue?.start));
@@ -863,4 +863,5 @@ const TimeRangeCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const TimeRangeCell = React.memo(TimeRangeCellInner);
 export default TimeRangeCell;

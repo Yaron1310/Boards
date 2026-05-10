@@ -4,7 +4,7 @@ import type { Item, Column } from '../../../types';
 
 interface Props { item: Item; column: Column }
 
-const CheckboxCell: React.FC<Props> = ({ item, column }) => {
+const CheckboxCellInner: React.FC<Props> = ({ item, column }) => {
   const checked = Boolean(item.values[column.id]);
   const { mutate, isPending } = useUpdateItem();
 
@@ -32,4 +32,5 @@ const CheckboxCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const CheckboxCell = React.memo(CheckboxCellInner);
 export default CheckboxCell;

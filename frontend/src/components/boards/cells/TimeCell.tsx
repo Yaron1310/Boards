@@ -5,7 +5,7 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const TimeCell: React.FC<Props> = ({ item, column }) => {
+const TimeCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = (item.values[column.id] ?? '') as string;
   const { mutate } = useUpdateItem();
   const [draft, setDraft] = useState(rawValue);
@@ -49,4 +49,5 @@ const TimeCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const TimeCell = React.memo(TimeCellInner);
 export default TimeCell;

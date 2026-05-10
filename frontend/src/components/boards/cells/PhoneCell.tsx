@@ -5,7 +5,7 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const PhoneCell: React.FC<Props> = ({ item, column }) => {
+const PhoneCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = (item.values[column.id] ?? '') as string;
   const { mutate } = useUpdateItem();
   const [draft, setDraft] = useState(rawValue);
@@ -60,4 +60,5 @@ const PhoneCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const PhoneCell = React.memo(PhoneCellInner);
 export default PhoneCell;

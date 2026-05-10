@@ -18,7 +18,7 @@ function colIndexToLetter(colIndex: number): string {
   return letter;
 }
 
-const NumberCell: React.FC<Props> = ({ item, column }) => {
+const NumberCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as number | null | undefined;
   const settings = column.settings as NumberColumnSettings;
   const { mutate } = useUpdateItem();
@@ -106,4 +106,5 @@ const NumberCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const NumberCell = React.memo(NumberCellInner);
 export default NumberCell;

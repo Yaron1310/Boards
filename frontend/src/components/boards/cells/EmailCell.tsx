@@ -5,7 +5,7 @@ import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
-const EmailCell: React.FC<Props> = ({ item, column }) => {
+const EmailCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = (item.values[column.id] ?? '') as string;
   const { mutate } = useUpdateItem();
   const [draft, setDraft] = useState(rawValue);
@@ -60,4 +60,5 @@ const EmailCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const EmailCell = React.memo(EmailCellInner);
 export default EmailCell;

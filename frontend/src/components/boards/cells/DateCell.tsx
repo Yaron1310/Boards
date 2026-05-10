@@ -31,7 +31,7 @@ const formatDisplay = (val: string | Date | null | undefined, includeTime: boole
   return `${dd}/${mm}/${yyyy}`;
 };
 
-const DateCell: React.FC<Props> = ({ item, column }) => {
+const DateCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as string | Date | null | undefined;
   const settings = column.settings as DateColumnSettings;
   const includeTime = settings?.includeTime ?? false;
@@ -82,4 +82,5 @@ const DateCell: React.FC<Props> = ({ item, column }) => {
   );
 };
 
+const DateCell = React.memo(DateCellInner);
 export default DateCell;

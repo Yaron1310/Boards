@@ -16,13 +16,26 @@ function mergeItemPatch(item: Item, patch: UpdateItemData): Item {
   };
 }
 
-export const useItems = (params: ListItemsParams = {}, enabled = true) =>
-  useQuery({
+export const useItems = <TSelected = PaginatedResponse<Item>>(
+  params: ListItemsParams = {},
+  enabled = true,
+  select?: (data: PaginatedResponse<Item>) => TSelected,
+) => {
+  const qc = useQueryClient();
+  return useQuery({
     queryKey: queryKeys.items.list(params),
-    queryFn: () => wm.listItems(params),
+    queryFn: async () => {
+      const result = await wm.listItems(params);
+      result.data.forEach((item) => {
+        qc.setQueryData(queryKeys.items.one(item.id), item);
+      });
+      return result;
+    },
     enabled,
     staleTime: 60 * 1000,
+    select,
   });
+};
 
 export const useItem = (id: string, enabled = true) =>
   useQuery({

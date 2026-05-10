@@ -19,7 +19,7 @@ interface ItemRowProps {
   groupColor?: string;
 }
 
-const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => {
+const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => {
   const { user } = useAuth();
   const { data: columns = [] } = useColumns(item.boardId);
   const { boardView } = useBoardRender();
@@ -220,4 +220,5 @@ const ItemRow: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => 
   );
 };
 
+const ItemRow = React.memo(ItemRowInner);
 export default ItemRow;
