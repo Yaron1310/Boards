@@ -58,7 +58,7 @@ export function useBoardSnapshot(boardId: string | undefined, orgId: string | un
       );
 
       unsubItems = onSnapshot(itemsQuery, (snapshot) => {
-        console.log('[useBoardSnapshot] Items snapshot received —', snapshot.docChanges().length, 'change(s)');
+        console.log('[useBoardSnapshot] Items snapshot received —', snapshot.docChanges().length, 'change(s), total docs in snapshot:', snapshot.size, '| fromCache:', snapshot.metadata.fromCache);
         let hasStructuralChange = false;
 
         snapshot.docChanges().forEach((change) => {

@@ -11,11 +11,16 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID as string,
 };
 
-console.log('[Firebase] Initialising with projectId:', firebaseConfig.projectId ?? '⚠️ MISSING');
+// The backend (firestore.service.ts) uses GCLOUD_PROJECT (= the Firebase project ID)
+// as the Firestore database ID. We mirror that here so both sides talk to the same DB.
+const firestoreDbId = (import.meta.env.VITE_FIREBASE_DATABASE_ID as string | undefined) ?? firebaseConfig.projectId;
+
+console.log('[Firebase] Initialising with projectId:', firebaseConfig.projectId ?? '⚠️ MISSING', '| firestoreDbId:', firestoreDbId ?? '⚠️ MISSING');
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const firebaseAuth = getAuth(app);
 
-// Named Firestore database (matches firebase.json "database": "gymind-p")
-export const firestoreDb = getFirestore(app, 'gymind-p');
+// Uses VITE_FIREBASE_DATABASE_ID if set, otherwise falls back to the project ID
+// (which matches the backend's GCLOUD_PROJECT-based database selection).
+export const firestoreDb = getFirestore(app, firestoreDbId);
