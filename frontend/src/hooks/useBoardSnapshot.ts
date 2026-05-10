@@ -42,15 +42,14 @@ export function useBoardSnapshot(boardId: string | undefined, orgId: string | un
     if (!boardId || !orgId) return;
 
     const handleError = (err: FirestoreError) => {
-      if (err.code !== 'permission-denied') {
-        console.warn('[useBoardSnapshot]', err.code, err.message);
-      }
+      console.warn('[useBoardSnapshot] Firestore error:', err.code, err.message);
     };
 
     let unsubItems: (() => void) | null = null;
     let unsubGroups: (() => void) | null = null;
 
     const openListeners = () => {
+      console.log('[useBoardSnapshot] Opening Firestore listeners — boardId:', boardId, 'orgId:', orgId);
       // ── Items listener ──────────────────────────────────────────────────────
       const itemsQuery = query(
         collection(firestoreDb, `organizations/${orgId}/items`),
@@ -58,6 +57,7 @@ export function useBoardSnapshot(boardId: string | undefined, orgId: string | un
       );
 
       unsubItems = onSnapshot(itemsQuery, (snapshot) => {
+        console.log('[useBoardSnapshot] Items snapshot received —', snapshot.docChanges().length, 'change(s)');
         let hasStructuralChange = false;
 
         snapshot.docChanges().forEach((change) => {
@@ -122,6 +122,7 @@ export function useBoardSnapshot(boardId: string | undefined, orgId: string | un
     // request.auth is null, Firestore rules deny the read, and the listener
     // dies silently. onAuthStateChanged fires once auth is ready.
     const unsubAuth = onAuthStateChanged(firebaseAuth, (firebaseUser) => {
+      console.log('[useBoardSnapshot] Auth state changed — uid:', firebaseUser?.uid ?? 'null (not signed in)');
       closeListeners();
       if (firebaseUser) openListeners();
     });

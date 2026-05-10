@@ -227,9 +227,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setSelectedWorkspace(data.selectedWorkspace);
 
     if (data.firebaseToken) {
-      signInWithCustomToken(firebaseAuth, data.firebaseToken).catch(() => {
-        // Non-critical: real-time sync falls back gracefully if Firebase Auth fails
-      });
+      console.log('[Firebase] Calling signInWithCustomToken...');
+      signInWithCustomToken(firebaseAuth, data.firebaseToken)
+        .then((cred) => console.log('[Firebase] signInWithCustomToken OK, uid:', cred.user.uid))
+        .catch((err) => console.error('[Firebase] signInWithCustomToken FAILED:', err.code, err.message));
+    } else {
+      console.warn('[Firebase] No firebaseToken in login response — real-time sync disabled');
     }
 
     storeUser(data.user);

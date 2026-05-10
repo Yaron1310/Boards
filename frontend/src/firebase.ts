@@ -11,6 +11,8 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID as string,
 };
 
+console.log('[Firebase] Initialising with projectId:', firebaseConfig.projectId ?? '⚠️ MISSING');
+
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
 
 export const firebaseAuth = getAuth(app);
