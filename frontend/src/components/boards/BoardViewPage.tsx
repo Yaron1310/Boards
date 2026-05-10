@@ -373,7 +373,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
 const BoardViewPage: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuthSession();
+  const { user, selectedWorkspace } = useAuthSession();
 
   const itemParams = useMemo(() => ({ boardId: boardId ?? '', limit: 200 }), [boardId]);
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);
@@ -388,7 +388,7 @@ const BoardViewPage: React.FC = () => {
   const { mutate: updateItemMutate } = useUpdateItem();
 
   // Real-time updates via Firestore onSnapshot (requires Firebase custom token auth)
-  useBoardSnapshot(boardId, user?.orgId);
+  useBoardSnapshot(boardId, selectedWorkspace?.orgId ?? user?.orgId);
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
