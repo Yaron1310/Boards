@@ -221,7 +221,10 @@ export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceI
 
     const [userForFrontend, firebaseToken] = await Promise.all([
         formatUserForFrontend(user, { role: effectiveRole }),
-        admin.auth().createCustomToken(user.id, { orgId, role: effectiveRole }),
+        admin.auth().createCustomToken(user.id, { orgId, role: effectiveRole }).catch((err) => {
+            logger.warn('createCustomToken failed — real-time sync unavailable until IAM is fixed', err.message);
+            return null;
+        }),
     ]);
 
     return {
