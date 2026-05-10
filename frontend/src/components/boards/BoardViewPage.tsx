@@ -16,7 +16,7 @@ import { useBoard, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
 import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries';
 import { useItems, useReorderItems, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useBoardSnapshot } from '../../hooks/useBoardSnapshot';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
@@ -373,7 +373,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
 const BoardViewPage: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user } = useAuthSession();
 
   const itemParams = useMemo(() => ({ boardId: boardId ?? '', limit: 200 }), [boardId]);
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import { UserRole } from '../../types';
 import { FiUsers, FiBriefcase, FiShield, FiCpu, FiLoader, FiUserPlus, FiTrendingUp, FiChevronRight } from 'react-icons/fi';
@@ -9,7 +9,7 @@ import { FiUsers, FiBriefcase, FiShield, FiCpu, FiLoader, FiUserPlus, FiTrending
 
 const AdminDashboardPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user, selectedWorkspace } = useAuth();
+  const { user, selectedWorkspace } = useAuthSession();
   const {
     users,
     workspaces,

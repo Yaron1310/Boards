@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { FiUserPlus, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle, FiLoader, FiShield } from 'react-icons/fi';
@@ -14,7 +14,7 @@ interface OrganizationAdminsModalProps {
 
 const OrganizationAdminsModal: React.FC<OrganizationAdminsModalProps> = ({ isOpen, onClose, onActionSuccess }) => {
     const { t } = useTranslation();
-    const { user: authUser, selectedWorkspace } = useAuth();
+    const { user: authUser, selectedWorkspace } = useAuthSession();
     const { users, addOrganizationAdmin, removeOrganizationAdmin, dataError, clearDataError } = useData();
 
     const [adminEmail, setAdminEmail] = useState('');

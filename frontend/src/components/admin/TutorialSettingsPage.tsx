@@ -2,13 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../../hooks/useData';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole, TutorialSettings } from '../../types';
 import { FiVideo, FiSave, FiLoader, FiCheckCircle, FiAlertCircle, FiYoutube } from 'react-icons/fi';
 
 const TutorialSettingsPage: React.FC = () => {
     const { t } = useTranslation();
-    const { user } = useAuth();
+    const { user } = useAuthSession();
     const { 
         tutorialSettings, 
         fetchTutorialSettings, 

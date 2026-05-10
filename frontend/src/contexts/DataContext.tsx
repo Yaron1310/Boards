@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect, ReactNode, useCallback } fro
 import { useQueryClient } from '@tanstack/react-query';
 import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSettings, TutorialSettings } from '../types';
 import { UserRole } from '../types';
-import { useAuth } from '../hooks/useAuth';
+import { useAuthSession } from '../hooks/useAuthSession';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useAcademiesQuery, useOrganizationSettingsQuery } from '../hooks/queries/useAcademyQueries';
 import { useWorkspacesQuery, useArchivedWorkspacesQuery } from '../hooks/queries/useOrganizationQueries';
@@ -94,7 +94,7 @@ interface DataContextType {
 export const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { user, selectedWorkspace, logout } = useAuth();
+  const { user, selectedWorkspace, logout } = useAuthSession();
   const queryClient = useQueryClient();
 
   // --- Role-based query enablement ---

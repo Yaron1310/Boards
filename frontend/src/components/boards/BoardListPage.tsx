@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole, Board } from '../../types';
 import {
   FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX, FiEdit,
@@ -19,7 +19,7 @@ const BoardListPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const queryClient = useQueryClient();
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [editingBoard, setEditingBoard] = React.useState<Board | null>(null);

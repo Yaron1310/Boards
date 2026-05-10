@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { Workspace, User } from '../../types';
 import { UserRole } from '../../types';
@@ -10,7 +10,7 @@ import { FiPlusCircle, FiEdit, FiTrash2, FiSave, FiXCircle, FiAlertTriangle, FiC
 
 const OrganizationManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const {
     organizations,
     fetchAcademies,

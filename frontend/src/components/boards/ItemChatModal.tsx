@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile, FiTrash2 } from 'react-icons/fi';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatMessages, usePostChatMessage, useDeleteChatMessage } from '../../hooks/queries/useItemChatQueries';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { markChatSeen } from '../../services/geminiService';
 import type { Item, ChatMessage, ChatAttachment } from '../../types';
 
@@ -65,7 +65,7 @@ interface ItemChatModalProps {
 }
 
 const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const qc = useQueryClient();
   const { data: messages = [], isLoading } = useChatMessages(item.id);
   const { mutateAsync: postMessage, isPending: isSending } = usePostChatMessage(item.id);

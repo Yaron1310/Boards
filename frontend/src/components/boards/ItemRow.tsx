@@ -5,7 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
@@ -20,7 +20,7 @@ interface ItemRowProps {
 }
 
 const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => {
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const { boardView } = useBoardRender();
 

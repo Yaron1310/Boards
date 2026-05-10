@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, ChangeEvent } from 'react';
 import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { Workspace, User } from '../../types';
 import { UserRole } from '../../types';
@@ -145,7 +145,7 @@ const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEd
 
 const WorkspaceManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const {
     workspaces,
     archivedWorkspaces,

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader, FiMessageSquare } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useItem, useUpdateItem, useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
@@ -16,7 +16,7 @@ interface ItemDetailPanelProps {
 }
 
 const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, onClose }) => {
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(initialItem.boardId);
   const { data: liveItem } = useItem(initialItem.id);
   const item = liveItem ?? initialItem;

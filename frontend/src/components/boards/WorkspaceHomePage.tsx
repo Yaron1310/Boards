@@ -7,7 +7,7 @@ import {
   FiLoader, FiUsers, FiUserPlus, FiAlertTriangle, FiCheckCircle,
   FiAlertCircle as FiErrorCircle,
 } from 'react-icons/fi';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import { UserRole, Workspace, User } from '../../types';
 import PreApproveUsersModal from '../admin/PreApproveUsersModal';
@@ -175,7 +175,7 @@ const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEd
 
 const WorkspaceHomePage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const isOrgAdmin = user?.role === UserRole.ORGANIZATION_ADMIN;
 
   const {

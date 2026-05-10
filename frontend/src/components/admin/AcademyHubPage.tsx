@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { UserRole } from '../../types';
@@ -12,7 +12,7 @@ import OrganizationHubIcon from '../common/AcademyHubIcon';
 
 const OrganizationHubPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const { organizationSettings: settings, setOrganizationSettingsLocal, loading, error } = useData();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();

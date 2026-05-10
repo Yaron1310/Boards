@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
 import { FiXCircle } from 'react-icons/fi';
 import AccessibilityContent from './AccessibilityContent';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import * as apiService from '../../services/geminiService';
 
 interface AccessibilityModalProps {
@@ -13,7 +13,7 @@ interface AccessibilityModalProps {
 
 const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const [isDarkContrast, setIsDarkContrast] = useState<boolean>(
     () => user?.preferences?.darkContrast ?? false,
   );

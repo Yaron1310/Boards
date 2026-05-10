@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { UserRole } from '../../types';
@@ -32,7 +32,7 @@ const exportToCSV = (rows: Record<string, unknown>[], filename: string) => {
 
 const UserManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user: authUser, selectedWorkspace } = useAuth();
+  const { user: authUser, selectedWorkspace } = useAuthSession();
   const {
     workspaces,
     preApprovedUsers,

@@ -7,7 +7,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { useCreateItem } from '../../hooks/queries/useItemQueries';
 import { useUpdateGroup, useDeleteGroup, useArchiveGroup } from '../../hooks/queries/useGroupQueries';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
@@ -32,7 +32,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   items,
   onOpenDetail,
 }) => {
-  const { user } = useAuth();
+  const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(boardId);
 
   const isCollapsed = group.isCollapsed ?? false;

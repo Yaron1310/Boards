@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { FiGlobe, FiCheckCircle } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import i18n, { SUPPORTED_LANGUAGES } from '../../i18n';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 
 interface LanguageSelectionModalProps {
   onClose: () => void;
@@ -11,7 +11,7 @@ interface LanguageSelectionModalProps {
 
 const LanguageSelectionModal: React.FC<LanguageSelectionModalProps> = ({ onClose }) => {
   const { t } = useTranslation();
-  const { updateUserDetails } = useAuth();
+  const { updateUserDetails } = useAuthSession();
   const [selectedLanguage, setSelectedLanguage] = useState(i18n.language || 'en');
   const [isSaving, setIsSaving] = useState(false);
 
