@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as wm from '@/services/workManagementService';
-import type { CreateWebhookData } from '@/services/workManagementService';
+import type { CreateWebhookData, UpdateWebhookData } from '@/services/workManagementService';
 
 const webhookKey = (boardId: string, groupId: string) => ['webhook', boardId, groupId] as const;
 
@@ -18,6 +18,17 @@ export const useCreateGroupWebhook = () => {
   return useMutation({
     mutationFn: ({ boardId, groupId, data }: { boardId: string; groupId: string; data: CreateWebhookData }) =>
       wm.createGroupWebhook(boardId, groupId, data),
+    onSuccess: (_result, { boardId, groupId }) => {
+      void qc.invalidateQueries({ queryKey: webhookKey(boardId, groupId) });
+    },
+  });
+};
+
+export const useUpdateGroupWebhook = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ boardId, groupId, data }: { boardId: string; groupId: string; data: UpdateWebhookData }) =>
+      wm.updateGroupWebhook(boardId, groupId, data),
     onSuccess: (_result, { boardId, groupId }) => {
       void qc.invalidateQueries({ queryKey: webhookKey(boardId, groupId) });
     },

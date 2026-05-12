@@ -315,6 +315,11 @@ export interface Group {
   updatedAt: Date | string;
 }
 
+export interface WebhookFieldMapping {
+  position: number;
+  columnId: string;
+}
+
 export interface Webhook {
   id: string;
   orgId: string;
@@ -329,6 +334,8 @@ export interface Webhook {
   updatedAt: Date | string;
   lastUsedAt?: Date | string;
   useCount: number;
+  fieldMap: WebhookFieldMapping[];
+  nameFieldPosition: number | null;
   secret?: string;
 }
 

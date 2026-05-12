@@ -350,9 +350,21 @@ export const deleteChatMessage = (itemId: string, messageId: string): Promise<vo
 
 // ─── WEBHOOKS ─────────────────────────────────────────────────────────────────
 
+export interface WebhookFieldMappingInput {
+  position: number;
+  columnId: string;
+}
+
 export interface CreateWebhookData {
   insertPosition: 'top' | 'bottom';
   allowedOrigins: string[];
+  fieldMap?: WebhookFieldMappingInput[];
+  nameFieldPosition?: number | null;
+}
+
+export interface UpdateWebhookData {
+  fieldMap: WebhookFieldMappingInput[];
+  nameFieldPosition: number | null;
 }
 
 export const getGroupWebhook = async (boardId: string, groupId: string): Promise<Webhook | null> => {
@@ -371,6 +383,16 @@ export const createGroupWebhook = (
 ): Promise<Webhook> =>
   fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/webhook`, {
     method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const updateGroupWebhook = (
+  boardId: string,
+  groupId: string,
+  data: UpdateWebhookData,
+): Promise<Webhook> =>
+  fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/webhook`, {
+    method: 'PATCH',
     body: JSON.stringify(data),
   });
 

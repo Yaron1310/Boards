@@ -462,6 +462,10 @@ export interface DBWebhook {
   updatedAt: admin.firestore.Timestamp | Date | any;
   lastUsedAt?: admin.firestore.Timestamp | Date | any;
   useCount: number;
+  /** Position-based column mapping. position is 1-based (field 1 = first field in body). */
+  fieldMap: Array<{ position: number; columnId: string }>;
+  /** Which 1-based field position provides the item name. null = use body.name key instead. */
+  nameFieldPosition: number | null;
 }
 
 // --- PHASE 9: PERMISSIONS & NOTIFICATIONS ---

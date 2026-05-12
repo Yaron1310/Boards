@@ -24,4 +24,5 @@ groupRouter.delete('/:groupId', groupController.deleteGroup);
 // Webhook management (one active webhook per group)
 groupRouter.get('/:groupId/webhook', webhookController.getWebhook);
 groupRouter.post('/:groupId/webhook', webhookController.createWebhook);
+groupRouter.patch('/:groupId/webhook', webhookController.updateWebhook);
 groupRouter.delete('/:groupId/webhook', webhookController.revokeWebhook);

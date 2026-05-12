@@ -34,19 +34,46 @@ function isOriginAllowed(origin: string | undefined, allowedOrigins: string[]): 
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Validate and sanitize the incoming fieldMap from the request body. */
+function parseFieldMap(raw: unknown): Array<{ position: number; columnId: string }> {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<number>();
+  const result: Array<{ position: number; columnId: string }> = [];
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const pos = Number((entry as Record<string, unknown>).position);
+    const colId = String((entry as Record<string, unknown>).columnId ?? '').trim();
+    if (!Number.isInteger(pos) || pos < 1 || pos > 100) continue;
+    if (!colId) continue;
+    if (seen.has(pos)) continue; // skip duplicate positions
+    seen.add(pos);
+    result.push({ position: pos, columnId: colId });
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // POST /boards/:boardId/groups/:groupId/webhook  (authenticated)
 // ---------------------------------------------------------------------------
 export const createWebhook = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId, groupId } = req.params;
-  const { insertPosition, allowedOrigins } = req.body;
+  const { insertPosition, allowedOrigins, fieldMap: rawFieldMap, nameFieldPosition: rawNamePos } = req.body;
 
-  const position: 'top' | 'bottom' =
-    insertPosition === 'top' ? 'top' : 'bottom';
+  const position: 'top' | 'bottom' = insertPosition === 'top' ? 'top' : 'bottom';
 
   const origins: string[] = Array.isArray(allowedOrigins)
     ? allowedOrigins.filter((o) => typeof o === 'string' && o.length > 0).slice(0, 20)
     : [];
+
+  const fieldMap = parseFieldMap(rawFieldMap);
+  const nameFieldPosition: number | null =
+    rawNamePos != null && Number.isInteger(Number(rawNamePos)) && Number(rawNamePos) >= 1
+      ? Number(rawNamePos)
+      : null;
 
   try {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
@@ -87,6 +114,8 @@ export const createWebhook = async (req: Request, res: Response) => {
       tokenHash,
       insertPosition: position,
       allowedOrigins: origins,
+      fieldMap,
+      nameFieldPosition,
       status: 'active',
       createdBy: user.id,
       useCount: 0,
@@ -114,6 +143,58 @@ export const createWebhook = async (req: Request, res: Response) => {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error('Error creating webhook:', err);
     res.status(500).json({ message: 'Failed to create webhook.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /boards/:boardId/groups/:groupId/webhook  (authenticated)
+// ---------------------------------------------------------------------------
+export const updateWebhook = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { boardId, groupId } = req.params;
+
+  try {
+    const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
+    if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
+    const board = snapshotToData<DBBoard>(boardDoc)!;
+
+    const groupDoc = await groupsCollection(user.orgId, boardId).doc(groupId).get();
+    if (!groupDoc.exists) return res.status(404).json({ message: 'Group not found.' });
+    const group = snapshotToData<DBGroup>(groupDoc)!;
+
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertGroupAccess(user, group, 'update', board.createdBy, memberData);
+
+    const snap = await webhooksCollection
+      .where('orgId', '==', user.orgId)
+      .where('groupId', '==', groupId)
+      .where('status', '==', 'active')
+      .limit(1)
+      .get();
+
+    if (snap.empty) return res.status(404).json({ message: 'No active webhook found.' });
+
+    const { fieldMap: rawFieldMap, nameFieldPosition: rawNamePos } = req.body;
+    const fieldMap = parseFieldMap(rawFieldMap);
+    const nameFieldPosition: number | null =
+      rawNamePos != null && Number.isInteger(Number(rawNamePos)) && Number(rawNamePos) >= 1
+        ? Number(rawNamePos)
+        : null;
+
+    await snap.docs[0].ref.update({
+      fieldMap,
+      nameFieldPosition,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const updated = snap.docs[0].data() as DBWebhook;
+    const { tokenHash: _omit, ...safeWebhook } = { ...updated, fieldMap, nameFieldPosition };
+    res.json(safeWebhook);
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error('Error updating webhook:', err);
+    res.status(500).json({ message: 'Failed to update webhook.' });
   }
 };
 
@@ -216,7 +297,26 @@ export const revokeWebhook = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 
 /**
- * Parses incoming webhook body across three formats:
+ * Extracts an ordered list of field values from the body.
+ * Used when the webhook has a position-based fieldMap configured.
+ *
+ * - Elementor Pro `fields` array → values in array order
+ * - Nested `values` object → values in insertion order
+ * - Flat body → all non-meta keys in insertion order
+ */
+function extractPositionalFields(body: Record<string, unknown>): unknown[] {
+  if (Array.isArray(body.fields)) {
+    return (body.fields as Array<{ value?: unknown }>).map((f) => f.value ?? '');
+  }
+  if (body.values && typeof body.values === 'object' && !Array.isArray(body.values)) {
+    return Object.values(body.values as Record<string, unknown>);
+  }
+  const skip = new Set(['form_id', 'form_name', 'form_post_id', 'action', 'referrer']);
+  return Object.entries(body).filter(([k]) => !skip.has(k)).map(([, v]) => v);
+}
+
+/**
+ * Parses incoming webhook body across three formats (used when no fieldMap is configured):
  *   1. Nested:   { name, values: { colId: val } }        — standard API callers, Zapier
  *   2. Flat:     { name, colId: val, ... }               — simple form senders
  *   3. Elementor:{ fields: [{id, value}] }               — Elementor Pro Webhook action
@@ -225,7 +325,6 @@ function parseWebhookBody(body: Record<string, unknown>): {
   name: string | undefined;
   values: Record<string, unknown>;
 } {
-  // Elementor Pro format
   if (Array.isArray(body.fields)) {
     const fields = body.fields as Array<{ id?: unknown; value?: unknown }>;
     const nameField = fields.find((f) => f.id === 'name' || f.id === '_name');
@@ -238,16 +337,12 @@ function parseWebhookBody(body: Record<string, unknown>): {
     }
     return { name, values };
   }
-
-  // Nested format
   if (body.values && typeof body.values === 'object' && !Array.isArray(body.values)) {
     return {
       name: typeof body.name === 'string' ? body.name : undefined,
       values: body.values as Record<string, unknown>,
     };
   }
-
-  // Flat format — skip well-known non-column form meta fields
   const skip = new Set(['name', '_name', 'form_id', 'form_name', 'form_post_id', 'action', 'referrer']);
   const values: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body)) {
@@ -307,15 +402,47 @@ export const receiveWebhook = async (req: Request, res: Response) => {
     const board = boardDoc.data() as DBBoard;
     if (board.isArchived) return res.status(410).json({ message: 'Target board is archived.' });
 
-    // 6. Parse body (supports nested, flat, and Elementor formats)
-    const { name, values: parsedValues } = parseWebhookBody(
-      (req.body ?? {}) as Record<string, unknown>,
-    );
-    if (!name || !name.trim()) {
-      return res.status(400).json({ message: 'Item name is required (field: "name").' });
+    // 6. Parse body — position-based when fieldMap is configured, format-based otherwise
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    let sanitizedName: string;
+    let normalizedValues: Record<string, unknown>;
+
+    const hasFieldMap = Array.isArray(webhook.fieldMap) && webhook.fieldMap.length > 0;
+    const hasNamePos = webhook.nameFieldPosition != null && webhook.nameFieldPosition >= 1;
+
+    if (hasFieldMap || hasNamePos) {
+      // Position-based mapping: extract fields in body order and map by index
+      const positional = extractPositionalFields(body);
+
+      let rawName: unknown;
+      if (hasNamePos) {
+        rawName = positional[(webhook.nameFieldPosition as number) - 1];
+      } else {
+        rawName = body.name;
+      }
+      if (!rawName || typeof rawName !== 'string' || !rawName.trim()) {
+        return res.status(400).json({
+          message: hasNamePos
+            ? `Item name is required at field position ${webhook.nameFieldPosition}.`
+            : 'Item name is required (field: "name").',
+        });
+      }
+      sanitizedName = sanitizeText(rawName.trim());
+
+      normalizedValues = {};
+      for (const { position, columnId } of (webhook.fieldMap ?? [])) {
+        const val = positional[position - 1];
+        if (val !== undefined) normalizedValues[columnId] = val;
+      }
+    } else {
+      // Legacy format-based parsing (nested / flat / Elementor field names)
+      const { name, values: parsedValues } = parseWebhookBody(body);
+      if (!name || !name.trim()) {
+        return res.status(400).json({ message: 'Item name is required (field: "name").' });
+      }
+      sanitizedName = sanitizeText(name.trim());
+      normalizedValues = parsedValues;
     }
-    const sanitizedName = sanitizeText(name.trim());
-    const normalizedValues = parsedValues;
 
     // 7. Calculate order based on insertPosition
     let itemOrder: number;
