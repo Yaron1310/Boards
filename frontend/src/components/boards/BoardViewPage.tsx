@@ -22,7 +22,7 @@ import { useBoardSnapshot } from '../../hooks/useBoardSnapshot';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiGrid, FiList } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiList } from 'react-icons/fi';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader, { ITEM_COL_ID } from './ColumnHeader';
 import GanttView from './GanttView';
@@ -827,7 +827,14 @@ const BoardViewPage: React.FC = () => {
                 aria-pressed={boardView === 'table'}
                 title="Table"
               >
-                <FiGrid size={14} aria-hidden="true" />
+                {/* 3×3 grid in a rectangle */}
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" aria-hidden="true">
+                  <rect x="1" y="1" width="12" height="12" rx="1" />
+                  <line x1="5" y1="1" x2="5" y2="13" />
+                  <line x1="9" y1="1" x2="9" y2="13" />
+                  <line x1="1" y1="5" x2="13" y2="5" />
+                  <line x1="1" y1="9" x2="13" y2="9" />
+                </svg>
               </button>
               <button
                 type="button"
