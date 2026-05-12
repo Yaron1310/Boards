@@ -30,7 +30,22 @@ function isOriginAllowed(origin: string | undefined, allowedOrigins: string[]): 
   if (allowedOrigins.length === 0) return false;
   if (allowedOrigins.includes('*')) return true;
   if (!origin) return false;
-  return allowedOrigins.includes(origin);
+  // Compare normalized origins — stored values may omit the scheme
+  const normalize = (o: string) => (o.startsWith('http') ? o : `https://${o}`).replace(/\/$/, '').toLowerCase();
+  const normalizedIncoming = normalize(origin);
+  return allowedOrigins.some((o) => normalize(o) === normalizedIncoming);
+}
+
+function sanitizeOrigins(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((o) => typeof o === 'string' && o.length > 0)
+    .map((o: string) => {
+      const trimmed = o.trim();
+      if (trimmed === '*') return '*';
+      return trimmed.startsWith('http') ? trimmed : `https://${trimmed}`;
+    })
+    .slice(0, 20);
 }
 
 // ---------------------------------------------------------------------------
@@ -65,9 +80,7 @@ export const createWebhook = async (req: Request, res: Response) => {
 
   const position: 'top' | 'bottom' = insertPosition === 'top' ? 'top' : 'bottom';
 
-  const origins: string[] = Array.isArray(allowedOrigins)
-    ? allowedOrigins.filter((o) => typeof o === 'string' && o.length > 0).slice(0, 20)
-    : [];
+  const origins = sanitizeOrigins(allowedOrigins);
 
   const fieldMap = parseFieldMap(rawFieldMap);
   const nameFieldPosition: number | null =
@@ -175,21 +188,26 @@ export const updateWebhook = async (req: Request, res: Response) => {
 
     if (snap.empty) return res.status(404).json({ message: 'No active webhook found.' });
 
-    const { fieldMap: rawFieldMap, nameFieldPosition: rawNamePos } = req.body;
+    const { fieldMap: rawFieldMap, nameFieldPosition: rawNamePos, allowedOrigins: rawOrigins } = req.body;
     const fieldMap = parseFieldMap(rawFieldMap);
     const nameFieldPosition: number | null =
       rawNamePos != null && Number.isInteger(Number(rawNamePos)) && Number(rawNamePos) >= 1
         ? Number(rawNamePos)
         : null;
+    const allowedOrigins = rawOrigins !== undefined ? sanitizeOrigins(rawOrigins) : undefined;
 
-    await snap.docs[0].ref.update({
+    const updatePayload: Record<string, unknown> = {
       fieldMap,
       nameFieldPosition,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    };
+    if (allowedOrigins !== undefined) updatePayload.allowedOrigins = allowedOrigins;
 
-    const updated = snap.docs[0].data() as DBWebhook;
-    const { tokenHash: _omit, ...safeWebhook } = { ...updated, fieldMap, nameFieldPosition };
+    await snap.docs[0].ref.update(updatePayload);
+
+    const updated = { ...(snap.docs[0].data() as DBWebhook), fieldMap, nameFieldPosition };
+    if (allowedOrigins !== undefined) updated.allowedOrigins = allowedOrigins;
+    const { tokenHash: _omit, ...safeWebhook } = updated;
     res.json(safeWebhook);
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });

@@ -365,6 +365,7 @@ export interface CreateWebhookData {
 export interface UpdateWebhookData {
   fieldMap: WebhookFieldMappingInput[];
   nameFieldPosition: number | null;
+  allowedOrigins?: string[];
 }
 
 export const getGroupWebhook = async (boardId: string, groupId: string): Promise<Webhook | null> => {
