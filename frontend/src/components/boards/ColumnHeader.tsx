@@ -248,7 +248,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
       ref={setNodeRef}
       style={{ ...style, width: `${displayWidth}px` }}
       role="columnheader"
-      className={`relative flex flex-shrink-0 items-center px-3 py-2 ${boardView !== 'rows' ? 'border-r border-[#d2d2d4] last:border-r-0' : ''} group${isDragging ? ' bg-indigo-50' : ''}`}
+      className={`relative flex flex-shrink-0 items-center px-3 py-2 border-r border-[#d2d2d4] last:border-r-0 group${isDragging ? ' bg-indigo-50' : ''}`}
     >
       {/* Drag handle */}
       {canManage && (
@@ -566,7 +566,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
         <div
           role="columnheader"
           style={{ width: `${itemColWidth}px` }}
-          className={`relative flex flex-shrink-0 items-center px-4 py-2 ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1] group`}
+          className="relative flex flex-shrink-0 items-center px-4 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1] group"
         >
           <span className="flex-1 truncate">Item</span>
 

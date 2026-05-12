@@ -22,7 +22,7 @@ import { useBoardSnapshot } from '../../hooks/useBoardSnapshot';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiLayout, FiChevronDown } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiGrid, FiList } from 'react-icons/fi';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader, { ITEM_COL_ID } from './ColumnHeader';
 import GanttView from './GanttView';
@@ -425,9 +425,6 @@ const BoardViewPage: React.FC = () => {
     const saved = localStorage.getItem(key);
     return (saved === 'table' || saved === 'rows' || saved === 'gantt') ? saved : 'table';
   });
-  const [viewMenuOpen, setViewMenuOpen] = useState(false);
-  const viewMenuRef = useRef<HTMLDivElement>(null);
-
   const setAndPersistBoardView = (view: BoardView) => {
     const key = `boardView:${user?.id ?? 'anon'}:${boardId ?? ''}`;
     localStorage.setItem(key, view);
@@ -555,17 +552,6 @@ const BoardViewPage: React.FC = () => {
   useEffect(() => {
     if (boardView === 'gantt' && !hasTimeRange) setAndPersistBoardView('table');
   }, [boardView, hasTimeRange]);
-
-  useEffect(() => {
-    if (!viewMenuOpen) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (viewMenuRef.current && !viewMenuRef.current.contains(e.target as Node)) {
-        setViewMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [viewMenuOpen]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -827,39 +813,48 @@ const BoardViewPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
-            {/* View switcher */}
-            <div ref={viewMenuRef} className="relative">
+            {/* View switcher — icon toggle group */}
+            <div
+              className="flex items-center border border-gray-300 rounded-lg overflow-hidden"
+              role="group"
+              aria-label="Board view"
+            >
               <button
                 type="button"
-                onClick={() => setViewMenuOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                aria-label="Change board view"
-                aria-expanded={viewMenuOpen}
-                aria-haspopup="listbox"
+                onClick={() => setAndPersistBoardView('table')}
+                className={`flex items-center justify-center px-2.5 py-1.5 transition-colors ${boardView === 'table' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+                aria-label="Table view"
+                aria-pressed={boardView === 'table'}
+                title="Table"
               >
-                <FiLayout size={13} aria-hidden="true" />
-                View
-                <FiChevronDown size={11} className={`transition-transform duration-150 ${viewMenuOpen ? 'rotate-180' : ''}`} aria-hidden="true" />
+                <FiGrid size={14} aria-hidden="true" />
               </button>
-              {viewMenuOpen && (
-                <div
-                  className="absolute right-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]"
-                  role="listbox"
-                  aria-label="Board view options"
+              <button
+                type="button"
+                onClick={() => setAndPersistBoardView('rows')}
+                className={`flex items-center justify-center px-2.5 py-1.5 border-l border-gray-300 transition-colors ${boardView === 'rows' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+                aria-label="Rows view"
+                aria-pressed={boardView === 'rows'}
+                title="Rows"
+              >
+                <FiList size={14} aria-hidden="true" />
+              </button>
+              {hasTimeRange && (
+                <button
+                  type="button"
+                  onClick={() => setAndPersistBoardView('gantt')}
+                  className={`flex items-center justify-center px-2.5 py-1.5 border-l border-gray-300 transition-colors ${boardView === 'gantt' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+                  aria-label="Gantt view"
+                  aria-pressed={boardView === 'gantt'}
+                  title="Gantt"
                 >
-                  {(['table', 'rows', ...(hasTimeRange ? ['gantt'] : [])] as BoardView[]).map((view) => (
-                    <button
-                      key={view}
-                      type="button"
-                      role="option"
-                      aria-selected={boardView === view}
-                      onClick={() => { setAndPersistBoardView(view); setViewMenuOpen(false); }}
-                      className={`w-full text-left px-3 py-2 text-sm capitalize transition-colors ${boardView === view ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-50'}`}
-                    >
-                      {view === 'table' ? 'Table' : view === 'rows' ? 'Rows' : 'Gantt'}
-                    </button>
-                  ))}
-                </div>
+                  {/* Horizontal bar chart — represents a Gantt timeline */}
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+                    <rect x="1" y="2" width="7" height="2.5" rx="0.8" />
+                    <rect x="4" y="6" width="8" height="2.5" rx="0.8" />
+                    <rect x="2" y="10" width="5" height="2.5" rx="0.8" />
+                  </svg>
+                </button>
               )}
             </div>
 
