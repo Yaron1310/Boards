@@ -242,6 +242,7 @@ export interface Column {
     unit: string;
     unitAlign: 'left' | 'right';
   };
+  width?: number;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

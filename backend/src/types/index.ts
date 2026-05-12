@@ -254,6 +254,7 @@ export interface DBColumn {
     unit: string;
     unitAlign: 'left' | 'right';
   };
+  width?: number;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }

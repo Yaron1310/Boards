@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -24,9 +24,15 @@ import {
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
   FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2,
 } from 'react-icons/fi';
-import { calculateColumnWidth, ITEM_NAME_WIDTH } from '../../utils/columnWidths';
+import { calculateColumnWidth, COLUMN_TYPE_MIN_WIDTHS } from '../../utils/columnWidths';
 import AddColumnModal from './AddColumnModal';
 import type { BoardView } from '../../contexts/BoardRenderContext';
+
+export const ITEM_COL_ID = '__item_name__';
+const DEFAULT_ITEM_COL_WIDTH = 298;
+const ITEM_COL_MIN_WIDTH = 150;
+const COL_MIN_WIDTH = 80;
+const COL_MAX_WIDTH = 1000;
 
 interface SortState {
   columnId: string;
@@ -39,6 +45,8 @@ interface ColumnHeaderProps {
   onSortChange?: (sort: SortState | null) => void;
   onAddColumn?: () => void;
   boardView?: BoardView;
+  columnWidths: Record<string, number>;
+  onWidthChange: (columnId: string, width: number) => void;
 }
 
 export const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
@@ -87,6 +95,28 @@ const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   [ColumnType.SIMPLE_FORMULA]: 'Formula',
 };
 
+// ---------------------------------------------------------------------------
+// Resize handle — shared between item col and dynamic cols
+// ---------------------------------------------------------------------------
+
+interface ResizeHandleProps {
+  onResizeStart: (e: React.MouseEvent) => void;
+}
+
+const ResizeHandle: React.FC<ResizeHandleProps> = ({ onResizeStart }) => (
+  <div
+    role="separator"
+    aria-label="Drag to resize column"
+    aria-orientation="vertical"
+    onMouseDown={onResizeStart}
+    className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-indigo-400/30 active:bg-indigo-400/50 z-10 select-none"
+  />
+);
+
+// ---------------------------------------------------------------------------
+// ColumnHeaderCell
+// ---------------------------------------------------------------------------
+
 interface ColumnHeaderCellProps {
   column: Column;
   sort: SortState | null;
@@ -94,9 +124,13 @@ interface ColumnHeaderCellProps {
   canManage: boolean;
   boardId: string;
   boardView?: BoardView;
+  currentWidth: number;
+  onWidthCommit: (width: number) => void;
 }
 
-const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSort, canManage, boardId, boardView }) => {
+const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
+  column, sort, onSort, canManage, boardId, boardView, currentWidth, onWidthCommit,
+}) => {
   const isActive = sort?.columnId === column.id;
   const icon = COLUMN_TYPE_ICONS[column.type];
   const label = COLUMN_TYPE_LABELS[column.type];
@@ -106,6 +140,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   const [newName, setNewName] = useState(column.name);
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
+  const [resizingWidth, setResizingWidth] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
@@ -130,7 +165,8 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const colWidth = calculateColumnWidth(column.name, column.type);
+  const minWidth = COLUMN_TYPE_MIN_WIDTHS[column.type] ?? COL_MIN_WIDTH;
+  const displayWidth = resizingWidth ?? currentWidth;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -179,12 +215,40 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
     setMenuOpen(false);
   };
 
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = currentWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = (me: MouseEvent) => {
+      const next = Math.max(minWidth, Math.min(COL_MAX_WIDTH, startWidth + (me.clientX - startX)));
+      setResizingWidth(next);
+    };
+
+    const onMouseUp = (me: MouseEvent) => {
+      const final = Math.max(minWidth, Math.min(COL_MAX_WIDTH, startWidth + (me.clientX - startX)));
+      setResizingWidth(null);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      onWidthCommit(final);
+      void updateColumn({ id: column.id, patch: { width: final } });
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [currentWidth, minWidth, onWidthCommit, updateColumn, column.id]);
+
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, width: `${colWidth}px` }}
+      style={{ ...style, width: `${displayWidth}px` }}
       role="columnheader"
-      className={`flex flex-shrink-0 items-center px-3 py-2 ${boardView !== 'rows' ? 'border-r border-[#d2d2d4] last:border-r-0' : ''} group${isDragging ? ' bg-indigo-50' : ''}`}
+      className={`relative flex flex-shrink-0 items-center px-3 py-2 ${boardView !== 'rows' ? 'border-r border-[#d2d2d4] last:border-r-0' : ''} group${isDragging ? ' bg-indigo-50' : ''}`}
     >
       {/* Drag handle */}
       {canManage && (
@@ -339,6 +403,8 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
         )}
       </div>
 
+      <ResizeHandle onResizeStart={handleResizeStart} />
+
       {/* Add column modal - rendered here for insertion positioning */}
       {showAddColumnModal && (
         <AddColumnModal
@@ -355,13 +421,22 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({ column, sort, onSor
   );
 };
 
-const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortChange, onAddColumn, boardView }) => {
+// ---------------------------------------------------------------------------
+// ColumnHeader
+// ---------------------------------------------------------------------------
+
+const ColumnHeader: React.FC<ColumnHeaderProps> = ({
+  boardId, canManage, onSortChange, onAddColumn, boardView, columnWidths, onWidthChange,
+}) => {
   const { data: columns = [], isLoading } = useColumns(boardId);
   const { mutateAsync: reorderColumns } = useReorderColumns(boardId);
   const [sort, setSort] = useState<SortState | null>(null);
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const serverColumnsRef = useRef<Column[]>([]);
+
+  // Item column resize state
+  const [itemResizingWidth, setItemResizingWidth] = useState<number | null>(null);
 
   useEffect(() => {
     if (JSON.stringify(columns) !== JSON.stringify(serverColumnsRef.current)) {
@@ -391,6 +466,23 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
     });
   };
 
+  const handleItemSort = () => {
+    setSort((prev) => {
+      if (prev?.columnId === ITEM_COL_ID) {
+        if (prev.direction === 'asc') {
+          const next: SortState = { columnId: ITEM_COL_ID, direction: 'desc' };
+          onSortChange?.(next);
+          return next;
+        }
+        onSortChange?.(null);
+        return null;
+      }
+      const next: SortState = { columnId: ITEM_COL_ID, direction: 'asc' };
+      onSortChange?.(next);
+      return next;
+    });
+  };
+
   const handleDragStart = (event: DragStartEvent) => {
     const data = event.active.data.current as { type: string; column?: Column } | undefined;
     if (data?.column) setActiveColumn(data.column);
@@ -414,7 +506,37 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
     });
   };
 
+  const handleItemResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = columnWidths[ITEM_COL_ID] ?? DEFAULT_ITEM_COL_WIDTH;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const onMouseMove = (me: MouseEvent) => {
+      const next = Math.max(ITEM_COL_MIN_WIDTH, Math.min(COL_MAX_WIDTH, startWidth + (me.clientX - startX)));
+      setItemResizingWidth(next);
+    };
+
+    const onMouseUp = (me: MouseEvent) => {
+      const final = Math.max(ITEM_COL_MIN_WIDTH, Math.min(COL_MAX_WIDTH, startWidth + (me.clientX - startX)));
+      setItemResizingWidth(null);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      onWidthChange(ITEM_COL_ID, final);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  }, [columnWidths, onWidthChange]);
+
   const columnIds = localColumns.map((c) => c.id);
+
+  const itemColWidth = itemResizingWidth ?? (columnWidths[ITEM_COL_ID] ?? DEFAULT_ITEM_COL_WIDTH);
+  const isItemSortActive = sort?.columnId === ITEM_COL_ID;
 
   if (isLoading) {
     return (
@@ -440,27 +562,57 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({ boardId, canManage, onSortC
         role="row"
         aria-label="Column headers"
       >
-        {/* Item name column — fixed */}
+        {/* Item name column — fixed, sortable, resizable */}
         <div
           role="columnheader"
-          className={`flex flex-shrink-0 items-center px-4 py-2 ${ITEM_NAME_WIDTH} ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1]`}
+          style={{ width: `${itemColWidth}px` }}
+          className={`relative flex flex-shrink-0 items-center px-4 py-2 ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} text-sm font-semibold text-gray-600 bg-gray-50 sticky left-0 z-[1] group`}
         >
-          Item
+          <span className="flex-1 truncate">Item</span>
+
+          <button
+            type="button"
+            onClick={handleItemSort}
+            className={`opacity-0 group-hover:opacity-100 transition-opacity rounded-full p-1 ml-1 flex-shrink-0 ${
+              isItemSortActive
+                ? '!opacity-100 text-indigo-600 bg-indigo-100'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-gray-100'
+            }`}
+            aria-label={
+              isItemSortActive
+                ? `Sorted by Item name ${sort?.direction === 'asc' ? 'ascending' : 'descending'}. Click to reverse.`
+                : 'Sort by Item name'
+            }
+            aria-pressed={isItemSortActive}
+          >
+            {isItemSortActive && sort?.direction === 'desc' ? (
+              <FiArrowDown size={12} aria-hidden="true" />
+            ) : (
+              <FiArrowUp size={12} aria-hidden="true" />
+            )}
+          </button>
+
+          <ResizeHandle onResizeStart={handleItemResizeStart} />
         </div>
 
         {/* Dynamic sortable columns */}
         <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-          {localColumns.map((col) => (
-            <ColumnHeaderCell
-              key={col.id}
-              column={col}
-              sort={sort}
-              onSort={handleSort}
-              canManage={canManage}
-              boardId={boardId}
-              boardView={boardView}
-            />
-          ))}
+          {localColumns.map((col) => {
+            const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
+            return (
+              <ColumnHeaderCell
+                key={col.id}
+                column={col}
+                sort={sort}
+                onSort={handleSort}
+                canManage={canManage}
+                boardId={boardId}
+                boardView={boardView}
+                currentWidth={colWidth}
+                onWidthCommit={(w) => onWidthChange(col.id, w)}
+              />
+            );
+          })}
         </SortableContext>
 
         {/* Add column button */}

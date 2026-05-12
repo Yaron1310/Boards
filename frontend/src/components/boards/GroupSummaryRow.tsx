@@ -3,8 +3,10 @@ import ReactDOM from 'react-dom';
 import { evaluateFormula } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
-import { calculateColumnWidth, ITEM_SECTION_WIDTH } from '../../utils/columnWidths';
+import { calculateColumnWidth } from '../../utils/columnWidths';
 import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
+import { useBoardRender } from '../../contexts/BoardRenderContext';
+import { ITEM_COL_ID } from './ColumnHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -458,6 +460,8 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
   const nonArchived = items.filter((i) => !i.isArchived);
   const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
   const solidBg = blendWithWhite(groupColor, 0.15);
+  const { columnWidths } = useBoardRender();
+  const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
   return (
     <div
@@ -467,8 +471,8 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
       style={{ backgroundColor: solidBg }}
     >
       <div
-        className={`flex-shrink-0 ${ITEM_SECTION_WIDTH} sticky left-4 z-[1]`}
-        style={{ backgroundColor: solidBg, borderBottomLeftRadius: '6px' }}
+        className="flex-shrink-0 sticky left-4 z-[1]"
+        style={{ width: `${itemSectionWidth}px`, backgroundColor: solidBg, borderBottomLeftRadius: '6px' }}
         aria-hidden="true"
       />
       {columns.map((col, index) => (

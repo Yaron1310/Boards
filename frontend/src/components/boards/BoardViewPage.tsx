@@ -24,7 +24,7 @@ import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
 import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiLayout, FiChevronDown } from 'react-icons/fi';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
-import ColumnHeader from './ColumnHeader';
+import ColumnHeader, { ITEM_COL_ID } from './ColumnHeader';
 import GanttView from './GanttView';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
@@ -103,6 +103,8 @@ interface BoardContentProps {
   onGanttItemUpdate: (itemId: string, groupId: string, colId: string, start: string, end: string) => void;
   pageSize: number;
   onPageItemsChange: (groupId: string, items: Item[]) => void;
+  columnWidths: Record<string, number>;
+  onWidthChange: (columnId: string, width: number) => void;
 }
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' };
@@ -164,6 +166,8 @@ const BoardContent: React.FC<BoardContentProps> = ({
   onGanttItemUpdate,
   pageSize,
   onPageItemsChange,
+  columnWidths,
+  onWidthChange,
 }) => {
   const { data: columns = [] } = useColumns(boardId);
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
@@ -171,6 +175,14 @@ const BoardContent: React.FC<BoardContentProps> = ({
 
   const sortedItemsByGroup = React.useMemo<Record<string, Item[]>>(() => {
     if (!sort) return localItemsByGroup;
+    if (sort.columnId === ITEM_COL_ID) {
+      const mult = sort.direction === 'asc' ? 1 : -1;
+      const result: Record<string, Item[]> = {};
+      for (const [gid, items] of Object.entries(localItemsByGroup)) {
+        result[gid] = [...items].sort((a, b) => a.name.localeCompare(b.name) * mult);
+      }
+      return result;
+    }
     const col = columns.find((c) => c.id === sort.columnId);
     if (!col) return localItemsByGroup;
     const result: Record<string, Item[]> = {};
@@ -262,6 +274,8 @@ const BoardContent: React.FC<BoardContentProps> = ({
             onSortChange={setSort}
             onAddColumn={() => setShowAddColumn(true)}
             boardView={boardView}
+            columnWidths={columnWidths}
+            onWidthChange={onWidthChange}
           />
 
           <DndContext
@@ -281,7 +295,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                   <p>No groups yet. Add a group to start organising items.</p>
                 </div>
               ) : (
-                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView}>
+                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths}>
                   <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
                     {localGroups.map((group) => (
                       <GroupSection
@@ -468,6 +482,42 @@ const BoardViewPage: React.FC = () => {
 
   // Flat list of all items across groups — used by DependencyProvider
   const allItems = useMemo(() => Object.values(localItemsByGroup).flat(), [localItemsByGroup]);
+
+  // Column widths — persisted in localStorage; initialized from server column.width on first load
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>(() => {
+    try {
+      const stored = localStorage.getItem(`colWidths:${boardId ?? ''}`);
+      return stored ? (JSON.parse(stored) as Record<string, number>) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Seed widths from server column.width the first time columns arrive
+  useEffect(() => {
+    if (!columns.length) return;
+    setColumnWidths((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const col of columns) {
+        if (col.width !== undefined && next[col.id] === undefined) {
+          next[col.id] = col.width;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [columns]);
+
+  const handleWidthChange = useCallback((columnId: string, width: number) => {
+    setColumnWidths((prev) => {
+      const next = { ...prev, [columnId]: width };
+      try {
+        localStorage.setItem(`colWidths:${boardId ?? ''}`, JSON.stringify(next));
+      } catch { /* storage full — ignore */ }
+      return next;
+    });
+  }, [boardId]);
 
   const [isExporting, setIsExporting] = useState(false);
 
@@ -874,6 +924,8 @@ const BoardViewPage: React.FC = () => {
             onGanttItemUpdate={handleGanttItemUpdate}
             pageSize={pageSize}
             onPageItemsChange={handlePageItemsChange}
+            columnWidths={columnWidths}
+            onWidthChange={handleWidthChange}
           />
         </DependencyProvider>
         </FormulaEditProvider>

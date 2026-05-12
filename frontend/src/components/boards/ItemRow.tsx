@@ -9,7 +9,8 @@ import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
-import { ITEM_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
+import { DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
+import { ITEM_COL_ID } from './ColumnHeader';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 import ItemChatModal, { getUnreadCount } from './ItemChatModal';
 
@@ -22,7 +23,8 @@ interface ItemRowProps {
 const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
-  const { boardView } = useBoardRender();
+  const { boardView, columnWidths } = useBoardRender();
+  const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
   const { mutateAsync: archiveItem, isPending: isArchiving } = useArchiveItem();
   const { mutateAsync: restoreItem, isPending: isRestoring } = useRestoreItem();
@@ -93,8 +95,8 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
     >
       {/* Left section — drag handle, item name, and row actions */}
       <div
-        className={`flex flex-shrink-0 items-stretch ${ITEM_SECTION_WIDTH} ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} sticky left-4 z-[1] bg-white group-hover:bg-indigo-50`}
-        style={groupColor ? { borderLeft: `4px solid ${groupColor}` } : undefined}
+        className={`flex flex-shrink-0 items-stretch ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} sticky left-4 z-[1] bg-white group-hover:bg-indigo-50`}
+        style={{ width: `${itemSectionWidth}px`, ...(groupColor ? { borderLeft: `4px solid ${groupColor}` } : {}) }}
       >
         {/* Drag handle */}
         <div

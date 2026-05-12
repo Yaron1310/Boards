@@ -14,8 +14,9 @@ import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
 import GroupSummaryRow from './GroupSummaryRow';
 import GroupWebhookModal from './GroupWebhookModal';
-import { COLUMN_TYPE_ICONS } from './ColumnHeader';
-import { calculateColumnWidth, GROUP_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
+import { COLUMN_TYPE_ICONS, ITEM_COL_ID } from './ColumnHeader';
+import { calculateColumnWidth, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
+import { useBoardRender } from '../../contexts/BoardRenderContext';
 
 interface GroupSectionProps {
   group: Group;
@@ -41,6 +42,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(boardId);
+  const { columnWidths } = useBoardRender();
+  const groupSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
   const isCollapsed = group.isCollapsed ?? false;
 
@@ -481,8 +484,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         >
           {/* Left alignment placeholder — matches ItemRow left section */}
           <div
-            className={`flex-shrink-0 ${GROUP_SECTION_WIDTH} border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1] rounded-tl-lg`}
-            style={{ borderLeft: `4px solid ${groupColor}` }}
+            className="flex-shrink-0 border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1] rounded-tl-lg"
+            style={{ width: `${groupSectionWidth}px`, borderLeft: `4px solid ${groupColor}` }}
           />
 
           {/* Column headers — widths match the top header row */}
@@ -490,7 +493,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             <div
               key={col.id}
               role="columnheader"
-              style={{ width: `${calculateColumnWidth(col.name, col.type)}px` }}
+              style={{ width: `${columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type)}px` }}
               className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600"
               title={col.name}
             >
