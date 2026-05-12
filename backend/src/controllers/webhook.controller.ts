@@ -70,8 +70,8 @@ function parseFieldMap(raw: unknown): Array<{ position: number; columnId: string
   return result;
 }
 
-function parseNameMode(raw: unknown): 'field' | 'timestamp' | 'sequence' {
-  if (raw === 'timestamp' || raw === 'sequence') return raw;
+function parseNameMode(raw: unknown): 'field' | 'timestamp' | 'sequence' | 'sequence-timestamp' {
+  if (raw === 'timestamp' || raw === 'sequence' || raw === 'sequence-timestamp') return raw;
   return 'field';
 }
 
@@ -434,7 +434,7 @@ export const receiveWebhook = async (req: Request, res: Response) => {
     let normalizedValues: Record<string, unknown>;
 
     const hasFieldMap = Array.isArray(webhook.fieldMap) && webhook.fieldMap.length > 0;
-    const nameMode: 'field' | 'timestamp' | 'sequence' = webhook.nameMode ?? 'field';
+    const nameMode: 'field' | 'timestamp' | 'sequence' | 'sequence-timestamp' = webhook.nameMode ?? 'field';
     const hasNamePos = nameMode === 'field' && webhook.nameFieldPosition != null && webhook.nameFieldPosition >= 1;
 
     if (hasFieldMap || hasNamePos) {
@@ -454,11 +454,13 @@ export const receiveWebhook = async (req: Request, res: Response) => {
     // 7. Resolve item name based on nameMode
     let sanitizedName: string;
 
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const tsString = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
     if (nameMode === 'timestamp') {
-      const now = new Date();
-      const pad = (n: number) => String(n).padStart(2, '0');
-      sanitizedName = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
-    } else if (nameMode === 'sequence') {
+      sanitizedName = tsString;
+    } else if (nameMode === 'sequence' || nameMode === 'sequence-timestamp') {
       // Will be resolved after the count query below
       sanitizedName = ''; // placeholder, set after step 8
     } else {
@@ -488,13 +490,14 @@ export const receiveWebhook = async (req: Request, res: Response) => {
         .limit(1)
         .get();
       itemOrder = firstSnap.empty ? 0 : (firstSnap.docs[0].data().order as number) - 1;
-      if (nameMode === 'sequence') {
+      if (nameMode === 'sequence' || nameMode === 'sequence-timestamp') {
         const countSnap = await itemsCollection(webhook.orgId)
           .where('boardId', '==', webhook.boardId)
           .where('groupId', '==', webhook.groupId)
           .count()
           .get();
-        sanitizedName = String(countSnap.data().count + 1);
+        const seq = countSnap.data().count + 1;
+        sanitizedName = nameMode === 'sequence-timestamp' ? `${seq}.  ${tsString}` : String(seq);
       }
     } else {
       const countSnap = await itemsCollection(webhook.orgId)
@@ -503,8 +506,9 @@ export const receiveWebhook = async (req: Request, res: Response) => {
         .count()
         .get();
       itemOrder = countSnap.data().count;
-      if (nameMode === 'sequence') {
-        sanitizedName = String(itemOrder + 1);
+      if (nameMode === 'sequence' || nameMode === 'sequence-timestamp') {
+        const seq = itemOrder + 1;
+        sanitizedName = nameMode === 'sequence-timestamp' ? `${seq}.  ${tsString}` : String(seq);
       }
     }
 

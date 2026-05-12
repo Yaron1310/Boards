@@ -261,6 +261,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
   const NAME_MODES: { value: WebhookNameMode; label: string; description: string }[] = [
     { value: 'timestamp', label: 'Timestamp', description: 'dd/mm/yyyy hh:mm when the request arrives' },
     { value: 'sequence', label: 'Row number', description: 'Auto-incrementing: 1, 2, 3…' },
+    { value: 'sequence-timestamp', label: 'Row number + Timestamp', description: '1.  dd/mm/yyyy hh:mm' },
     { value: 'field', label: 'From field #', description: 'A specific field from the submitted data' },
   ];
 

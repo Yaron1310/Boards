@@ -320,7 +320,7 @@ export interface WebhookFieldMapping {
   columnId: string;
 }
 
-export type WebhookNameMode = 'field' | 'timestamp' | 'sequence';
+export type WebhookNameMode = 'field' | 'timestamp' | 'sequence' | 'sequence-timestamp';
 
 export interface Webhook {
   id: string;

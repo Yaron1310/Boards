@@ -466,11 +466,12 @@ export interface DBWebhook {
   fieldMap: Array<{ position: number; columnId: string }>;
   /**
    * How the item name is derived:
-   *   'field'     — extract from nameFieldPosition (default, same as before)
-   *   'timestamp' — dd/mm/yyyy hh:mm of the moment the request arrives
-   *   'sequence'  — sequential integer (1, 2, 3…) based on item count in the group
+   *   'field'              — extract from nameFieldPosition (default)
+   *   'timestamp'          — dd/mm/yyyy hh:mm of the moment the request arrives
+   *   'sequence'           — sequential integer (1, 2, 3…) based on item count in the group
+   *   'sequence-timestamp' — combined: "1.  dd/mm/yyyy hh:mm"
    */
-  nameMode: 'field' | 'timestamp' | 'sequence';
+  nameMode: 'field' | 'timestamp' | 'sequence' | 'sequence-timestamp';
   /** Which 1-based field position provides the item name when nameMode === 'field'. */
   nameFieldPosition: number | null;
 }
