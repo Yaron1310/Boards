@@ -214,17 +214,63 @@ export const revokeWebhook = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /webhook/:webhookId  (public — no JWT)
 // ---------------------------------------------------------------------------
+
+/**
+ * Parses incoming webhook body across three formats:
+ *   1. Nested:   { name, values: { colId: val } }        — standard API callers, Zapier
+ *   2. Flat:     { name, colId: val, ... }               — simple form senders
+ *   3. Elementor:{ fields: [{id, value}] }               — Elementor Pro Webhook action
+ */
+function parseWebhookBody(body: Record<string, unknown>): {
+  name: string | undefined;
+  values: Record<string, unknown>;
+} {
+  // Elementor Pro format
+  if (Array.isArray(body.fields)) {
+    const fields = body.fields as Array<{ id?: unknown; value?: unknown }>;
+    const nameField = fields.find((f) => f.id === 'name' || f.id === '_name');
+    const name = typeof nameField?.value === 'string' ? nameField.value : undefined;
+    const values: Record<string, unknown> = {};
+    for (const f of fields) {
+      if (typeof f.id === 'string' && f.id !== 'name' && f.id !== '_name') {
+        values[f.id] = f.value;
+      }
+    }
+    return { name, values };
+  }
+
+  // Nested format
+  if (body.values && typeof body.values === 'object' && !Array.isArray(body.values)) {
+    return {
+      name: typeof body.name === 'string' ? body.name : undefined,
+      values: body.values as Record<string, unknown>,
+    };
+  }
+
+  // Flat format — skip well-known non-column form meta fields
+  const skip = new Set(['name', '_name', 'form_id', 'form_name', 'form_post_id', 'action', 'referrer']);
+  const values: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(body)) {
+    if (!skip.has(k)) values[k] = v;
+  }
+  return { name: typeof body.name === 'string' ? body.name : undefined, values };
+}
+
 export const receiveWebhook = async (req: Request, res: Response) => {
   const { webhookId } = req.params;
 
-  // 1. Validate Authorization: Bearer <token>
+  // 1. Accept token from Authorization: Bearer header OR ?token= query param
+  let token: string | undefined;
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'Authorization: Bearer <token> header required.' });
+  if (authHeader?.startsWith('Bearer ')) {
+    token = authHeader.slice(7).trim() || undefined;
+  } else if (typeof req.query.token === 'string' && req.query.token) {
+    token = req.query.token.trim();
   }
-  const token = authHeader.slice(7).trim();
   if (!token) {
-    return res.status(401).json({ message: 'Token is required.' });
+    return res.status(401).json({
+      message: 'Token required. Use Authorization: Bearer <token> header or ?token=<token> URL param.',
+    });
   }
 
   try {
@@ -238,15 +284,15 @@ export const receiveWebhook = async (req: Request, res: Response) => {
       return res.status(410).json({ message: 'This webhook has been revoked.' });
     }
 
-    // 3. Validate token
+    // 3. Validate token (timing-safe)
     const incomingHash = hashToken(token);
     if (!crypto.timingSafeEqual(Buffer.from(incomingHash, 'hex'), Buffer.from(webhook.tokenHash, 'hex'))) {
       return res.status(401).json({ message: 'Invalid token.' });
     }
 
-    // 4. Validate origin
+    // 4. Validate origin (only checked when Origin header is present; ?token= URL flow skips this)
     const origin = req.headers.origin as string | undefined;
-    if (!isOriginAllowed(origin, webhook.allowedOrigins)) {
+    if (origin && !isOriginAllowed(origin, webhook.allowedOrigins)) {
       return res.status(403).json({ message: 'Origin not allowed.' });
     }
 
@@ -261,16 +307,15 @@ export const receiveWebhook = async (req: Request, res: Response) => {
     const board = boardDoc.data() as DBBoard;
     if (board.isArchived) return res.status(410).json({ message: 'Target board is archived.' });
 
-    // 6. Parse body
-    const { name, values } = req.body as { name?: unknown; values?: unknown };
-    if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({ message: 'Item name is required.' });
+    // 6. Parse body (supports nested, flat, and Elementor formats)
+    const { name, values: parsedValues } = parseWebhookBody(
+      (req.body ?? {}) as Record<string, unknown>,
+    );
+    if (!name || !name.trim()) {
+      return res.status(400).json({ message: 'Item name is required (field: "name").' });
     }
     const sanitizedName = sanitizeText(name.trim());
-    const normalizedValues: Record<string, unknown> =
-      values && typeof values === 'object' && !Array.isArray(values)
-        ? (values as Record<string, unknown>)
-        : {};
+    const normalizedValues = parsedValues;
 
     // 7. Calculate order based on insertPosition
     let itemOrder: number;

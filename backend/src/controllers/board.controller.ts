@@ -7,6 +7,7 @@ import { JwtUserPayload, DBBoard, DBBoardMember } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
 import { assertBoardAccess, canAccessBoard, effectiveBoardRole } from '../utils/workManagementAuth.js';
+import { revokeAllWebhooksForBoard } from '../services/webhook.service.js';
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
@@ -261,6 +262,7 @@ export const archiveBoard = async (req: Request, res: Response) => {
       isArchived: true,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    void revokeAllWebhooksForBoard(user.orgId, id);
 
     void logAudit({
       actorUserId: user.id,
@@ -341,6 +343,7 @@ export const deleteBoard = async (req: Request, res: Response) => {
     groupsSnap.forEach((g: { ref: FirebaseFirestore.DocumentReference }) => batch.delete(g.ref));
     batch.delete(boardsCollection(user.orgId).doc(id));
     await batch.commit();
+    void revokeAllWebhooksForBoard(user.orgId, id);
 
     void logAudit({
       actorUserId: user.id,
