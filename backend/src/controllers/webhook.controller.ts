@@ -70,21 +70,27 @@ function parseFieldMap(raw: unknown): Array<{ position: number; columnId: string
   return result;
 }
 
+function parseNameMode(raw: unknown): 'field' | 'timestamp' | 'sequence' {
+  if (raw === 'timestamp' || raw === 'sequence') return raw;
+  return 'field';
+}
+
 // ---------------------------------------------------------------------------
 // POST /boards/:boardId/groups/:groupId/webhook  (authenticated)
 // ---------------------------------------------------------------------------
 export const createWebhook = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId, groupId } = req.params;
-  const { insertPosition, allowedOrigins, fieldMap: rawFieldMap, nameFieldPosition: rawNamePos } = req.body;
+  const { insertPosition, allowedOrigins, fieldMap: rawFieldMap, nameFieldPosition: rawNamePos, nameMode: rawNameMode } = req.body;
 
   const position: 'top' | 'bottom' = insertPosition === 'top' ? 'top' : 'bottom';
 
   const origins = sanitizeOrigins(allowedOrigins);
 
   const fieldMap = parseFieldMap(rawFieldMap);
+  const nameMode = parseNameMode(rawNameMode);
   const nameFieldPosition: number | null =
-    rawNamePos != null && Number.isInteger(Number(rawNamePos)) && Number(rawNamePos) >= 1
+    nameMode === 'field' && rawNamePos != null && Number.isInteger(Number(rawNamePos)) && Number(rawNamePos) >= 1
       ? Number(rawNamePos)
       : null;
 
@@ -128,6 +134,7 @@ export const createWebhook = async (req: Request, res: Response) => {
       insertPosition: position,
       allowedOrigins: origins,
       fieldMap,
+      nameMode,
       nameFieldPosition,
       status: 'active',
       createdBy: user.id,
@@ -188,16 +195,18 @@ export const updateWebhook = async (req: Request, res: Response) => {
 
     if (snap.empty) return res.status(404).json({ message: 'No active webhook found.' });
 
-    const { fieldMap: rawFieldMap, nameFieldPosition: rawNamePos, allowedOrigins: rawOrigins } = req.body;
+    const { fieldMap: rawFieldMap, nameFieldPosition: rawNamePos, nameMode: rawNameMode, allowedOrigins: rawOrigins } = req.body;
     const fieldMap = parseFieldMap(rawFieldMap);
+    const nameMode = parseNameMode(rawNameMode);
     const nameFieldPosition: number | null =
-      rawNamePos != null && Number.isInteger(Number(rawNamePos)) && Number(rawNamePos) >= 1
+      nameMode === 'field' && rawNamePos != null && Number.isInteger(Number(rawNamePos)) && Number(rawNamePos) >= 1
         ? Number(rawNamePos)
         : null;
     const allowedOrigins = rawOrigins !== undefined ? sanitizeOrigins(rawOrigins) : undefined;
 
     const updatePayload: Record<string, unknown> = {
       fieldMap,
+      nameMode,
       nameFieldPosition,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
@@ -205,7 +214,7 @@ export const updateWebhook = async (req: Request, res: Response) => {
 
     await snap.docs[0].ref.update(updatePayload);
 
-    const updated = { ...(snap.docs[0].data() as DBWebhook), fieldMap, nameFieldPosition };
+    const updated = { ...(snap.docs[0].data() as DBWebhook), fieldMap, nameMode, nameFieldPosition };
     if (allowedOrigins !== undefined) updated.allowedOrigins = allowedOrigins;
     const { tokenHash: _omit, ...safeWebhook } = updated;
     res.json(safeWebhook);
@@ -420,24 +429,44 @@ export const receiveWebhook = async (req: Request, res: Response) => {
     const board = boardDoc.data() as DBBoard;
     if (board.isArchived) return res.status(410).json({ message: 'Target board is archived.' });
 
-    // 6. Parse body — position-based when fieldMap is configured, format-based otherwise
+    // 6. Parse body — extract column values
     const body = (req.body ?? {}) as Record<string, unknown>;
-    let sanitizedName: string;
     let normalizedValues: Record<string, unknown>;
 
     const hasFieldMap = Array.isArray(webhook.fieldMap) && webhook.fieldMap.length > 0;
-    const hasNamePos = webhook.nameFieldPosition != null && webhook.nameFieldPosition >= 1;
+    const nameMode: 'field' | 'timestamp' | 'sequence' = webhook.nameMode ?? 'field';
+    const hasNamePos = nameMode === 'field' && webhook.nameFieldPosition != null && webhook.nameFieldPosition >= 1;
 
     if (hasFieldMap || hasNamePos) {
-      // Position-based mapping: extract fields in body order and map by index
       const positional = extractPositionalFields(body);
-
-      let rawName: unknown;
-      if (hasNamePos) {
-        rawName = positional[(webhook.nameFieldPosition as number) - 1];
-      } else {
-        rawName = body.name;
+      normalizedValues = {};
+      for (const { position, columnId } of (webhook.fieldMap ?? [])) {
+        const val = positional[position - 1];
+        if (val !== undefined) normalizedValues[columnId] = val;
       }
+    } else if (nameMode === 'field') {
+      const { values: parsedValues } = parseWebhookBody(body);
+      normalizedValues = parsedValues;
+    } else {
+      normalizedValues = {};
+    }
+
+    // 7. Resolve item name based on nameMode
+    let sanitizedName: string;
+
+    if (nameMode === 'timestamp') {
+      const now = new Date();
+      const pad = (n: number) => String(n).padStart(2, '0');
+      sanitizedName = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    } else if (nameMode === 'sequence') {
+      // Will be resolved after the count query below
+      sanitizedName = ''; // placeholder, set after step 8
+    } else {
+      // nameMode === 'field'
+      const positional = hasNamePos ? extractPositionalFields(body) : null;
+      const rawName = hasNamePos
+        ? positional![(webhook.nameFieldPosition as number) - 1]
+        : (body.name as unknown);
       if (!rawName || typeof rawName !== 'string' || !rawName.trim()) {
         return res.status(400).json({
           message: hasNamePos
@@ -446,23 +475,9 @@ export const receiveWebhook = async (req: Request, res: Response) => {
         });
       }
       sanitizedName = sanitizeText(rawName.trim());
-
-      normalizedValues = {};
-      for (const { position, columnId } of (webhook.fieldMap ?? [])) {
-        const val = positional[position - 1];
-        if (val !== undefined) normalizedValues[columnId] = val;
-      }
-    } else {
-      // Legacy format-based parsing (nested / flat / Elementor field names)
-      const { name, values: parsedValues } = parseWebhookBody(body);
-      if (!name || !name.trim()) {
-        return res.status(400).json({ message: 'Item name is required (field: "name").' });
-      }
-      sanitizedName = sanitizeText(name.trim());
-      normalizedValues = parsedValues;
     }
 
-    // 7. Calculate order based on insertPosition
+    // 8. Calculate order (also resolves sequence name)
     let itemOrder: number;
     if (webhook.insertPosition === 'top') {
       const firstSnap = await itemsCollection(webhook.orgId)
@@ -473,6 +488,14 @@ export const receiveWebhook = async (req: Request, res: Response) => {
         .limit(1)
         .get();
       itemOrder = firstSnap.empty ? 0 : (firstSnap.docs[0].data().order as number) - 1;
+      if (nameMode === 'sequence') {
+        const countSnap = await itemsCollection(webhook.orgId)
+          .where('boardId', '==', webhook.boardId)
+          .where('groupId', '==', webhook.groupId)
+          .count()
+          .get();
+        sanitizedName = String(countSnap.data().count + 1);
+      }
     } else {
       const countSnap = await itemsCollection(webhook.orgId)
         .where('boardId', '==', webhook.boardId)
@@ -480,9 +503,12 @@ export const receiveWebhook = async (req: Request, res: Response) => {
         .count()
         .get();
       itemOrder = countSnap.data().count;
+      if (nameMode === 'sequence') {
+        sanitizedName = String(itemOrder + 1);
+      }
     }
 
-    // 8. Create item
+    // 9. Create item
     const docRef = itemsCollection(webhook.orgId).doc();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     await docRef.set({
@@ -503,14 +529,13 @@ export const receiveWebhook = async (req: Request, res: Response) => {
     });
     touchBoardVersion(webhook.orgId, webhook.boardId);
 
-    // 9. Update webhook stats (fire-and-forget)
+    // 10. Update webhook stats (fire-and-forget)
     void webhooksCollection.doc(webhookId).update({
       lastUsedAt: admin.firestore.FieldValue.serverTimestamp(),
       useCount: admin.firestore.FieldValue.increment(1),
     }).catch(() => undefined);
 
-    const created = (await docRef.get()).data();
-    res.status(201).json(created);
+    res.json({ ok: true, id: docRef.id });
   } catch (err: unknown) {
     logger.error(`Error receiving webhook ${webhookId}:`, err);
     res.status(500).json({ message: 'Failed to process webhook.' });

@@ -320,6 +320,8 @@ export interface WebhookFieldMapping {
   columnId: string;
 }
 
+export type WebhookNameMode = 'field' | 'timestamp' | 'sequence';
+
 export interface Webhook {
   id: string;
   orgId: string;
@@ -335,6 +337,7 @@ export interface Webhook {
   lastUsedAt?: Date | string;
   useCount: number;
   fieldMap: WebhookFieldMapping[];
+  nameMode: WebhookNameMode;
   nameFieldPosition: number | null;
   secret?: string;
 }

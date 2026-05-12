@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
@@ -359,11 +359,13 @@ export interface CreateWebhookData {
   insertPosition: 'top' | 'bottom';
   allowedOrigins: string[];
   fieldMap?: WebhookFieldMappingInput[];
+  nameMode?: WebhookNameMode;
   nameFieldPosition?: number | null;
 }
 
 export interface UpdateWebhookData {
   fieldMap: WebhookFieldMappingInput[];
+  nameMode: WebhookNameMode;
   nameFieldPosition: number | null;
   allowedOrigins?: string[];
 }
