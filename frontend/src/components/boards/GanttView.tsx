@@ -19,7 +19,7 @@ interface DragState {
   itemId: string;
   groupId: string;
   colId: string;
-  edge: 'start' | 'end';
+  edge: 'start' | 'end' | 'move';
   origStart: Date;
   origEnd: Date;
   mouseX: number;
@@ -183,11 +183,38 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
   ) {
     e.preventDefault();
     e.stopPropagation();
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
     dragRef.current = {
       itemId: item.id,
       groupId: item.groupId,
       colId: timeRangeColRef.current?.id ?? '',
       edge,
+      origStart: startDate,
+      origEnd: endDate,
+      mouseX: e.clientX,
+      pxPerDay,
+      currentStart: startDate,
+      currentEnd: endDate,
+    };
+  }
+
+  // ── Move drag start (shift entire bar) ─────────────────────────────────
+  function handleMoveStart(
+    e: React.MouseEvent,
+    item: Item,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.style.cursor = 'move';
+    document.body.style.userSelect = 'none';
+    dragRef.current = {
+      itemId: item.id,
+      groupId: item.groupId,
+      colId: timeRangeColRef.current?.id ?? '',
+      edge: 'move',
       origStart: startDate,
       origEnd: endDate,
       mouseX: e.clientX,
@@ -209,7 +236,10 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       let newStart = d.origStart;
       let newEnd = d.origEnd;
 
-      if (d.edge === 'start') {
+      if (d.edge === 'move') {
+        newStart = addLocalDays(d.origStart, deltaDays);
+        newEnd = addLocalDays(d.origEnd, deltaDays);
+      } else if (d.edge === 'start') {
         const candidate = addLocalDays(d.origStart, deltaDays);
         newStart = candidate < d.origEnd ? candidate : addLocalDays(d.origEnd, -1);
       } else {
@@ -224,7 +254,9 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       setDragLabel({
         x: e.clientX,
         y: e.clientY,
-        text: d.edge === 'start' ? formatDragDate(newStart) : formatDragDate(newEnd),
+        text: d.edge === 'move'
+          ? `${formatDragDate(newStart)} → ${formatDragDate(newEnd)}`
+          : d.edge === 'start' ? formatDragDate(newStart) : formatDragDate(newEnd),
       });
     };
 
@@ -233,6 +265,8 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       if (!d) return;
       const { itemId, groupId, colId, currentStart, currentEnd } = d;
       dragRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
       setPreview({});
       setDragLabel(null);
 
@@ -460,10 +494,12 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                               boxShadow: isBeingDragged
                                 ? '0 4px 16px rgba(99,102,241,0.45)'
                                 : '0 2px 8px rgba(0,0,0,0.1)',
+                              cursor: 'move',
                               zIndex: 5,
                               transition: isBeingDragged ? 'none' : 'left 0.15s, width 0.15s',
                             }}
                             aria-label={`${item.name}: ${formatTooltipDate(dates.start)} to ${formatTooltipDate(dates.end)}`}
+                            onMouseDown={(e) => handleMoveStart(e, item, dates.start, dates.end)}
                             onMouseEnter={(e) => {
                               if (!isCurrentlyDragging) {
                                 setTooltip({ x: e.clientX, y: e.clientY, startDate: dates.start, endDate: dates.end });
