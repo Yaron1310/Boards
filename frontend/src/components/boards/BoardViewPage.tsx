@@ -14,7 +14,8 @@ import {
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { useBoard, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
 import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries';
-import { useItems, useReorderItems, useUpdateItem } from '../../hooks/queries/useItemQueries';
+import { useReorderItems, useUpdateItem } from '../../hooks/queries/useItemQueries';
+import { usePageSize } from '../../hooks/usePageSize';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useBoardSnapshot } from '../../hooks/useBoardSnapshot';
@@ -100,6 +101,8 @@ interface BoardContentProps {
   activeFilters: ActiveFilter[];
   boardView: BoardView;
   onGanttItemUpdate: (itemId: string, groupId: string, colId: string, start: string, end: string) => void;
+  pageSize: number;
+  onPageItemsChange: (groupId: string, items: Item[]) => void;
 }
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' };
@@ -159,6 +162,8 @@ const BoardContent: React.FC<BoardContentProps> = ({
   activeFilters,
   boardView,
   onGanttItemUpdate,
+  pageSize,
+  onPageItemsChange,
 }) => {
   const { data: columns = [] } = useColumns(boardId);
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
@@ -287,6 +292,8 @@ const BoardContent: React.FC<BoardContentProps> = ({
                         canManage={canManage && !board.isArchived}
                         items={displayItemsByGroup[group.id] ?? []}
                         onOpenDetail={setDetailItem}
+                        pageSize={pageSize}
+                        onPageItemsChange={onPageItemsChange}
                       />
                     ))}
                   </SortableContext>
@@ -375,10 +382,9 @@ const BoardViewPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, selectedWorkspace } = useAuthSession();
 
-  const itemParams = useMemo(() => ({ boardId: boardId ?? '', limit: 200 }), [boardId]);
+  const pageSize = usePageSize();
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);
   const { data: groups = [], isLoading: groupsLoading } = useGroups(boardId ?? '', !!boardId);
-  const { data: itemsPage } = useItems(itemParams, !!boardId);
   const { data: columns = [] } = useColumns(boardId ?? '');
   const { data: allUsersForExport = [] } = useUsersQuery({ limit: 200 });
 
@@ -433,18 +439,15 @@ const BoardViewPage: React.FC = () => {
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN;
 
-  // Build items-by-group map from server data
-  const serverItemsByGroup = useMemo<Record<string, Item[]>>(() => {
-    const map: Record<string, Item[]> = {};
-    for (const item of itemsPage?.data ?? []) {
-      if (!map[item.groupId]) map[item.groupId] = [];
-      map[item.groupId].push(item);
-    }
-    for (const gid of Object.keys(map)) {
-      map[gid].sort((a, b) => a.order - b.order);
-    }
-    return map;
-  }, [itemsPage]);
+  // Called by each GroupSection when it fetches a new page; keeps localItemsByGroup in sync for DnD/export
+  const handlePageItemsChange = useCallback((groupId: string, items: Item[]) => {
+    setLocalItemsByGroup((prev) => {
+      if (prev[groupId] === items) return prev;
+      const next = { ...prev, [groupId]: items };
+      serverItemsByGroupRef.current = next;
+      return next;
+    });
+  }, []);
 
   // Called by GanttView when a bar is resized — updates local state immediately
   // and persists to DB, so the same data source is reflected in both views.
@@ -488,13 +491,6 @@ const BoardViewPage: React.FC = () => {
     }
   }, [groups]);
 
-  useEffect(() => {
-    // Only update if changed
-    if (JSON.stringify(serverItemsByGroup) !== JSON.stringify(serverItemsByGroupRef.current)) {
-      setLocalItemsByGroup(serverItemsByGroup);
-      serverItemsByGroupRef.current = serverItemsByGroup;
-    }
-  }, [serverItemsByGroup]);
 
   useEffect(() => {
     if (board) setNameValue(board.name);
@@ -876,6 +872,8 @@ const BoardViewPage: React.FC = () => {
             activeFilters={activeFilters}
             boardView={boardView}
             onGanttItemUpdate={handleGanttItemUpdate}
+            pageSize={pageSize}
+            onPageItemsChange={handlePageItemsChange}
           />
         </DependencyProvider>
         </FormulaEditProvider>

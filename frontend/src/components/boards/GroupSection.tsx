@@ -1,11 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   FiChevronDown, FiChevronRight, FiMoreHorizontal, FiPlus,
   FiEdit2, FiTrash2, FiLoader, FiMenu, FiArchive,
+  FiChevronsLeft, FiChevronLeft, FiChevronRight as FiChevronRightNav,
 } from 'react-icons/fi';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useCreateItem } from '../../hooks/queries/useItemQueries';
+import { useCreateItem, useGroupItems } from '../../hooks/queries/useItemQueries';
 import { useUpdateGroup, useDeleteGroup, useArchiveGroup } from '../../hooks/queries/useGroupQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
@@ -20,8 +21,11 @@ interface GroupSectionProps {
   boardId: string;
   workspaceId: string;
   canManage: boolean;
+  /** Filtered/sorted items for display — supplied by parent after applying search & filters */
   items: Item[];
   onOpenDetail: (item: Item) => void;
+  pageSize: number;
+  onPageItemsChange: (groupId: string, items: Item[]) => void;
 }
 
 const GroupSection: React.FC<GroupSectionProps> = ({
@@ -31,6 +35,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   canManage,
   items,
   onOpenDetail,
+  pageSize,
+  onPageItemsChange,
 }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(boardId);
@@ -55,6 +61,75 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0);
+  // Maps page index → cursor needed to fetch that page (page 0 = undefined)
+  const [cursorMap, setCursorMap] = useState<Record<number, string | undefined>>({ 0: undefined });
+  const [pendingJumpToLast, setPendingJumpToLast] = useState(false);
+
+  const cursor = cursorMap[currentPage];
+  const { data: groupItemsPage, isFetching } = useGroupItems(
+    group.id,
+    cursor,
+    pageSize,
+    !isCollapsed,
+  );
+
+  const total = groupItemsPage?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Cache the next-page cursor whenever we receive it
+  useEffect(() => {
+    if (groupItemsPage?.hasMore && groupItemsPage.cursor) {
+      setCursorMap((prev) => ({ ...prev, [currentPage + 1]: groupItemsPage.cursor! }));
+    }
+  }, [groupItemsPage, currentPage]);
+
+  // Notify parent of the raw (unfiltered) server items so DnD and export work
+  const stableOnPageItemsChange = useCallback(onPageItemsChange, [onPageItemsChange]);
+  useEffect(() => {
+    if (groupItemsPage?.data) {
+      stableOnPageItemsChange(group.id, groupItemsPage.data);
+    }
+  }, [groupItemsPage?.data, group.id, stableOnPageItemsChange]);
+
+  // After creating an item jump to the last page so the new item is visible
+  useEffect(() => {
+    if (pendingJumpToLast && !isFetching && totalPages > 0) {
+      setCurrentPage(totalPages - 1);
+      setPendingJumpToLast(false);
+    }
+  }, [pendingJumpToLast, isFetching, totalPages]);
+
+  // Reset to page 0 when page size changes (e.g. window resize)
+  const prevPageSizeRef = useRef(pageSize);
+  useEffect(() => {
+    if (prevPageSizeRef.current !== pageSize) {
+      prevPageSizeRef.current = pageSize;
+      setCurrentPage(0);
+      setCursorMap({ 0: undefined });
+    }
+  }, [pageSize]);
+
+  const goToPage = useCallback((page: number) => {
+    const clamped = Math.max(0, Math.min(page, totalPages - 1));
+    setCurrentPage(clamped);
+  }, [totalPages]);
+
+  // Mouse-wheel navigation when hovering over the group rows
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || totalPages <= 1) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      if (e.deltaY > 0) goToPage(currentPage + 1);
+      else goToPage(currentPage - 1);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [totalPages, currentPage, goToPage]);
 
   const {
     attributes: groupDragAttributes,
@@ -144,6 +219,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     });
     setNewItemName('');
     setAddingItem(false);
+    setPendingJumpToLast(true);
   };
 
   const handleAddItemKeyDown = (e: React.KeyboardEvent) => {
@@ -155,8 +231,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   };
 
   const groupColor = group.color ?? '#6366f1';
-  const itemCount = items.length;
   const itemIds = items.map((i) => i.id);
+  const showPagination = totalPages > 1;
 
   return (
     <div
@@ -224,10 +300,47 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           </h2>
         )}
 
-        {/* Item count */}
-        <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${itemCount} items`}>
-          {itemCount}
-        </span>
+        {/* Pagination nav (replaces plain item count when multiple pages exist) */}
+        {showPagination ? (
+          <div className="flex items-center gap-1 flex-shrink-0" aria-label={`Page ${currentPage + 1} of ${totalPages}`}>
+            <button
+              type="button"
+              onClick={() => goToPage(0)}
+              disabled={currentPage === 0}
+              className="flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-default transition-colors"
+              aria-label="First page"
+            >
+              <FiChevronsLeft size={13} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage === 0}
+              className="flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-default transition-colors"
+              aria-label="Previous page"
+            >
+              <FiChevronLeft size={13} aria-hidden="true" />
+            </button>
+            <span className="text-xs text-gray-500 whitespace-nowrap px-1 select-none">
+              {isFetching
+                ? <FiLoader className="inline animate-spin" size={11} aria-label="Loading" />
+                : `Page ${currentPage + 1} of ${totalPages}`}
+            </span>
+            <button
+              type="button"
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage >= totalPages - 1}
+              className="flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-default transition-colors"
+              aria-label="Next page"
+            >
+              <FiChevronRightNav size={13} aria-hidden="true" />
+            </button>
+          </div>
+        ) : (
+          <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${total} items`}>
+            {isFetching ? <FiLoader className="inline animate-spin" size={12} aria-hidden="true" /> : total || ''}
+          </span>
+        )}
 
         {/* Kebab menu */}
         {canManage && (
@@ -343,6 +456,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
       {/* Board table */}
       <section
+        ref={sectionRef}
         className="rounded-lg border border-gray-200 bg-white w-max shadow-md"
         aria-label={`Items in group ${group.name}`}
       >
@@ -378,7 +492,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           <div role="rowgroup" aria-label={`Items in ${group.name}`} className="w-max">
             {items.length === 0 ? (
               <div className="px-4 py-4 text-xs text-gray-400 italic">
-                No items yet.
+                {isFetching ? 'Loading…' : 'No items yet.'}
               </div>
             ) : (
               <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
@@ -444,9 +558,9 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         {isCollapsed && (
           <div
             className="px-4 py-2 text-xs text-gray-400 bg-gray-50 border-t border-[#d2d2d4]"
-            aria-label={`${group.name} collapsed — ${itemCount} items`}
+            aria-label={`${group.name} collapsed — ${total} items`}
           >
-            {itemCount} item{itemCount !== 1 ? 's' : ''} hidden
+            {total} item{total !== 1 ? 's' : ''} hidden
           </div>
         )}
       </section>

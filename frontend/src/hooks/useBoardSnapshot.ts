@@ -59,7 +59,7 @@ export function useBoardSnapshot(boardId: string | undefined, orgId: string | un
 
       unsubItems = onSnapshot(itemsQuery, (snapshot) => {
         console.log('[useBoardSnapshot] Items snapshot received —', snapshot.docChanges().length, 'change(s), total docs in snapshot:', snapshot.size, '| fromCache:', snapshot.metadata.fromCache);
-        let hasStructuralChange = false;
+        const structuralGroupIds = new Set<string>();
 
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'modified') {
@@ -67,7 +67,8 @@ export function useBoardSnapshot(boardId: string | undefined, orgId: string | un
 
             qc.setQueryData(queryKeys.items.one(item.id), item);
 
-            for (const [key, value] of qc.getQueriesData<PaginatedResponse<Item>>({ queryKey: ['items'] })) {
+            // Update the item in whichever group-page cache it lives in
+            for (const [key, value] of qc.getQueriesData<PaginatedResponse<Item>>({ queryKey: ['items', 'group', item.groupId] })) {
               if (!value || !('data' in value)) continue;
               const list = value as PaginatedResponse<Item>;
               if (list.data.some((i) => i.id === item.id)) {
@@ -78,12 +79,13 @@ export function useBoardSnapshot(boardId: string | undefined, orgId: string | un
               }
             }
           } else {
-            hasStructuralChange = true;
+            const gid = change.doc.data()?.groupId as string | undefined;
+            if (gid) structuralGroupIds.add(gid);
           }
         });
 
-        if (hasStructuralChange) {
-          void qc.invalidateQueries({ queryKey: ['items'] });
+        for (const gid of structuralGroupIds) {
+          void qc.invalidateQueries({ queryKey: ['items', 'group', gid] });
         }
       }, handleError);
 

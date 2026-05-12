@@ -347,6 +347,14 @@ export const getItems = async (req: Request, res: Response) => {
     query = query.orderBy('order');
 
     const paginationParams = parsePaginationParams(req);
+
+    // When fetching a specific group, include total count so the UI can display "Page X of Y"
+    let totalCount: number | undefined;
+    if (groupId && typeof groupId === 'string') {
+      const countSnap = await query.count().get();
+      totalCount = countSnap.data().count;
+    }
+
     const { paginatedQuery, limit } = await applyPagination(
       query,
       itemsCollection(user.orgId),
@@ -359,6 +367,7 @@ export const getItems = async (req: Request, res: Response) => {
     );
 
     const result = buildPaginatedResult(allItems, limit);
+    if (totalCount !== undefined) result.total = totalCount;
 
     void logAuditAndCheckAnomaly({
       actorUserId: user.id,

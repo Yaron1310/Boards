@@ -37,6 +37,27 @@ export const useItems = <TSelected = PaginatedResponse<Item>>(
   });
 };
 
+export const useGroupItems = (
+  groupId: string,
+  cursor: string | undefined,
+  limit: number,
+  enabled = true,
+) => {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: queryKeys.items.group(groupId, cursor, limit),
+    queryFn: async () => {
+      const result = await wm.listItems({ groupId, cursor, limit });
+      result.data.forEach((item) => {
+        qc.setQueryData(queryKeys.items.one(item.id), item);
+      });
+      return result;
+    },
+    enabled: enabled && !!groupId,
+    staleTime: 60 * 1000,
+  });
+};
+
 export const useItem = (id: string, enabled = true) =>
   useQuery({
     queryKey: queryKeys.items.one(id),
@@ -49,8 +70,8 @@ export const useCreateItem = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateItemData) => wm.createItem(data),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['items'] });
+    onSuccess: (_data, variables) => {
+      void qc.invalidateQueries({ queryKey: ['items', 'group', variables.groupId] });
     },
   });
 };
