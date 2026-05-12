@@ -267,10 +267,11 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId);
+  const { columnWidths } = useBoardRender();
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
   const isInteractive = isAggregatable || isCountOnly;
-  const colWidth = calculateColumnWidth(col.name, col.type);
+  const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
 
   // Keep local state in sync if the column data is refreshed from the server
   useEffect(() => {
