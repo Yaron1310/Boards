@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   FiChevronDown, FiChevronRight, FiMoreHorizontal, FiPlus,
-  FiEdit2, FiTrash2, FiLoader, FiMenu, FiArchive,
+  FiEdit2, FiTrash2, FiLoader, FiMenu, FiArchive, FiLink,
   FiChevronsLeft, FiChevronLeft, FiChevronRight as FiChevronRightNav,
 } from 'react-icons/fi';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
@@ -13,6 +13,7 @@ import { useColumns } from '../../hooks/queries/useColumnQueries';
 import type { Group, Item } from '../../types';
 import ItemRow from './ItemRow';
 import GroupSummaryRow from './GroupSummaryRow';
+import GroupWebhookModal from './GroupWebhookModal';
 import { COLUMN_TYPE_ICONS } from './ColumnHeader';
 import { calculateColumnWidth, GROUP_SECTION_WIDTH, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 
@@ -61,6 +62,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
+  const [webhookModalOpen, setWebhookModalOpen] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
@@ -448,6 +450,17 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                     Delete
                   </button>
                 )}
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); setWebhookModalOpen(true); }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  aria-label="Create or manage webhook for this group"
+                >
+                  <FiLink size={13} aria-hidden="true" />
+                  Webhook
+                </button>
               </div>
             )}
           </div>
@@ -564,6 +577,15 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           </div>
         )}
       </section>
+
+      {webhookModalOpen && (
+        <GroupWebhookModal
+          boardId={boardId}
+          groupId={group.id}
+          groupName={group.name}
+          onClose={() => setWebhookModalOpen(false)}
+        />
+      )}
     </div>
   );
 };

@@ -50,3 +50,7 @@ export const notificationsCollection = (orgId: string) =>
 // /organizations/{orgId}/items/{itemId}/chatMessages/{messageId}
 export const itemChatMessagesCollection = (orgId: string, itemId: string) =>
   itemsCollection(orgId).doc(itemId).collection('chatMessages');
+
+// Webhooks (top-level collection for O(1) public lookup by webhookId):
+// /webhooks/{webhookId}
+export const webhooksCollection = db.collection('webhooks');

@@ -12,6 +12,7 @@ import {
   validateGroupOwnershipChain,
 } from '../utils/workManagementAuth.js';
 import { touchBoardVersion } from '../services/boardVersion.service.js';
+import { revokeWebhookForGroup } from '../services/webhook.service.js';
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
@@ -247,6 +248,7 @@ export const deleteGroup = async (req: Request, res: Response) => {
 
     await groupsCollection(user.orgId, boardId).doc(groupId).delete();
     touchBoardVersion(user.orgId, boardId);
+    void revokeWebhookForGroup(user.orgId, groupId);
 
     void logAudit({
       actorUserId: user.id,
@@ -293,6 +295,7 @@ export const archiveGroup = async (req: Request, res: Response) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     touchBoardVersion(user.orgId, boardId);
+    void revokeWebhookForGroup(user.orgId, groupId);
 
     void logAudit({
       actorUserId: user.id,

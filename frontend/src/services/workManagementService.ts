@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
@@ -346,3 +346,33 @@ export const postChatMessage = async (
 
 export const deleteChatMessage = (itemId: string, messageId: string): Promise<void> =>
   fetchWithAuth(`/api/items/${itemId}/chat/${messageId}`, { method: 'DELETE' });
+
+
+// ─── WEBHOOKS ─────────────────────────────────────────────────────────────────
+
+export interface CreateWebhookData {
+  insertPosition: 'top' | 'bottom';
+  allowedOrigins: string[];
+}
+
+export const getGroupWebhook = async (boardId: string, groupId: string): Promise<Webhook | null> => {
+  try {
+    return await fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/webhook`);
+  } catch (err: unknown) {
+    if ((err as { status?: number }).status === 404) return null;
+    throw err;
+  }
+};
+
+export const createGroupWebhook = (
+  boardId: string,
+  groupId: string,
+  data: CreateWebhookData,
+): Promise<Webhook> =>
+  fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/webhook`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const revokeGroupWebhook = (boardId: string, groupId: string): Promise<void> =>
+  fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/webhook`, { method: 'DELETE' });

@@ -13,6 +13,7 @@ import { provisionRouter } from './provision.routes.js';
 import { systemRouter } from './system.routes.js';
 import { publicRouter } from './public.routes.js';
 import { emailTemplatesRouter } from './emailTemplates.routes.js';
+import { webhookRouter } from './webhook.routes.js';
 
 // Phase 6 — Work Management routes
 import { boardRouter } from './board.routes.js';
@@ -33,6 +34,7 @@ export const mainRouter = Router();
 mainRouter.use('/auth', authRouter);
 mainRouter.use('/provision', provisionRouter);
 mainRouter.use('/public', publicRouter);
+mainRouter.use('/webhook', webhookRouter);
 
 // --- AUTHENTICATED ROUTES ---
 mainRouter.use(authenticateToken);

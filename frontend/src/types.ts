@@ -315,6 +315,23 @@ export interface Group {
   updatedAt: Date | string;
 }
 
+export interface Webhook {
+  id: string;
+  orgId: string;
+  workspaceId: string;
+  boardId: string;
+  groupId: string;
+  insertPosition: 'top' | 'bottom';
+  allowedOrigins: string[];
+  status: 'active' | 'revoked';
+  createdBy: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  lastUsedAt?: Date | string;
+  useCount: number;
+  secret?: string;
+}
+
 // --- Item (flat, stored at WorkHub level) ---
 
 export interface Item {

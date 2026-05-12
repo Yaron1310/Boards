@@ -445,6 +445,25 @@ export interface DBEmailTemplate {
   updatedBy?: string;
 }
 
+// --- WEBHOOKS ---
+
+export interface DBWebhook {
+  id: string;
+  orgId: string;
+  workspaceId: string;
+  boardId: string;
+  groupId: string;
+  tokenHash: string;
+  insertPosition: 'top' | 'bottom';
+  allowedOrigins: string[];
+  status: 'active' | 'revoked';
+  createdBy: string;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+  lastUsedAt?: admin.firestore.Timestamp | Date | any;
+  useCount: number;
+}
+
 // --- PHASE 9: PERMISSIONS & NOTIFICATIONS ---
 
 export enum BoardRole {

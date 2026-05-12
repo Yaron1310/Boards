@@ -67,3 +67,14 @@ export const authenticatedLimiter = rateLimit({
     legacyHeaders: false,
     message: { message: 'Too many requests, please try again later.' },
 });
+
+// ─── Tier 7 — Webhook receiver ──────────────────────────────────────────────
+// Per-webhookId rate limit to prevent flooding a single group
+export const webhookLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 60,
+    keyGenerator: (req) => (req.params as Record<string, string>).webhookId ?? req.ip ?? 'unknown',
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { message: 'Too many webhook requests, please try again later.' },
+});
