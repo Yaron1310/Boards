@@ -260,7 +260,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       });
     };
 
-    const onUp = () => {
+    const onUp = (e: MouseEvent) => {
       const d = dragRef.current;
       if (!d) return;
       const { itemId, groupId, colId, currentStart, currentEnd } = d;
@@ -269,6 +269,10 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       document.body.style.userSelect = '';
       setPreview({});
       setDragLabel(null);
+      // Update tooltip immediately with the final dates so it shows correctly on release
+      setTooltip((prev) => prev
+        ? { ...prev, x: e.clientX, y: e.clientY, startDate: currentStart, endDate: currentEnd }
+        : null);
 
       if (colId) {
         onItemUpdateRef.current(
@@ -507,7 +511,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                             }}
                             onMouseMove={(e) => {
                               if (!isCurrentlyDragging) {
-                                setTooltip((prev) => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+                                setTooltip({ x: e.clientX, y: e.clientY, startDate: dates.start, endDate: dates.end });
                               }
                             }}
                             onMouseLeave={() => setTooltip(null)}
