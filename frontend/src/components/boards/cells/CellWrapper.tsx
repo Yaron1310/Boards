@@ -11,8 +11,8 @@ interface CellWrapperProps {
 
 const CellWrapper: React.FC<CellWrapperProps> = ({ column, isReadOnly = false, children }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const colWidth = calculateColumnWidth(column.name, column.type);
-  const { boardView } = useBoardRender();
+  const { boardView, columnWidths } = useBoardRender();
+  const colWidth = columnWidths[column.id] ?? column.width ?? calculateColumnWidth(column.name, column.type);
 
   const startEdit = (e: React.MouseEvent | React.KeyboardEvent) => {
     if (!isReadOnly && !isEditing) {
