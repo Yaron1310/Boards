@@ -47,6 +47,58 @@ function stateToFieldMap(colPositions: Record<string, string>): WebhookFieldMapp
     .filter(({ position }) => Number.isFinite(position) && position >= 1);
 }
 
+interface OriginsEditorProps {
+  origins: string[];
+  newOrigin: string;
+  error: string;
+  inputRef: React.RefObject<HTMLInputElement>;
+  onAdd: () => void;
+  onRemove: (o: string) => void;
+  onChange: (v: string) => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  onErrorClear: () => void;
+}
+
+const OriginsEditor: React.FC<OriginsEditorProps> = ({
+  origins, newOrigin, error, inputRef,
+  onAdd, onRemove, onChange, onKeyDown, onErrorClear,
+}) => (
+  <div className="space-y-2">
+    <p className="text-xs text-gray-400">
+      Use <code className="bg-gray-100 px-1 rounded">*</code> to allow all callers (Elementor, server-to-server).
+      Domains without <code className="bg-gray-100 px-1 rounded">https://</code> will have it added automatically.
+    </p>
+    {origins.length > 0 && (
+      <ul className="space-y-1" aria-label="Allowed origins">
+        {origins.map((o) => (
+          <li key={o} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-3 py-1">
+            <code className="text-xs text-gray-700">{o}</code>
+            <button type="button" onClick={() => onRemove(o)}
+              className="text-gray-400 hover:text-red-500 transition-colors ml-2" aria-label={`Remove origin ${o}`}>
+              <FiTrash2 size={12} aria-hidden="true" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    )}
+    <div className="flex gap-2">
+      <input ref={inputRef} type="text" value={newOrigin}
+        onChange={(e) => { onChange(e.target.value); onErrorClear(); }}
+        onKeyDown={onKeyDown}
+        placeholder="mydomain.com or * "
+        className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        aria-label="New allowed origin"
+        aria-describedby={error ? 'origin-error' : undefined} />
+      <button type="button" onClick={onAdd}
+        className="flex items-center gap-1 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+        aria-label="Add origin">
+        <FiPlus size={14} aria-hidden="true" /> Add
+      </button>
+    </div>
+    {error && <p id="origin-error" role="alert" className="text-xs text-red-500">{error}</p>}
+  </div>
+);
+
 const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId, groupName, onClose }) => {
   const { data: existingWebhook, isLoading } = useGroupWebhook(boardId, groupId);
   const { mutateAsync: createWebhook, isPending: isCreating, error: createError } = useCreateGroupWebhook();
@@ -206,57 +258,6 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
     </button>
   );
 
-  const OriginsEditor = ({
-    origins, newOrigin, error, inputRef,
-    onAdd, onRemove, onChange, onKeyDown, onErrorClear,
-    dirty: isDirty,
-  }: {
-    origins: string[];
-    newOrigin: string;
-    error: string;
-    inputRef: React.RefObject<HTMLInputElement>;
-    onAdd: () => void;
-    onRemove: (o: string) => void;
-    onChange: (v: string) => void;
-    onKeyDown?: (e: React.KeyboardEvent) => void;
-    onErrorClear: () => void;
-    dirty?: boolean;
-  }) => (
-    <div className="space-y-2">
-      <p className="text-xs text-gray-400">
-        Use <code className="bg-gray-100 px-1 rounded">*</code> to allow all callers (Elementor, server-to-server).
-        Domains without <code className="bg-gray-100 px-1 rounded">https://</code> will have it added automatically.
-      </p>
-      {origins.length > 0 && (
-        <ul className="space-y-1" aria-label="Allowed origins">
-          {origins.map((o) => (
-            <li key={o} className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded px-3 py-1">
-              <code className="text-xs text-gray-700">{o}</code>
-              <button type="button" onClick={() => { onRemove(o); isDirty !== undefined && (setDirty(true), setSaved(false)); }}
-                className="text-gray-400 hover:text-red-500 transition-colors ml-2" aria-label={`Remove origin ${o}`}>
-                <FiTrash2 size={12} aria-hidden="true" />
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-      <div className="flex gap-2">
-        <input ref={inputRef} type="text" value={newOrigin}
-          onChange={(e) => { onChange(e.target.value); onErrorClear(); }}
-          onKeyDown={onKeyDown}
-          placeholder="mydomain.com or * "
-          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-label="New allowed origin"
-          aria-describedby={error ? 'origin-error' : undefined} />
-        <button type="button" onClick={onAdd}
-          className="flex items-center gap-1 px-3 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-          aria-label="Add origin">
-          <FiPlus size={14} aria-hidden="true" /> Add
-        </button>
-      </div>
-      {error && <p id="origin-error" role="alert" className="text-xs text-red-500">{error}</p>}
-    </div>
-  );
 
   const NAME_MODES: { value: WebhookNameMode; label: string; description: string }[] = [
     { value: 'timestamp', label: 'Timestamp', description: 'dd/mm/yyyy hh:mm when the request arrives' },
@@ -393,6 +394,19 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
               {/* Endpoints */}
               <div className="space-y-2">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Endpoint</p>
+
+                {/* Plain URL — always visible */}
+                <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-600">Webhook URL</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-white border border-gray-200 rounded px-2 py-1.5 break-all select-all text-gray-700">
+                      {webhookUrl}
+                    </code>
+                    <CopyBtn text={webhookUrl} id="url" label="Copy URL" />
+                  </div>
+                </div>
+
+                {/* URL with token — only available at creation */}
                 <div className="bg-blue-50 rounded-lg p-3 space-y-1.5">
                   <p className="text-xs font-semibold text-blue-700">Elementor / no-header tools — URL with token</p>
                   {createdResult ? (
@@ -406,15 +420,11 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
                     <p className="text-xs text-blue-400 italic">URL with token was only shown at creation. Revoke and recreate to get a new one.</p>
                   )}
                 </div>
-                <div className="bg-gray-50 rounded-lg p-3 space-y-1.5">
-                  <p className="text-xs font-semibold text-gray-600">API / Zapier / code — Authorization header</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-white border border-gray-200 rounded px-2 py-1.5 break-all select-all text-gray-700">
-                      POST {webhookUrl}
-                    </code>
-                    <CopyBtn text={webhookUrl} id="url" label="Copy URL" />
-                  </div>
-                  <code className="block text-xs text-gray-500">Authorization: Bearer &lt;your-token&gt;</code>
+
+                {/* Authorization header hint */}
+                <div className="bg-gray-50 rounded-lg px-3 py-2">
+                  <p className="text-xs font-semibold text-gray-600 mb-1">API / Zapier / code</p>
+                  <code className="text-xs text-gray-500">Authorization: Bearer &lt;your-token&gt;</code>
                 </div>
               </div>
 
@@ -436,7 +446,6 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
                   onChange={setEditNewOrigin}
                   onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleEditAddOrigin(); } }}
                   onErrorClear={() => setEditOriginError('')}
-                  dirty={dirty}
                 />
               </div>
 
