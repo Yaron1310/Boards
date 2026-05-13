@@ -47,6 +47,31 @@ function stateToFieldMap(colPositions: Record<string, string>): WebhookFieldMapp
     .filter(({ position }) => Number.isFinite(position) && position >= 1);
 }
 
+const STORAGE_KEY = 'webhook_secrets';
+
+function saveWebhookSecret(webhookId: string, secret: string) {
+  try {
+    const map = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, string>;
+    map[webhookId] = secret;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  } catch { /* storage unavailable */ }
+}
+
+function loadWebhookSecret(webhookId: string): string | null {
+  try {
+    const map = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, string>;
+    return map[webhookId] ?? null;
+  } catch { return null; }
+}
+
+function clearWebhookSecret(webhookId: string) {
+  try {
+    const map = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Record<string, string>;
+    delete map[webhookId];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+  } catch { /* storage unavailable */ }
+}
+
 interface OriginsEditorProps {
   origins: string[];
   newOrigin: string;
@@ -107,6 +132,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
   const { data: columns = [] } = useColumns(boardId);
 
   const [createdResult, setCreatedResult] = useState<(Webhook & { secret: string }) | null>(null);
+  const [storedSecret, setStoredSecret] = useState<string | null>(null);
 
   // Create-form state
   const [insertPosition, setInsertPosition] = useState<'top' | 'bottom'>('bottom');
@@ -134,7 +160,8 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
   const apiBase = BACKEND_API_URL || window.location.origin;
   const displayWebhook = createdResult ?? existingWebhook;
   const webhookUrl = displayWebhook ? `${apiBase}/api/webhook/${displayWebhook.id}` : '';
-  const webhookUrlWithToken = createdResult ? `${webhookUrl}?token=${createdResult.secret}` : '';
+  const activeSecret = createdResult?.secret ?? storedSecret;
+  const webhookUrlWithToken = activeSecret && webhookUrl ? `${webhookUrl}?token=${activeSecret}` : '';
 
   // Sync state when a webhook loads or is created
   useEffect(() => {
@@ -148,6 +175,9 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
       setNamePos(np);
       setEditOrigins(wh.allowedOrigins ?? []);
       setDirty(false);
+      if (!createdResult) {
+        setStoredSecret(loadWebhookSecret(wh.id));
+      }
     }
   }, [existingWebhook, createdResult]);
 
@@ -212,7 +242,9 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
       boardId, groupId,
       data: { insertPosition, allowedOrigins: createOrigins, fieldMap, nameMode, nameFieldPosition: parsedNamePos },
     });
-    setCreatedResult(result as Webhook & { secret: string });
+    const typed = result as Webhook & { secret: string };
+    saveWebhookSecret(typed.id, typed.secret);
+    setCreatedResult(typed);
   };
 
   const handleSave = async () => {
@@ -226,8 +258,10 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
   };
 
   const handleRevoke = async () => {
+    if (displayWebhook) clearWebhookSecret(displayWebhook.id);
     await revokeWebhook({ boardId, groupId });
     setCreatedResult(null);
+    setStoredSecret(null);
     setRevokeConfirm(false);
   };
 
@@ -375,21 +409,6 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
           ) : displayWebhook ? (
             /* ── Existing / just-created webhook ── */
             <div className="space-y-5">
-              {/* One-time token banner */}
-              {createdResult && (
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-2">
-                  <p className="text-xs font-semibold text-amber-700 flex items-center gap-1">
-                    <FiAlertTriangle size={12} aria-hidden="true" />
-                    Save your token now — it will not be shown again.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-white border border-amber-200 rounded px-2 py-1 break-all select-all text-gray-700">
-                      {createdResult.secret}
-                    </code>
-                    <CopyBtn text={createdResult.secret} id="token" label="Copy token" />
-                  </div>
-                </div>
-              )}
 
               {/* Endpoints */}
               <div className="space-y-2">
@@ -406,10 +425,10 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
                   </div>
                 </div>
 
-                {/* URL with token — only available at creation */}
+                {/* URL with token */}
                 <div className="bg-blue-50 rounded-lg p-3 space-y-1.5">
                   <p className="text-xs font-semibold text-blue-700">Elementor / no-header tools — URL with token</p>
-                  {createdResult ? (
+                  {webhookUrlWithToken ? (
                     <div className="flex items-center gap-2">
                       <code className="flex-1 text-xs text-blue-800 bg-white border border-blue-200 rounded px-2 py-1.5 break-all select-all">
                         {webhookUrlWithToken}
@@ -417,7 +436,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
                       <CopyBtn text={webhookUrlWithToken} id="url-token" label="Copy URL with token" />
                     </div>
                   ) : (
-                    <p className="text-xs text-blue-400 italic">URL with token was only shown at creation. Revoke and recreate to get a new one.</p>
+                    <p className="text-xs text-blue-400 italic">Token not available in this browser. Revoke and recreate to get a new URL.</p>
                   )}
                 </div>
 
