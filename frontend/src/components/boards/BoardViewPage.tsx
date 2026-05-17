@@ -49,9 +49,10 @@ type DragData =
 // Chip shown in the top bar for each active filter
 const FilterChip: React.FC<{ filter: ActiveFilter; onRemove: () => void }> = ({ filter, onRemove }) => {
   const label =
-    filter.type === 'date'   ? filter.value :
-    filter.type === 'user'   ? filter.label :
-    filter.type === 'status' ? filter.label :
+    filter.type === 'date'      ? filter.value :
+    filter.type === 'user'      ? filter.label :
+    filter.type === 'status'    ? filter.label :
+    filter.type === 'timerange' ? `${filter.start} → ${filter.end}` :
     filter.value;
 
   return (
@@ -790,11 +791,18 @@ const BoardViewPage: React.FC = () => {
             />
 
             {/* Active filter chips */}
-            {activeFilters.map((f) => (
+            {activeFilters.map((f, i) => (
               <FilterChip
-                key={`${f.type}-${f.value}`}
+                key={`${f.type}-${i}`}
                 filter={f}
-                onRemove={() => setActiveFilters((prev) => prev.filter((x) => !(x.type === f.type && x.value === f.value)))}
+                onRemove={() => {
+                  if (f.type === 'timerange') {
+                    setActiveFilters((prev) => prev.filter((x) => x.type !== 'timerange'));
+                  } else {
+                    const val = (f as { value: string }).value;
+                    setActiveFilters((prev) => prev.filter((x) => !(x.type === f.type && (x as { value?: string }).value === val)));
+                  }
+                }}
               />
             ))}
 

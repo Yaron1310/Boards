@@ -33,15 +33,17 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <h2
-            id={titleId}
-            className="text-sm font-semibold text-gray-700 uppercase tracking-wide"
-          >
-            {title}
-          </h2>
-          {subtitle && (
-            <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
-          )}
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <h2
+              id={titleId}
+              className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex-shrink-0"
+            >
+              {title}
+            </h2>
+            {subtitle && (
+              <p className="text-xs text-gray-500">{subtitle}</p>
+            )}
+          </div>
           {boardNames && boardNames.length > 0 && (
             <p className="text-xs text-gray-400 mt-0.5" aria-label="Boards used in this widget">
               {boardNames.join(' · ')}

@@ -487,13 +487,23 @@ function itemMatchesSingleFilter(item: Item, columns: Column[], filter: ActiveFi
       });
     }
     case 'timerange': {
+      // Check TIME_RANGE columns (item spans within the filter window)
       const trCols = columns.filter((c) => c.type === ColumnType.TIME_RANGE);
-      return trCols.some((col) => {
+      const trMatch = trCols.some((col) => {
         const val = item.values[col.id] as { start?: string | Date; end?: string | Date } | null | undefined;
         if (!val) return false;
         const start = String(val.start ?? '').slice(0, 10);
         const end = String(val.end ?? '').slice(0, 10);
         return start >= filter.start && end <= filter.end;
+      });
+      if (trMatch) return true;
+      // Also check DATE columns (single date falls within the filter window)
+      const dateCols = columns.filter((c) => c.type === ColumnType.DATE);
+      return dateCols.some((col) => {
+        const val = item.values[col.id];
+        if (!val) return false;
+        const dateStr = String(val).slice(0, 10);
+        return dateStr >= filter.start && dateStr <= filter.end;
       });
     }
     default:

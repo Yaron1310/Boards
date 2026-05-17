@@ -78,9 +78,10 @@ const DashboardPage: React.FC = () => {
 
   const params = toDashboardParams(filters);
   const { data: summary, isLoading } = useDashboardSummary(params);
-  const { data: customDashboards = [] } = useCustomDashboards(false);
+  const { data: customDashboards, isLoading: customDashboardsLoading } = useCustomDashboards(false);
+  const customDashboardsList = customDashboards ?? [];
   const { data: archivedDashboards = [] } = useCustomDashboards(true);
-  const { data: allBoards = [] } = useBoards(undefined, false, customDashboards.length > 0);
+  const { data: allBoards = [] } = useBoards(undefined, false, customDashboardsList.length > 0);
 
   const deleteMutation = useDeleteCustomDashboard();
   const archiveMutation = useArchiveCustomDashboard();
@@ -99,18 +100,21 @@ const DashboardPage: React.FC = () => {
     return map;
   }, [allBoards]);
 
-  // Board IDs used across all custom dashboards (for status filter scoping)
-  const customDashboardBoardIds = useMemo<string[]>(() => {
+  // Board IDs used across all custom dashboards (for status filter scoping).
+  // undefined while loading so the filter falls back to org-wide boards temporarily.
+  // [] after loading if there are no custom dashboards (show no status options).
+  const customDashboardBoardIds = useMemo<string[] | undefined>(() => {
+    if (customDashboardsLoading) return undefined;
     const ids = new Set<string>();
-    for (const d of customDashboards) {
+    for (const d of customDashboardsList) {
       if (d.config.type === 'metric') {
         d.config.metrics.forEach((m) => ids.add(m.boardId));
       } else {
-        ids.add(d.config.boardId);
+        ids.add((d.config as { boardId: string }).boardId);
       }
     }
     return [...ids];
-  }, [customDashboards]);
+  }, [customDashboardsList, customDashboardsLoading]);
 
   // Board names per dashboard widget
   const getBoardNamesForDashboard = (d: CustomDashboard): string[] => {
@@ -118,16 +122,20 @@ const DashboardPage: React.FC = () => {
     if (d.config.type === 'metric') {
       ids = [...new Set(d.config.metrics.map((m) => m.boardId))];
     } else {
-      ids = [d.config.boardId];
+      ids = [(d.config as { boardId: string }).boardId];
     }
     return ids.map((id) => boardNameById[id]).filter(Boolean);
   };
 
-  // Active time range for custom dashboard data
+  // Active date range for custom dashboard data.
+  // timerange filter takes priority; the single date filter acts as a "from" bound.
   const timeRangeFilter = filters.filters.find(
     (f): f is { type: 'timerange'; start: string; end: string } => f.type === 'timerange',
   );
-  const dateFrom = timeRangeFilter?.start;
+  const dateFilterValue = filters.filters.find(
+    (f): f is { type: 'date'; value: string } => f.type === 'date',
+  )?.value;
+  const dateFrom = timeRangeFilter?.start ?? dateFilterValue;
   const dateTo = timeRangeFilter?.end;
 
   // Action buttons for each dashboard widget (rendered in WidgetCard header)
@@ -266,11 +274,11 @@ const DashboardPage: React.FC = () => {
       </div>
 
       {/* Custom dashboards */}
-      {customDashboards.length > 0 && (
+      {customDashboardsList.length > 0 && (
         <section aria-label="Custom dashboards">
           <h2 className="text-base font-semibold text-gray-700 mb-3">Custom Dashboards</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {customDashboards.map(d => (
+            {customDashboardsList.map(d => (
               <WidgetCard
                 key={d.id}
                 title={d.name}

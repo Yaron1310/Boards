@@ -190,8 +190,11 @@ const FILTER_OPTIONS: { step: Step; label: string; icon: React.ReactNode }[] = [
 // ---------------------------------------------------------------------------
 
 const useOrgStatusOptions = (enabled: boolean, specificBoardIds?: string[]) => {
-  const { data: boards = [] } = useBoards(undefined, false, enabled && !specificBoardIds?.length);
-  const boardIds = specificBoardIds?.length
+  // specificBoardIds=undefined → no restriction, use org-wide boards as fallback.
+  // specificBoardIds=[] or non-empty → restrict; never fall back to all boards.
+  const restrictToSpecific = specificBoardIds !== undefined;
+  const { data: boards = [] } = useBoards(undefined, false, enabled && !restrictToSpecific);
+  const boardIds: string[] = restrictToSpecific
     ? specificBoardIds.slice(0, 5)
     : boards.slice(0, 5).map((b) => b.id);
 
