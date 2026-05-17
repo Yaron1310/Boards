@@ -482,6 +482,17 @@ export interface CategoryConfig {
   dateFormat?: DateFormat;
 }
 
+export interface LineSeriesConfig {
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+  dateFormat?: DateFormat;
+  label: string;
+}
+
 export interface TimeSeriesConfig {
   type: 'timeseries';
   boardId: string;
@@ -491,6 +502,7 @@ export interface TimeSeriesConfig {
   yAxisAggregation: YAxisAggregation;
   yAxisColumnId?: string;
   dateFormat?: DateFormat;
+  series?: LineSeriesConfig[];
 }
 
 export type CustomDashboardConfig = MetricConfig | CategoryConfig | TimeSeriesConfig;
@@ -510,6 +522,7 @@ export interface CustomDashboard {
 export interface CustomDashboardDataPoint {
   label: string;
   value: number;
+  [key: string]: number | string;
 }
 
 // =============================================================================

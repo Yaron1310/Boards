@@ -17,6 +17,7 @@ import type {
   MetricConfig,
   CategoryConfig,
   TimeSeriesConfig,
+  LineSeriesConfig,
   MetricEntry,
 } from '../../types';
 import { ITEM_NAME_COLUMN_ID } from '../../types';
@@ -25,13 +26,28 @@ import { ITEM_NAME_COLUMN_ID } from '../../types';
 // Constants
 // ---------------------------------------------------------------------------
 
-const CHART_OPTIONS: { type: ChartType; label: string; icon: string; description: string }[] = [
-  { type: 'pie',            label: 'Pie Chart',       icon: '🥧', description: 'Distribution as slices' },
-  { type: 'bar_vertical',   label: 'Vertical Bar',    icon: '📊', description: 'Columns side by side' },
-  { type: 'bar_horizontal', label: 'Horizontal Bar',  icon: '📉', description: 'Rows side by side' },
-  { type: 'radar',          label: 'Radar Chart',     icon: '🕸️', description: 'Multi-axis comparison' },
-  { type: 'line',           label: 'Line Chart',      icon: '📈', description: 'Trend over time' },
-  { type: 'number',         label: 'Number',          icon: '#',  description: 'Single aggregated value' },
+const PIE_ICON = (
+  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden="true">
+    <path d="M12 2a10 10 0 1 0 10 10H12V2z" fill="#6366f1" opacity="0.85" />
+    <path d="M14 2.25A10 10 0 0 1 22 10h-8V2.25z" fill="#22c55e" opacity="0.85" />
+  </svg>
+);
+
+const BAR_H_ICON = (
+  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" aria-hidden="true">
+    <rect x="2" y="4"  width="14" height="4" rx="1" fill="#6366f1" opacity="0.85" />
+    <rect x="2" y="10" width="10" height="4" rx="1" fill="#6366f1" opacity="0.7" />
+    <rect x="2" y="16" width="17" height="4" rx="1" fill="#6366f1" opacity="0.55" />
+  </svg>
+);
+
+const CHART_OPTIONS: { type: ChartType; label: string; icon: React.ReactNode; description: string }[] = [
+  { type: 'pie',            label: 'Pie Chart',       icon: PIE_ICON,    description: 'Distribution as slices' },
+  { type: 'bar_vertical',   label: 'Vertical Bar',    icon: '📊',        description: 'Columns side by side' },
+  { type: 'bar_horizontal', label: 'Horizontal Bar',  icon: BAR_H_ICON,  description: 'Values as horizontal bars' },
+  { type: 'radar',          label: 'Radar Chart',     icon: '🕸️',        description: 'Multi-axis comparison' },
+  { type: 'line',           label: 'Line Chart',      icon: '📈',        description: 'Trend over time' },
+  { type: 'number',         label: 'Number',          icon: '#',         description: 'Single aggregated value' },
 ];
 
 const METRIC_AGG_OPTIONS: { fn: MetricAggregation; label: string }[] = [
@@ -434,9 +450,21 @@ const CategoryForm: React.FC<{
   onChange: (s: CategoryFormState) => void;
 }> = ({ state, onChange }) => {
   const { data: boards = [] } = useBoards(undefined, false);
-  const needsValueCol = state.yAxisAggregation !== 'COUNT';
+  const isItemNameGroup = state.groupByColumnId === ITEM_NAME_COLUMN_ID;
+  const needsValueCol = !isItemNameGroup && state.yAxisAggregation !== 'COUNT';
+  const showValueCol = isItemNameGroup || needsValueCol;
   const handleBoardChange = (boardId: string) =>
-    onChange({ ...state, boardId, groupId: '', groupByColumnId: '', yAxisColumnId: '', timeAxisColumnId: '' });
+    onChange({ ...state, boardId, groupId: '', groupByColumnId: '', yAxisAggregation: 'COUNT', yAxisColumnId: '', timeAxisColumnId: '' });
+  const handleGroupByChange = (v: string) => {
+    const switchingToItemName = v === ITEM_NAME_COLUMN_ID;
+    const switchingFromItemName = state.groupByColumnId === ITEM_NAME_COLUMN_ID && v !== ITEM_NAME_COLUMN_ID;
+    onChange({
+      ...state,
+      groupByColumnId: v,
+      yAxisAggregation: switchingToItemName ? 'SUM' : switchingFromItemName ? 'COUNT' : state.yAxisAggregation,
+      yAxisColumnId: (switchingToItemName || switchingFromItemName) ? '' : state.yAxisColumnId,
+    });
+  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -456,55 +484,71 @@ const CategoryForm: React.FC<{
         <ColumnSelect
           id="cat-groupby"
           value={state.groupByColumnId}
-          onChange={v => onChange({ ...state, groupByColumnId: v })}
+          onChange={handleGroupByChange}
           boardId={state.boardId}
           required
         />
       </div>
-      <div className="flex flex-col gap-1.5">
-        <SelectLabel htmlFor="cat-yagg" label="Value" required />
-        <p className="text-xs text-gray-400">What each bar / slice height represents.</p>
-        <div className="grid grid-cols-1 gap-1.5">
-          {CATEGORY_AGG_OPTIONS.map(o => (
-            <label
-              key={o.fn}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                state.yAxisAggregation === o.fn
-                  ? 'border-blue-500 bg-blue-50 text-blue-800'
-                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
-              }`}
-            >
-              <input
-                type="radio"
-                name="cat-yagg"
-                value={o.fn}
-                checked={state.yAxisAggregation === o.fn}
-                onChange={() => onChange({ ...state, yAxisAggregation: o.fn, yAxisColumnId: o.fn === 'COUNT' ? '' : state.yAxisColumnId })}
-                className="accent-blue-600"
-                aria-label={o.label}
-              />
-              <span className="flex flex-col min-w-0">
-                <span className="text-xs font-medium">{o.label}</span>
-                <span className="text-xs text-gray-400">{o.desc}</span>
-              </span>
-            </label>
-          ))}
+      {isItemNameGroup ? (
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="cat-ycol" label="Cell value column" required />
+          <p className="text-xs text-gray-400">Each item's value in this column becomes its bar/slice height.</p>
+          <ColumnSelect
+            id="cat-ycol"
+            value={state.yAxisColumnId}
+            onChange={v => onChange({ ...state, yAxisColumnId: v })}
+            boardId={state.boardId}
+            placeholder="Select numeric column…"
+            required
+            includeItemName={false}
+          />
         </div>
-        {needsValueCol && (
-          <div className="flex flex-col gap-1 mt-1">
-            <SelectLabel htmlFor="cat-ycol" label="Value column" required />
-            <ColumnSelect
-              id="cat-ycol"
-              value={state.yAxisColumnId}
-              onChange={v => onChange({ ...state, yAxisColumnId: v })}
-              boardId={state.boardId}
-              placeholder="Select numeric column…"
-              required
-              includeItemName={false}
-            />
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <SelectLabel htmlFor="cat-yagg" label="Value" required />
+          <p className="text-xs text-gray-400">What each bar / slice height represents.</p>
+          <div className="grid grid-cols-1 gap-1.5">
+            {CATEGORY_AGG_OPTIONS.map(o => (
+              <label
+                key={o.fn}
+                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                  state.yAxisAggregation === o.fn
+                    ? 'border-blue-500 bg-blue-50 text-blue-800'
+                    : 'border-gray-200 hover:border-gray-300 text-gray-700'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="cat-yagg"
+                  value={o.fn}
+                  checked={state.yAxisAggregation === o.fn}
+                  onChange={() => onChange({ ...state, yAxisAggregation: o.fn, yAxisColumnId: o.fn === 'COUNT' ? '' : state.yAxisColumnId })}
+                  className="accent-blue-600"
+                  aria-label={o.label}
+                />
+                <span className="flex flex-col min-w-0">
+                  <span className="text-xs font-medium">{o.label}</span>
+                  <span className="text-xs text-gray-400">{o.desc}</span>
+                </span>
+              </label>
+            ))}
           </div>
-        )}
-      </div>
+          {showValueCol && (
+            <div className="flex flex-col gap-1 mt-1">
+              <SelectLabel htmlFor="cat-ycol" label="Value column" required />
+              <ColumnSelect
+                id="cat-ycol"
+                value={state.yAxisColumnId}
+                onChange={v => onChange({ ...state, yAxisColumnId: v })}
+                boardId={state.boardId}
+                placeholder="Select numeric column…"
+                required
+                includeItemName={false}
+              />
+            </div>
+          )}
+        </div>
+      )}
       <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
         <div className="flex flex-col gap-1">
           <SelectLabel htmlFor="cat-time-axis" label="Date filter column (optional)" />
@@ -530,10 +574,12 @@ const CategoryForm: React.FC<{
 };
 
 // ---------------------------------------------------------------------------
-// Mode C: Time Series form (Line)
+// Mode C: Time Series form (Line) — multi-series
 // ---------------------------------------------------------------------------
 
-interface TimeSeriesFormState {
+interface LineSeriesDraft {
+  _key: string;
+  label: string;
   boardId: string;
   groupId: string;
   xAxisColumnId: string;
@@ -543,58 +589,127 @@ interface TimeSeriesFormState {
   dateFormat: DateFormat;
 }
 
-const TimeSeriesForm: React.FC<{
-  state: TimeSeriesFormState;
-  onChange: (s: TimeSeriesFormState) => void;
-}> = ({ state, onChange }) => {
+interface TimeSeriesFormState {
+  series: LineSeriesDraft[];
+}
+
+function emptySeriesDraft(index: number, prev?: LineSeriesDraft): LineSeriesDraft {
+  return {
+    _key: makeKey(),
+    label: `Series ${index + 1}`,
+    boardId: prev?.boardId ?? '',
+    groupId: prev?.groupId ?? '',
+    xAxisColumnId: prev?.xAxisColumnId ?? '',
+    xAxisGrouping: prev?.xAxisGrouping ?? 'day',
+    yAxisAggregation: prev?.yAxisAggregation ?? 'COUNT',
+    yAxisColumnId: prev?.yAxisColumnId ?? '',
+    dateFormat: prev?.dateFormat ?? 'auto',
+  };
+}
+
+const LINE_SERIES_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444'];
+
+const LineSeriesRowEditor: React.FC<{
+  series: LineSeriesDraft;
+  index: number;
+  colorDot: string;
+  onChange: (s: LineSeriesDraft) => void;
+  onRemove: () => void;
+  canRemove: boolean;
+  showLabel: boolean;
+}> = ({ series, index, colorDot, onChange, onRemove, canRemove, showLabel }) => {
   const { data: boards = [] } = useBoards(undefined, false);
-  const needsYColumn = state.yAxisAggregation !== 'COUNT';
-  const handleBoardChange = (boardId: string) =>
-    onChange({ ...state, boardId, groupId: '', xAxisColumnId: '', yAxisColumnId: '' });
+  const needsYColumn = series.yAxisAggregation !== 'COUNT';
+  const prefix = `ts-series-${series._key}`;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3">
+    <div
+      className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex flex-col gap-2"
+      role="group"
+      aria-label={`Series ${index + 1}`}
+    >
+      {showLabel && (
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+            style={{ background: colorDot }}
+            aria-hidden="true"
+          />
+          <div className="flex-1 flex flex-col gap-1 min-w-0">
+            <SelectLabel htmlFor={`${prefix}-label`} label="Series name" required />
+            <input
+              id={`${prefix}-label`}
+              type="text"
+              value={series.label}
+              onChange={e => onChange({ ...series, label: e.target.value })}
+              placeholder={`Series ${index + 1}`}
+              className="text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-required="true"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={!canRemove}
+            className="mt-4 p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors flex-shrink-0"
+            aria-label={`Remove series ${index + 1}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <SelectLabel htmlFor="ts-board" label="Board" required />
-          <BoardSelect id="ts-board" value={state.boardId} onChange={handleBoardChange} boards={boards} />
+          <SelectLabel htmlFor={`${prefix}-board`} label="Board" required />
+          <BoardSelect
+            id={`${prefix}-board`}
+            value={series.boardId}
+            onChange={boardId => onChange({ ...series, boardId, groupId: '', xAxisColumnId: '', yAxisColumnId: '' })}
+            boards={boards}
+          />
         </div>
         <div className="flex flex-col gap-1">
-          <SelectLabel htmlFor="ts-group" label="Group (optional)" />
-          <GroupSelect id="ts-group" value={state.groupId} onChange={v => onChange({ ...state, groupId: v })} boardId={state.boardId} />
+          <SelectLabel htmlFor={`${prefix}-group`} label="Group (optional)" />
+          <GroupSelect
+            id={`${prefix}-group`}
+            value={series.groupId}
+            onChange={v => onChange({ ...series, groupId: v })}
+            boardId={series.boardId}
+          />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <SelectLabel htmlFor="ts-xaxis" label="X axis (date column)" required />
-          <p className="text-xs text-gray-400">Also used for the page date range filter.</p>
+          <SelectLabel htmlFor={`${prefix}-xaxis`} label="X axis (date column)" required />
           <ColumnSelect
-            id="ts-xaxis"
-            value={state.xAxisColumnId}
-            onChange={v => onChange({ ...state, xAxisColumnId: v })}
-            boardId={state.boardId}
+            id={`${prefix}-xaxis`}
+            value={series.xAxisColumnId}
+            onChange={v => onChange({ ...series, xAxisColumnId: v })}
+            boardId={series.boardId}
             required
           />
         </div>
         <div className="flex flex-col gap-1">
-          <SelectLabel htmlFor="ts-grouping" label="Group by" required />
+          <SelectLabel htmlFor={`${prefix}-grouping`} label="Group by" required />
           <select
-            id="ts-grouping"
-            value={state.xAxisGrouping}
-            onChange={e => onChange({ ...state, xAxisGrouping: e.target.value as TimeAxisGrouping })}
+            id={`${prefix}-grouping`}
+            value={series.xAxisGrouping}
+            onChange={e => onChange({ ...series, xAxisGrouping: e.target.value as TimeAxisGrouping })}
             className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {GROUPING_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         <div className="flex flex-col gap-1">
-          <SelectLabel htmlFor="ts-yagg" label="Y axis — measure" required />
+          <SelectLabel htmlFor={`${prefix}-yagg`} label="Y axis — measure" required />
           <select
-            id="ts-yagg"
-            value={state.yAxisAggregation}
-            onChange={e => onChange({ ...state, yAxisAggregation: e.target.value as YAxisAggregation, yAxisColumnId: '' })}
+            id={`${prefix}-yagg`}
+            value={series.yAxisAggregation}
+            onChange={e => onChange({ ...series, yAxisAggregation: e.target.value as YAxisAggregation, yAxisColumnId: '' })}
             className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {Y_AGG_OPTIONS.map(o => <option key={o.fn} value={o.fn}>{o.label}</option>)}
@@ -602,22 +717,69 @@ const TimeSeriesForm: React.FC<{
         </div>
         {needsYColumn && (
           <div className="flex flex-col gap-1">
-            <SelectLabel htmlFor="ts-ycol" label="Y axis — column" required />
+            <SelectLabel htmlFor={`${prefix}-ycol`} label="Y axis — column" required />
             <ColumnSelect
-              id="ts-ycol"
-              value={state.yAxisColumnId}
-              onChange={v => onChange({ ...state, yAxisColumnId: v })}
-              boardId={state.boardId}
+              id={`${prefix}-ycol`}
+              value={series.yAxisColumnId}
+              onChange={v => onChange({ ...series, yAxisColumnId: v })}
+              boardId={series.boardId}
               required
             />
           </div>
         )}
       </div>
       <DateFormatSelect
-        id="ts-date-format"
-        value={state.dateFormat}
-        onChange={v => onChange({ ...state, dateFormat: v })}
+        id={`${prefix}-datefmt`}
+        value={series.dateFormat}
+        onChange={v => onChange({ ...series, dateFormat: v })}
       />
+    </div>
+  );
+};
+
+const TimeSeriesForm: React.FC<{
+  state: TimeSeriesFormState;
+  onChange: (s: TimeSeriesFormState) => void;
+}> = ({ state, onChange }) => {
+  const isMulti = state.series.length > 1;
+
+  const updateSeries = (i: number, s: LineSeriesDraft) =>
+    onChange({ series: state.series.map((x, idx) => idx === i ? s : x) });
+  const removeSeries = (i: number) =>
+    onChange({ series: state.series.filter((_, idx) => idx !== i) });
+  const addSeries = () => {
+    if (state.series.length >= 4) return;
+    const prev = state.series[state.series.length - 1];
+    onChange({ series: [...state.series, emptySeriesDraft(state.series.length, prev)] });
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {state.series.map((s, i) => (
+        <LineSeriesRowEditor
+          key={s._key}
+          series={s}
+          index={i}
+          colorDot={LINE_SERIES_COLORS[i % LINE_SERIES_COLORS.length]}
+          onChange={updated => updateSeries(i, updated)}
+          onRemove={() => removeSeries(i)}
+          canRemove={state.series.length > 1}
+          showLabel={isMulti}
+        />
+      ))}
+      {state.series.length < 4 && (
+        <button
+          type="button"
+          onClick={addSeries}
+          className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors self-start"
+          aria-label="Add series"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+          </svg>
+          Add series {state.series.length < 4 ? `(${4 - state.series.length} remaining)` : ''}
+        </button>
+      )}
     </div>
   );
 };
@@ -654,17 +816,39 @@ function initCategoryState(existing?: CustomDashboard): CategoryFormState {
 
 function initTimeSeriesState(existing?: CustomDashboard): TimeSeriesFormState {
   if (existing?.config.type === 'timeseries') {
+    const config = existing.config;
+    if (config.series && config.series.length > 0) {
+      return {
+        series: config.series.map(s => ({
+          _key: makeKey(),
+          label: s.label,
+          boardId: s.boardId,
+          groupId: s.groupId ?? '',
+          xAxisColumnId: s.xAxisColumnId,
+          xAxisGrouping: s.xAxisGrouping,
+          yAxisAggregation: s.yAxisAggregation,
+          yAxisColumnId: s.yAxisColumnId ?? '',
+          dateFormat: s.dateFormat ?? 'auto',
+        })),
+      };
+    }
     return {
-      boardId: existing.config.boardId,
-      groupId: existing.config.groupId ?? '',
-      xAxisColumnId: existing.config.xAxisColumnId,
-      xAxisGrouping: existing.config.xAxisGrouping,
-      yAxisAggregation: existing.config.yAxisAggregation,
-      yAxisColumnId: existing.config.yAxisColumnId ?? '',
-      dateFormat: existing.config.dateFormat ?? 'auto',
+      series: [{
+        _key: makeKey(),
+        label: 'Series 1',
+        boardId: config.boardId,
+        groupId: config.groupId ?? '',
+        xAxisColumnId: config.xAxisColumnId,
+        xAxisGrouping: config.xAxisGrouping,
+        yAxisAggregation: config.yAxisAggregation,
+        yAxisColumnId: config.yAxisColumnId ?? '',
+        dateFormat: config.dateFormat ?? 'auto',
+      }],
     };
   }
-  return { boardId: '', groupId: '', xAxisColumnId: '', xAxisGrouping: 'day', yAxisAggregation: 'COUNT', yAxisColumnId: '', dateFormat: 'auto' };
+  return {
+    series: [emptySeriesDraft(0)],
+  };
 }
 
 // ---------------------------------------------------------------------------

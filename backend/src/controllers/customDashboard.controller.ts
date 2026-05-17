@@ -11,6 +11,7 @@ import {
   DBMetricConfig,
   DBCategoryConfig,
   DBTimeSeriesConfig,
+  DBLineSeriesConfig,
   DBItem,
   DBColumn,
   ColumnType,
@@ -195,10 +196,22 @@ function validateConfig(config: unknown, chartType: CustomDashboardChartType): s
   }
   if (chartType === 'line') {
     if (c.type !== 'timeseries') return 'Line chart requires config.type = "timeseries".';
-    if (!c.boardId || typeof c.boardId !== 'string') return 'timeseries config requires boardId.';
-    if (!c.xAxisColumnId || typeof c.xAxisColumnId !== 'string') return 'timeseries config requires xAxisColumnId.';
-    if (!VALID_GROUPINGS.includes(c.xAxisGrouping as TimeAxisGrouping)) return 'Invalid xAxisGrouping.';
-    if (!VALID_Y_AGGS.includes(c.yAxisAggregation as YAxisAggregation)) return 'Invalid yAxisAggregation.';
+    const hasSeries = Array.isArray(c.series) && (c.series as unknown[]).length > 0;
+    if (hasSeries) {
+      if ((c.series as unknown[]).length > 4) return 'Maximum 4 series allowed.';
+      for (const [i, s] of (c.series as Record<string, unknown>[]).entries()) {
+        if (!s.boardId || typeof s.boardId !== 'string') return `series[${i}]: boardId required.`;
+        if (!s.xAxisColumnId || typeof s.xAxisColumnId !== 'string') return `series[${i}]: xAxisColumnId required.`;
+        if (!VALID_GROUPINGS.includes(s.xAxisGrouping as TimeAxisGrouping)) return `series[${i}]: invalid xAxisGrouping.`;
+        if (!VALID_Y_AGGS.includes(s.yAxisAggregation as YAxisAggregation)) return `series[${i}]: invalid yAxisAggregation.`;
+        if (!s.label || typeof s.label !== 'string') return `series[${i}]: label required.`;
+      }
+    } else {
+      if (!c.boardId || typeof c.boardId !== 'string') return 'timeseries config requires boardId.';
+      if (!c.xAxisColumnId || typeof c.xAxisColumnId !== 'string') return 'timeseries config requires xAxisColumnId.';
+      if (!VALID_GROUPINGS.includes(c.xAxisGrouping as TimeAxisGrouping)) return 'Invalid xAxisGrouping.';
+      if (!VALID_Y_AGGS.includes(c.yAxisAggregation as YAxisAggregation)) return 'Invalid yAxisAggregation.';
+    }
   } else if (
     chartType === 'pie' ||
     chartType === 'bar_vertical' ||
@@ -238,6 +251,36 @@ function validateConfig(config: unknown, chartType: CustomDashboardChartType): s
 function sanitizeConfig(config: Record<string, unknown>, chartType: CustomDashboardChartType): DBCustomDashboardConfig {
   if (chartType === 'line') {
     const c = config as Record<string, unknown>;
+    const hasSeries = Array.isArray(c.series) && (c.series as unknown[]).length > 0;
+    if (hasSeries) {
+      const rawSeries = c.series as Record<string, unknown>[];
+      const sanitizedSeries: DBLineSeriesConfig[] = rawSeries.map(s => {
+        const entry: DBLineSeriesConfig = {
+          boardId: String(s.boardId),
+          xAxisColumnId: String(s.xAxisColumnId),
+          xAxisGrouping: s.xAxisGrouping as TimeAxisGrouping,
+          yAxisAggregation: s.yAxisAggregation as YAxisAggregation,
+          label: String(s.label),
+        };
+        if (s.groupId && typeof s.groupId === 'string') entry.groupId = s.groupId;
+        if (s.yAxisColumnId && typeof s.yAxisColumnId === 'string') entry.yAxisColumnId = s.yAxisColumnId;
+        if (s.dateFormat && VALID_DATE_FORMATS.includes(s.dateFormat as DateFormat)) entry.dateFormat = s.dateFormat as DateFormat;
+        return entry;
+      });
+      const s0 = sanitizedSeries[0];
+      const ts: DBTimeSeriesConfig = {
+        type: 'timeseries',
+        boardId: s0.boardId,
+        xAxisColumnId: s0.xAxisColumnId,
+        xAxisGrouping: s0.xAxisGrouping,
+        yAxisAggregation: s0.yAxisAggregation,
+        series: sanitizedSeries,
+      };
+      if (s0.groupId) ts.groupId = s0.groupId;
+      if (s0.yAxisColumnId) ts.yAxisColumnId = s0.yAxisColumnId;
+      if (s0.dateFormat) ts.dateFormat = s0.dateFormat;
+      return ts;
+    }
     const ts: DBTimeSeriesConfig = {
       type: 'timeseries',
       boardId: String(c.boardId),
@@ -596,48 +639,78 @@ async function computeCategory(
     .sort((a, b) => b.value - a.value);
 }
 
+interface SeriesLike {
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+  dateFormat?: DateFormat;
+}
+
+async function computeSingleSeries(
+  orgId: string,
+  s: SeriesLike,
+  dateFrom: Date | null,
+  dateTo: Date | null,
+): Promise<{ label: string; value: number }[]> {
+  let items = await fetchItems(orgId, s.boardId, s.groupId);
+  if (dateFrom || dateTo) {
+    items = applyDateFilter(items, s.xAxisColumnId, dateFrom, dateTo, s.dateFormat);
+  }
+  const buckets = new Map<string, number[]>();
+  for (const item of items) {
+    const raw = resolveItemValue(item, s.xAxisColumnId);
+    const d = parseFlexibleDate(raw, s.dateFormat);
+    if (!d) continue;
+    const key = floorToBucket(d, s.xAxisGrouping);
+    let yValue: number;
+    if (s.yAxisAggregation === 'COUNT') {
+      yValue = 1;
+    } else {
+      const colId = s.yAxisColumnId;
+      const num = colId ? toNumber(resolveItemValue(item, colId)) : null;
+      if (num === null) continue;
+      yValue = num;
+    }
+    const existing = buckets.get(key) ?? [];
+    existing.push(yValue);
+    buckets.set(key, existing);
+  }
+  const aggregated = new Map<string, number>();
+  for (const [key, vals] of buckets) {
+    aggregated.set(key, aggregateNumbers(vals, s.yAxisAggregation));
+  }
+  return fillGaps(aggregated, s.xAxisGrouping);
+}
+
 async function computeTimeSeries(
   orgId: string,
   config: DBTimeSeriesConfig,
   dateFrom: Date | null,
   dateTo: Date | null,
-): Promise<{ label: string; value: number }[]> {
-  let items = await fetchItems(orgId, config.boardId, config.groupId);
-
-  // Always filter by x axis column range if dates provided
-  if (dateFrom || dateTo) {
-    items = applyDateFilter(items, config.xAxisColumnId, dateFrom, dateTo, config.dateFormat);
+): Promise<{ label: string; value: number; [key: string]: number | string }[]> {
+  const seriesList = config.series && config.series.length > 1 ? config.series : null;
+  if (seriesList) {
+    const allSeriesData = await Promise.all(
+      seriesList.map(s => computeSingleSeries(orgId, s, dateFrom, dateTo)),
+    );
+    const allLabels = new Set<string>();
+    for (const pts of allSeriesData) pts.forEach(p => allLabels.add(p.label));
+    const sortedLabels = [...allLabels].sort();
+    return sortedLabels.map(label => {
+      const point: { label: string; value: number; [key: string]: number | string } = {
+        label,
+        value: allSeriesData[0].find(p => p.label === label)?.value ?? 0,
+      };
+      for (let si = 0; si < seriesList.length; si++) {
+        point[seriesList[si].label] = allSeriesData[si].find(p => p.label === label)?.value ?? 0;
+      }
+      return point;
+    });
   }
-
-  const buckets = new Map<string, number[]>();
-
-  for (const item of items) {
-    const raw = resolveItemValue(item, config.xAxisColumnId);
-    const d = parseFlexibleDate(raw, config.dateFormat);
-    if (!d) continue;
-    const key = floorToBucket(d, config.xAxisGrouping);
-
-    let yValue: number;
-    if (config.yAxisAggregation === 'COUNT') {
-      yValue = 1;
-    } else {
-      const colId = config.yAxisColumnId;
-      const num = colId ? toNumber(resolveItemValue(item, colId)) : null;
-      if (num === null) continue;
-      yValue = num;
-    }
-
-    const existing = buckets.get(key) ?? [];
-    existing.push(yValue);
-    buckets.set(key, existing);
-  }
-
-  const aggregated = new Map<string, number>();
-  for (const [key, vals] of buckets) {
-    aggregated.set(key, aggregateNumbers(vals, config.yAxisAggregation));
-  }
-
-  return fillGaps(aggregated, config.xAxisGrouping);
+  return computeSingleSeries(orgId, config, dateFrom, dateTo);
 }
 
 export const getCustomDashboardData = async (req: Request, res: Response) => {
@@ -657,7 +730,7 @@ export const getCustomDashboardData = async (req: Request, res: Response) => {
     if (dashboard.visibility === 'admins_only' && !isAdmin(user))
       return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
-    let results: { label: string; value: number }[];
+    let results: { label: string; value: number; [key: string]: number | string }[];
     const { config } = dashboard;
 
     if (config.type === 'metric') {

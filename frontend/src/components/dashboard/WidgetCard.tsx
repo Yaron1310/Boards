@@ -29,7 +29,7 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
     <div
       role="region"
       aria-labelledby={titleId}
-      className={`bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3 ${className}`}
+      className={`group bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3 ${className}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -51,7 +51,7 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
           )}
         </div>
         {actions && (
-          <div className="flex items-center gap-1 flex-shrink-0" role="toolbar" aria-label="Widget actions">
+          <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150" role="toolbar" aria-label="Widget actions">
             {actions}
           </div>
         )}

@@ -413,6 +413,17 @@ export interface DBCategoryConfig {
   dateFormat?: DateFormat;
 }
 
+export interface DBLineSeriesConfig {
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+  dateFormat?: DateFormat;
+  label: string;
+}
+
 export interface DBTimeSeriesConfig {
   type: 'timeseries';
   boardId: string;
@@ -422,6 +433,7 @@ export interface DBTimeSeriesConfig {
   yAxisAggregation: YAxisAggregation;
   yAxisColumnId?: string;
   dateFormat?: DateFormat;
+  series?: DBLineSeriesConfig[];
 }
 
 export type DBCustomDashboardConfig =
