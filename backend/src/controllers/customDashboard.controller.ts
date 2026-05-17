@@ -309,7 +309,7 @@ export const updateCustomDashboard = async (req: Request, res: Response) => {
       ipAddress: getClientIp(req), userAgent: req.headers['user-agent'] as string | undefined,
     });
 
-    res.json({ id, ...existing, ...patch });
+    res.json({ ...existing, ...patch, id });
   } catch (err) {
     logger.error('updateCustomDashboard error:', err);
     res.status(500).json({ message: 'Failed to update custom dashboard.' });
