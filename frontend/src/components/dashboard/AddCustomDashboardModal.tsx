@@ -894,9 +894,11 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
         return 'Select a value column for the chosen aggregation.';
       }
     } else {
-      if (!tsState.boardId) return 'Select a board.';
-      if (!tsState.xAxisColumnId) return 'Select an X axis column.';
-      if (tsState.yAxisAggregation !== 'COUNT' && !tsState.yAxisColumnId) return 'Select a Y axis column.';
+      for (const [i, s] of tsState.series.entries()) {
+        if (!s.boardId) return `Series ${i + 1}: select a board.`;
+        if (!s.xAxisColumnId) return `Series ${i + 1}: select an X axis column.`;
+        if (s.yAxisAggregation !== 'COUNT' && !s.yAxisColumnId) return `Series ${i + 1}: select a Y axis column.`;
+      }
     }
     return null;
   };
@@ -931,16 +933,31 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
       return cfg;
     }
     // timeseries
+    const builtSeries: LineSeriesConfig[] = tsState.series.map(s => {
+      const entry: LineSeriesConfig = {
+        boardId: s.boardId,
+        xAxisColumnId: s.xAxisColumnId,
+        xAxisGrouping: s.xAxisGrouping,
+        yAxisAggregation: s.yAxisAggregation,
+        label: s.label,
+        dateFormat: s.dateFormat,
+      };
+      if (s.groupId) entry.groupId = s.groupId;
+      if (s.yAxisAggregation !== 'COUNT' && s.yAxisColumnId) entry.yAxisColumnId = s.yAxisColumnId;
+      return entry;
+    });
+    const s0 = builtSeries[0];
     const cfg: TimeSeriesConfig = {
       type: 'timeseries',
-      boardId: tsState.boardId,
-      xAxisColumnId: tsState.xAxisColumnId,
-      xAxisGrouping: tsState.xAxisGrouping,
-      yAxisAggregation: tsState.yAxisAggregation,
-      dateFormat: tsState.dateFormat,
+      boardId: s0.boardId,
+      xAxisColumnId: s0.xAxisColumnId,
+      xAxisGrouping: s0.xAxisGrouping,
+      yAxisAggregation: s0.yAxisAggregation,
+      dateFormat: s0.dateFormat,
+      series: builtSeries,
     };
-    if (tsState.groupId) cfg.groupId = tsState.groupId;
-    if (tsState.yAxisAggregation !== 'COUNT' && tsState.yAxisColumnId) cfg.yAxisColumnId = tsState.yAxisColumnId;
+    if (s0.groupId) cfg.groupId = s0.groupId;
+    if (s0.yAxisAggregation !== 'COUNT' && s0.yAxisColumnId) cfg.yAxisColumnId = s0.yAxisColumnId;
     return cfg;
   };
 

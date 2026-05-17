@@ -83,17 +83,58 @@ const RadarView: React.FC<{ data: CustomDashboardDataPoint[] }> = ({ data }) => 
   </ResponsiveContainer>
 );
 
-const LineView: React.FC<{ data: CustomDashboardDataPoint[] }> = ({ data }) => (
-  <ResponsiveContainer width="100%" height={260}>
-    <LineChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-      <CartesianGrid strokeDasharray="3 3" vertical={false} />
-      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
-      <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-      <Tooltip formatter={(v) => [`${v}`, 'Value']} />
-      <Line type="monotone" dataKey="value" stroke={PALETTE[0]} strokeWidth={2} dot={{ r: 4 }} />
-    </LineChart>
-  </ResponsiveContainer>
-);
+const LINE_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444'];
+
+const LineView: React.FC<{ data: CustomDashboardDataPoint[]; seriesLabels?: string[] }> = ({ data, seriesLabels }) => {
+  const isMulti = seriesLabels && seriesLabels.length > 1;
+  const [hidden, setHidden] = React.useState<Set<string>>(() => new Set());
+
+  const toggleSeries = (label: string) =>
+    setHidden(prev => { const n = new Set(prev); n.has(label) ? n.delete(label) : n.add(label); return n; });
+
+  return (
+    <div className="flex flex-col gap-2">
+      {isMulti && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1" role="group" aria-label="Toggle series">
+          {seriesLabels.map((sl, i) => {
+            const isHidden = hidden.has(sl);
+            return (
+              <button
+                key={sl}
+                type="button"
+                onClick={() => toggleSeries(sl)}
+                className="flex items-center gap-1.5 text-xs rounded px-1 py-0.5 hover:bg-gray-100 transition-colors"
+                aria-pressed={!isHidden}
+                aria-label={`${isHidden ? 'Show' : 'Hide'} ${sl}`}
+              >
+                <span
+                  className="inline-block w-3 h-2 rounded-sm flex-shrink-0"
+                  style={{ background: LINE_COLORS[i % LINE_COLORS.length], opacity: isHidden ? 0.25 : 1 }}
+                  aria-hidden="true"
+                />
+                <span className={isHidden ? 'text-gray-400 line-through' : 'text-gray-600'}>{sl}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+          <Tooltip />
+          {isMulti
+            ? seriesLabels.filter(sl => !hidden.has(sl)).map((sl, i) => (
+                <Line key={sl} type="monotone" dataKey={sl} stroke={LINE_COLORS[seriesLabels.indexOf(sl) % LINE_COLORS.length]} strokeWidth={2} dot={{ r: 3 }} name={sl} />
+              ))
+            : <Line type="monotone" dataKey="value" stroke={PALETTE[0]} strokeWidth={2} dot={{ r: 4 }} />
+          }
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
 
 const NumberView: React.FC<{ data: CustomDashboardDataPoint[]; colorMap: ColorMap }> = ({ data, colorMap }) => {
   const total = data.reduce((sum, d) => sum + d.value, 0);
@@ -134,13 +175,13 @@ const FallbackTable: React.FC<{ data: CustomDashboardDataPoint[] }> = ({ data })
   </table>
 );
 
-function renderChart(chartType: CustomDashboard['chartType'], data: CustomDashboardDataPoint[], colorMap: ColorMap) {
+function renderChart(chartType: CustomDashboard['chartType'], data: CustomDashboardDataPoint[], colorMap: ColorMap, seriesLabels?: string[]) {
   switch (chartType) {
     case 'pie':            return <PieView data={data} colorMap={colorMap} />;
     case 'bar_vertical':   return <BarVerticalView data={data} colorMap={colorMap} />;
     case 'bar_horizontal': return <BarHorizontalView data={data} colorMap={colorMap} />;
     case 'radar':          return <RadarView data={data} />;
-    case 'line':           return <LineView data={data} />;
+    case 'line':           return <LineView data={data} seriesLabels={seriesLabels} />;
     case 'number':         return <NumberView data={data} colorMap={colorMap} />;
   }
 }
@@ -202,6 +243,15 @@ const CustomDashboardWidget: React.FC<Props> = ({ dashboard, dateFrom, dateTo })
 
   const chartData: CustomDashboardDataPoint[] = data ?? [];
 
+  const seriesLabels = useMemo<string[] | undefined>(() => {
+    if (dashboard.chartType !== 'line') return undefined;
+    const config = dashboard.config;
+    if (config.type !== 'timeseries') return undefined;
+    const s = config.series;
+    if (!s || s.length <= 1) return undefined;
+    return s.map(x => x.label);
+  }, [dashboard.chartType, dashboard.config]);
+
   return (
     <figure aria-label={`${dashboard.name} custom dashboard`} className="flex flex-col gap-2 w-full">
       {isLoading && (
@@ -223,7 +273,7 @@ const CustomDashboardWidget: React.FC<Props> = ({ dashboard, dateFrom, dateTo })
 
       {!isLoading && !isError && chartData.length > 0 && (
         <>
-          {renderChart(dashboard.chartType, chartData, statusColorMap)}
+          {renderChart(dashboard.chartType, chartData, statusColorMap, seriesLabels)}
           <FallbackTable data={chartData} />
         </>
       )}
