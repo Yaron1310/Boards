@@ -214,7 +214,13 @@ const DashboardPage: React.FC = () => {
               <WidgetCard
                 key={d.id}
                 title={d.name}
-                subtitle={`${d.aggregation.charAt(0) + d.aggregation.slice(1).toLowerCase()} · ${d.dataSources.length} source${d.dataSources.length !== 1 ? 's' : ''}`}
+                subtitle={
+                  d.config.type === 'timeseries'
+                    ? `By ${d.config.xAxisGrouping} · ${d.config.yAxisAggregation.toLowerCase()}`
+                    : d.config.type === 'category'
+                    ? `Grouped by column`
+                    : `${d.config.metrics.length} metric${d.config.metrics.length !== 1 ? 's' : ''}`
+                }
               >
                 <CustomDashboardWidget
                   dashboard={d}
