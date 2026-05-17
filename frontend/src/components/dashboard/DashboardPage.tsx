@@ -1,5 +1,5 @@
-import React, { useReducer, useState } from 'react';
-import { FiArchive, FiEdit2, FiTrash2, FiPlusCircle } from 'react-icons/fi';
+import React, { useReducer, useState, useMemo } from 'react';
+import { FiArchive, FiEdit2, FiTrash2, FiPlusCircle, FiX } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useOrgSnapshot } from '../../hooks/useOrgSnapshot';
 import DashboardFilterBar, {
@@ -7,6 +7,7 @@ import DashboardFilterBar, {
   toDashboardParams,
   INITIAL_FILTER_STATE,
 } from './DashboardFilterBar';
+import type { DashboardActiveFilter } from './DashboardFilterBar';
 import WidgetCard from './WidgetCard';
 import { useDashboardSummary } from '../../hooks/queries/useDashboardQueries';
 import {
@@ -15,12 +16,47 @@ import {
   useArchiveCustomDashboard,
   useRestoreCustomDashboard,
 } from '../../hooks/queries/useCustomDashboardQueries';
+import { useBoards } from '../../hooks/queries/useBoardQueries';
 import SummaryStatsWidget from './widgets/SummaryStatsWidget';
 import CustomDashboardWidget from './widgets/CustomDashboardWidget';
 import AddCustomDashboardModal from './AddCustomDashboardModal';
 import ArchiveRestoreModal from '../admin/shared/ArchiveRestoreModal';
 import { UserRole } from '../../types';
 import type { CustomDashboard } from '../../types';
+
+// ---------------------------------------------------------------------------
+// Filter chip
+// ---------------------------------------------------------------------------
+
+const FilterChip: React.FC<{ filter: DashboardActiveFilter; onRemove: () => void }> = ({ filter, onRemove }) => {
+  const label =
+    filter.type === 'date'      ? filter.value :
+    filter.type === 'user'      ? filter.label :
+    filter.type === 'status'    ? filter.label :
+    filter.type === 'tag'       ? filter.value :
+    filter.type === 'timerange' ? `${filter.start} → ${filter.end}` : '';
+
+  return (
+    <div className="flex items-center gap-1 pl-2 pr-1 py-1 text-xs rounded-full bg-indigo-100 text-indigo-700 border border-indigo-200 flex-shrink-0">
+      {filter.type === 'status' && (
+        <span
+          className="inline-block w-2 h-2 rounded-full flex-shrink-0"
+          style={{ backgroundColor: filter.color }}
+          aria-hidden="true"
+        />
+      )}
+      <span className="max-w-[110px] truncate">{label}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-indigo-400 hover:text-indigo-700 flex-shrink-0 p-0.5 rounded-full hover:bg-indigo-200 transition-colors"
+        aria-label={`Remove ${label} filter`}
+      >
+        <FiX size={10} aria-hidden="true" />
+      </button>
+    </div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // DashboardPage
@@ -44,6 +80,7 @@ const DashboardPage: React.FC = () => {
   const { data: summary, isLoading } = useDashboardSummary(params);
   const { data: customDashboards = [] } = useCustomDashboards(false);
   const { data: archivedDashboards = [] } = useCustomDashboards(true);
+  const { data: allBoards = [] } = useBoards(undefined, false, customDashboards.length > 0);
 
   const deleteMutation = useDeleteCustomDashboard();
   const archiveMutation = useArchiveCustomDashboard();
@@ -54,6 +91,37 @@ const DashboardPage: React.FC = () => {
   const openCreate = () => { setEditingDashboard(undefined); setModalOpen(true); };
   const openEdit = (d: CustomDashboard) => { setEditingDashboard(d); setModalOpen(true); };
   const closeModal = () => { setModalOpen(false); setEditingDashboard(undefined); };
+
+  // Board ID lookup map
+  const boardNameById = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    for (const b of allBoards) map[b.id] = b.name;
+    return map;
+  }, [allBoards]);
+
+  // Board IDs used across all custom dashboards (for status filter scoping)
+  const customDashboardBoardIds = useMemo<string[]>(() => {
+    const ids = new Set<string>();
+    for (const d of customDashboards) {
+      if (d.config.type === 'metric') {
+        d.config.metrics.forEach((m) => ids.add(m.boardId));
+      } else {
+        ids.add(d.config.boardId);
+      }
+    }
+    return [...ids];
+  }, [customDashboards]);
+
+  // Board names per dashboard widget
+  const getBoardNamesForDashboard = (d: CustomDashboard): string[] => {
+    let ids: string[];
+    if (d.config.type === 'metric') {
+      ids = [...new Set(d.config.metrics.map((m) => m.boardId))];
+    } else {
+      ids = [d.config.boardId];
+    }
+    return ids.map((id) => boardNameById[id]).filter(Boolean);
+  };
 
   // Active time range for custom dashboard data
   const timeRangeFilter = filters.filters.find(
@@ -156,7 +224,28 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      <DashboardFilterBar filters={filters} dispatch={dispatch} />
+      {/* Filter bar + active chips */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <DashboardFilterBar filters={filters} dispatch={dispatch} boardIds={customDashboardBoardIds} />
+        {filters.filters.map((f, i) => (
+          <FilterChip
+            key={`${f.type}-${i}`}
+            filter={f}
+            onRemove={() => dispatch({ type: 'REMOVE_FILTER', filter: f })}
+          />
+        ))}
+        {filters.filters.length > 0 && (
+          <button
+            type="button"
+            onClick={() => dispatch({ type: 'CLEAR' })}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
+            aria-label="Clear all filters"
+          >
+            <FiX size={11} aria-hidden="true" />
+            Clear
+          </button>
+        )}
+      </div>
 
       {/* Summary stats — full width */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -192,6 +281,7 @@ const DashboardPage: React.FC = () => {
                     ? `Grouped by column`
                     : `${d.config.metrics.length} metric${d.config.metrics.length !== 1 ? 's' : ''}`
                 }
+                boardNames={getBoardNamesForDashboard(d)}
                 actions={buildWidgetActions(d)}
               >
                 <CustomDashboardWidget

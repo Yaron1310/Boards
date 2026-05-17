@@ -3,6 +3,7 @@ import React, { useId } from 'react';
 interface WidgetCardProps {
   title: string;
   subtitle?: string;
+  boardNames?: string[];
   isLoading?: boolean;
   isEmpty?: boolean;
   emptyMessage?: string;
@@ -14,6 +15,7 @@ interface WidgetCardProps {
 const WidgetCard: React.FC<WidgetCardProps> = ({
   title,
   subtitle,
+  boardNames,
   isLoading = false,
   isEmpty = false,
   emptyMessage = 'No data yet',
@@ -39,6 +41,11 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
           </h2>
           {subtitle && (
             <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+          )}
+          {boardNames && boardNames.length > 0 && (
+            <p className="text-xs text-gray-400 mt-0.5" aria-label="Boards used in this widget">
+              {boardNames.join(' · ')}
+            </p>
           )}
         </div>
         {actions && (

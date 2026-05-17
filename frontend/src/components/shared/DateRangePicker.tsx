@@ -152,6 +152,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
       style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10002, width: 264 }}
       className="bg-white border border-gray-200 rounded-xl shadow-2xl p-3 select-none"
       onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       aria-label="Date range picker"
     >
       <div className="flex items-center justify-between mb-1">

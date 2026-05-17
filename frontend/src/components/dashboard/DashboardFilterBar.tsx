@@ -34,6 +34,7 @@ export type FilterAction =
   | { type: 'TOGGLE_STATUS'; value: string; label: string; color: string }
   | { type: 'TOGGLE_TAG'; value: string }
   | { type: 'SET_TIME_RANGE'; start: string; end: string }
+  | { type: 'REMOVE_FILTER'; filter: DashboardActiveFilter }
   | { type: 'CLEAR' };
 
 export function filterReducer(state: FilterState, action: FilterAction): FilterState {
@@ -77,6 +78,16 @@ export function filterReducer(state: FilterState, action: FilterAction): FilterS
       if (!action.start || !action.end) return { filters: without };
       return { filters: [...without, { type: 'timerange', start: action.start, end: action.end }] };
     }
+    case 'REMOVE_FILTER': {
+      const removed = action.filter;
+      return {
+        filters: state.filters.filter((f) => {
+          if (f.type !== removed.type) return true;
+          if (f.type === 'timerange') return false;
+          return (f as { value: string }).value !== (removed as { value: string }).value;
+        }),
+      };
+    }
     case 'CLEAR':
       return INITIAL_FILTER_STATE;
     default:
@@ -107,6 +118,7 @@ type Step = 'root' | 'date' | 'user' | 'status' | 'tag' | 'timerange';
 interface DashboardFilterBarProps {
   filters: FilterState;
   dispatch: React.Dispatch<FilterAction>;
+  boardIds?: string[];
 }
 
 const AVATAR_BG = ['bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-green-500', 'bg-blue-500', 'bg-amber-500', 'bg-rose-500'];
@@ -177,10 +189,11 @@ const FILTER_OPTIONS: { step: Step; label: string; icon: React.ReactNode }[] = [
 // Hook: collect all status options and tags from all org boards
 // ---------------------------------------------------------------------------
 
-const useOrgStatusOptions = (enabled: boolean) => {
-  const { data: boards = [] } = useBoards(undefined, false, enabled);
-  // Fetch columns for each board (up to first 5 to avoid hammering API)
-  const boardIds = boards.slice(0, 5).map((b) => b.id);
+const useOrgStatusOptions = (enabled: boolean, specificBoardIds?: string[]) => {
+  const { data: boards = [] } = useBoards(undefined, false, enabled && !specificBoardIds?.length);
+  const boardIds = specificBoardIds?.length
+    ? specificBoardIds.slice(0, 5)
+    : boards.slice(0, 5).map((b) => b.id);
 
   const q0 = useColumns(boardIds[0] ?? '', boardIds.length > 0 && enabled);
   const q1 = useColumns(boardIds[1] ?? '', boardIds.length > 1 && enabled);
@@ -217,7 +230,7 @@ const useOrgStatusOptions = (enabled: boolean) => {
 // Main component
 // ---------------------------------------------------------------------------
 
-const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispatch }) => {
+const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispatch, boardIds }) => {
   const { user } = useAuthSession();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('root');
@@ -232,7 +245,7 @@ const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispat
   });
   const members = usersData?.data ?? [];
 
-  const statusOptions = useOrgStatusOptions(open && step === 'status');
+  const statusOptions = useOrgStatusOptions(open && step === 'status', boardIds);
 
   useEffect(() => {
     if (!open) return;
