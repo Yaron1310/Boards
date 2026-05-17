@@ -266,10 +266,12 @@ function sanitizeConfig(config: Record<string, unknown>, chartType: CustomDashbo
 // ---------------------------------------------------------------------------
 export const listCustomDashboards = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
+  const includeArchived = req.query.includeArchived === 'true';
   try {
     const snap = await customDashboardsCollection(user.orgId).orderBy('createdAt', 'asc').get();
     const all = querySnapshotToArray<DBCustomDashboard>(snap);
-    const visible = isAdmin(user) ? all : all.filter(d => d.visibility === 'all');
+    const byArchive = includeArchived ? all.filter(d => d.isArchived) : all.filter(d => !d.isArchived);
+    const visible = isAdmin(user) ? byArchive : byArchive.filter(d => d.visibility === 'all');
     res.json(visible);
   } catch (err) {
     logger.error('listCustomDashboards error:', err);
@@ -374,6 +376,59 @@ export const updateCustomDashboard = async (req: Request, res: Response) => {
   } catch (err) {
     logger.error('updateCustomDashboard error:', err);
     res.status(500).json({ message: 'Failed to update custom dashboard.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /custom-dashboards/:id/archive
+// ---------------------------------------------------------------------------
+export const archiveCustomDashboard = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  if (!isAdmin(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+
+  const { id } = req.params;
+  const docRef = customDashboardsCollection(user.orgId).doc(id);
+  if (!(await docRef.get()).exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
+
+  try {
+    await docRef.update({ isArchived: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    void logAuditAndCheckAnomaly({
+      actorUserId: user.id, actorRole: user.role, action: 'UPDATE',
+      resourceType: 'item', resourceId: id,
+      workspaceId: user.orgId, orgId: user.orgId,
+      ipAddress: getClientIp(req), userAgent: req.headers['user-agent'] as string | undefined,
+    });
+    res.status(204).send();
+  } catch (err) {
+    logger.error('archiveCustomDashboard error:', err);
+    res.status(500).json({ message: 'Failed to archive custom dashboard.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /custom-dashboards/:id/restore
+// ---------------------------------------------------------------------------
+export const restoreCustomDashboard = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  if (!isAdmin(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+
+  const { id } = req.params;
+  const docRef = customDashboardsCollection(user.orgId).doc(id);
+  const snap = await docRef.get();
+  if (!snap.exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
+
+  try {
+    await docRef.update({ isArchived: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    void logAuditAndCheckAnomaly({
+      actorUserId: user.id, actorRole: user.role, action: 'UPDATE',
+      resourceType: 'item', resourceId: id,
+      workspaceId: user.orgId, orgId: user.orgId,
+      ipAddress: getClientIp(req), userAgent: req.headers['user-agent'] as string | undefined,
+    });
+    res.json({ id, ...snap.data(), isArchived: false });
+  } catch (err) {
+    logger.error('restoreCustomDashboard error:', err);
+    res.status(500).json({ message: 'Failed to restore custom dashboard.' });
   }
 };
 

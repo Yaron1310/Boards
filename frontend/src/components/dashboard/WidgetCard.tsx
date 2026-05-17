@@ -8,6 +8,7 @@ interface WidgetCardProps {
   emptyMessage?: string;
   children?: React.ReactNode;
   className?: string;
+  actions?: React.ReactNode;
 }
 
 const WidgetCard: React.FC<WidgetCardProps> = ({
@@ -18,6 +19,7 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
   emptyMessage = 'No data yet',
   children,
   className = '',
+  actions,
 }) => {
   const titleId = useId();
 
@@ -27,15 +29,22 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
       aria-labelledby={titleId}
       className={`bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3 ${className}`}
     >
-      <div>
-        <h2
-          id={titleId}
-          className="text-sm font-semibold text-gray-700 uppercase tracking-wide"
-        >
-          {title}
-        </h2>
-        {subtitle && (
-          <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h2
+            id={titleId}
+            className="text-sm font-semibold text-gray-700 uppercase tracking-wide"
+          >
+            {title}
+          </h2>
+          {subtitle && (
+            <p className="text-xs text-gray-500 mt-0.5">{subtitle}</p>
+          )}
+        </div>
+        {actions && (
+          <div className="flex items-center gap-1 flex-shrink-0" role="toolbar" aria-label="Widget actions">
+            {actions}
+          </div>
         )}
       </div>
 

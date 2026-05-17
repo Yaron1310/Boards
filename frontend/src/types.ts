@@ -502,6 +502,7 @@ export interface CustomDashboard {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  isArchived?: boolean;
 }
 
 export interface CustomDashboardDataPoint {

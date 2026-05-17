@@ -3,10 +3,10 @@ import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import type { CreateCustomDashboardData, UpdateCustomDashboardData } from '@/services/workManagementService';
 
-export const useCustomDashboards = () =>
+export const useCustomDashboards = (includeArchived = false) =>
   useQuery({
-    queryKey: queryKeys.customDashboards.all,
-    queryFn: wm.listCustomDashboards,
+    queryKey: [...queryKeys.customDashboards.all, { includeArchived }],
+    queryFn: () => wm.listCustomDashboards(includeArchived),
     staleTime: 0,
   });
 
@@ -44,6 +44,26 @@ export const useDeleteCustomDashboard = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => wm.deleteCustomDashboard(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.customDashboards.all });
+    },
+  });
+};
+
+export const useArchiveCustomDashboard = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => wm.archiveCustomDashboard(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.customDashboards.all });
+    },
+  });
+};
+
+export const useRestoreCustomDashboard = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => wm.restoreCustomDashboard(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.customDashboards.all });
     },

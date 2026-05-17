@@ -1,56 +1,54 @@
-import React, { useRef, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
+import React, { useRef, useEffect, useState } from 'react';
+import { FiFilter, FiChevronLeft, FiCalendar, FiUser, FiCheck } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
-import { useBoards } from '../../hooks/queries/useBoardQueries';
+import { useQuery } from '@tanstack/react-query';
 import { getUsers } from '../../services/geminiService';
 import type { DashboardParams } from '../../types';
+import DateRangePicker from '../shared/DateRangePicker';
 
 // ---------------------------------------------------------------------------
 // Filter state types — exported so DashboardPage can share the same shape
 // ---------------------------------------------------------------------------
 
+export type DashboardActiveFilter =
+  | { type: 'user'; value: string; label: string; avatarUrl?: string }
+  | { type: 'timerange'; start: string; end: string };
+
 export interface FilterState {
-  workspaceId: string;
-  boardIds: string[];
-  assigneeId: string;
-  dueDateFrom: string;
-  dueDateTo: string;
+  filters: DashboardActiveFilter[];
 }
 
 export const INITIAL_FILTER_STATE: FilterState = {
-  workspaceId: '',
-  boardIds: [],
-  assigneeId: '',
-  dueDateFrom: '',
-  dueDateTo: '',
+  filters: [],
 };
 
 export type FilterAction =
-  | { type: 'SET_WORKSPACE'; workspaceId: string }
-  | { type: 'TOGGLE_BOARD'; boardId: string }
-  | { type: 'SET_ASSIGNEE'; assigneeId: string }
-  | { type: 'SET_DATE_FROM'; value: string }
-  | { type: 'SET_DATE_TO'; value: string }
+  | { type: 'TOGGLE_USER'; value: string; label: string; avatarUrl?: string }
+  | { type: 'SET_TIME_RANGE'; start: string; end: string }
   | { type: 'CLEAR' };
 
 export function filterReducer(state: FilterState, action: FilterAction): FilterState {
   switch (action.type) {
-    case 'SET_WORKSPACE':
-      return { ...state, workspaceId: action.workspaceId, boardIds: [], assigneeId: '' };
-    case 'TOGGLE_BOARD': {
-      const current = state.boardIds;
-      const next = current.includes(action.boardId)
-        ? current.filter(id => id !== action.boardId)
-        : [...current, action.boardId];
-      return { ...state, boardIds: next };
+    case 'TOGGLE_USER': {
+      const alreadyActive = state.filters.some(
+        (f): f is { type: 'user'; value: string; label: string } =>
+          f.type === 'user' && f.value === action.value,
+      );
+      if (alreadyActive) {
+        return { filters: state.filters.filter((f) => !(f.type === 'user' && (f as { type: 'user'; value: string }).value === action.value)) };
+      }
+      return {
+        filters: [
+          ...state.filters.filter((f) => f.type !== 'user'),
+          { type: 'user', value: action.value, label: action.label, avatarUrl: action.avatarUrl },
+        ],
+      };
     }
-    case 'SET_ASSIGNEE':
-      return { ...state, assigneeId: action.assigneeId };
-    case 'SET_DATE_FROM':
-      return { ...state, dueDateFrom: action.value };
-    case 'SET_DATE_TO':
-      return { ...state, dueDateTo: action.value };
+    case 'SET_TIME_RANGE': {
+      const without = state.filters.filter((f) => f.type !== 'timerange');
+      if (!action.start || !action.end) return { filters: without };
+      return { filters: [...without, { type: 'timerange', start: action.start, end: action.end }] };
+    }
     case 'CLEAR':
       return INITIAL_FILTER_STATE;
     default:
@@ -58,273 +56,261 @@ export function filterReducer(state: FilterState, action: FilterAction): FilterS
   }
 }
 
-/** Derive the API params from the internal filter state. */
-export function toDashboardParams(filters: FilterState): DashboardParams {
+/** Derive the API params from the filter state. */
+export function toDashboardParams(state: FilterState): DashboardParams {
   const params: DashboardParams = {};
-  if (filters.workspaceId) params.workspaceId = filters.workspaceId;
-  if (filters.boardIds.length > 0) params.boardIds = filters.boardIds;
-  if (filters.assigneeId) params.assigneeId = filters.assigneeId;
-  if (filters.dueDateFrom) params.dueDateFrom = filters.dueDateFrom;
-  if (filters.dueDateTo) params.dueDateTo = filters.dueDateTo;
+  for (const f of state.filters) {
+    if (f.type === 'user') params.assigneeId = f.value;
+    if (f.type === 'timerange') {
+      params.dueDateFrom = f.start;
+      params.dueDateTo = f.end;
+    }
+  }
   return params;
 }
 
 // ---------------------------------------------------------------------------
-// Board multi-select dropdown (internal helper)
-// ---------------------------------------------------------------------------
-
-interface BoardMultiSelectProps {
-  selectedIds: string[];
-  onToggle: (id: string) => void;
-  workspaceId: string;
-  disabled: boolean;
-}
-
-const BoardMultiSelect: React.FC<BoardMultiSelectProps> = ({
-  selectedIds,
-  onToggle,
-  workspaceId,
-  disabled,
-}) => {
-  const [open, setOpen] = React.useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const { data: boards = [] } = useBoards(workspaceId, false, !!workspaceId && !disabled);
-
-  useEffect(() => {
-    if (!open) return;
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, [open]);
-
-  const label =
-    selectedIds.length === 0
-      ? 'All Boards'
-      : selectedIds.length === 1
-      ? boards.find(b => b.id === selectedIds[0])?.name ?? '1 board'
-      : `${selectedIds.length} boards`;
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        onClick={() => !disabled && setOpen(v => !v)}
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-label="Select boards"
-        className="flex items-center gap-1.5 h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed min-w-[130px]"
-      >
-        <span className="truncate">{label}</span>
-        <svg
-          className="w-4 h-4 text-gray-400 ml-auto shrink-0"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            fillRule="evenodd"
-            d="M5.23 7.21a.75.75 0 011.06.02L10 11.17l3.71-3.94a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </button>
-
-      {open && boards.length > 0 && (
-        <ul
-          role="listbox"
-          aria-label="Available boards"
-          aria-multiselectable="true"
-          className="absolute z-10 mt-1 w-56 max-h-56 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg py-1"
-        >
-          {boards.map(board => {
-            const checked = selectedIds.includes(board.id);
-            return (
-              <li
-                key={board.id}
-                role="option"
-                aria-selected={checked}
-              >
-                <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => onToggle(board.id)}
-                    className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    aria-label={board.name}
-                  />
-                  <span className="truncate">{board.name}</span>
-                </label>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {open && boards.length === 0 && (
-        <div
-          className="absolute z-10 mt-1 w-48 rounded-lg border border-gray-200 bg-white shadow-lg px-3 py-2 text-sm text-gray-400"
-          role="status"
-        >
-          No boards in this workspace
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
 // DashboardFilterBar
 // ---------------------------------------------------------------------------
+
+type Step = 'root' | 'user' | 'timerange';
 
 interface DashboardFilterBarProps {
   filters: FilterState;
   dispatch: React.Dispatch<FilterAction>;
 }
 
+const AVATAR_BG = ['bg-indigo-500', 'bg-purple-500', 'bg-pink-500', 'bg-green-500', 'bg-blue-500', 'bg-amber-500'];
+function avatarColor(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
+  return AVATAR_BG[Math.abs(h) % AVATAR_BG.length];
+}
+
+interface MemberRowProps {
+  member: { id: string; name: string; profileImageUrl?: string };
+  active: boolean;
+  onToggle: () => void;
+}
+
+const MemberRow: React.FC<MemberRowProps> = ({ member, active, onToggle }) => {
+  const [imgErr, setImgErr] = useState(false);
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      onClick={onToggle}
+      className={`flex items-center gap-2 w-full px-3 py-1.5 text-xs transition-colors ${
+        active ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-50'
+      }`}
+    >
+      {member.profileImageUrl && !imgErr ? (
+        <img
+          src={member.profileImageUrl}
+          alt={member.name}
+          className="w-5 h-5 rounded-full object-cover flex-shrink-0"
+          onError={() => setImgErr(true)}
+        />
+      ) : (
+        <div className={`w-5 h-5 rounded-full flex items-center justify-center text-white text-[9px] font-medium flex-shrink-0 ${avatarColor(member.id)}`}>
+          {member.name?.[0]?.toUpperCase() ?? '?'}
+        </div>
+      )}
+      <span className="flex-1 truncate text-left">{member.name}</span>
+      {active && <FiCheck size={11} className="text-indigo-600 flex-shrink-0" aria-hidden="true" />}
+    </button>
+  );
+};
+
+const SubHeader: React.FC<{ label: string; onBack: () => void }> = ({ label, onBack }) => (
+  <div className="flex items-center gap-1 px-2 py-1.5 border-b border-gray-100">
+    <button
+      type="button"
+      onClick={onBack}
+      className="p-1 text-gray-400 hover:text-gray-600 rounded"
+      aria-label="Back to filter types"
+    >
+      <FiChevronLeft size={13} aria-hidden="true" />
+    </button>
+    <span className="text-xs font-semibold text-gray-600">{label}</span>
+  </div>
+);
+
+const FILTER_OPTIONS: { step: Step; label: string; icon: React.ReactNode }[] = [
+  { step: 'timerange', label: 'Time Range', icon: <FiCalendar size={13} aria-hidden="true" /> },
+  { step: 'user',      label: 'User',       icon: <FiUser size={13} aria-hidden="true" /> },
+];
+
 const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispatch }) => {
-  const { t } = useTranslation();
   const { user } = useAuthSession();
-  const workspaces = user?.workspaces ?? [];
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<Step>('root');
+  const [timeRangeAnchor, setTimeRangeAnchor] = useState<HTMLElement | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
 
   const { data: usersData } = useQuery({
-    queryKey: ['users', 'workspace', filters.workspaceId],
-    queryFn: () => getUsers({ workspaceId: filters.workspaceId, limit: 100 }),
-    enabled: !!filters.workspaceId,
+    queryKey: ['users', 'org', user?.workspaces?.[0]?.orgId],
+    queryFn: () => getUsers({ limit: 200 }),
+    enabled: !!user,
     staleTime: 5 * 60 * 1000,
   });
-
   const members = usersData?.data ?? [];
 
-  const hasActiveFilters =
-    !!filters.workspaceId ||
-    filters.boardIds.length > 0 ||
-    !!filters.assigneeId ||
-    !!filters.dueDateFrom ||
-    !!filters.dueDateTo;
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setStep('root');
+        setTimeRangeAnchor(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const activeCount = filters.filters.length;
+  const currentTimeRange = filters.filters.find(
+    (f): f is { type: 'timerange'; start: string; end: string } => f.type === 'timerange',
+  );
+
+  const isUserActive = (id: string) =>
+    filters.filters.some((f): f is { type: 'user'; value: string; label: string } => f.type === 'user' && f.value === id);
+
+  const hasTypeActive = (t: string) => filters.filters.some((f) => f.type === t);
 
   return (
-    <div
-      className="flex flex-wrap gap-3 items-end p-4 bg-white rounded-xl border border-gray-200 shadow-sm"
-      role="search"
-      aria-label="Dashboard filters"
-    >
-      {/* WorkHub selector */}
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="filter-workspace"
-          className="text-xs font-medium text-gray-500 uppercase tracking-wide"
-        >
-          {t('common.workspace')}
-        </label>
-        <select
-          id="filter-workspace"
-          value={filters.workspaceId}
-          onChange={e => dispatch({ type: 'SET_WORKSPACE', workspaceId: e.target.value })}
-          className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 min-w-[150px]"
-          aria-label={`Select ${t('common.workspace')}`}
-        >
-          <option value="">{t('admin.allWorkspaces')}</option>
-          {workspaces.map(ws => (
-            <option key={ws.id} value={ws.id}>
-              {ws.name}
-            </option>
-          ))}
-        </select>
-      </div>
+    <div className="relative flex-shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => { setOpen((v) => !v); setStep('root'); }}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${
+          activeCount > 0
+            ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+            : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+        }`}
+        aria-label="Filter dashboard"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <FiFilter size={12} aria-hidden="true" />
+        Filter
+        {activeCount > 0 && (
+          <span className="ml-0.5 flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-indigo-600 text-white rounded-full">
+            {activeCount}
+          </span>
+        )}
+      </button>
 
-      {/* Board multi-select */}
-      <div className="flex flex-col gap-1">
-        <span
-          className="text-xs font-medium text-gray-500 uppercase tracking-wide"
-          id="filter-boards-label"
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1"
+          style={{ minWidth: '190px' }}
+          role="menu"
+          aria-label="Filter options"
         >
-          Boards
-        </span>
-        <BoardMultiSelect
-          selectedIds={filters.boardIds}
-          onToggle={boardId => dispatch({ type: 'TOGGLE_BOARD', boardId })}
-          workspaceId={filters.workspaceId}
-          disabled={!filters.workspaceId}
-        />
-      </div>
+          {step === 'root' && (
+            <>
+              <p className="px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wide">Filter by</p>
+              {FILTER_OPTIONS.map(({ step: s, label, icon }) => (
+                <button
+                  key={s}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setStep(s)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="text-gray-400">{icon}</span>
+                  <span className="flex-1 text-left">{label}</span>
+                  {hasTypeActive(s) && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 flex-shrink-0" aria-hidden="true" />
+                  )}
+                </button>
+              ))}
+              {activeCount > 0 && (
+                <>
+                  <div className="border-t border-gray-100 my-1" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { dispatch({ type: 'CLEAR' }); setOpen(false); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    Clear all filters
+                  </button>
+                </>
+              )}
+            </>
+          )}
 
-      {/* Date range */}
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="filter-date-from"
-          className="text-xs font-medium text-gray-500 uppercase tracking-wide"
-        >
-          Due From
-        </label>
-        <input
-          id="filter-date-from"
-          type="date"
-          value={filters.dueDateFrom}
-          onChange={e => dispatch({ type: 'SET_DATE_FROM', value: e.target.value })}
-          className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          aria-label="Due date from"
-        />
-      </div>
+          {step === 'timerange' && (
+            <>
+              <SubHeader label="Time Range" onBack={() => { setStep('root'); setTimeRangeAnchor(null); }} />
+              <div className="px-3 py-2">
+                {currentTimeRange ? (
+                  <div className="text-xs text-gray-700 mb-2">
+                    <span className="font-medium">{currentTimeRange.start}</span>
+                    <span className="mx-1 text-gray-400">→</span>
+                    <span className="font-medium">{currentTimeRange.end}</span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mb-2">No time range set</p>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => setTimeRangeAnchor(e.currentTarget)}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-left text-gray-600"
+                  aria-label="Open date range picker"
+                >
+                  {currentTimeRange ? 'Change range' : 'Select range'}
+                </button>
+                {currentTimeRange && (
+                  <button
+                    type="button"
+                    onClick={() => dispatch({ type: 'SET_TIME_RANGE', start: '', end: '' })}
+                    className="mt-1.5 w-full text-xs text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    Clear time range
+                  </button>
+                )}
+              </div>
+              {timeRangeAnchor && (
+                <DateRangePicker
+                  initialStart={currentTimeRange?.start ?? ''}
+                  initialEnd={currentTimeRange?.end ?? ''}
+                  anchorEl={timeRangeAnchor}
+                  onCommit={(start, end) => {
+                    dispatch({ type: 'SET_TIME_RANGE', start, end });
+                    setTimeRangeAnchor(null);
+                  }}
+                  onCancel={() => setTimeRangeAnchor(null)}
+                />
+              )}
+            </>
+          )}
 
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="filter-date-to"
-          className="text-xs font-medium text-gray-500 uppercase tracking-wide"
-        >
-          Due To
-        </label>
-        <input
-          id="filter-date-to"
-          type="date"
-          value={filters.dueDateTo}
-          min={filters.dueDateFrom || undefined}
-          onChange={e => dispatch({ type: 'SET_DATE_TO', value: e.target.value })}
-          className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          aria-label="Due date to"
-        />
-      </div>
-
-      {/* Assignee selector */}
-      <div className="flex flex-col gap-1">
-        <label
-          htmlFor="filter-assignee"
-          className="text-xs font-medium text-gray-500 uppercase tracking-wide"
-        >
-          Assignee
-        </label>
-        <select
-          id="filter-assignee"
-          value={filters.assigneeId}
-          onChange={e => dispatch({ type: 'SET_ASSIGNEE', assigneeId: e.target.value })}
-          disabled={!filters.workspaceId}
-          className="h-9 px-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed min-w-[140px]"
-          aria-label="Filter by assignee"
-        >
-          <option value="">All Assignees</option>
-          {members.map(member => (
-            <option key={member.id} value={member.id}>
-              {member.name}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Clear button */}
-      {hasActiveFilters && (
-        <button
-          type="button"
-          onClick={() => dispatch({ type: 'CLEAR' })}
-          className="h-9 px-4 rounded-lg border border-gray-300 bg-white text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors self-end"
-          aria-label="Clear all filters"
-        >
-          Clear filters
-        </button>
+          {step === 'user' && (
+            <>
+              <SubHeader label="User" onBack={() => setStep('root')} />
+              <div className="max-h-52 overflow-y-auto">
+                {members.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-gray-400">No users found</p>
+                ) : (
+                  members.map((m) => (
+                    <MemberRow
+                      key={m.id}
+                      member={m}
+                      active={isUserActive(m.id)}
+                      onToggle={() =>
+                        dispatch({ type: 'TOGGLE_USER', value: m.id, label: m.name, avatarUrl: m.profileImageUrl })
+                      }
+                    />
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
       )}
     </div>
   );

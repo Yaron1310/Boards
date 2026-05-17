@@ -5,12 +5,14 @@ import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { ColumnType } from '../../types';
 import type { Item, Column, StatusColumnSettings, StatusOption, User, SimpleFormulaColumnSettings } from '../../types';
 import { evaluateFormula } from '../../utils/formulaEngine';
+import DateRangePicker from '../shared/DateRangePicker';
 
 export type ActiveFilter =
   | { type: 'date'; value: string }
   | { type: 'user'; value: string; label: string; avatarUrl?: string }
   | { type: 'status'; value: string; label: string; color: string }
-  | { type: 'tag'; value: string };
+  | { type: 'tag'; value: string }
+  | { type: 'timerange'; start: string; end: string };
 
 interface Props {
   boardId: string;
@@ -19,13 +21,14 @@ interface Props {
   onFilterChange: (filters: ActiveFilter[]) => void;
 }
 
-type Step = 'root' | 'date' | 'user' | 'status' | 'tag';
+type Step = 'root' | 'date' | 'user' | 'status' | 'tag' | 'timerange';
 
 const FILTER_OPTIONS: { step: Step; label: string; icon: React.ReactNode }[] = [
-  { step: 'date',   label: 'Date',   icon: <FiCalendar size={13} aria-hidden="true" /> },
-  { step: 'user',   label: 'User',   icon: <FiUser size={13} aria-hidden="true" /> },
-  { step: 'status', label: 'Status', icon: <FiFlag size={13} aria-hidden="true" /> },
-  { step: 'tag',    label: 'Tags',   icon: <FiTag size={13} aria-hidden="true" /> },
+  { step: 'date',      label: 'Date',       icon: <FiCalendar size={13} aria-hidden="true" /> },
+  { step: 'timerange', label: 'Time Range', icon: <FiCalendar size={13} aria-hidden="true" /> },
+  { step: 'user',      label: 'User',       icon: <FiUser size={13} aria-hidden="true" /> },
+  { step: 'status',    label: 'Status',     icon: <FiFlag size={13} aria-hidden="true" /> },
+  { step: 'tag',       label: 'Tags',       icon: <FiTag size={13} aria-hidden="true" /> },
 ];
 
 const AVATAR_BG = ['bg-indigo-500','bg-purple-500','bg-pink-500','bg-green-500','bg-blue-500','bg-amber-500','bg-rose-500'];
@@ -39,6 +42,7 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilters
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('root');
   const ref = useRef<HTMLDivElement>(null);
+  const [timeRangeAnchor, setTimeRangeAnchor] = useState<HTMLElement | null>(null);
 
   const { data: columns = [] } = useColumns(boardId);
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
@@ -114,6 +118,13 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilters
 
   const currentDate = activeFilters.find((f) => f.type === 'date')?.value ?? '';
 
+  const currentTimeRange = activeFilters.find((f): f is { type: 'timerange'; start: string; end: string } => f.type === 'timerange');
+
+  const setTimeRangeFilter = (start: string, end: string) => {
+    const without = activeFilters.filter((f) => f.type !== 'timerange');
+    onFilterChange(start && end ? [...without, { type: 'timerange', start, end }] : without);
+  };
+
   return (
     <div className="relative flex-shrink-0" ref={ref}>
       <button
@@ -187,6 +198,52 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilters
                   </button>
                 )}
               </div>
+            </>
+          )}
+
+          {step === 'timerange' && (
+            <>
+              <SubHeader label="Time Range" onBack={() => { setStep('root'); setTimeRangeAnchor(null); }} />
+              <div className="px-3 py-2">
+                {currentTimeRange ? (
+                  <div className="text-xs text-gray-700 mb-2">
+                    <span className="font-medium">{currentTimeRange.start}</span>
+                    <span className="mx-1 text-gray-400">→</span>
+                    <span className="font-medium">{currentTimeRange.end}</span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-400 mb-2">No time range set</p>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => setTimeRangeAnchor(e.currentTarget)}
+                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-left text-gray-600"
+                  aria-label="Open date range picker"
+                >
+                  {currentTimeRange ? 'Change range' : 'Select range'}
+                </button>
+                {currentTimeRange && (
+                  <button
+                    type="button"
+                    onClick={() => setTimeRangeFilter('', '')}
+                    className="mt-1.5 w-full text-xs text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    Clear time range
+                  </button>
+                )}
+              </div>
+              {timeRangeAnchor && (
+                <DateRangePicker
+                  initialStart={currentTimeRange?.start ?? ''}
+                  initialEnd={currentTimeRange?.end ?? ''}
+                  anchorEl={timeRangeAnchor}
+                  onCommit={(start, end) => {
+                    setTimeRangeFilter(start, end);
+                    setTimeRangeAnchor(null);
+                  }}
+                  onCancel={() => setTimeRangeAnchor(null)}
+                />
+              )}
             </>
           )}
 
@@ -427,6 +484,16 @@ function itemMatchesSingleFilter(item: Item, columns: Column[], filter: ActiveFi
       return tagCols.some((col) => {
         const tags = (item.values[col.id] ?? []) as string[];
         return tags.includes(filter.value);
+      });
+    }
+    case 'timerange': {
+      const trCols = columns.filter((c) => c.type === ColumnType.TIME_RANGE);
+      return trCols.some((col) => {
+        const val = item.values[col.id] as { start?: string | Date; end?: string | Date } | null | undefined;
+        if (!val) return false;
+        const start = String(val.start ?? '').slice(0, 10);
+        const end = String(val.end ?? '').slice(0, 10);
+        return start >= filter.start && end <= filter.end;
       });
     }
     default:

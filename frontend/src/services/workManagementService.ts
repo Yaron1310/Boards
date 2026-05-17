@@ -419,8 +419,10 @@ export interface UpdateCustomDashboardData {
   visibility?: CustomDashboard['visibility'];
 }
 
-export const listCustomDashboards = (): Promise<CustomDashboard[]> =>
-  fetchWithAuth('/api/custom-dashboards');
+export const listCustomDashboards = (includeArchived = false): Promise<CustomDashboard[]> => {
+  const qs = includeArchived ? '?includeArchived=true' : '';
+  return fetchWithAuth(`/api/custom-dashboards${qs}`);
+};
 
 export const createCustomDashboard = (data: CreateCustomDashboardData): Promise<CustomDashboard> =>
   fetchWithAuth('/api/custom-dashboards', { method: 'POST', body: JSON.stringify(data) });
@@ -430,6 +432,12 @@ export const updateCustomDashboard = (id: string, patch: UpdateCustomDashboardDa
 
 export const deleteCustomDashboard = (id: string): Promise<null> =>
   fetchWithAuth(`/api/custom-dashboards/${id}`, { method: 'DELETE' });
+
+export const archiveCustomDashboard = (id: string): Promise<null> =>
+  fetchWithAuth(`/api/custom-dashboards/${id}/archive`, { method: 'PATCH' });
+
+export const restoreCustomDashboard = (id: string): Promise<CustomDashboard> =>
+  fetchWithAuth(`/api/custom-dashboards/${id}/restore`, { method: 'PATCH' });
 
 export const getCustomDashboardData = (
   id: string,

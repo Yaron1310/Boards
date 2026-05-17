@@ -436,6 +436,7 @@ export interface DBCustomDashboard {
   createdBy: string;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
+  isArchived?: boolean;
 }
 
 // --- AUDIT LOGGING ---
