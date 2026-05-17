@@ -1,4 +1,5 @@
 import React, { useReducer, useState } from 'react';
+import { FiArchive, FiEdit2, FiTrash2, FiPlusCircle } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useOrgSnapshot } from '../../hooks/useOrgSnapshot';
 import DashboardFilterBar, {
@@ -61,7 +62,7 @@ const DashboardPage: React.FC = () => {
   const dateFrom = timeRangeFilter?.start;
   const dateTo = timeRangeFilter?.end;
 
-  // Archive icon button for each dashboard widget
+  // Action buttons for each dashboard widget (rendered in WidgetCard header)
   const buildWidgetActions = (d: CustomDashboard) => {
     if (!isOrgAdmin) return undefined;
 
@@ -73,20 +74,15 @@ const DashboardPage: React.FC = () => {
           className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
           aria-label={`Edit ${d.name}`}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-          </svg>
+          <FiEdit2 size={14} aria-hidden="true" />
         </button>
         <button
           type="button"
           onClick={() => archiveMutation.mutate(d.id)}
           className="p-1 text-gray-400 hover:text-amber-600 rounded transition-colors"
           aria-label={`Archive ${d.name}`}
-          title="Archive"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path d="M4 3a2 2 0 00-2 2v1a2 2 0 002 2h1v8a2 2 0 002 2h6a2 2 0 002-2V8h1a2 2 0 002-2V5a2 2 0 00-2-2H4zm1 2h10v1H5V5zm2 3h6v8H7V8zm2 2v4h2v-4H9z" />
-          </svg>
+          <FiArchive size={14} aria-hidden="true" />
         </button>
         {confirmDeleteId === d.id ? (
           <div className="flex items-center gap-1" role="group" aria-label="Confirm delete">
@@ -114,9 +110,7 @@ const DashboardPage: React.FC = () => {
             className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
             aria-label={`Delete ${d.name}`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
+            <FiTrash2 size={14} aria-hidden="true" />
           </button>
         )}
       </>
@@ -145,9 +139,7 @@ const DashboardPage: React.FC = () => {
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                 aria-label="View archived dashboards"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path d="M4 3a2 2 0 00-2 2v1a2 2 0 002 2h1v8a2 2 0 002 2h6a2 2 0 002-2V8h1a2 2 0 002-2V5a2 2 0 00-2-2H4zm1 2h10v1H5V5zm2 3h6v8H7V8zm2 2v4h2v-4H9z" />
-                </svg>
+                <FiArchive size={16} aria-hidden="true" />
                 Archived
               </button>
               <button
@@ -156,9 +148,7 @@ const DashboardPage: React.FC = () => {
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                 aria-label="Add custom dashboard"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
+                <FiPlusCircle size={16} aria-hidden="true" />
                 Add Dashboard
               </button>
             </>
