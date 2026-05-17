@@ -476,6 +476,8 @@ export interface CategoryConfig {
   boardId: string;
   groupId?: string;
   groupByColumnId: string;
+  yAxisAggregation?: MetricAggregation;  // defaults to COUNT if absent
+  yAxisColumnId?: string;                 // required when yAxisAggregation !== COUNT
   timeAxisColumnId?: string;
   dateFormat?: DateFormat;
 }

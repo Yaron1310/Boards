@@ -62,11 +62,80 @@ const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string; desc: string }[] 
 
 function configModeFor(ct: ChartType): 'metric' | 'category' | 'timeseries' {
   if (ct === 'line') return 'timeseries';
-  if (ct === 'pie' || ct === 'bar_vertical' || ct === 'bar_horizontal') return 'category';
-  return 'metric';
+  if (ct === 'number') return 'metric';
+  return 'category'; // pie, bar_vertical, bar_horizontal, radar
 }
 
 function makeKey() { return Math.random().toString(36).slice(2); }
+
+// ---------------------------------------------------------------------------
+// ChartTooltip
+// ---------------------------------------------------------------------------
+
+const CHART_TIPS: Record<string, { does: string; example: string; cant: string }> = {
+  pie: {
+    does: 'Groups items by a column\'s distinct values and shows proportions as slices.',
+    example: 'Group by "Status" → Done 45 %, In Progress 35 %, Todo 20 %.',
+    cant: 'Show individual item values or time trends.',
+  },
+  bar_vertical: {
+    does: 'Same grouping as Pie but as vertical columns — clearer when comparing many groups.',
+    example: 'Group by "Assignee", value = Sum of "Score" → one bar per person with their total.',
+    cant: 'Show time trends — use Line chart for that.',
+  },
+  bar_horizontal: {
+    does: 'Same as Vertical Bar but rotated — best when group labels are long.',
+    example: 'Group by "Item Name", value = cell value of "Revenue" → one bar per item.',
+    cant: 'Show time trends.',
+  },
+  radar: {
+    does: 'Plots each group as a spoke on a web — good for comparing 3–8 categories side by side.',
+    example: 'Group by "Department", value = Count → see headcount per department at a glance.',
+    cant: 'Handle many groups cleanly (>8 gets unreadable); no time dimension.',
+  },
+  line: {
+    does: 'Plots a trend over time by bucketing items into day / week / month intervals.',
+    example: 'Count new items per week → spot whether workload is growing.',
+    cant: 'Non-time groupings — use Bar or Radar for category breakdowns.',
+  },
+  number: {
+    does: 'Displays one or more large aggregated numbers — ideal for KPI at-a-glance.',
+    example: '"Total open items: 143" alongside "Avg score: 7.8" as two metrics.',
+    cant: 'Show breakdowns or trends — use Bar / Radar / Line for those.',
+  },
+};
+
+const ChartTooltip: React.FC<{ chartType: string }> = ({ chartType }) => {
+  const [visible, setVisible] = React.useState(false);
+  const tip = CHART_TIPS[chartType];
+  if (!tip) return null;
+  return (
+    <div className="relative inline-flex items-center ml-auto flex-shrink-0" style={{ zIndex: 10 }}>
+      <button
+        type="button"
+        onMouseEnter={() => setVisible(true)}
+        onMouseLeave={() => setVisible(false)}
+        onFocus={() => setVisible(true)}
+        onBlur={() => setVisible(false)}
+        className="w-4 h-4 rounded-full bg-gray-200 text-gray-500 text-[10px] font-bold flex items-center justify-center hover:bg-indigo-100 hover:text-indigo-600 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-400"
+        aria-label={`Info about ${chartType} chart`}
+      >
+        i
+      </button>
+      {visible && (
+        <div
+          className="absolute bottom-full right-0 mb-1.5 w-64 bg-gray-900 text-white text-xs rounded-lg shadow-xl p-3 flex flex-col gap-1.5 pointer-events-none"
+          role="tooltip"
+        >
+          <p>{tip.does}</p>
+          <p className="text-gray-300"><span className="text-green-400 font-semibold">e.g.</span> {tip.example}</p>
+          <p className="text-gray-400"><span className="font-semibold">Can't:</span> {tip.cant}</p>
+          <div className="absolute bottom-[-4px] right-4 w-2 h-2 bg-gray-900 rotate-45" aria-hidden="true" />
+        </div>
+      )}
+    </div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Shared sub-components
@@ -346,17 +415,28 @@ interface CategoryFormState {
   boardId: string;
   groupId: string;
   groupByColumnId: string;
+  yAxisAggregation: MetricAggregation;
+  yAxisColumnId: string;
   timeAxisColumnId: string;
   dateFormat: DateFormat;
 }
+
+const CATEGORY_AGG_OPTIONS: { fn: MetricAggregation; label: string; desc: string }[] = [
+  { fn: 'COUNT',   label: 'Count items',   desc: 'Number of items in each group' },
+  { fn: 'SUM',     label: 'Sum',           desc: 'Total of a numeric column per group' },
+  { fn: 'AVERAGE', label: 'Average',       desc: 'Mean of a numeric column per group' },
+  { fn: 'MIN',     label: 'Min value',     desc: 'Smallest value in the group' },
+  { fn: 'MAX',     label: 'Max value',     desc: 'Largest value in the group' },
+];
 
 const CategoryForm: React.FC<{
   state: CategoryFormState;
   onChange: (s: CategoryFormState) => void;
 }> = ({ state, onChange }) => {
   const { data: boards = [] } = useBoards(undefined, false);
+  const needsValueCol = state.yAxisAggregation !== 'COUNT';
   const handleBoardChange = (boardId: string) =>
-    onChange({ ...state, boardId, groupId: '', groupByColumnId: '', timeAxisColumnId: '' });
+    onChange({ ...state, boardId, groupId: '', groupByColumnId: '', yAxisColumnId: '', timeAxisColumnId: '' });
 
   return (
     <div className="flex flex-col gap-3">
@@ -372,7 +452,7 @@ const CategoryForm: React.FC<{
       </div>
       <div className="flex flex-col gap-1">
         <SelectLabel htmlFor="cat-groupby" label="Group items by" required />
-        <p className="text-xs text-gray-400">Each distinct value becomes a slice / bar.</p>
+        <p className="text-xs text-gray-400">Each distinct value becomes a slice / bar / spoke.</p>
         <ColumnSelect
           id="cat-groupby"
           value={state.groupByColumnId}
@@ -380,6 +460,50 @@ const CategoryForm: React.FC<{
           boardId={state.boardId}
           required
         />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <SelectLabel htmlFor="cat-yagg" label="Value" required />
+        <p className="text-xs text-gray-400">What each bar / slice height represents.</p>
+        <div className="grid grid-cols-1 gap-1.5">
+          {CATEGORY_AGG_OPTIONS.map(o => (
+            <label
+              key={o.fn}
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                state.yAxisAggregation === o.fn
+                  ? 'border-blue-500 bg-blue-50 text-blue-800'
+                  : 'border-gray-200 hover:border-gray-300 text-gray-700'
+              }`}
+            >
+              <input
+                type="radio"
+                name="cat-yagg"
+                value={o.fn}
+                checked={state.yAxisAggregation === o.fn}
+                onChange={() => onChange({ ...state, yAxisAggregation: o.fn, yAxisColumnId: o.fn === 'COUNT' ? '' : state.yAxisColumnId })}
+                className="accent-blue-600"
+                aria-label={o.label}
+              />
+              <span className="flex flex-col min-w-0">
+                <span className="text-xs font-medium">{o.label}</span>
+                <span className="text-xs text-gray-400">{o.desc}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {needsValueCol && (
+          <div className="flex flex-col gap-1 mt-1">
+            <SelectLabel htmlFor="cat-ycol" label="Value column" required />
+            <ColumnSelect
+              id="cat-ycol"
+              value={state.yAxisColumnId}
+              onChange={v => onChange({ ...state, yAxisColumnId: v })}
+              boardId={state.boardId}
+              placeholder="Select numeric column…"
+              required
+              includeItemName={false}
+            />
+          </div>
+        )}
       </div>
       <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
         <div className="flex flex-col gap-1">
@@ -519,11 +643,13 @@ function initCategoryState(existing?: CustomDashboard): CategoryFormState {
       boardId: existing.config.boardId,
       groupId: existing.config.groupId ?? '',
       groupByColumnId: existing.config.groupByColumnId,
+      yAxisAggregation: existing.config.yAxisAggregation ?? 'COUNT',
+      yAxisColumnId: existing.config.yAxisColumnId ?? '',
       timeAxisColumnId: existing.config.timeAxisColumnId ?? '',
       dateFormat: existing.config.dateFormat ?? 'auto',
     };
   }
-  return { boardId: '', groupId: '', groupByColumnId: '', timeAxisColumnId: '', dateFormat: 'auto' };
+  return { boardId: '', groupId: '', groupByColumnId: '', yAxisAggregation: 'COUNT', yAxisColumnId: '', timeAxisColumnId: '', dateFormat: 'auto' };
 }
 
 function initTimeSeriesState(existing?: CustomDashboard): TimeSeriesFormState {
@@ -580,6 +706,9 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
     } else if (mode === 'category') {
       if (!categoryState.boardId) return 'Select a board.';
       if (!categoryState.groupByColumnId) return 'Select a column to group by.';
+      if (categoryState.yAxisAggregation !== 'COUNT' && !categoryState.yAxisColumnId) {
+        return 'Select a value column for the chosen aggregation.';
+      }
     } else {
       if (!tsState.boardId) return 'Select a board.';
       if (!tsState.xAxisColumnId) return 'Select an X axis column.';
@@ -610,6 +739,10 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
       if (categoryState.timeAxisColumnId) {
         cfg.timeAxisColumnId = categoryState.timeAxisColumnId;
         cfg.dateFormat = categoryState.dateFormat;
+      }
+      if (categoryState.yAxisAggregation && categoryState.yAxisAggregation !== 'COUNT') {
+        cfg.yAxisAggregation = categoryState.yAxisAggregation;
+        if (categoryState.yAxisColumnId) cfg.yAxisColumnId = categoryState.yAxisColumnId;
       }
       return cfg;
     }
@@ -722,10 +855,11 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
                 >
                   <input type="radio" name="cd-chartType" value={opt.type} checked={chartType === opt.type} onChange={() => setChartType(opt.type)} className="sr-only" aria-label={opt.label} />
                   <span className="text-xl" aria-hidden="true">{opt.icon}</span>
-                  <span className="flex flex-col min-w-0">
+                  <span className="flex flex-col min-w-0 flex-1">
                     <span className="text-sm font-medium text-gray-800 truncate">{opt.label}</span>
                     <span className="text-xs text-gray-500 truncate">{opt.description}</span>
                   </span>
+                  <ChartTooltip chartType={opt.type} />
                 </label>
               ))}
             </div>

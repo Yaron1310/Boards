@@ -199,12 +199,31 @@ function validateConfig(config: unknown, chartType: CustomDashboardChartType): s
     if (!c.xAxisColumnId || typeof c.xAxisColumnId !== 'string') return 'timeseries config requires xAxisColumnId.';
     if (!VALID_GROUPINGS.includes(c.xAxisGrouping as TimeAxisGrouping)) return 'Invalid xAxisGrouping.';
     if (!VALID_Y_AGGS.includes(c.yAxisAggregation as YAxisAggregation)) return 'Invalid yAxisAggregation.';
-  } else if (chartType === 'pie' || chartType === 'bar_vertical' || chartType === 'bar_horizontal') {
-    if (c.type !== 'category') return 'Pie/bar charts require config.type = "category".';
-    if (!c.boardId || typeof c.boardId !== 'string') return 'category config requires boardId.';
-    if (!c.groupByColumnId || typeof c.groupByColumnId !== 'string') return 'category config requires groupByColumnId.';
+  } else if (
+    chartType === 'pie' ||
+    chartType === 'bar_vertical' ||
+    chartType === 'bar_horizontal' ||
+    chartType === 'radar'
+  ) {
+    // Accept either category or metric config for radar (backward compat)
+    if (chartType === 'radar' && c.type === 'metric') {
+      const metrics = c.metrics as unknown[];
+      if (!Array.isArray(metrics) || metrics.length === 0) return 'metric config requires at least one metric.';
+      for (const [i, m] of (metrics as Record<string, unknown>[]).entries()) {
+        if (!m.boardId || typeof m.boardId !== 'string') return `metrics[${i}]: boardId is required.`;
+        if (!VALID_METRIC_AGGS.includes(m.aggregation as MetricAggregation)) return `metrics[${i}]: invalid aggregation.`;
+        if (!m.label || typeof m.label !== 'string' || !(m.label as string).trim()) return `metrics[${i}]: label is required.`;
+      }
+    } else {
+      if (c.type !== 'category') return 'Pie/bar/radar charts require config.type = "category".';
+      if (!c.boardId || typeof c.boardId !== 'string') return 'category config requires boardId.';
+      if (!c.groupByColumnId || typeof c.groupByColumnId !== 'string') return 'category config requires groupByColumnId.';
+      if (c.yAxisAggregation !== undefined && !VALID_METRIC_AGGS.includes(c.yAxisAggregation as MetricAggregation)) {
+        return 'Invalid yAxisAggregation.';
+      }
+    }
   } else {
-    if (c.type !== 'metric') return 'Number/radar charts require config.type = "metric".';
+    if (c.type !== 'metric') return 'Number charts require config.type = "metric".';
     const metrics = c.metrics as unknown[];
     if (!Array.isArray(metrics) || metrics.length === 0) return 'metric config requires at least one metric.';
     for (const [i, m] of (metrics as Record<string, unknown>[]).entries()) {
@@ -231,7 +250,8 @@ function sanitizeConfig(config: Record<string, unknown>, chartType: CustomDashbo
     if (c.dateFormat && VALID_DATE_FORMATS.includes(c.dateFormat as DateFormat)) ts.dateFormat = c.dateFormat as DateFormat;
     return ts;
   }
-  if (chartType === 'pie' || chartType === 'bar_vertical' || chartType === 'bar_horizontal') {
+  if (chartType === 'pie' || chartType === 'bar_vertical' || chartType === 'bar_horizontal' ||
+      (chartType === 'radar' && (config as Record<string, unknown>).type === 'category')) {
     const c = config as Record<string, unknown>;
     const cat: DBCategoryConfig = {
       type: 'category',
@@ -241,6 +261,10 @@ function sanitizeConfig(config: Record<string, unknown>, chartType: CustomDashbo
     if (c.groupId && typeof c.groupId === 'string') cat.groupId = c.groupId;
     if (c.timeAxisColumnId && typeof c.timeAxisColumnId === 'string') cat.timeAxisColumnId = c.timeAxisColumnId;
     if (c.dateFormat && VALID_DATE_FORMATS.includes(c.dateFormat as DateFormat)) cat.dateFormat = c.dateFormat as DateFormat;
+    if (c.yAxisAggregation && VALID_METRIC_AGGS.includes(c.yAxisAggregation as MetricAggregation)) {
+      cat.yAxisAggregation = c.yAxisAggregation as MetricAggregation;
+    }
+    if (c.yAxisColumnId && typeof c.yAxisColumnId === 'string') cat.yAxisColumnId = c.yAxisColumnId;
     return cat;
   }
   // metric (number, radar)
@@ -529,7 +553,11 @@ async function computeCategory(
     }
   }
 
-  const counts = new Map<string, number>();
+  const yAgg: MetricAggregation = config.yAxisAggregation ?? 'COUNT';
+  const yColId: string | undefined = config.yAxisColumnId;
+
+  // Map from label → collected numeric values (for aggregation) or counts
+  const buckets = new Map<string, number[]>();
   for (const item of items) {
     let raw: unknown;
     if (config.groupByColumnId === ITEM_NAME_COLUMN_ID) {
@@ -551,11 +579,20 @@ async function computeCategory(
       label = String(raw);
     }
 
-    counts.set(label, (counts.get(label) ?? 0) + 1);
+    if (!buckets.has(label)) buckets.set(label, []);
+    if (yAgg === 'COUNT') {
+      buckets.get(label)!.push(1);
+    } else {
+      const cellVal = yColId ? toNumber(resolveItemValue(item, yColId)) : null;
+      if (cellVal !== null) buckets.get(label)!.push(cellVal);
+    }
   }
 
-  return [...counts.entries()]
-    .map(([label, value]) => ({ label, value }))
+  return [...buckets.entries()]
+    .map(([label, vals]) => ({
+      label,
+      value: yAgg === 'COUNT' ? vals.length : aggregateNumbers(vals, yAgg),
+    }))
     .sort((a, b) => b.value - a.value);
 }
 
