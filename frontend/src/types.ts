@@ -437,6 +437,45 @@ export interface DashboardSummary {
 }
 
 // =============================================================================
+// PHASE 8b — CUSTOM DASHBOARDS
+// =============================================================================
+
+export type ChartType =
+  | 'pie'
+  | 'bar_vertical'
+  | 'bar_horizontal'
+  | 'radar'
+  | 'line'
+  | 'number';
+
+export type AggregationFn = 'SUM' | 'COUNT' | 'AVERAGE' | 'MIN' | 'MAX';
+export type DashboardVisibility = 'admins_only' | 'all';
+
+export interface CustomDashboardDataSource {
+  boardId: string;
+  groupId?: string;
+  columnId: string;
+  label: string;
+}
+
+export interface CustomDashboard {
+  id: string;
+  name: string;
+  chartType: ChartType;
+  aggregation: AggregationFn;
+  dataSources: CustomDashboardDataSource[];
+  visibility: DashboardVisibility;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CustomDashboardDataPoint {
+  label: string;
+  value: number;
+}
+
+// =============================================================================
 // PHASE 9 — PERMISSIONS & NOTIFICATIONS
 // =============================================================================
 

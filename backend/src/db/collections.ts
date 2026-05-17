@@ -54,3 +54,8 @@ export const itemChatMessagesCollection = (orgId: string, itemId: string) =>
 // Webhooks (top-level collection for O(1) public lookup by webhookId):
 // /webhooks/{webhookId}
 export const webhooksCollection = db.collection('webhooks');
+
+// Custom Dashboards (org-level):
+// /organizations/{orgId}/customDashboards/{dashboardId}
+export const customDashboardsCollection = (orgId: string) =>
+  db.collection('organizations').doc(orgId).collection('customDashboards');

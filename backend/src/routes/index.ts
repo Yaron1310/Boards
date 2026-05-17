@@ -23,6 +23,7 @@ import { itemRouter } from './item.routes.js';
 import { columnRouter } from './column.routes.js';
 // Phase 8 — Dashboard routes
 import { dashboardRouter } from './dashboard.routes.js';
+import { customDashboardRouter } from './customDashboard.routes.js';
 // Phase 9 — Notifications
 import { notificationRouter } from './notification.routes.js';
 // Item chat
@@ -56,6 +57,7 @@ mainRouter.use('/items', itemRouter);
 mainRouter.use('/boards/:boardId/columns', columnRouter);
 // Phase 8 — Dashboard
 mainRouter.use('/dashboard', dashboardRouter);
+mainRouter.use('/custom-dashboards', customDashboardRouter);
 // Phase 9 — Notifications
 mainRouter.use('/notifications', notificationRouter);
 // Item chat

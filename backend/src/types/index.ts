@@ -369,6 +369,38 @@ export interface DBChatAttachment {
   size: number;
 }
 
+// --- CUSTOM DASHBOARDS ---
+
+export type CustomDashboardChartType =
+  | 'pie'
+  | 'bar_vertical'
+  | 'bar_horizontal'
+  | 'radar'
+  | 'line'
+  | 'number';
+
+export type CustomDashboardAggregation = 'SUM' | 'COUNT' | 'AVERAGE' | 'MIN' | 'MAX';
+export type CustomDashboardVisibility = 'admins_only' | 'all';
+
+export interface DBCustomDashboardDataSource {
+  boardId: string;
+  groupId?: string;
+  columnId: string;
+  label: string;
+}
+
+export interface DBCustomDashboard {
+  id: string;
+  name: string;
+  chartType: CustomDashboardChartType;
+  aggregation: CustomDashboardAggregation;
+  dataSources: DBCustomDashboardDataSource[];
+  visibility: CustomDashboardVisibility;
+  createdBy: string;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
 // --- AUDIT LOGGING ---
 
 export type AuditAction = 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'ANOMALY';

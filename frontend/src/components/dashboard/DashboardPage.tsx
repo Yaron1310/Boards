@@ -1,4 +1,4 @@
-import React, { useReducer, useEffect, useMemo } from 'react';
+import React, { useReducer, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useOrgSnapshot } from '../../hooks/useOrgSnapshot';
@@ -9,11 +9,19 @@ import DashboardFilterBar, {
 } from './DashboardFilterBar';
 import WidgetCard from './WidgetCard';
 import { useDashboardSummary } from '../../hooks/queries/useDashboardQueries';
+import {
+  useCustomDashboards,
+  useDeleteCustomDashboard,
+} from '../../hooks/queries/useCustomDashboardQueries';
 import SummaryStatsWidget from './widgets/SummaryStatsWidget';
 import StatusDistributionWidget from './widgets/StatusDistributionWidget';
 import WorkloadByPersonWidget from './widgets/WorkloadByPersonWidget';
 import OverdueItemsWidget from './widgets/OverdueItemsWidget';
 import ItemsByBoardWidget from './widgets/ItemsByBoardWidget';
+import CustomDashboardWidget from './widgets/CustomDashboardWidget';
+import AddCustomDashboardModal from './AddCustomDashboardModal';
+import { UserRole } from '../../types';
+import type { CustomDashboard } from '../../types';
 
 // ---------------------------------------------------------------------------
 // URL ↔ FilterState helpers
@@ -47,7 +55,7 @@ function applyStateToSearchParams(
 // ---------------------------------------------------------------------------
 
 const DashboardPage: React.FC = () => {
-  const { selectedWorkspace } = useAuthSession();
+  const { selectedWorkspace, user } = useAuthSession();
   useOrgSnapshot(selectedWorkspace?.orgId);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -57,6 +65,12 @@ const DashboardPage: React.FC = () => {
     () => stateFromSearchParams(searchParams),
   );
 
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingDashboard, setEditingDashboard] = useState<CustomDashboard | undefined>(undefined);
+
+  const isOrgAdmin =
+    user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN;
+
   // Persist filter changes to URL
   useEffect(() => {
     applyStateToSearchParams(filters, setSearchParams);
@@ -65,6 +79,8 @@ const DashboardPage: React.FC = () => {
 
   const params = toDashboardParams(filters);
   const { data: summary, isLoading } = useDashboardSummary(params);
+  const { data: customDashboards = [] } = useCustomDashboards();
+  const deleteMutation = useDeleteCustomDashboard();
 
   const summaryIsEmpty = !isLoading && !summary;
 
@@ -74,19 +90,38 @@ const DashboardPage: React.FC = () => {
     [summary],
   );
 
+  const openCreate = () => { setEditingDashboard(undefined); setModalOpen(true); };
+  const openEdit = (d: CustomDashboard) => { setEditingDashboard(d); setModalOpen(true); };
+  const closeModal = () => { setModalOpen(false); setEditingDashboard(undefined); };
+
   return (
     <main className="p-6 max-w-7xl mx-auto flex flex-col gap-6" aria-label="Dashboard">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
-        {summary?.truncated && (
-          <span
-            className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1"
-            role="status"
-            aria-live="polite"
-          >
-            Results capped at 1,000 items — apply filters to narrow down
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {summary?.truncated && (
+            <span
+              className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1"
+              role="status"
+              aria-live="polite"
+            >
+              Results capped at 1,000 items — apply filters to narrow down
+            </span>
+          )}
+          {isOrgAdmin && (
+            <button
+              type="button"
+              onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              aria-label="Add custom dashboard"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Add Dashboard
+            </button>
+          )}
+        </div>
       </div>
 
       <DashboardFilterBar filters={filters} dispatch={dispatch} />
@@ -169,6 +204,36 @@ const DashboardPage: React.FC = () => {
           </WidgetCard>
         )}
       </div>
+
+      {/* Custom dashboards */}
+      {customDashboards.length > 0 && (
+        <section aria-label="Custom dashboards">
+          <h2 className="text-base font-semibold text-gray-700 mb-3">Custom Dashboards</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {customDashboards.map(d => (
+              <WidgetCard
+                key={d.id}
+                title={d.name}
+                subtitle={`${d.aggregation.charAt(0) + d.aggregation.slice(1).toLowerCase()} · ${d.dataSources.length} source${d.dataSources.length !== 1 ? 's' : ''}`}
+              >
+                <CustomDashboardWidget
+                  dashboard={d}
+                  onEdit={() => openEdit(d)}
+                  onDelete={() => deleteMutation.mutate(d.id)}
+                  isAdmin={isOrgAdmin}
+                />
+              </WidgetCard>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {modalOpen && (
+        <AddCustomDashboardModal
+          onClose={closeModal}
+          existing={editingDashboard}
+        />
+      )}
     </main>
   );
 };

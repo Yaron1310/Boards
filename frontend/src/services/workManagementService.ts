@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode, CustomDashboard, CustomDashboardDataPoint } from '../types';
 import { BACKEND_API_URL } from '../constants';
 
 const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
@@ -402,3 +402,36 @@ export const updateGroupWebhook = (
 
 export const revokeGroupWebhook = (boardId: string, groupId: string): Promise<void> =>
   fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/webhook`, { method: 'DELETE' });
+
+// ─── CUSTOM DASHBOARDS ────────────────────────────────────────────────────────
+
+export interface CreateCustomDashboardData {
+  name: string;
+  chartType: CustomDashboard['chartType'];
+  aggregation: CustomDashboard['aggregation'];
+  dataSources: CustomDashboard['dataSources'];
+  visibility: CustomDashboard['visibility'];
+}
+
+export interface UpdateCustomDashboardData {
+  name?: string;
+  chartType?: CustomDashboard['chartType'];
+  aggregation?: CustomDashboard['aggregation'];
+  dataSources?: CustomDashboard['dataSources'];
+  visibility?: CustomDashboard['visibility'];
+}
+
+export const listCustomDashboards = (): Promise<CustomDashboard[]> =>
+  fetchWithAuth('/api/custom-dashboards');
+
+export const createCustomDashboard = (data: CreateCustomDashboardData): Promise<CustomDashboard> =>
+  fetchWithAuth('/api/custom-dashboards', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateCustomDashboard = (id: string, patch: UpdateCustomDashboardData): Promise<CustomDashboard> =>
+  fetchWithAuth(`/api/custom-dashboards/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+
+export const deleteCustomDashboard = (id: string): Promise<null> =>
+  fetchWithAuth(`/api/custom-dashboards/${id}`, { method: 'DELETE' });
+
+export const getCustomDashboardData = (id: string): Promise<CustomDashboardDataPoint[]> =>
+  fetchWithAuth(`/api/custom-dashboards/${id}/data`);
