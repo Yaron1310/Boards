@@ -8,39 +8,32 @@ import {
 } from '../../hooks/queries/useCustomDashboardQueries';
 import type {
   ChartType,
-  AggregationFn,
+  MetricAggregation,
+  YAxisAggregation,
+  TimeAxisGrouping,
   DashboardVisibility,
   CustomDashboard,
-  CustomDashboardDataSource,
+  MetricConfig,
+  CategoryConfig,
+  TimeSeriesConfig,
+  MetricEntry,
 } from '../../types';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface DataSourceRow extends CustomDashboardDataSource {
-  _key: string;
-}
-
-interface Props {
-  onClose: () => void;
-  existing?: CustomDashboard;
-}
+import { ITEM_NAME_COLUMN_ID } from '../../types';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const CHART_OPTIONS: { type: ChartType; label: string; icon: string; description: string }[] = [
-  { type: 'pie',          label: 'Pie Chart',             icon: '🥧', description: 'Distribution as slices' },
-  { type: 'bar_vertical', label: 'Vertical Bar',          icon: '📊', description: 'Columns side by side' },
-  { type: 'bar_horizontal', label: 'Horizontal Bar',      icon: '📉', description: 'Rows side by side' },
-  { type: 'radar',        label: 'Radar Chart',           icon: '🕸️', description: 'Multi-axis comparison' },
-  { type: 'line',         label: 'Line Chart',            icon: '📈', description: 'Trend over data points' },
-  { type: 'number',       label: 'Number',                icon: '#',  description: 'Single aggregated value' },
+  { type: 'pie',            label: 'Pie Chart',       icon: '🥧', description: 'Distribution as slices' },
+  { type: 'bar_vertical',   label: 'Vertical Bar',    icon: '📊', description: 'Columns side by side' },
+  { type: 'bar_horizontal', label: 'Horizontal Bar',  icon: '📉', description: 'Rows side by side' },
+  { type: 'radar',          label: 'Radar Chart',     icon: '🕸️', description: 'Multi-axis comparison' },
+  { type: 'line',           label: 'Line Chart',      icon: '📈', description: 'Trend over time' },
+  { type: 'number',         label: 'Number',          icon: '#',  description: 'Single aggregated value' },
 ];
 
-const AGGREGATION_OPTIONS: { fn: AggregationFn; label: string }[] = [
+const METRIC_AGG_OPTIONS: { fn: MetricAggregation; label: string }[] = [
   { fn: 'COUNT',   label: 'Count items' },
   { fn: 'SUM',     label: 'Sum values' },
   { fn: 'AVERAGE', label: 'Average values' },
@@ -48,135 +41,456 @@ const AGGREGATION_OPTIONS: { fn: AggregationFn; label: string }[] = [
   { fn: 'MAX',     label: 'Maximum value' },
 ];
 
-const DEFAULT_VISIBILITY: DashboardVisibility = 'admins_only';
+const Y_AGG_OPTIONS: { fn: YAxisAggregation; label: string }[] = [
+  { fn: 'COUNT',   label: 'Count items' },
+  { fn: 'SUM',     label: 'Sum values' },
+  { fn: 'AVERAGE', label: 'Average values' },
+];
 
-function makeKey() {
-  return Math.random().toString(36).slice(2);
+const GROUPING_OPTIONS: { value: TimeAxisGrouping; label: string }[] = [
+  { value: 'day',   label: 'Day' },
+  { value: 'week',  label: 'Week' },
+  { value: 'month', label: 'Month' },
+];
+
+function configModeFor(ct: ChartType): 'metric' | 'category' | 'timeseries' {
+  if (ct === 'line') return 'timeseries';
+  if (ct === 'pie' || ct === 'bar_vertical' || ct === 'bar_horizontal') return 'category';
+  return 'metric';
 }
 
-function emptyRow(): DataSourceRow {
-  return { _key: makeKey(), boardId: '', columnId: '', label: '' };
+function makeKey() { return Math.random().toString(36).slice(2); }
+
+// ---------------------------------------------------------------------------
+// Shared sub-components
+// ---------------------------------------------------------------------------
+
+const SelectLabel: React.FC<{ htmlFor: string; label: string; required?: boolean }> = ({ htmlFor, label, required }) => (
+  <label htmlFor={htmlFor} className="text-xs font-medium text-gray-600">
+    {label}{required && <span className="text-red-500 ml-0.5">*</span>}
+  </label>
+);
+
+interface BoardItem { id: string; name: string; isArchived?: boolean }
+
+const BoardSelect: React.FC<{
+  id: string;
+  value: string;
+  onChange: (id: string) => void;
+  boards: BoardItem[];
+}> = ({ id, value, onChange, boards }) => (
+  <select
+    id={id}
+    value={value}
+    onChange={e => onChange(e.target.value)}
+    className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+    aria-required="true"
+  >
+    <option value="">Select board…</option>
+    {boards.filter(b => !b.isArchived).map(b => (
+      <option key={b.id} value={b.id}>{b.name}</option>
+    ))}
+  </select>
+);
+
+const GroupSelect: React.FC<{
+  id: string;
+  value: string;
+  onChange: (id: string) => void;
+  boardId: string;
+}> = ({ id, value, onChange, boardId }) => {
+  const { data: groups = [] } = useGroups(boardId, !!boardId);
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      disabled={!boardId}
+      className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+      aria-label="Group filter (optional)"
+    >
+      <option value="">Entire board</option>
+      {groups.filter(g => !g.isArchived).map(g => (
+        <option key={g.id} value={g.id}>{g.name}</option>
+      ))}
+    </select>
+  );
+};
+
+const ColumnSelect: React.FC<{
+  id: string;
+  value: string;
+  onChange: (id: string) => void;
+  boardId: string;
+  placeholder?: string;
+  required?: boolean;
+  includeItemName?: boolean;
+}> = ({ id, value, onChange, boardId, placeholder = 'Select column…', required, includeItemName = true }) => {
+  const { data: columns = [] } = useColumns(boardId, !!boardId);
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      disabled={!boardId}
+      className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
+      aria-required={required}
+    >
+      <option value="">{placeholder}</option>
+      {includeItemName && <option value={ITEM_NAME_COLUMN_ID}>Item Name</option>}
+      {columns.map(c => (
+        <option key={c.id} value={c.id}>{c.name} ({c.type})</option>
+      ))}
+    </select>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Mode A: Metric form (Number / Radar)
+// ---------------------------------------------------------------------------
+
+interface MetricEntryDraft extends MetricEntry { _key: string }
+
+function emptyMetricEntry(): MetricEntryDraft {
+  return { _key: makeKey(), boardId: '', aggregation: 'COUNT', label: '' };
 }
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-const DataSourceRowEditor: React.FC<{
-  row: DataSourceRow;
+const MetricRowEditor: React.FC<{
+  row: MetricEntryDraft;
   index: number;
-  onChange: (updated: DataSourceRow) => void;
+  onChange: (r: MetricEntryDraft) => void;
   onRemove: () => void;
   canRemove: boolean;
 }> = ({ row, index, onChange, onRemove, canRemove }) => {
   const { data: boards = [] } = useBoards(undefined, false);
-  const { data: groups = [] } = useGroups(row.boardId, !!row.boardId);
-  const { data: columns = [] } = useColumns(row.boardId, !!row.boardId);
+  const prefix = `metric-row-${row._key}`;
+  const needsColumn = row.aggregation !== 'COUNT';
 
   const handleBoardChange = (boardId: string) => {
-    const board = boards.find(b => b.id === boardId);
-    onChange({ ...row, boardId, groupId: undefined, columnId: '', label: board ? row.label || '' : '' });
+    onChange({ ...row, boardId, groupId: undefined, columnId: undefined });
   };
-
-  const handleColumnChange = (columnId: string) => {
-    const col = columns.find(c => c.id === columnId);
-    onChange({ ...row, columnId, label: row.label || col?.name || '' });
+  const handleAggChange = (aggregation: MetricAggregation) => {
+    onChange({ ...row, aggregation, columnId: aggregation === 'COUNT' ? undefined : row.columnId });
   };
-
-  const rowId = `ds-row-${row._key}`;
 
   return (
     <div
-      className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end p-3 bg-gray-50 rounded-lg border border-gray-200"
+      className="p-3 bg-gray-50 rounded-lg border border-gray-200 flex flex-col gap-2"
       role="group"
-      aria-label={`Data source ${index + 1}`}
+      aria-label={`Metric ${index + 1}`}
     >
-      {/* Board */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${rowId}-board`} className="text-xs font-medium text-gray-600">Board</label>
-        <select
-          id={`${rowId}-board`}
-          value={row.boardId}
-          onChange={e => handleBoardChange(e.target.value)}
-          className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-required="true"
-        >
-          <option value="">Select board…</option>
-          {boards.filter(b => !b.isArchived).map(b => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
+      <div className="grid grid-cols-[1fr_1fr_1fr] gap-2">
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor={`${prefix}-board`} label="Board" required />
+          <BoardSelect id={`${prefix}-board`} value={row.boardId} onChange={handleBoardChange} boards={boards} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor={`${prefix}-group`} label="Group (optional)" />
+          <GroupSelect id={`${prefix}-group`} value={row.groupId ?? ''} onChange={v => onChange({ ...row, groupId: v || undefined })} boardId={row.boardId} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor={`${prefix}-agg`} label="Aggregation" required />
+          <select
+            id={`${prefix}-agg`}
+            value={row.aggregation}
+            onChange={e => handleAggChange(e.target.value as MetricAggregation)}
+            className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {METRIC_AGG_OPTIONS.map(o => <option key={o.fn} value={o.fn}>{o.label}</option>)}
+          </select>
+        </div>
       </div>
-
-      {/* Group (optional) */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${rowId}-group`} className="text-xs font-medium text-gray-600">Group (optional)</label>
-        <select
-          id={`${rowId}-group`}
-          value={row.groupId ?? ''}
-          onChange={e => onChange({ ...row, groupId: e.target.value || undefined })}
-          disabled={!row.boardId}
-          className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-label={`Group filter for data source ${index + 1}`}
+      <div className="grid grid-cols-[1fr_1fr_auto] gap-2 items-end">
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor={`${prefix}-col`} label="Column" required={needsColumn} />
+          <ColumnSelect
+            id={`${prefix}-col`}
+            value={row.columnId ?? ''}
+            onChange={v => onChange({ ...row, columnId: v || undefined })}
+            boardId={row.boardId}
+            placeholder={needsColumn ? 'Select column…' : 'Any column (counting items)'}
+            required={needsColumn}
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor={`${prefix}-label`} label="Label" required />
+          <input
+            id={`${prefix}-label`}
+            type="text"
+            value={row.label}
+            onChange={e => onChange({ ...row, label: e.target.value })}
+            placeholder="e.g. Total Leads"
+            className="text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-required="true"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={!canRemove}
+          className="mb-0.5 p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
+          aria-label={`Remove metric ${index + 1}`}
         >
-          <option value="">Entire board</option>
-          {groups.filter(g => !g.isArchived).map(g => (
-            <option key={g.id} value={g.id}>{g.name}</option>
-          ))}
-        </select>
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          </svg>
+        </button>
       </div>
+    </div>
+  );
+};
 
-      {/* Column */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${rowId}-col`} className="text-xs font-medium text-gray-600">Column</label>
-        <select
-          id={`${rowId}-col`}
-          value={row.columnId}
-          onChange={e => handleColumnChange(e.target.value)}
-          disabled={!row.boardId}
-          className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed"
-          aria-required="true"
-        >
-          <option value="">Select column…</option>
-          {columns.map(c => (
-            <option key={c.id} value={c.id}>{c.name} ({c.type})</option>
-          ))}
-        </select>
-      </div>
+interface MetricFormState {
+  metrics: MetricEntryDraft[];
+  timeAxisColumnId: string;
+}
 
-      {/* Label */}
-      <div className="flex flex-col gap-1">
-        <label htmlFor={`${rowId}-label`} className="text-xs font-medium text-gray-600">Label</label>
-        <input
-          id={`${rowId}-label`}
-          type="text"
-          value={row.label}
-          onChange={e => onChange({ ...row, label: e.target.value })}
-          placeholder="Display name"
-          className="text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          aria-required="true"
+const MetricForm: React.FC<{
+  state: MetricFormState;
+  onChange: (s: MetricFormState) => void;
+  showTimeAxis: boolean;
+}> = ({ state, onChange, showTimeAxis }) => {
+  const updateMetric = (i: number, row: MetricEntryDraft) =>
+    onChange({ ...state, metrics: state.metrics.map((m, idx) => idx === i ? row : m) });
+  const removeMetric = (i: number) =>
+    onChange({ ...state, metrics: state.metrics.filter((_, idx) => idx !== i) });
+  const addMetric = () =>
+    onChange({ ...state, metrics: [...state.metrics, emptyMetricEntry()] });
+
+  const firstBoardId = state.metrics[0]?.boardId ?? '';
+
+  return (
+    <div className="flex flex-col gap-3">
+      {state.metrics.map((row, i) => (
+        <MetricRowEditor
+          key={row._key}
+          row={row}
+          index={i}
+          onChange={r => updateMetric(i, r)}
+          onRemove={() => removeMetric(i)}
+          canRemove={state.metrics.length > 1}
         />
-      </div>
-
-      {/* Remove */}
+      ))}
       <button
         type="button"
-        onClick={onRemove}
-        disabled={!canRemove}
-        className="mb-0.5 p-1.5 text-gray-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed rounded transition-colors"
-        aria-label={`Remove data source ${index + 1}`}
+        onClick={addMetric}
+        className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors self-start"
+        aria-label="Add metric"
       >
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+          <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
         </svg>
+        Add metric
       </button>
+      {showTimeAxis && (
+        <div className="flex flex-col gap-1 pt-2 border-t border-gray-100">
+          <SelectLabel htmlFor="metric-time-axis" label="Date filter column (optional)" />
+          <p className="text-xs text-gray-400 mb-1">When set, the page date range filter will scope this dashboard.</p>
+          <ColumnSelect
+            id="metric-time-axis"
+            value={state.timeAxisColumnId}
+            onChange={v => onChange({ ...state, timeAxisColumnId: v })}
+            boardId={firstBoardId}
+            placeholder="None (date filter won't apply)"
+          />
+        </div>
+      )}
     </div>
   );
 };
 
 // ---------------------------------------------------------------------------
+// Mode B: Category form (Pie / Bar)
+// ---------------------------------------------------------------------------
+
+interface CategoryFormState {
+  boardId: string;
+  groupId: string;
+  groupByColumnId: string;
+  timeAxisColumnId: string;
+}
+
+const CategoryForm: React.FC<{
+  state: CategoryFormState;
+  onChange: (s: CategoryFormState) => void;
+}> = ({ state, onChange }) => {
+  const { data: boards = [] } = useBoards(undefined, false);
+  const handleBoardChange = (boardId: string) =>
+    onChange({ ...state, boardId, groupId: '', groupByColumnId: '', timeAxisColumnId: '' });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="cat-board" label="Board" required />
+          <BoardSelect id="cat-board" value={state.boardId} onChange={handleBoardChange} boards={boards} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="cat-group" label="Group (optional)" />
+          <GroupSelect id="cat-group" value={state.groupId} onChange={v => onChange({ ...state, groupId: v })} boardId={state.boardId} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <SelectLabel htmlFor="cat-groupby" label="Group items by" required />
+        <p className="text-xs text-gray-400">Each distinct value becomes a slice / bar.</p>
+        <ColumnSelect
+          id="cat-groupby"
+          value={state.groupByColumnId}
+          onChange={v => onChange({ ...state, groupByColumnId: v })}
+          boardId={state.boardId}
+          required
+        />
+      </div>
+      <div className="flex flex-col gap-1 pt-2 border-t border-gray-100">
+        <SelectLabel htmlFor="cat-time-axis" label="Date filter column (optional)" />
+        <p className="text-xs text-gray-400 mb-1">When set, the page date range filter will scope this dashboard.</p>
+        <ColumnSelect
+          id="cat-time-axis"
+          value={state.timeAxisColumnId}
+          onChange={v => onChange({ ...state, timeAxisColumnId: v })}
+          boardId={state.boardId}
+          placeholder="None (date filter won't apply)"
+        />
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Mode C: Time Series form (Line)
+// ---------------------------------------------------------------------------
+
+interface TimeSeriesFormState {
+  boardId: string;
+  groupId: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId: string;
+}
+
+const TimeSeriesForm: React.FC<{
+  state: TimeSeriesFormState;
+  onChange: (s: TimeSeriesFormState) => void;
+}> = ({ state, onChange }) => {
+  const { data: boards = [] } = useBoards(undefined, false);
+  const needsYColumn = state.yAxisAggregation !== 'COUNT';
+  const handleBoardChange = (boardId: string) =>
+    onChange({ ...state, boardId, groupId: '', xAxisColumnId: '', yAxisColumnId: '' });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="ts-board" label="Board" required />
+          <BoardSelect id="ts-board" value={state.boardId} onChange={handleBoardChange} boards={boards} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="ts-group" label="Group (optional)" />
+          <GroupSelect id="ts-group" value={state.groupId} onChange={v => onChange({ ...state, groupId: v })} boardId={state.boardId} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="ts-xaxis" label="X axis (date column)" required />
+          <p className="text-xs text-gray-400">Also used for the page date range filter.</p>
+          <ColumnSelect
+            id="ts-xaxis"
+            value={state.xAxisColumnId}
+            onChange={v => onChange({ ...state, xAxisColumnId: v })}
+            boardId={state.boardId}
+            required
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="ts-grouping" label="Group by" required />
+          <select
+            id="ts-grouping"
+            value={state.xAxisGrouping}
+            onChange={e => onChange({ ...state, xAxisGrouping: e.target.value as TimeAxisGrouping })}
+            className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {GROUPING_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="ts-yagg" label="Y axis — measure" required />
+          <select
+            id="ts-yagg"
+            value={state.yAxisAggregation}
+            onChange={e => onChange({ ...state, yAxisAggregation: e.target.value as YAxisAggregation, yAxisColumnId: '' })}
+            className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {Y_AGG_OPTIONS.map(o => <option key={o.fn} value={o.fn}>{o.label}</option>)}
+          </select>
+        </div>
+        {needsYColumn && (
+          <div className="flex flex-col gap-1">
+            <SelectLabel htmlFor="ts-ycol" label="Y axis — column" required />
+            <ColumnSelect
+              id="ts-ycol"
+              value={state.yAxisColumnId}
+              onChange={v => onChange({ ...state, yAxisColumnId: v })}
+              boardId={state.boardId}
+              required
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Helpers to extract form state from an existing CustomDashboard
+// ---------------------------------------------------------------------------
+
+function initMetricState(existing?: CustomDashboard): MetricFormState {
+  if (existing?.config.type === 'metric') {
+    return {
+      metrics: existing.config.metrics.map(m => ({ ...m, _key: makeKey() })),
+      timeAxisColumnId: existing.config.timeAxisColumnId ?? '',
+    };
+  }
+  return { metrics: [emptyMetricEntry()], timeAxisColumnId: '' };
+}
+
+function initCategoryState(existing?: CustomDashboard): CategoryFormState {
+  if (existing?.config.type === 'category') {
+    return {
+      boardId: existing.config.boardId,
+      groupId: existing.config.groupId ?? '',
+      groupByColumnId: existing.config.groupByColumnId,
+      timeAxisColumnId: existing.config.timeAxisColumnId ?? '',
+    };
+  }
+  return { boardId: '', groupId: '', groupByColumnId: '', timeAxisColumnId: '' };
+}
+
+function initTimeSeriesState(existing?: CustomDashboard): TimeSeriesFormState {
+  if (existing?.config.type === 'timeseries') {
+    return {
+      boardId: existing.config.boardId,
+      groupId: existing.config.groupId ?? '',
+      xAxisColumnId: existing.config.xAxisColumnId,
+      xAxisGrouping: existing.config.xAxisGrouping,
+      yAxisAggregation: existing.config.yAxisAggregation,
+      yAxisColumnId: existing.config.yAxisColumnId ?? '',
+    };
+  }
+  return { boardId: '', groupId: '', xAxisColumnId: '', xAxisGrouping: 'day', yAxisAggregation: 'COUNT', yAxisColumnId: '' };
+}
+
+// ---------------------------------------------------------------------------
 // Main modal
 // ---------------------------------------------------------------------------
+
+interface Props {
+  onClose: () => void;
+  existing?: CustomDashboard;
+}
 
 const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
   const headingId = useId();
@@ -184,37 +498,68 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
 
   const [name, setName] = useState(existing?.name ?? '');
   const [chartType, setChartType] = useState<ChartType>(existing?.chartType ?? 'bar_vertical');
-  const [aggregation, setAggregation] = useState<AggregationFn>(existing?.aggregation ?? 'COUNT');
-  const [visibility, setVisibility] = useState<DashboardVisibility>(existing?.visibility ?? DEFAULT_VISIBILITY);
-  const [rows, setRows] = useState<DataSourceRow[]>(
-    existing?.dataSources.length
-      ? existing.dataSources.map(ds => ({ ...ds, _key: makeKey() }))
-      : [emptyRow()],
-  );
+  const [visibility, setVisibility] = useState<DashboardVisibility>(existing?.visibility ?? 'admins_only');
   const [error, setError] = useState<string | null>(null);
+
+  const [metricState, setMetricState] = useState<MetricFormState>(() => initMetricState(existing));
+  const [categoryState, setCategoryState] = useState<CategoryFormState>(() => initCategoryState(existing));
+  const [tsState, setTsState] = useState<TimeSeriesFormState>(() => initTimeSeriesState(existing));
 
   const createMutation = useCreateCustomDashboard();
   const updateMutation = useUpdateCustomDashboard();
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
-  const updateRow = (index: number, updated: DataSourceRow) => {
-    setRows(prev => prev.map((r, i) => (i === index ? updated : r)));
-  };
-
-  const removeRow = (index: number) => {
-    setRows(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const addRow = () => setRows(prev => [...prev, emptyRow()]);
+  const mode = configModeFor(chartType);
 
   const validate = (): string | null => {
     if (!name.trim()) return 'Dashboard name is required.';
-    for (const [i, row] of rows.entries()) {
-      if (!row.boardId) return `Data source ${i + 1}: select a board.`;
-      if (!row.columnId) return `Data source ${i + 1}: select a column.`;
-      if (!row.label.trim()) return `Data source ${i + 1}: enter a label.`;
+    if (mode === 'metric') {
+      for (const [i, m] of metricState.metrics.entries()) {
+        if (!m.boardId) return `Metric ${i + 1}: select a board.`;
+        if (m.aggregation !== 'COUNT' && !m.columnId) return `Metric ${i + 1}: select a column for ${m.aggregation}.`;
+        if (!m.label.trim()) return `Metric ${i + 1}: enter a label.`;
+      }
+    } else if (mode === 'category') {
+      if (!categoryState.boardId) return 'Select a board.';
+      if (!categoryState.groupByColumnId) return 'Select a column to group by.';
+    } else {
+      if (!tsState.boardId) return 'Select a board.';
+      if (!tsState.xAxisColumnId) return 'Select an X axis column.';
+      if (tsState.yAxisAggregation !== 'COUNT' && !tsState.yAxisColumnId) return 'Select a Y axis column.';
     }
     return null;
+  };
+
+  const buildConfig = (): MetricConfig | CategoryConfig | TimeSeriesConfig => {
+    if (mode === 'metric') {
+      const cfg: MetricConfig = {
+        type: 'metric',
+        metrics: metricState.metrics.map(({ _key: _k, ...m }) => m),
+      };
+      if (metricState.timeAxisColumnId) cfg.timeAxisColumnId = metricState.timeAxisColumnId;
+      return cfg;
+    }
+    if (mode === 'category') {
+      const cfg: CategoryConfig = {
+        type: 'category',
+        boardId: categoryState.boardId,
+        groupByColumnId: categoryState.groupByColumnId,
+      };
+      if (categoryState.groupId) cfg.groupId = categoryState.groupId;
+      if (categoryState.timeAxisColumnId) cfg.timeAxisColumnId = categoryState.timeAxisColumnId;
+      return cfg;
+    }
+    // timeseries
+    const cfg: TimeSeriesConfig = {
+      type: 'timeseries',
+      boardId: tsState.boardId,
+      xAxisColumnId: tsState.xAxisColumnId,
+      xAxisGrouping: tsState.xAxisGrouping,
+      yAxisAggregation: tsState.yAxisAggregation,
+    };
+    if (tsState.groupId) cfg.groupId = tsState.groupId;
+    if (tsState.yAxisAggregation !== 'COUNT' && tsState.yAxisColumnId) cfg.yAxisColumnId = tsState.yAxisColumnId;
+    return cfg;
   };
 
   const handleSave = async () => {
@@ -222,9 +567,7 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
     if (validationError) { setError(validationError); return; }
     setError(null);
 
-    const dataSources: CustomDashboardDataSource[] = rows.map(({ _key: _k, ...ds }) => ds);
-    const payload = { name: name.trim(), chartType, aggregation, dataSources, visibility };
-
+    const payload = { name: name.trim(), chartType, config: buildConfig(), visibility };
     try {
       if (isEditing) {
         await updateMutation.mutateAsync({ id: existing!.id, patch: payload });
@@ -251,12 +594,7 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
           <h2 id={headingId} className="text-lg font-semibold text-gray-800">
             {isEditing ? 'Edit Dashboard' : 'Add Custom Dashboard'}
           </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg transition-colors"
-            aria-label="Close dialog"
-          >
+          <button type="button" onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg transition-colors" aria-label="Close dialog">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
             </svg>
@@ -269,14 +607,14 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
           {/* Name */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="cd-name" className="text-sm font-medium text-gray-700">
-              Dashboard name <span aria-hidden="true" className="text-red-500">*</span>
+              Dashboard name <span className="text-red-500" aria-hidden="true">*</span>
             </label>
             <input
               id="cd-name"
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="e.g. Monthly Revenue by Team"
+              placeholder="e.g. Leads per day"
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               aria-required="true"
             />
@@ -285,31 +623,21 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
           {/* Visibility */}
           <fieldset>
             <legend className="text-sm font-medium text-gray-700 mb-2">Visibility</legend>
-            <div className="flex gap-4" role="radiogroup" aria-label="Dashboard visibility">
+            <div className="flex gap-3">
               {([
-                { value: 'admins_only' as DashboardVisibility, label: 'Admins only', description: 'Only org admins can see this dashboard' },
-                { value: 'all' as DashboardVisibility, label: 'All users', description: 'Everyone in the organization can see this' },
+                { value: 'admins_only' as DashboardVisibility, label: 'Admins only', desc: 'Only org admins can see this' },
+                { value: 'all' as DashboardVisibility, label: 'All users', desc: 'Everyone in the org can see this' },
               ] as const).map(opt => (
                 <label
                   key={opt.value}
                   className={`flex-1 flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                    visibility === opt.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                    visibility === opt.value ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <input
-                    type="radio"
-                    name="cd-visibility"
-                    value={opt.value}
-                    checked={visibility === opt.value}
-                    onChange={() => setVisibility(opt.value)}
-                    className="mt-0.5 accent-blue-600"
-                    aria-label={opt.label}
-                  />
+                  <input type="radio" name="cd-visibility" value={opt.value} checked={visibility === opt.value} onChange={() => setVisibility(opt.value)} className="mt-0.5 accent-blue-600" aria-label={opt.label} />
                   <span className="flex flex-col">
                     <span className="text-sm font-medium text-gray-800">{opt.label}</span>
-                    <span className="text-xs text-gray-500">{opt.description}</span>
+                    <span className="text-xs text-gray-500">{opt.desc}</span>
                   </span>
                 </label>
               ))}
@@ -319,25 +647,15 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
           {/* Chart type */}
           <fieldset>
             <legend className="text-sm font-medium text-gray-700 mb-2">Chart type</legend>
-            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Chart type">
+            <div className="grid grid-cols-3 gap-2">
               {CHART_OPTIONS.map(opt => (
                 <label
                   key={opt.type}
                   className={`flex items-center gap-2.5 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                    chartType === opt.type
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                    chartType === opt.type ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <input
-                    type="radio"
-                    name="cd-chartType"
-                    value={opt.type}
-                    checked={chartType === opt.type}
-                    onChange={() => setChartType(opt.type)}
-                    className="sr-only"
-                    aria-label={opt.label}
-                  />
+                  <input type="radio" name="cd-chartType" value={opt.type} checked={chartType === opt.type} onChange={() => setChartType(opt.type)} className="sr-only" aria-label={opt.label} />
                   <span className="text-xl" aria-hidden="true">{opt.icon}</span>
                   <span className="flex flex-col min-w-0">
                     <span className="text-sm font-medium text-gray-800 truncate">{opt.label}</span>
@@ -348,50 +666,21 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
             </div>
           </fieldset>
 
-          {/* Aggregation */}
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="cd-aggregation" className="text-sm font-medium text-gray-700">Aggregation function</label>
-            <select
-              id="cd-aggregation"
-              value={aggregation}
-              onChange={e => setAggregation(e.target.value as AggregationFn)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {AGGREGATION_OPTIONS.map(opt => (
-                <option key={opt.fn} value={opt.fn}>{opt.label}</option>
-              ))}
-            </select>
+          {/* Mode-specific form */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-3">
+              {mode === 'metric' ? 'Metrics' : mode === 'category' ? 'Data source' : 'Data source'}
+            </h3>
+            {mode === 'metric' && (
+              <MetricForm state={metricState} onChange={setMetricState} showTimeAxis />
+            )}
+            {mode === 'category' && (
+              <CategoryForm state={categoryState} onChange={setCategoryState} />
+            )}
+            {mode === 'timeseries' && (
+              <TimeSeriesForm state={tsState} onChange={setTsState} />
+            )}
           </div>
-
-          {/* Data sources */}
-          <fieldset>
-            <legend className="text-sm font-medium text-gray-700 mb-2">
-              Data sources <span className="text-gray-400 font-normal">(at least one required)</span>
-            </legend>
-            <div className="flex flex-col gap-2">
-              {rows.map((row, i) => (
-                <DataSourceRowEditor
-                  key={row._key}
-                  row={row}
-                  index={i}
-                  onChange={updated => updateRow(i, updated)}
-                  onRemove={() => removeRow(i)}
-                  canRemove={rows.length > 1}
-                />
-              ))}
-              <button
-                type="button"
-                onClick={addRow}
-                className="flex items-center gap-2 px-3 py-2 text-sm text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors self-start"
-                aria-label="Add another data source"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                Add data source
-              </button>
-            </div>
-          </fieldset>
 
           {/* Error */}
           {error && (
@@ -403,12 +692,7 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
 
         {/* Footer */}
         <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-200">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            aria-label="Cancel"
-          >
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors" aria-label="Cancel">
             Cancel
           </button>
           <button

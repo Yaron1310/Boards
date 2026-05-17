@@ -440,6 +440,8 @@ export interface DashboardSummary {
 // PHASE 8b — CUSTOM DASHBOARDS
 // =============================================================================
 
+export const ITEM_NAME_COLUMN_ID = '__item_name__';
+
 export type ChartType =
   | 'pie'
   | 'bar_vertical'
@@ -448,22 +450,50 @@ export type ChartType =
   | 'line'
   | 'number';
 
-export type AggregationFn = 'SUM' | 'COUNT' | 'AVERAGE' | 'MIN' | 'MAX';
+export type MetricAggregation = 'COUNT' | 'SUM' | 'AVERAGE' | 'MIN' | 'MAX';
+export type YAxisAggregation = 'COUNT' | 'SUM' | 'AVERAGE';
+export type TimeAxisGrouping = 'day' | 'week' | 'month';
 export type DashboardVisibility = 'admins_only' | 'all';
 
-export interface CustomDashboardDataSource {
+export interface MetricEntry {
   boardId: string;
   groupId?: string;
-  columnId: string;
+  aggregation: MetricAggregation;
+  columnId?: string;
   label: string;
 }
+
+export interface MetricConfig {
+  type: 'metric';
+  timeAxisColumnId?: string;
+  metrics: MetricEntry[];
+}
+
+export interface CategoryConfig {
+  type: 'category';
+  boardId: string;
+  groupId?: string;
+  groupByColumnId: string;
+  timeAxisColumnId?: string;
+}
+
+export interface TimeSeriesConfig {
+  type: 'timeseries';
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+}
+
+export type CustomDashboardConfig = MetricConfig | CategoryConfig | TimeSeriesConfig;
 
 export interface CustomDashboard {
   id: string;
   name: string;
   chartType: ChartType;
-  aggregation: AggregationFn;
-  dataSources: CustomDashboardDataSource[];
+  config: CustomDashboardConfig;
   visibility: DashboardVisibility;
   createdBy: string;
   createdAt: string;

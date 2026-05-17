@@ -44,7 +44,8 @@ export const queryKeys = {
   },
   customDashboards: {
     all: ['customDashboards'] as const,
-    data: (id: string) => ['customDashboards', id, 'data'] as const,
+    data: (id: string, dateFrom?: string, dateTo?: string) =>
+      ['customDashboards', id, 'data', { dateFrom, dateTo }] as const,
   },
   chat: {
     messages: (itemId: string) => ['chat', itemId, 'messages'] as const,

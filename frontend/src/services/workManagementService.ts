@@ -408,16 +408,14 @@ export const revokeGroupWebhook = (boardId: string, groupId: string): Promise<vo
 export interface CreateCustomDashboardData {
   name: string;
   chartType: CustomDashboard['chartType'];
-  aggregation: CustomDashboard['aggregation'];
-  dataSources: CustomDashboard['dataSources'];
+  config: CustomDashboard['config'];
   visibility: CustomDashboard['visibility'];
 }
 
 export interface UpdateCustomDashboardData {
   name?: string;
   chartType?: CustomDashboard['chartType'];
-  aggregation?: CustomDashboard['aggregation'];
-  dataSources?: CustomDashboard['dataSources'];
+  config?: CustomDashboard['config'];
   visibility?: CustomDashboard['visibility'];
 }
 
@@ -433,5 +431,14 @@ export const updateCustomDashboard = (id: string, patch: UpdateCustomDashboardDa
 export const deleteCustomDashboard = (id: string): Promise<null> =>
   fetchWithAuth(`/api/custom-dashboards/${id}`, { method: 'DELETE' });
 
-export const getCustomDashboardData = (id: string): Promise<CustomDashboardDataPoint[]> =>
-  fetchWithAuth(`/api/custom-dashboards/${id}/data`);
+export const getCustomDashboardData = (
+  id: string,
+  dateFrom?: string,
+  dateTo?: string,
+): Promise<CustomDashboardDataPoint[]> => {
+  const p = new URLSearchParams();
+  if (dateFrom) p.set('dateFrom', dateFrom);
+  if (dateTo) p.set('dateTo', dateTo);
+  const qs = p.toString();
+  return fetchWithAuth(`/api/custom-dashboards/${id}/data${qs ? `?${qs}` : ''}`);
+};

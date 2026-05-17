@@ -150,10 +150,12 @@ interface Props {
   onEdit: () => void;
   onDelete: () => void;
   isAdmin: boolean;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
-const CustomDashboardWidget: React.FC<Props> = ({ dashboard, onEdit, onDelete, isAdmin }) => {
-  const { data, isLoading, isError } = useCustomDashboardData(dashboard.id);
+const CustomDashboardWidget: React.FC<Props> = ({ dashboard, onEdit, onDelete, isAdmin, dateFrom, dateTo }) => {
+  const { data, isLoading, isError } = useCustomDashboardData(dashboard.id, dateFrom, dateTo);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const chartData: CustomDashboardDataPoint[] = data ?? [];

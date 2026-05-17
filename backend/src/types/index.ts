@@ -379,22 +379,55 @@ export type CustomDashboardChartType =
   | 'line'
   | 'number';
 
-export type CustomDashboardAggregation = 'SUM' | 'COUNT' | 'AVERAGE' | 'MIN' | 'MAX';
 export type CustomDashboardVisibility = 'admins_only' | 'all';
+export type MetricAggregation = 'COUNT' | 'SUM' | 'AVERAGE' | 'MIN' | 'MAX';
+export type YAxisAggregation = 'COUNT' | 'SUM' | 'AVERAGE';
+export type TimeAxisGrouping = 'day' | 'week' | 'month';
 
-export interface DBCustomDashboardDataSource {
+export const ITEM_NAME_COLUMN_ID = '__item_name__';
+
+export interface DBMetricEntry {
   boardId: string;
   groupId?: string;
-  columnId: string;
+  aggregation: MetricAggregation;
+  columnId?: string;
   label: string;
 }
+
+export interface DBMetricConfig {
+  type: 'metric';
+  timeAxisColumnId?: string;
+  metrics: DBMetricEntry[];
+}
+
+export interface DBCategoryConfig {
+  type: 'category';
+  boardId: string;
+  groupId?: string;
+  groupByColumnId: string;
+  timeAxisColumnId?: string;
+}
+
+export interface DBTimeSeriesConfig {
+  type: 'timeseries';
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+}
+
+export type DBCustomDashboardConfig =
+  | DBMetricConfig
+  | DBCategoryConfig
+  | DBTimeSeriesConfig;
 
 export interface DBCustomDashboard {
   id: string;
   name: string;
   chartType: CustomDashboardChartType;
-  aggregation: CustomDashboardAggregation;
-  dataSources: DBCustomDashboardDataSource[];
+  config: DBCustomDashboardConfig;
   visibility: CustomDashboardVisibility;
   createdBy: string;
   createdAt: admin.firestore.Timestamp | Date | any;

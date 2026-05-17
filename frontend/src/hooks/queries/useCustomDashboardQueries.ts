@@ -10,10 +10,10 @@ export const useCustomDashboards = () =>
     staleTime: Infinity,
   });
 
-export const useCustomDashboardData = (id: string) =>
+export const useCustomDashboardData = (id: string, dateFrom?: string, dateTo?: string) =>
   useQuery({
-    queryKey: queryKeys.customDashboards.data(id),
-    queryFn: () => wm.getCustomDashboardData(id),
+    queryKey: queryKeys.customDashboards.data(id, dateFrom, dateTo),
+    queryFn: () => wm.getCustomDashboardData(id, dateFrom, dateTo),
     enabled: !!id,
     staleTime: 2 * 60 * 1000,
   });

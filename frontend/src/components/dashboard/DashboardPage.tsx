@@ -221,6 +221,8 @@ const DashboardPage: React.FC = () => {
                   onEdit={() => openEdit(d)}
                   onDelete={() => deleteMutation.mutate(d.id)}
                   isAdmin={isOrgAdmin}
+                  dateFrom={filters.dueDateFrom || undefined}
+                  dateTo={filters.dueDateTo || undefined}
                 />
               </WidgetCard>
             ))}
