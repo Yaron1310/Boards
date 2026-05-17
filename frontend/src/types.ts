@@ -454,6 +454,7 @@ export type MetricAggregation = 'COUNT' | 'SUM' | 'AVERAGE' | 'MIN' | 'MAX';
 export type YAxisAggregation = 'COUNT' | 'SUM' | 'AVERAGE';
 export type TimeAxisGrouping = 'day' | 'week' | 'month';
 export type DashboardVisibility = 'admins_only' | 'all';
+export type DateFormat = 'auto' | 'dmy' | 'mdy';
 
 export interface MetricEntry {
   boardId: string;
@@ -466,6 +467,7 @@ export interface MetricEntry {
 export interface MetricConfig {
   type: 'metric';
   timeAxisColumnId?: string;
+  dateFormat?: DateFormat;
   metrics: MetricEntry[];
 }
 
@@ -475,6 +477,7 @@ export interface CategoryConfig {
   groupId?: string;
   groupByColumnId: string;
   timeAxisColumnId?: string;
+  dateFormat?: DateFormat;
 }
 
 export interface TimeSeriesConfig {
@@ -485,6 +488,7 @@ export interface TimeSeriesConfig {
   xAxisGrouping: TimeAxisGrouping;
   yAxisAggregation: YAxisAggregation;
   yAxisColumnId?: string;
+  dateFormat?: DateFormat;
 }
 
 export type CustomDashboardConfig = MetricConfig | CategoryConfig | TimeSeriesConfig;

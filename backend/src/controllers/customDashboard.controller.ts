@@ -21,6 +21,7 @@ import {
   MetricAggregation,
   YAxisAggregation,
   TimeAxisGrouping,
+  DateFormat,
   ITEM_NAME_COLUMN_ID,
 } from '../types/index.js';
 import { logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -44,6 +45,8 @@ function resolveItemValue(item: DBItem, columnId: string): unknown {
   return columnId === ITEM_NAME_COLUMN_ID ? item.name : item.values?.[columnId];
 }
 
+const VALID_DATE_FORMATS: DateFormat[] = ['auto', 'dmy', 'mdy'];
+
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === 'number') return isNaN(value) ? null : value;
@@ -51,13 +54,14 @@ function toNumber(value: unknown): number | null {
   return isNaN(n) ? null : n;
 }
 
-function toDateValue(value: unknown): Date | null {
+// Parses a date from arbitrary values including noisy strings like "17. 13/05/2026 20:55".
+// Handles Firestore Timestamps, ISO strings, and locale-formatted strings.
+// For dd/mm vs mm/dd ambiguity: uses format hint; falls back to DMY when 'auto'.
+function parseFlexibleDate(value: unknown, format: DateFormat = 'auto'): Date | null {
   if (!value) return null;
-  if (value instanceof Date) return value;
-  if (typeof value === 'string' || typeof value === 'number') {
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? null : d;
-  }
+
+  // Firestore Timestamp or plain Date object — no parsing ambiguity
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
   if (typeof value === 'object' && value !== null) {
     if ('toDate' in value && typeof (value as { toDate: unknown }).toDate === 'function') {
       return (value as { toDate(): Date }).toDate();
@@ -66,7 +70,58 @@ function toDateValue(value: unknown): Date | null {
       return new Date((value as { _seconds: number })._seconds * 1000);
     }
   }
-  return null;
+
+  const str = String(value).trim();
+  if (!str) return null;
+
+  // ISO 8601 (YYYY-MM-DD…) — always unambiguous
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  // Numeric pattern possibly embedded in noise: d/m/y, d.m.y, d-m-y
+  const numMatch = str.match(/(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2,4})/);
+  if (numMatch) {
+    const a = parseInt(numMatch[1], 10);
+    const b = parseInt(numMatch[2], 10);
+    const rawYear = parseInt(numMatch[3], 10);
+    // Require a plausible year to avoid false-positive matches (e.g. time "20:55" won't reach here anyway)
+    if (rawYear < 1900 && rawYear > 99) return null;
+    const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+
+    let day: number, month: number;
+    if (format === 'mdy') {
+      month = a; day = b;
+    } else if (format === 'dmy') {
+      day = a; month = b;
+    } else {
+      // auto: resolve when unambiguous, prefer DMY otherwise
+      if (a > 12) { day = a; month = b; }
+      else if (b > 12) { month = a; day = b; }
+      else { day = a; month = b; }
+    }
+
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const d = new Date(year, month - 1, day);
+      // Guard against JS date overflow (e.g. Feb 31 becoming Mar 2)
+      if (!isNaN(d.getTime()) && d.getDate() === day) return d;
+    }
+  }
+
+  // Text-month pattern embedded in noise: "May 12, 2026", "12 May 2026"
+  const textMatch = str.match(
+    /\b([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})\b|\b(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})\b/,
+  );
+  if (textMatch) {
+    const snippet = textMatch[0];
+    const d = new Date(snippet);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Last-resort: let JS try the whole string
+  const fallback = new Date(str);
+  return isNaN(fallback.getTime()) ? null : fallback;
 }
 
 function floorToBucket(date: Date, grouping: TimeAxisGrouping): string {
@@ -104,10 +159,11 @@ function applyDateFilter(
   columnId: string,
   dateFrom: Date | null,
   dateTo: Date | null,
+  fmt: DateFormat = 'auto',
 ): DBItem[] {
   if (!dateFrom && !dateTo) return items;
   return items.filter(item => {
-    const d = toDateValue(resolveItemValue(item, columnId));
+    const d = parseFlexibleDate(resolveItemValue(item, columnId), fmt);
     if (!d) return false;
     if (dateFrom && d < dateFrom) return false;
     if (dateTo && d > dateTo) return false;
@@ -134,6 +190,9 @@ function aggregateNumbers(values: number[], fn: MetricAggregation | YAxisAggrega
 function validateConfig(config: unknown, chartType: CustomDashboardChartType): string | null {
   if (!config || typeof config !== 'object') return 'config is required.';
   const c = config as Record<string, unknown>;
+  if (c.dateFormat !== undefined && !VALID_DATE_FORMATS.includes(c.dateFormat as DateFormat)) {
+    return 'Invalid dateFormat.';
+  }
   if (chartType === 'line') {
     if (c.type !== 'timeseries') return 'Line chart requires config.type = "timeseries".';
     if (!c.boardId || typeof c.boardId !== 'string') return 'timeseries config requires boardId.';
@@ -145,7 +204,6 @@ function validateConfig(config: unknown, chartType: CustomDashboardChartType): s
     if (!c.boardId || typeof c.boardId !== 'string') return 'category config requires boardId.';
     if (!c.groupByColumnId || typeof c.groupByColumnId !== 'string') return 'category config requires groupByColumnId.';
   } else {
-    // number, radar
     if (c.type !== 'metric') return 'Number/radar charts require config.type = "metric".';
     const metrics = c.metrics as unknown[];
     if (!Array.isArray(metrics) || metrics.length === 0) return 'metric config requires at least one metric.';
@@ -170,6 +228,7 @@ function sanitizeConfig(config: Record<string, unknown>, chartType: CustomDashbo
     };
     if (c.groupId && typeof c.groupId === 'string') ts.groupId = c.groupId;
     if (c.yAxisColumnId && typeof c.yAxisColumnId === 'string') ts.yAxisColumnId = c.yAxisColumnId;
+    if (c.dateFormat && VALID_DATE_FORMATS.includes(c.dateFormat as DateFormat)) ts.dateFormat = c.dateFormat as DateFormat;
     return ts;
   }
   if (chartType === 'pie' || chartType === 'bar_vertical' || chartType === 'bar_horizontal') {
@@ -181,6 +240,7 @@ function sanitizeConfig(config: Record<string, unknown>, chartType: CustomDashbo
     };
     if (c.groupId && typeof c.groupId === 'string') cat.groupId = c.groupId;
     if (c.timeAxisColumnId && typeof c.timeAxisColumnId === 'string') cat.timeAxisColumnId = c.timeAxisColumnId;
+    if (c.dateFormat && VALID_DATE_FORMATS.includes(c.dateFormat as DateFormat)) cat.dateFormat = c.dateFormat as DateFormat;
     return cat;
   }
   // metric (number, radar)
@@ -197,6 +257,7 @@ function sanitizeConfig(config: Record<string, unknown>, chartType: CustomDashbo
   });
   const mc: DBMetricConfig = { type: 'metric', metrics };
   if (c.timeAxisColumnId && typeof c.timeAxisColumnId === 'string') mc.timeAxisColumnId = c.timeAxisColumnId;
+  if (c.dateFormat && VALID_DATE_FORMATS.includes(c.dateFormat as DateFormat)) mc.dateFormat = c.dateFormat as DateFormat;
   return mc;
 }
 
@@ -365,7 +426,7 @@ async function computeMetric(
     config.metrics.map(async m => {
       let items = await fetchItems(orgId, m.boardId, m.groupId);
       if (config.timeAxisColumnId) {
-        items = applyDateFilter(items, config.timeAxisColumnId, dateFrom, dateTo);
+        items = applyDateFilter(items, config.timeAxisColumnId, dateFrom, dateTo, config.dateFormat);
       }
       let value: number;
       if (m.aggregation === 'COUNT') {
@@ -389,7 +450,7 @@ async function computeCategory(
 ): Promise<{ label: string; value: number }[]> {
   let items = await fetchItems(orgId, config.boardId, config.groupId);
   if (config.timeAxisColumnId) {
-    items = applyDateFilter(items, config.timeAxisColumnId, dateFrom, dateTo);
+    items = applyDateFilter(items, config.timeAxisColumnId, dateFrom, dateTo, config.dateFormat);
   }
 
   // Build label resolver for STATUS / DROPDOWN columns
@@ -453,14 +514,14 @@ async function computeTimeSeries(
 
   // Always filter by x axis column range if dates provided
   if (dateFrom || dateTo) {
-    items = applyDateFilter(items, config.xAxisColumnId, dateFrom, dateTo);
+    items = applyDateFilter(items, config.xAxisColumnId, dateFrom, dateTo, config.dateFormat);
   }
 
   const buckets = new Map<string, number[]>();
 
   for (const item of items) {
     const raw = resolveItemValue(item, config.xAxisColumnId);
-    const d = toDateValue(raw);
+    const d = parseFlexibleDate(raw, config.dateFormat);
     if (!d) continue;
     const key = floorToBucket(d, config.xAxisGrouping);
 
@@ -492,8 +553,9 @@ export const getCustomDashboardData = async (req: Request, res: Response) => {
   const { id } = req.params;
   const { dateFrom: rawFrom, dateTo: rawTo } = req.query;
 
-  const dateFrom = rawFrom && typeof rawFrom === 'string' ? toDateValue(rawFrom) : null;
-  const dateTo = rawTo && typeof rawTo === 'string' ? toDateValue(rawTo) : null;
+  // Query params are always ISO strings from the frontend date inputs — use auto detection
+  const dateFrom = rawFrom && typeof rawFrom === 'string' ? parseFlexibleDate(rawFrom) : null;
+  const dateTo = rawTo && typeof rawTo === 'string' ? parseFlexibleDate(rawTo) : null;
 
   try {
     const dashSnap = await customDashboardsCollection(user.orgId).doc(id).get();

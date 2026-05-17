@@ -383,6 +383,7 @@ export type CustomDashboardVisibility = 'admins_only' | 'all';
 export type MetricAggregation = 'COUNT' | 'SUM' | 'AVERAGE' | 'MIN' | 'MAX';
 export type YAxisAggregation = 'COUNT' | 'SUM' | 'AVERAGE';
 export type TimeAxisGrouping = 'day' | 'week' | 'month';
+export type DateFormat = 'auto' | 'dmy' | 'mdy';
 
 export const ITEM_NAME_COLUMN_ID = '__item_name__';
 
@@ -397,6 +398,7 @@ export interface DBMetricEntry {
 export interface DBMetricConfig {
   type: 'metric';
   timeAxisColumnId?: string;
+  dateFormat?: DateFormat;
   metrics: DBMetricEntry[];
 }
 
@@ -406,6 +408,7 @@ export interface DBCategoryConfig {
   groupId?: string;
   groupByColumnId: string;
   timeAxisColumnId?: string;
+  dateFormat?: DateFormat;
 }
 
 export interface DBTimeSeriesConfig {
@@ -416,6 +419,7 @@ export interface DBTimeSeriesConfig {
   xAxisGrouping: TimeAxisGrouping;
   yAxisAggregation: YAxisAggregation;
   yAxisColumnId?: string;
+  dateFormat?: DateFormat;
 }
 
 export type DBCustomDashboardConfig =

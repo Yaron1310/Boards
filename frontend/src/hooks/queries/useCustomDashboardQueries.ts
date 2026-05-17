@@ -7,7 +7,7 @@ export const useCustomDashboards = () =>
   useQuery({
     queryKey: queryKeys.customDashboards.all,
     queryFn: wm.listCustomDashboards,
-    staleTime: Infinity,
+    staleTime: 0,
   });
 
 export const useCustomDashboardData = (id: string, dateFrom?: string, dateTo?: string) =>
@@ -15,7 +15,7 @@ export const useCustomDashboardData = (id: string, dateFrom?: string, dateTo?: s
     queryKey: queryKeys.customDashboards.data(id, dateFrom, dateTo),
     queryFn: () => wm.getCustomDashboardData(id, dateFrom, dateTo),
     enabled: !!id,
-    staleTime: 2 * 60 * 1000,
+    staleTime: 0,
   });
 
 export const useCreateCustomDashboard = () => {

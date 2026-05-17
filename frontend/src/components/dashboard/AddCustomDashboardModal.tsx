@@ -12,6 +12,7 @@ import type {
   YAxisAggregation,
   TimeAxisGrouping,
   DashboardVisibility,
+  DateFormat,
   CustomDashboard,
   MetricConfig,
   CategoryConfig,
@@ -51,6 +52,12 @@ const GROUPING_OPTIONS: { value: TimeAxisGrouping; label: string }[] = [
   { value: 'day',   label: 'Day' },
   { value: 'week',  label: 'Week' },
   { value: 'month', label: 'Month' },
+];
+
+const DATE_FORMAT_OPTIONS: { value: DateFormat; label: string; desc: string }[] = [
+  { value: 'auto', label: 'Auto-detect',   desc: 'Infers dd/mm vs mm/dd from context; prefers dd/mm when ambiguous' },
+  { value: 'dmy',  label: 'DD/MM/YYYY',    desc: 'Day first (European)' },
+  { value: 'mdy',  label: 'MM/DD/YYYY',    desc: 'Month first (US)' },
 ];
 
 function configModeFor(ct: ChartType): 'metric' | 'category' | 'timeseries' {
@@ -144,6 +151,28 @@ const ColumnSelect: React.FC<{
     </select>
   );
 };
+
+const DateFormatSelect: React.FC<{
+  id: string;
+  value: DateFormat;
+  onChange: (v: DateFormat) => void;
+}> = ({ id, value, onChange }) => (
+  <div className="flex flex-col gap-1">
+    <SelectLabel htmlFor={id} label="Date format" />
+    <p className="text-xs text-gray-400">How to interpret ambiguous dates (e.g. 05/06/2026).</p>
+    <select
+      id={id}
+      value={value}
+      onChange={e => onChange(e.target.value as DateFormat)}
+      className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+      aria-label="Date format"
+    >
+      {DATE_FORMAT_OPTIONS.map(o => (
+        <option key={o.value} value={o.value}>{o.label} — {o.desc}</option>
+      ))}
+    </select>
+  </div>
+);
 
 // ---------------------------------------------------------------------------
 // Mode A: Metric form (Number / Radar)
@@ -243,6 +272,7 @@ const MetricRowEditor: React.FC<{
 interface MetricFormState {
   metrics: MetricEntryDraft[];
   timeAxisColumnId: string;
+  dateFormat: DateFormat;
 }
 
 const MetricForm: React.FC<{
@@ -283,16 +313,25 @@ const MetricForm: React.FC<{
         Add metric
       </button>
       {showTimeAxis && (
-        <div className="flex flex-col gap-1 pt-2 border-t border-gray-100">
-          <SelectLabel htmlFor="metric-time-axis" label="Date filter column (optional)" />
-          <p className="text-xs text-gray-400 mb-1">When set, the page date range filter will scope this dashboard.</p>
-          <ColumnSelect
-            id="metric-time-axis"
-            value={state.timeAxisColumnId}
-            onChange={v => onChange({ ...state, timeAxisColumnId: v })}
-            boardId={firstBoardId}
-            placeholder="None (date filter won't apply)"
-          />
+        <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+          <div className="flex flex-col gap-1">
+            <SelectLabel htmlFor="metric-time-axis" label="Date filter column (optional)" />
+            <p className="text-xs text-gray-400 mb-1">When set, the page date range filter will scope this dashboard.</p>
+            <ColumnSelect
+              id="metric-time-axis"
+              value={state.timeAxisColumnId}
+              onChange={v => onChange({ ...state, timeAxisColumnId: v })}
+              boardId={firstBoardId}
+              placeholder="None (date filter won't apply)"
+            />
+          </div>
+          {state.timeAxisColumnId && (
+            <DateFormatSelect
+              id="metric-date-format"
+              value={state.dateFormat}
+              onChange={v => onChange({ ...state, dateFormat: v })}
+            />
+          )}
         </div>
       )}
     </div>
@@ -308,6 +347,7 @@ interface CategoryFormState {
   groupId: string;
   groupByColumnId: string;
   timeAxisColumnId: string;
+  dateFormat: DateFormat;
 }
 
 const CategoryForm: React.FC<{
@@ -341,16 +381,25 @@ const CategoryForm: React.FC<{
           required
         />
       </div>
-      <div className="flex flex-col gap-1 pt-2 border-t border-gray-100">
-        <SelectLabel htmlFor="cat-time-axis" label="Date filter column (optional)" />
-        <p className="text-xs text-gray-400 mb-1">When set, the page date range filter will scope this dashboard.</p>
-        <ColumnSelect
-          id="cat-time-axis"
-          value={state.timeAxisColumnId}
-          onChange={v => onChange({ ...state, timeAxisColumnId: v })}
-          boardId={state.boardId}
-          placeholder="None (date filter won't apply)"
-        />
+      <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
+        <div className="flex flex-col gap-1">
+          <SelectLabel htmlFor="cat-time-axis" label="Date filter column (optional)" />
+          <p className="text-xs text-gray-400 mb-1">When set, the page date range filter will scope this dashboard.</p>
+          <ColumnSelect
+            id="cat-time-axis"
+            value={state.timeAxisColumnId}
+            onChange={v => onChange({ ...state, timeAxisColumnId: v })}
+            boardId={state.boardId}
+            placeholder="None (date filter won't apply)"
+          />
+        </div>
+        {state.timeAxisColumnId && (
+          <DateFormatSelect
+            id="cat-date-format"
+            value={state.dateFormat}
+            onChange={v => onChange({ ...state, dateFormat: v })}
+          />
+        )}
       </div>
     </div>
   );
@@ -367,6 +416,7 @@ interface TimeSeriesFormState {
   xAxisGrouping: TimeAxisGrouping;
   yAxisAggregation: YAxisAggregation;
   yAxisColumnId: string;
+  dateFormat: DateFormat;
 }
 
 const TimeSeriesForm: React.FC<{
@@ -439,6 +489,11 @@ const TimeSeriesForm: React.FC<{
           </div>
         )}
       </div>
+      <DateFormatSelect
+        id="ts-date-format"
+        value={state.dateFormat}
+        onChange={v => onChange({ ...state, dateFormat: v })}
+      />
     </div>
   );
 };
@@ -452,9 +507,10 @@ function initMetricState(existing?: CustomDashboard): MetricFormState {
     return {
       metrics: existing.config.metrics.map(m => ({ ...m, _key: makeKey() })),
       timeAxisColumnId: existing.config.timeAxisColumnId ?? '',
+      dateFormat: existing.config.dateFormat ?? 'auto',
     };
   }
-  return { metrics: [emptyMetricEntry()], timeAxisColumnId: '' };
+  return { metrics: [emptyMetricEntry()], timeAxisColumnId: '', dateFormat: 'auto' };
 }
 
 function initCategoryState(existing?: CustomDashboard): CategoryFormState {
@@ -464,9 +520,10 @@ function initCategoryState(existing?: CustomDashboard): CategoryFormState {
       groupId: existing.config.groupId ?? '',
       groupByColumnId: existing.config.groupByColumnId,
       timeAxisColumnId: existing.config.timeAxisColumnId ?? '',
+      dateFormat: existing.config.dateFormat ?? 'auto',
     };
   }
-  return { boardId: '', groupId: '', groupByColumnId: '', timeAxisColumnId: '' };
+  return { boardId: '', groupId: '', groupByColumnId: '', timeAxisColumnId: '', dateFormat: 'auto' };
 }
 
 function initTimeSeriesState(existing?: CustomDashboard): TimeSeriesFormState {
@@ -478,9 +535,10 @@ function initTimeSeriesState(existing?: CustomDashboard): TimeSeriesFormState {
       xAxisGrouping: existing.config.xAxisGrouping,
       yAxisAggregation: existing.config.yAxisAggregation,
       yAxisColumnId: existing.config.yAxisColumnId ?? '',
+      dateFormat: existing.config.dateFormat ?? 'auto',
     };
   }
-  return { boardId: '', groupId: '', xAxisColumnId: '', xAxisGrouping: 'day', yAxisAggregation: 'COUNT', yAxisColumnId: '' };
+  return { boardId: '', groupId: '', xAxisColumnId: '', xAxisGrouping: 'day', yAxisAggregation: 'COUNT', yAxisColumnId: '', dateFormat: 'auto' };
 }
 
 // ---------------------------------------------------------------------------
@@ -536,7 +594,10 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
         type: 'metric',
         metrics: metricState.metrics.map(({ _key: _k, ...m }) => m),
       };
-      if (metricState.timeAxisColumnId) cfg.timeAxisColumnId = metricState.timeAxisColumnId;
+      if (metricState.timeAxisColumnId) {
+        cfg.timeAxisColumnId = metricState.timeAxisColumnId;
+        cfg.dateFormat = metricState.dateFormat;
+      }
       return cfg;
     }
     if (mode === 'category') {
@@ -546,7 +607,10 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
         groupByColumnId: categoryState.groupByColumnId,
       };
       if (categoryState.groupId) cfg.groupId = categoryState.groupId;
-      if (categoryState.timeAxisColumnId) cfg.timeAxisColumnId = categoryState.timeAxisColumnId;
+      if (categoryState.timeAxisColumnId) {
+        cfg.timeAxisColumnId = categoryState.timeAxisColumnId;
+        cfg.dateFormat = categoryState.dateFormat;
+      }
       return cfg;
     }
     // timeseries
@@ -556,6 +620,7 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
       xAxisColumnId: tsState.xAxisColumnId,
       xAxisGrouping: tsState.xAxisGrouping,
       yAxisAggregation: tsState.yAxisAggregation,
+      dateFormat: tsState.dateFormat,
     };
     if (tsState.groupId) cfg.groupId = tsState.groupId;
     if (tsState.yAxisAggregation !== 'COUNT' && tsState.yAxisColumnId) cfg.yAxisColumnId = tsState.yAxisColumnId;
