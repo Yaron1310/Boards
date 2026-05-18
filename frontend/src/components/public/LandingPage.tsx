@@ -16,14 +16,14 @@ const LandingPage: React.FC = () => {
           
           {/* Left Column: Content */}
           <div className="text-center animate-fade-in-up">
-            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight">
-              <span className="text-gray-900">The exact tool</span><span style={{ color: '#f5c027' }}>.</span>
+            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              <span className="text-gray-900">The exact tool</span>
               <br />
-              <span style={{ color: '#2d6fe8' }}>for the job</span>
+              <span style={{ color: '#2d6fe8' }}>for the job</span><span style={{ color: '#f5c027' }}>.</span>
             </h1>
 
             <p className="mt-6 text-lg text-gray-600">
-              From custom software to smart automation, Logyx designs and builds precise, purpose-built solutions that fit your workflow — so you get the most efficient, time-saving tool for the mission.
+              Logyx is a smart work management platform — build custom boards, track every task, and keep your team moving in one organized workspace.
             </p>
 
             <ul className="mt-6 space-y-3 inline-block text-left mx-auto">
