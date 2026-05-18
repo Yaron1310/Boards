@@ -16,16 +16,14 @@ const LandingPage: React.FC = () => {
           
           {/* Left Column: Content */}
           <div className="text-center animate-fade-in-up">
-            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 leading-tight">
-              {t('landing.headline')}
+            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight leading-tight">
+              <span className="text-gray-900">The exact tool</span><span style={{ color: '#f5c027' }}>.</span>
               <br />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
-                {t('landing.headlineHighlight')}
-              </span>
+              <span style={{ color: '#2d6fe8' }}>for the job</span>
             </h1>
 
             <p className="mt-6 text-lg text-gray-600">
-              {t('landing.createCoursesIntro')}
+              From custom software to smart automation, Logyx designs and builds precise, purpose-built solutions that fit your workflow — so you get the most efficient, time-saving tool for the mission.
             </p>
 
             <ul className="mt-6 space-y-3 inline-block text-left mx-auto">
@@ -64,7 +62,7 @@ const LandingPage: React.FC = () => {
                 to="/register"
                 className="w-full sm:w-auto bg-gray-900 text-white font-semibold py-3 px-6 rounded-full inline-flex items-center justify-center gap-2 hover:bg-gray-700 transition-transform transform hover:-translate-y-0.5 shadow-lg"
               >
-                {t('landing.createCourse')} <span className="font-bold text-lg">&raquo;</span>
+                Sign Up <span className="font-bold text-lg">&raquo;</span>
               </Link>
               <span className="text-gray-400 font-medium">{t('common.or')}</span>
               <Link
@@ -82,9 +80,6 @@ const LandingPage: React.FC = () => {
           {/* Right Column: Branding */}
           <div className="flex flex-col items-center justify-center animate-fade-in">
             <img src="/logo_gym.webp" alt={t('common.appLogoAlt')} className="w-80 h-auto" />
-            <p className="mt-2 text-xl text-gray-700 font-medium tracking-widest">
-              {t('landing.tagline')}
-            </p>
           </div>
 
         </div>
