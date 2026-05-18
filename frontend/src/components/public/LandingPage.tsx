@@ -23,7 +23,7 @@ const LandingPage: React.FC = () => {
             </h1>
 
             <p className="mt-6 text-lg text-gray-600">
-              Logyx is a smart work management platform — build custom boards, track every task, and keep your team moving in one organized workhub.
+              Boards is a smart project management platform - Get things done with custom boards, track every task, control all data with custom dashboards and keep your team moving in one organized workhub.
             </p>
 
             <ul className="mt-6 space-y-3 inline-block text-left mx-auto">
