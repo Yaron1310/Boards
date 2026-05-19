@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
 import { useData } from '../../hooks/useData';
 import type { Workspace, PreApprovedUser } from '../../types'; 
-import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader } from 'react-icons/fi';
+import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 
 interface PreApproveUsersModalProps {
@@ -27,6 +27,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
         isLoading,
     } = useData(); 
 
+    const [permissions, setPermissions] = useState<'edit' | 'read_only'>('edit');
     const [feedback, setFeedback] = useState<{type: 'success' | 'error', text: string} | null>(null);
     useEffect(() => {
     if (feedback) {
@@ -64,6 +65,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
         setIsUploading(false);
         setUserToRevoke(null);
         setIsRevoking(false);
+        setPermissions('edit');
     }, [isOpen, clearDataError]);
 
     const orgPreApprovedUsers = useMemo(() => {
@@ -102,7 +104,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
         setFeedback(null);
 
         try {
-            const result = await preApproveUsersInBulk([manualEmail.trim()], workspace.id);
+            const result = await preApproveUsersInBulk([manualEmail.trim()], workspace.id, permissions);
             if (result) {
                 setFeedback({ type: 'success', text: result.message });
                 setManualEmail('');
@@ -137,7 +139,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                 throw new Error(`Your plan has ${availableSlots} available slot(s), but you are trying to invite ${emails.length} users.`);
             }
 
-            const result = await preApproveUsersInBulk(emails, workspace.id);
+            const result = await preApproveUsersInBulk(emails, workspace.id, permissions);
             if (result) {
                 setFeedback({ type: 'success', text: result.message });
                 setUploadFile(null);
@@ -226,6 +228,21 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                                 </button>
                             </div>
                             
+                            <fieldset className="mb-2">
+                                <legend className="text-sm font-medium text-gray-700 mb-2">Permissions</legend>
+                                <div className="flex gap-3">
+                                    {(['edit', 'read_only'] as const).map(p => (
+                                        <label key={p} className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                            <input type="radio" name="perm" value={p} checked={permissions === p} onChange={() => setPermissions(p)} className="accent-blue-600" aria-label={p === 'edit' ? 'Edit' : 'Read only'} />
+                                            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+                                                {p === 'edit' ? <FiEdit2 size={14} aria-hidden="true" /> : <FiLock size={14} aria-hidden="true" />}
+                                                {p === 'edit' ? 'Edit' : 'Read only'}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </fieldset>
+
                             <div className="relative flex items-center my-4"><div className="flex-grow border-t border-gray-300"></div><span className="flex-shrink mx-4 text-gray-500 text-sm">OR</span><div className="flex-grow border-t border-gray-300"></div></div>
 
                             <label htmlFor="manual-email-input" className="block text-sm font-medium text-gray-700 mb-1">{t('admin.addSingleEmail')}</label>

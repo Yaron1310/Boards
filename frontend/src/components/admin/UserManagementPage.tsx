@@ -8,6 +8,7 @@ import type { User } from '../../types';
 import { UserRole } from '../../types';
 import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
+import InviteUsersOrgModal from './InviteUsersOrgModal';
 import TutorialSection from '../common/TutorialSection';
 import OrganizationAdminsModal from './AcademyAdminsModal';
 import { useUsersInfiniteQuery } from '../../hooks/queries/useUserQueries';
@@ -47,6 +48,7 @@ const UserManagementPage: React.FC = () => {
 
   const [showPreApproveModal, setShowPreApproveModal] = useState(false);
   const [showOrganizationAdminsModal, setShowOrganizationAdminsModal] = useState(false);
+  const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
 
   const [feedback, setFeedback] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
@@ -206,6 +208,15 @@ const UserManagementPage: React.FC = () => {
                         title="Pre-approve new users for your workspace"
                         >
                         <FiUserPlus className="mr-2" /> {t('admin.preApproveUsers')}
+                        </button>
+                    )}
+                    {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                        <button
+                        onClick={() => setShowInviteUsersModal(true)}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
+                        aria-label="Invite users to the organization"
+                        >
+                        <FiUserPlus className="mr-2" /> Invite Users
                         </button>
                     )}
                     {authUser.role === UserRole.ORGANIZATION_ADMIN && (
@@ -388,6 +399,12 @@ const UserManagementPage: React.FC = () => {
             onActionSuccess={() => {}}
         />
       )}
+
+      <InviteUsersOrgModal
+        isOpen={showInviteUsersModal}
+        onClose={() => setShowInviteUsersModal(false)}
+        workspaces={workspaces.filter(w => !w.isPersonal)}
+      />
 
     </div>
   );

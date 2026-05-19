@@ -64,7 +64,8 @@ interface DataContextType {
   deleteUser: (userId: string, deletionType: 'soft' | 'hard') => Promise<boolean>;
 
   preApprovedUsers: PreApprovedUser[];
-  preApproveUsersInBulk: (emails: string[], workspaceId: string) => Promise<{successCount: number} | null>;
+  preApproveUsersInBulk: (emails: string[], workspaceId: string, permissions?: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
+  inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
   revokePreApprovedUser: (preApprovedUserId: string) => Promise<boolean>;
 
   organizationSettings: OrganizationSettings | null;
@@ -317,9 +318,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
     return success === null;
   };
-  const preApproveUsersInBulk = async (emails: string[], workspaceId: string) => {
+  const preApproveUsersInBulk = async (emails: string[], workspaceId: string, permissions: 'edit' | 'read_only' = 'edit') => {
     const { preApproveUsersInBulk: preApproveApi } = await api();
-    return handleApiCall(() => preApproveApi(emails, workspaceId), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
+    return handleApiCall(() => preApproveApi(emails, workspaceId, permissions), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
+  };
+  const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => {
+    const { inviteUsersToOrg: inviteApi } = await api();
+    return handleApiCall(() => inviteApi(orgId, email, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to invite user.');
   };
   const revokePreApprovedUser = async (preApprovedUserId: string) => {
     const { deletePreApprovedUserFromBackend } = await api();
@@ -380,7 +385,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       organizations, fetchAcademies, addOrganization, updateOrganization, deleteOrganization, addOrganizationAdmin, removeOrganizationAdmin,
       workspaces, archivedWorkspaces, fetchWorkspaces, fetchArchivedWorkspaces, addWorkspace, updateWorkspace, deleteWorkspace, confirmArchiveWorkspace, restoreWorkspace, addWorkspaceManager, removeWorkspaceManager, removeUserFromWorkspace,
       users, fetchUsers, deleteUser,
-      preApprovedUsers, preApproveUsersInBulk, revokePreApprovedUser,
+      preApprovedUsers, preApproveUsersInBulk, inviteUsersToOrg, revokePreApprovedUser,
       organizationSettings, updateOrganizationSettings, setOrganizationSettingsLocal, regenerateApiKey,
       systemSettings, fetchSystemSettings, updateSystemSettings,
       tutorialSettings, fetchTutorialSettings, updateTutorialSettings,
