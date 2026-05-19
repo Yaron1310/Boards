@@ -7,7 +7,7 @@ import { UserRole } from '../../types';
 import ThemeSettingsPage from './ThemeSettingsPage';
 import OrganizationProfileEditModal from './AcademyProfileEditModal';
 import OrganizationAdminsModal from './AcademyAdminsModal';
-import { FiBriefcase, FiShield, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import { FiBriefcase, FiShield, FiCheckCircle, FiAlertCircle, FiSliders } from 'react-icons/fi';
 
 const OrganizationHubPage: React.FC = () => {
   const { t } = useTranslation();
@@ -255,7 +255,7 @@ const OrganizationHubPage: React.FC = () => {
               onClick={handleThemeToggle}
               className="w-full flex justify-between items-center p-6 text-left focus:outline-none"
             >
-              <h2 className="text-2xl font-semibold text-gray-700 flex items-center"><FiBriefcase className="mr-3 text-indigo-500" aria-hidden="true" /> {t('admin.organizationHub.themeSettings')}</h2>
+              <h2 className="text-2xl font-semibold text-gray-700 flex items-center"><FiSliders className="mr-3 text-indigo-500" aria-hidden="true" /> {t('admin.organizationHub.themeSettings')}</h2>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 className={`h-6 w-6 transform transition-transform duration-200 ${isThemeOpen ? 'rotate-180' : ''}`}
