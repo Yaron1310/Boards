@@ -170,96 +170,74 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
             <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                     <div className="p-6 border-b flex justify-between items-center">
-                        <h2 className="text-xl font-bold text-gray-800">{t('admin.preApproveUsersFor', { name: workspace.name })}</h2>
-                        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200"><FiXCircle size={24}/></button>
+                        <h2 className="text-xl font-bold text-gray-800">Invite Users — {workspace.name}</h2>
+                        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200" aria-label="Close"><FiXCircle size={24}/></button>
                     </div>
                     <div className="p-6 flex-grow overflow-y-auto custom-scrollbar space-y-6">
                         {feedback && (
-                            <div id={feedback.type === 'error' ? 'preapprove-feedback-error' : undefined} role={feedback.type === 'error' ? 'alert' : 'status'} className={`p-3 mb-4 rounded-md flex items-center text-sm ${feedback.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            <div id={feedback.type === 'error' ? 'preapprove-feedback-error' : undefined} role={feedback.type === 'error' ? 'alert' : 'status'} className={`p-3 rounded-md flex items-center text-sm ${feedback.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
                                 {feedback.type === 'success' ? <FiSuccessCircle className="mr-2"/> : <FiErrorCircle className="mr-2"/>}
                                 {feedback.text}
                                 <button onClick={() => setFeedback(null)} className="ml-auto text-lg font-semibold">&times;</button>
                             </div>
                         )}
-                        <div className="p-4 mb-4 rounded-md bg-blue-50 border border-blue-200 text-sm space-y-2">
-                             <h4 className="font-semibold text-blue-800">{t('admin.planUsage')}</h4>
-                            {maxUsers === null ? (
-                                <p className="text-blue-700">{t('admin.unlimitedUserSlots')}</p>
-                            ) : (
-                                <>
-                                    <div className="flex justify-between items-center">
-                                        <span>{t('admin.planLimit')}:</span>
-                                        <span className="font-bold">{maxUsers} {t('admin.users')}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-gray-600">
-                                        <span>- {t('admin.currentActiveUsers')}:</span>
-                                        <span>{currentRegularUsersCount}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-gray-600">
-                                        <span>- {t('admin.pendingInvitations')}:</span>
-                                        <span>{pendingInvitesCount}</span>
-                                    </div>
-                                    <div className="flex justify-between items-center border-t border-blue-200 mt-2 pt-2">
-                                        <span className="font-semibold text-blue-800">{t('admin.availableSlots')}:</span>
-                                        <span className="font-bold text-blue-800">{availableSlots}</span>
-                                    </div>
-                                </>
-                            )}
+
+                        {/* Permissions */}
+                        <fieldset>
+                            <legend className="text-sm font-medium text-gray-700 mb-2">Permissions</legend>
+                            <div className="flex gap-3">
+                                {(['edit', 'read_only'] as const).map(p => (
+                                    <label key={p} className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                                        <input type="radio" name="perm" value={p} checked={permissions === p} onChange={() => setPermissions(p)} className="accent-blue-600" aria-label={p === 'edit' ? 'Edit' : 'Read only'} />
+                                        <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+                                            {p === 'edit' ? <FiEdit2 size={14} aria-hidden="true" /> : <FiLock size={14} aria-hidden="true" />}
+                                            {p === 'edit' ? 'Edit' : 'Read only'}
+                                        </span>
+                                    </label>
+                                ))}
+                            </div>
+                        </fieldset>
+
+                        {/* Single email invite */}
+                        <div>
+                            <label htmlFor="manual-email-input" className="block text-sm font-medium text-gray-700 mb-1">{t('admin.addSingleEmail')}</label>
+                            <div className="flex flex-col sm:flex-row gap-3">
+                                <input type="email" id="manual-email-input" value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="user@example.com" aria-describedby={feedback?.type === 'error' ? 'preapprove-feedback-error' : undefined} className="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <button onClick={handleManualAdd} disabled={!manualEmail.trim() || isUploading || isLoading} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center">
+                                    {isLoading || isUploading ? <FiLoader className="animate-spin mr-2"/> : <FiUserPlus className="mr-2"/>} {t('admin.addEmail')}
+                                </button>
+                            </div>
                         </div>
 
-                        <div>
-                            <p className="text-sm text-gray-600 mb-3">{t('admin.preApproveDesc')}</p>
-                            
-                            <div className="flex flex-col sm:flex-row gap-3 mb-3">
+                        {/* Pending invitations list */}
+                        {orgPreApprovedUsers.length > 0 && (
+                            <div className="pt-4 border-t border-gray-200">
+                                <h4 className="font-semibold text-gray-700 mb-3">{t('admin.pendingPreApprovedUsers', { count: orgPreApprovedUsers.length })}</h4>
+                                <div className="max-h-48 overflow-y-auto custom-scrollbar pr-2">
+                                    <ul className="space-y-2">
+                                        {orgPreApprovedUsers.map(paUser => (
+                                            <li key={paUser.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                                <div className="text-sm text-gray-800"><p>{paUser.email}</p><p className="text-xs text-gray-500 flex items-center mt-1"><FiClock size={12} className="mr-1"/> {t('admin.addedOn')} {new Date(paUser.createdAt).toLocaleDateString()}</p></div>
+                                                <button onClick={() => handleRevokeClick(paUser)} disabled={isRevoking || isLoading} className="p-1.5 text-red-600 hover:text-red-800 rounded-full hover:bg-red-100 transition-colors" title="Revoke invitation"><FiTrash2 size={16} /></button>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Bulk invitations (moved to bottom) */}
+                        <div className="pt-4 border-t border-gray-200">
+                            <p className="text-sm font-medium text-gray-700 mb-3">Send bulk invitations</p>
+                            <div className="flex flex-col sm:flex-row gap-3">
                                 <label htmlFor="bulk-upload-input" className="flex-grow cursor-pointer inline-flex items-center justify-center px-4 py-2 text-sm border border-gray-300 bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100">
                                     <FiFile className="mr-2"/><span>{uploadFile ? uploadFile.name : t('admin.chooseXlsxFile')}</span>
                                 </label>
                                 <input type="file" id="bulk-upload-input" accept=".xlsx, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={handleFileChange} className="hidden"/>
-                                <button onClick={handleBulkUpload} disabled={!uploadFile || isUploading || isLoading || (maxUsers !== null && availableSlots <= 0)} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center">
+                                <button onClick={handleBulkUpload} disabled={!uploadFile || isUploading || isLoading} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center">
                                     {isUploading ? <FiLoader className="animate-spin mr-2"/> : <FiUploadCloud className="mr-2"/>}{isUploading ? t('common.processing') : t('admin.uploadFile')}
                                 </button>
                             </div>
-                            
-                            <fieldset className="mb-2">
-                                <legend className="text-sm font-medium text-gray-700 mb-2">Permissions</legend>
-                                <div className="flex gap-3">
-                                    {(['edit', 'read_only'] as const).map(p => (
-                                        <label key={p} className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                                            <input type="radio" name="perm" value={p} checked={permissions === p} onChange={() => setPermissions(p)} className="accent-blue-600" aria-label={p === 'edit' ? 'Edit' : 'Read only'} />
-                                            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
-                                                {p === 'edit' ? <FiEdit2 size={14} aria-hidden="true" /> : <FiLock size={14} aria-hidden="true" />}
-                                                {p === 'edit' ? 'Edit' : 'Read only'}
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </fieldset>
-
-                            <div className="relative flex items-center my-4"><div className="flex-grow border-t border-gray-300"></div><span className="flex-shrink mx-4 text-gray-500 text-sm">OR</span><div className="flex-grow border-t border-gray-300"></div></div>
-
-                            <label htmlFor="manual-email-input" className="block text-sm font-medium text-gray-700 mb-1">{t('admin.addSingleEmail')}</label>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <input type="email" id="manual-email-input" value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="user@example.com" aria-describedby={feedback?.type === 'error' ? 'preapprove-feedback-error' : undefined} className="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-200" disabled={maxUsers !== null && availableSlots <= 0}/>
-                                <button onClick={handleManualAdd} disabled={!manualEmail.trim() || isUploading || isLoading || (maxUsers !== null && availableSlots <= 0)} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center">
-                                    {isLoading || isUploading ? <FiLoader className="animate-spin mr-2"/> : <FiUserPlus className="mr-2"/>} {t('admin.addEmail')}
-                                </button>
-                            </div>
-
-                            {orgPreApprovedUsers.length > 0 && (
-                                <div className="mt-6 pt-6 border-t border-gray-200">
-                                    <h4 className="font-semibold text-gray-700 mb-3">{t('admin.pendingPreApprovedUsers', { count: orgPreApprovedUsers.length })}</h4>
-                                    <div className="max-h-48 overflow-y-auto custom-scrollbar pr-2">
-                                        <ul className="space-y-2">
-                                            {orgPreApprovedUsers.map(paUser => (
-                                                <li key={paUser.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                                                    <div className="text-sm text-gray-800"><p>{paUser.email}</p><p className="text-xs text-gray-500 flex items-center mt-1"><FiClock size={12} className="mr-1"/> {t('admin.addedOn')} {new Date(paUser.createdAt).toLocaleDateString()}</p></div>
-                                                    <button onClick={() => handleRevokeClick(paUser)} disabled={isRevoking || isLoading} className="p-1.5 text-red-600 hover:text-red-800 rounded-full hover:bg-red-100 transition-colors" title="Revoke Pre-approval"><FiTrash2 size={16} /></button>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>

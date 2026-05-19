@@ -153,7 +153,7 @@ const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEd
           <div className="pt-6 mt-6 border-t">
             <h3 className="text-md font-semibold text-gray-700">{t('admin.otherActions')}</h3>
             <div className="mt-3 flex flex-wrap gap-3">
-              <button type="button" onClick={onPreApprove} className="text-sm text-cyan-600 hover:text-cyan-800 py-2 px-3 rounded-md hover:bg-cyan-50 flex items-center transition-colors border border-cyan-200"><FiUserPlus className="mr-2" /> {t('admin.preApproveUsers')}</button>
+              <button type="button" onClick={onPreApprove} className="text-sm text-cyan-600 hover:text-cyan-800 py-2 px-3 rounded-md hover:bg-cyan-50 flex items-center transition-colors border border-cyan-200"><FiUserPlus className="mr-2" /> Invite Users</button>
               <button type="button" onClick={onManageAdmins} className="text-sm text-green-600 hover:text-green-800 py-2 px-3 rounded-md hover:bg-green-50 flex items-center transition-colors border border-green-200"><FiUsers className="mr-2" /> {t('admin.manageAdmins')}</button>
               <button type="button" onClick={onArchive} className="text-sm text-red-600 hover:text-red-800 py-2 px-3 rounded-md hover:bg-red-50 flex items-center transition-colors border border-red-200"><FiArchive className="mr-2" /> {t('admin.archiveWorkspace')}</button>
             </div>
