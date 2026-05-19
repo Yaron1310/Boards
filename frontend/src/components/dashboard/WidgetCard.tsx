@@ -2,6 +2,7 @@ import React, { useId } from 'react';
 
 interface WidgetCardProps {
   title: string;
+  titleIcon?: React.ReactNode;
   subtitle?: string;
   boardNames?: string[];
   isLoading?: boolean;
@@ -14,6 +15,7 @@ interface WidgetCardProps {
 
 const WidgetCard: React.FC<WidgetCardProps> = ({
   title,
+  titleIcon,
   subtitle,
   boardNames,
   isLoading = false,
@@ -36,9 +38,9 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
           <div className="flex items-baseline gap-2 flex-wrap">
             <h2
               id={titleId}
-              className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex-shrink-0"
+              className="text-sm font-semibold text-gray-700 uppercase tracking-wide flex-shrink-0 flex items-center gap-1.5"
             >
-              {title}
+              {titleIcon}{title}
             </h2>
             {subtitle && (
               <p className="text-xs text-gray-500">{subtitle}</p>

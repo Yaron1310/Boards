@@ -1,5 +1,5 @@
 import React, { useReducer, useState, useMemo } from 'react';
-import { FiArchive, FiEdit2, FiTrash2, FiPlusCircle, FiX, FiTrello } from 'react-icons/fi';
+import { FiArchive, FiEdit2, FiTrash2, FiPlusCircle, FiX, FiTrello, FiLock, FiEye } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useOrgSnapshot } from '../../hooks/useOrgSnapshot';
 import DashboardFilterBar, {
@@ -360,6 +360,10 @@ const DashboardPage: React.FC = () => {
                       <SortableWidget key={d.id} id={d.id}>
                         <WidgetCard
                           title={d.name}
+                          titleIcon={d.visibility === 'admins_only'
+                            ? <FiLock size={13} className="text-gray-400 flex-shrink-0" aria-label="Admins only" />
+                            : <FiEye size={13} className="text-gray-400 flex-shrink-0" aria-label="All users" />
+                          }
                           subtitle={
                             d.config.type === 'timeseries'
                               ? `By ${d.config.xAxisGrouping} · ${d.config.yAxisAggregation.toLowerCase()}`

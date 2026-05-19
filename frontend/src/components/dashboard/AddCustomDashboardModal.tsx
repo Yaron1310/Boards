@@ -21,6 +21,7 @@ import type {
   MetricEntry,
 } from '../../types';
 import { ITEM_NAME_COLUMN_ID } from '../../types';
+import { FiLock, FiEye } from 'react-icons/fi';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -1024,8 +1025,8 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
             <legend className="text-sm font-medium text-gray-700 mb-2">Visibility</legend>
             <div className="flex gap-3">
               {([
-                { value: 'admins_only' as DashboardVisibility, label: 'Admins only', desc: 'Only org admins can see this' },
-                { value: 'all' as DashboardVisibility, label: 'All users', desc: 'Everyone in the org can see this' },
+                { value: 'admins_only' as DashboardVisibility, label: 'Admins only', desc: 'Only org admins can see this', icon: <FiLock size={15} aria-hidden="true" /> },
+                { value: 'all' as DashboardVisibility, label: 'All users', desc: 'Everyone in the org can see this', icon: <FiEye size={15} aria-hidden="true" /> },
               ] as const).map(opt => (
                 <label
                   key={opt.value}
@@ -1035,7 +1036,9 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
                 >
                   <input type="radio" name="cd-visibility" value={opt.value} checked={visibility === opt.value} onChange={() => setVisibility(opt.value)} className="mt-0.5 accent-blue-600" aria-label={opt.label} />
                   <span className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-800">{opt.label}</span>
+                    <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
+                      {opt.icon}{opt.label}
+                    </span>
                     <span className="text-xs text-gray-500">{opt.desc}</span>
                   </span>
                 </label>
