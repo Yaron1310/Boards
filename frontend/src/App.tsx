@@ -29,7 +29,6 @@ const MainLayout = React.lazy(() => import('./components/layout/MainLayout'));
 const ProfilePage = React.lazy(() => import('./components/profile/ProfilePage'));
 
 // -- Workspace/org-admin chunk --
-const AdminDashboardPage = React.lazy(() => import('./components/admin/AdminDashboardPage'));
 const UserManagementPage = React.lazy(() => import('./components/admin/UserManagementPage'));
 const AcademyHubPage = React.lazy(() => import('./components/admin/AcademyHubPage'));
 const ThemeSettingsPage = React.lazy(() => import('./components/admin/ThemeSettingsPage'));
@@ -66,7 +65,6 @@ const App: React.FC = () => {
       userRole === UserRole.ORGANIZATION_ADMIN      ||
       userRole === UserRole.SYSTEM_ADMIN
     ) {
-      void import('./components/admin/AdminDashboardPage');
     }
     if (userRole === UserRole.ORGANIZATION_ADMIN) {
       void import('./components/admin/AcademyHubPage');
@@ -248,14 +246,7 @@ const App: React.FC = () => {
               }
             />
 
-            <Route
-              path="/admin"
-              element={
-                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
-                  <AdminDashboardPage />
-                </ProtectedRoute>
-              }
-            />
+            <Route path="/admin" element={<Navigate to="/dashboard" replace />} />
             <Route
               path="/admin/users"
               element={

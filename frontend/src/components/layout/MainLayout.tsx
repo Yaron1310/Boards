@@ -3,7 +3,7 @@ import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiPieChart, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
@@ -235,7 +235,6 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
     // isHebrewLanguage is used for icon alignment and RTL close-button positioning
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const systemAdminNavItems = [
-      { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} /> },
       { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiShield className={iconClassName} /> },
       { name: t('layout.tutorialsSettings'), path: '/admin/tutorials', icon: <FiVideo className={iconClassName} /> },
       { name: t('layout.emailTemplates'), path: '/admin/email-templates', icon: <FiMail className={iconClassName} /> },
@@ -767,7 +766,6 @@ const MainLayout: React.FC = () => {
   ];
 
   const adminNavItems: AdminNavItem[] = [
-     { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
      { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
   ];
 
