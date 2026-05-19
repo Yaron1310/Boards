@@ -3,7 +3,7 @@ import React, { useState, useMemo, ChangeEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
 import { useData } from '../../hooks/useData';
-import type { Workspace, PreApprovedUser } from '../../types'; 
+import type { WorkHub, PreApprovedUser } from '../../types';
 import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 
@@ -45,16 +45,10 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
     
     const availableSlots = useMemo(() => {
         if (maxUsers === null) return Infinity;
-        return Math.max(0, maxUsers - (currentRegularUsersCount + pendingInvitesCount));
+        return Math.max(0, maxUsers - ((currentRegularUsersCount ?? 0) + (pendingInvitesCount ?? 0)));
     }, [maxUsers, currentRegularUsersCount, pendingInvitesCount]);
 
 
-    useEffect(() => {
-        if (isOpen && workspace) {
-            console.log('%c[DEBUG] PreApproveUsersModal rendering', 'color: purple; font-weight: bold;', { isOpen, WorkHub });
-            console.log('%c[DEBUG] PreApproveUsersModal: Full preApprovedUsers list from context:', 'color: purple;', preApprovedUsers);
-        }
-    }, [isOpen, workspace, preApprovedUsers]);
 
     useEffect(() => {
         // Clear state when modal is opened or closed
@@ -70,9 +64,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
 
     const orgPreApprovedUsers = useMemo(() => {
         if (!workspace) return [];
-        const filtered = preApprovedUsers.filter(paUser => paUser.workspaceId === workspace.id);
-        console.log('%c[DEBUG] PreApproveUsersModal: Filtered list for this org:', 'color: purple;', { orgId: workspace.id, count: filtered.length, data: filtered });
-        return filtered;
+        return preApprovedUsers.filter(paUser => paUser.workspaceId === workspace.id);
     }, [preApprovedUsers, workspace]);
 
     const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
