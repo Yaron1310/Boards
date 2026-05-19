@@ -90,6 +90,7 @@ export interface DBMembership {
   entityType: 'workspace' | 'workspace';
   role: UserRole;
   orgId: string;
+  permissions?: 'edit' | 'read_only';
   createdAt: admin.firestore.Timestamp | Date | any;
   // Denormalized user fields for list views
   userName?: string;
@@ -106,6 +107,7 @@ export interface DBPreapprovedUser {
   workspaceId: string;
   orgId: string;
   addedBy: string;
+  permissions?: 'edit' | 'read_only';
   createdAt: admin.firestore.Timestamp | Date | any;
 }
 
@@ -123,6 +125,7 @@ export interface JwtUserPayload {
   role: UserRole;
   selectedWorkspaceId: string;
   orgId: string;
+  workspacePermissions?: 'edit' | 'read_only';
 }
 
 export interface JwtMultiOrgPayload {

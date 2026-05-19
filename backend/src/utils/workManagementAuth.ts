@@ -65,7 +65,11 @@ export function effectiveBoardRole(
     user.selectedWorkspaceId === board.workspaceId
   ) return 'full_access';
   if (board.createdBy === user.id) return BoardRole.ADMIN;
-  return member?.role ?? null;
+  const baseRole = member?.role ?? null;
+  if (user.role === UserRole.REGULAR_USER && user.workspacePermissions === 'read_only') {
+    return baseRole !== null ? BoardRole.VIEWER : null;
+  }
+  return baseRole;
 }
 
 // ---------------------------------------------------------------------------
@@ -243,6 +247,9 @@ export function canAccessItem(
     effective = 'full_access';
   } else if (user.role === UserRole.WORKSPACE_ADMIN && isWorkspaceMember) {
     effective = 'full_access';
+  } else if (user.role === UserRole.REGULAR_USER && user.workspacePermissions === 'read_only') {
+    const baseRole = member?.role ?? null;
+    effective = baseRole !== null ? BoardRole.VIEWER : null;
   } else {
     effective = member?.role ?? null;
   }

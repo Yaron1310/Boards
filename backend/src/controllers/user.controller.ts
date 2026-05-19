@@ -24,7 +24,8 @@ import { validatePasswordComplexity } from '../utils/password.js';
 import { logAudit } from '../services/audit.service.js';
 
 export const preApproveUsersInBulk = async (req: Request, res: Response) => {
-    const { emails, workspaceId } = req.body as { emails: string[], workspaceId: string };
+    const { emails, workspaceId, permissions } = req.body as { emails: string[], workspaceId: string, permissions?: 'edit' | 'read_only' };
+    const safePermissions: 'edit' | 'read_only' = permissions === 'read_only' ? 'read_only' : 'edit';
     const requestingUser = req.user as JwtUserPayload;
 
     if (!Array.isArray(emails) || emails.length === 0) {
@@ -107,6 +108,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                         entityId: targetOrgId,
                         entityType: 'workspace',
                         role: UserRole.REGULAR_USER,
+                        permissions: safePermissions,
                         orgId: orgData.orgId,
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
@@ -120,6 +122,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                     workspaceId: targetOrgId,
                     orgId: orgData.orgId,
                     addedBy: requestingUser.id,
+                    permissions: safePermissions,
                     createdAt: admin.firestore.FieldValue.serverTimestamp() as admin.firestore.Timestamp,
                 };
                 batch.set(docRef, preapprovedUserEntry);

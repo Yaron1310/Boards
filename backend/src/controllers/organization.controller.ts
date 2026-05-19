@@ -9,12 +9,14 @@ import {
     usersCollection,
     organizationSettingsCollection,
     membershipsCollection,
+    preapprovedUsersCollection,
 } from '../db/collections.js';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { DBWorkspace, DBUser, JwtVerificationPayload, UserRole, DBOrganizationSettings, DBMembership, JwtMultiOrgPayload, DBOrganization, JwtUserPayload } from '../types/index.js';
 import { env } from '../config/env.js';
-import { sendAccountVerificationEmail } from '../services/email.service.js';
+import { sendAccountVerificationEmail, sendUserInvitationEmail } from '../services/email.service.js';
 import { sanitizeText, sanitizeUrl } from '../utils/sanitizer.js';
+import { Buffer } from 'node:buffer';
 import { generateFullLoginResponse } from './auth.controller.js';
 
 

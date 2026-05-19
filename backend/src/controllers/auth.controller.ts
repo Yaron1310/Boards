@@ -211,11 +211,14 @@ export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceI
         throw new Error(`Could not determine a valid role for user ${user.id}.`);
     }
 
+    const selectedMembership = memberships.find(m => m.entityId === selectedWorkspaceId);
+    const workspacePermissions: 'edit' | 'read_only' = selectedMembership?.permissions ?? 'edit';
     const tokenPayload: JwtUserPayload = {
         id: user.id,
         role: effectiveRole,
         selectedWorkspaceId: selectedWorkspace.id,
-        orgId: orgId
+        orgId: orgId,
+        workspacePermissions,
     };
     const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '7d' });
 
@@ -430,7 +433,7 @@ export const register = async (req: Request, res: Response) => {
                 role: UserRole.REGULAR_USER,
                 orgId,
             };
-            batch.set(newMembershipRef, { ...newMembership, createdAt: admin.firestore.FieldValue.serverTimestamp() });
+            batch.set(newMembershipRef, { ...newMembership, ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}), createdAt: admin.firestore.FieldValue.serverTimestamp() });
         }
 
         await batch.commit();
@@ -875,6 +878,7 @@ export const googleCallback = async (req: Request, res: Response) => {
             entityType: 'workspace',
             role: UserRole.REGULAR_USER,
             orgId: orgOrganizationId,
+            ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
         batch.update(usersCollection.doc(dbUser.id), { status: 'active', registrationType: 'standard', emailVerified: true });
@@ -1023,6 +1027,7 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                 entityType: 'workspace',
                 role: UserRole.REGULAR_USER,
                 orgId: orgOrganizationId,
+                ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
@@ -1180,6 +1185,7 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                 entityType: 'workspace',
                 role: UserRole.REGULAR_USER,
                 orgId: msOrgOrganizationId,
+                ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
