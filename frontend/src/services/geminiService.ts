@@ -244,6 +244,9 @@ export const preApproveUsersInBulk = async (emails: string[], workspaceId: strin
 export const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
   fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ email, workspaceIds, permissions }) });
 
+export const inviteUsersToOrgBulk = async (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
+  fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ emails, workspaceIds, permissions }) });
+
 export const getPreApprovedUsersFromBackend = async (params?: { limit?: number; cursor?: string; search?: string }): Promise<PaginatedResponse<PreApprovedUser>> => {
     const query = new URLSearchParams();
     if (params?.limit) query.append('limit', String(params.limit));

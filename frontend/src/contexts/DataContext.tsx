@@ -66,6 +66,7 @@ interface DataContextType {
   preApprovedUsers: PreApprovedUser[];
   preApproveUsersInBulk: (emails: string[], workspaceId: string, permissions?: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
   inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
+  inviteUsersToOrgBulk: (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
   revokePreApprovedUser: (preApprovedUserId: string) => Promise<boolean>;
 
   organizationSettings: OrganizationSettings | null;
@@ -326,6 +327,10 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { inviteUsersToOrg: inviteApi } = await api();
     return handleApiCall(() => inviteApi(orgId, email, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to invite user.');
   };
+  const inviteUsersToOrgBulk = async (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => {
+    const { inviteUsersToOrgBulk: bulkApi } = await api();
+    return handleApiCall(() => bulkApi(orgId, emails, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to bulk invite users.');
+  };
   const revokePreApprovedUser = async (preApprovedUserId: string) => {
     const { deletePreApprovedUserFromBackend } = await api();
     const success = await handleApiCall(
@@ -385,7 +390,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       organizations, fetchAcademies, addOrganization, updateOrganization, deleteOrganization, addOrganizationAdmin, removeOrganizationAdmin,
       workspaces, archivedWorkspaces, fetchWorkspaces, fetchArchivedWorkspaces, addWorkspace, updateWorkspace, deleteWorkspace, confirmArchiveWorkspace, restoreWorkspace, addWorkspaceManager, removeWorkspaceManager, removeUserFromWorkspace,
       users, fetchUsers, deleteUser,
-      preApprovedUsers, preApproveUsersInBulk, inviteUsersToOrg, revokePreApprovedUser,
+      preApprovedUsers, preApproveUsersInBulk, inviteUsersToOrg, inviteUsersToOrgBulk, revokePreApprovedUser,
       organizationSettings, updateOrganizationSettings, setOrganizationSettingsLocal, regenerateApiKey,
       systemSettings, fetchSystemSettings, updateSystemSettings,
       tutorialSettings, fetchTutorialSettings, updateTutorialSettings,

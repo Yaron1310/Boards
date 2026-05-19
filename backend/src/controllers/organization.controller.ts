@@ -491,16 +491,21 @@ export const activateSubscription = async (req: Request, res: Response) => {
 
 export const inviteUsersToOrg = async (req: Request, res: Response) => {
     const { orgId } = req.params;
-    const { email, workspaceIds, permissions } = req.body as {
-        email: string;
+    const { email, emails, workspaceIds, permissions } = req.body as {
+        email?: string;
+        emails?: string[];
         workspaceIds: string[] | 'all';
         permissions?: 'edit' | 'read_only';
     };
     const requestingUser = req.user as JwtUserPayload;
     const safePermissions: 'edit' | 'read_only' = permissions === 'read_only' ? 'read_only' : 'edit';
 
-    if (!email || typeof email !== 'string') {
-        return res.status(400).json({ message: 'A valid email is required.' });
+    const rawEmails: string[] = Array.isArray(emails) && emails.length > 0
+        ? emails
+        : (email && typeof email === 'string' ? [email] : []);
+
+    if (rawEmails.length === 0) {
+        return res.status(400).json({ message: 'At least one valid email is required.' });
     }
 
     try {
@@ -509,8 +514,6 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
         if (requestingUser.role !== UserRole.SYSTEM_ADMIN && requestingUser.orgId !== orgId) {
             return res.status(403).json({ message: 'Forbidden.' });
         }
-
-        const sanitizedEmail = sanitizeText(email).toLowerCase().trim();
 
         let targetWorkspaceIds: string[];
         if (workspaceIds === 'all') {
@@ -530,68 +533,81 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'No valid workhubs found for this organization.' });
         }
 
-        const userSnap = await usersCollection.where('email', '==', sanitizedEmail).limit(1).get();
-        const batch = db.batch();
-        let addedToExisting = 0;
-        let preApprovedCount = 0;
-        const needsInviteEmail = userSnap.empty;
+        // Pre-fetch workspace docs once to avoid per-email lookups
+        const wsDocs = await Promise.all(targetWorkspaceIds.map(wsId => workspacesCollection.doc(wsId).get()));
+        const validWsDocs = wsDocs.filter(d => d.exists && (d.data() as DBWorkspace).orgId === orgId);
 
-        for (const wsId of targetWorkspaceIds) {
-            const wsDoc = await workspacesCollection.doc(wsId).get();
-            if (!wsDoc.exists) continue;
-            const wsData = wsDoc.data() as DBWorkspace;
-            if (wsData.orgId !== orgId) continue;
+        const orgName = organizationDoc.data()?.name || 'Logyx';
+        const registrationLink = `${env.FRONTEND_URL}/register`;
 
-            if (!userSnap.empty) {
-                const existingUser = snapshotToData<DBUser>(userSnap.docs[0])!;
-                const memberSnap = await membershipsCollection
-                    .where('userId', '==', existingUser.id)
-                    .where('entityId', '==', wsId)
-                    .limit(1).get();
-                if (memberSnap.empty) {
-                    const newMemberRef = membershipsCollection.doc();
-                    batch.set(newMemberRef, {
-                        id: newMemberRef.id,
-                        userId: existingUser.id,
-                        userName: existingUser.name,
-                        userEmail: existingUser.email,
-                        entityId: wsId,
-                        entityType: 'workspace',
-                        role: UserRole.REGULAR_USER,
-                        permissions: safePermissions,
+        let totalAdded = 0;
+        let totalPreApproved = 0;
+        let totalSkipped = 0;
+
+        for (const rawEmailEntry of rawEmails) {
+            const sanitizedEmail = sanitizeText(rawEmailEntry).toLowerCase().trim();
+            if (!sanitizedEmail || !sanitizedEmail.includes('@')) { totalSkipped++; continue; }
+
+            const userSnap = await usersCollection.where('email', '==', sanitizedEmail).limit(1).get();
+            const batch = db.batch();
+            let addedToExisting = 0;
+            let preApprovedCount = 0;
+
+            for (const wsDoc of validWsDocs) {
+                const wsId = wsDoc.id;
+                if (!userSnap.empty) {
+                    const existingUser = snapshotToData<DBUser>(userSnap.docs[0])!;
+                    const memberSnap = await membershipsCollection
+                        .where('userId', '==', existingUser.id)
+                        .where('entityId', '==', wsId)
+                        .limit(1).get();
+                    if (memberSnap.empty) {
+                        const newMemberRef = membershipsCollection.doc();
+                        batch.set(newMemberRef, {
+                            id: newMemberRef.id,
+                            userId: existingUser.id,
+                            userName: existingUser.name,
+                            userEmail: existingUser.email,
+                            entityId: wsId,
+                            entityType: 'workspace',
+                            role: UserRole.REGULAR_USER,
+                            permissions: safePermissions,
+                            orgId,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        });
+                        addedToExisting++;
+                    }
+                } else {
+                    const docId = Buffer.from(`${sanitizedEmail}_${wsId}`).toString('base64');
+                    const docRef = preapprovedUsersCollection.doc(docId);
+                    batch.set(docRef, {
+                        email: sanitizedEmail,
+                        workspaceId: wsId,
                         orgId,
+                        addedBy: requestingUser.id,
+                        permissions: safePermissions,
                         createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     });
-                    addedToExisting++;
+                    preApprovedCount++;
                 }
-            } else {
-                const docId = Buffer.from(`${sanitizedEmail}_${wsId}`).toString('base64');
-                const docRef = preapprovedUsersCollection.doc(docId);
-                batch.set(docRef, {
-                    email: sanitizedEmail,
-                    workspaceId: wsId,
-                    orgId,
-                    addedBy: requestingUser.id,
-                    permissions: safePermissions,
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-                preApprovedCount++;
             }
+
+            await batch.commit();
+
+            if (userSnap.empty && preApprovedCount > 0) {
+                await sendUserInvitationEmail(sanitizedEmail, orgName, orgName, registrationLink).catch(() => {});
+            }
+
+            totalAdded += addedToExisting;
+            totalPreApproved += preApprovedCount;
+            if (addedToExisting === 0 && preApprovedCount === 0) totalSkipped++;
         }
 
-        await batch.commit();
-
-        if (needsInviteEmail && preApprovedCount > 0) {
-            const orgName = organizationDoc.data()?.name || 'Logyx';
-            const registrationLink = `${env.FRONTEND_URL}/register`;
-            await sendUserInvitationEmail(sanitizedEmail, orgName, orgName, registrationLink).catch(() => {});
-        }
-
-        const total = addedToExisting + preApprovedCount;
-        const message = total > 0
-            ? `User invited to ${total} workhub(s) with ${safePermissions === 'read_only' ? 'read-only' : 'edit'} access.`
-            : 'User already has access to all selected workhubs.';
-        return res.status(200).json({ message, successCount: total });
+        const processedCount = rawEmails.length - totalSkipped;
+        const message = processedCount > 0
+            ? `${processedCount} user(s) invited with ${safePermissions === 'read_only' ? 'read-only' : 'edit'} access.${totalSkipped > 0 ? ` ${totalSkipped} skipped (already have access or invalid).` : ''}`
+            : 'All users already have access to the selected workhubs.';
+        return res.status(200).json({ message, successCount: processedCount });
     } catch (error) {
         logger.error(`Error inviting users to org ${orgId}:`, error);
         return res.status(500).json({ message: 'An internal server error occurred.' });
