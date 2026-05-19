@@ -360,7 +360,9 @@ const WorkspaceHomePage: React.FC = () => {
   return (
     <div className="p-6 max-w-5xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">{t('layout.workspaces')}</h1>
+        <h1 className="text-3xl font-bold text-gray-800 flex items-center">
+            <FiGrid className="mr-3 text-blue-500" aria-hidden="true" />{t('layout.workspaces')}
+          </h1>
         {isOrgAdmin && (
           <div className="flex gap-2">
             <button

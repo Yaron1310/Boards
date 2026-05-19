@@ -1,5 +1,5 @@
 import React, { useReducer, useState, useMemo } from 'react';
-import { FiArchive, FiEdit2, FiTrash2, FiPlusCircle, FiX } from 'react-icons/fi';
+import { FiArchive, FiEdit2, FiTrash2, FiPlusCircle, FiX, FiTrello } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useOrgSnapshot } from '../../hooks/useOrgSnapshot';
 import DashboardFilterBar, {
@@ -23,6 +23,21 @@ import AddCustomDashboardModal from './AddCustomDashboardModal';
 import ArchiveRestoreModal from '../admin/shared/ArchiveRestoreModal';
 import { UserRole } from '../../types';
 import type { CustomDashboard } from '../../types';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import {
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // ---------------------------------------------------------------------------
 // Filter chip
@@ -59,6 +74,33 @@ const FilterChip: React.FC<{ filter: DashboardActiveFilter; onRemove: () => void
 };
 
 // ---------------------------------------------------------------------------
+// Sortable widget wrapper
+// ---------------------------------------------------------------------------
+
+interface SortableWidgetProps {
+  id: string;
+  children: React.ReactNode;
+}
+
+const SortableWidget: React.FC<SortableWidgetProps> = ({ id, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    cursor: isDragging ? 'grabbing' : 'grab',
+    zIndex: isDragging ? 10 : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      {children}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // DashboardPage
 // ---------------------------------------------------------------------------
 
@@ -72,6 +114,7 @@ const DashboardPage: React.FC = () => {
   const [editingDashboard, setEditingDashboard] = useState<CustomDashboard | undefined>(undefined);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [dashboardOrder, setDashboardOrder] = useState<string[]>([]);
 
   const isOrgAdmin =
     user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN;
@@ -100,9 +143,6 @@ const DashboardPage: React.FC = () => {
     return map;
   }, [allBoards]);
 
-  // Board IDs used across all custom dashboards (for status filter scoping).
-  // undefined while loading so the filter falls back to org-wide boards temporarily.
-  // [] after loading if there are no custom dashboards (show no status options).
   const customDashboardBoardIds = useMemo<string[] | undefined>(() => {
     if (customDashboardsLoading) return undefined;
     const ids = new Set<string>();
@@ -116,7 +156,15 @@ const DashboardPage: React.FC = () => {
     return [...ids];
   }, [customDashboardsList, customDashboardsLoading]);
 
-  // Board names per dashboard widget
+  // Ordered list of dashboards (respects manual drag-and-drop order)
+  const orderedDashboards = useMemo(() => {
+    if (dashboardOrder.length === 0) return customDashboardsList;
+    const byId = new Map(customDashboardsList.map((d) => [d.id, d]));
+    const ordered = dashboardOrder.map((id) => byId.get(id)).filter(Boolean) as CustomDashboard[];
+    const newItems = customDashboardsList.filter((d) => !dashboardOrder.includes(d.id));
+    return [...ordered, ...newItems];
+  }, [customDashboardsList, dashboardOrder]);
+
   const getBoardNamesForDashboard = (d: CustomDashboard): string[] => {
     let ids: string[];
     if (d.config.type === 'metric') {
@@ -127,8 +175,6 @@ const DashboardPage: React.FC = () => {
     return ids.map((id) => boardNameById[id]).filter(Boolean);
   };
 
-  // Active date range for custom dashboard data.
-  // timerange filter takes priority; the single date filter acts as a "from" bound.
   const timeRangeFilter = filters.filters.find(
     (f): f is { type: 'timerange'; start: string; end: string } => f.type === 'timerange',
   );
@@ -138,7 +184,6 @@ const DashboardPage: React.FC = () => {
   const dateFrom = timeRangeFilter?.start ?? dateFilterValue;
   const dateTo = timeRangeFilter?.end;
 
-  // Action buttons for each dashboard widget (rendered in WidgetCard header)
   const buildWidgetActions = (d: CustomDashboard) => {
     if (!isOrgAdmin) return undefined;
 
@@ -146,7 +191,7 @@ const DashboardPage: React.FC = () => {
       <>
         <button
           type="button"
-          onClick={() => openEdit(d)}
+          onClick={(e) => { e.stopPropagation(); openEdit(d); }}
           className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
           aria-label={`Edit ${d.name}`}
         >
@@ -154,7 +199,7 @@ const DashboardPage: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => archiveMutation.mutate(d.id)}
+          onClick={(e) => { e.stopPropagation(); archiveMutation.mutate(d.id); }}
           className="p-1 text-gray-400 hover:text-amber-600 rounded transition-colors"
           aria-label={`Archive ${d.name}`}
         >
@@ -164,7 +209,7 @@ const DashboardPage: React.FC = () => {
           <div className="flex items-center gap-1" role="group" aria-label="Confirm delete">
             <button
               type="button"
-              onClick={() => { deleteMutation.mutate(d.id); setConfirmDeleteId(null); }}
+              onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(d.id); setConfirmDeleteId(null); }}
               className="text-xs px-2 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
               aria-label="Confirm delete"
             >
@@ -172,7 +217,7 @@ const DashboardPage: React.FC = () => {
             </button>
             <button
               type="button"
-              onClick={() => setConfirmDeleteId(null)}
+              onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
               className="text-xs px-2 py-0.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
               aria-label="Cancel delete"
             >
@@ -182,7 +227,7 @@ const DashboardPage: React.FC = () => {
         ) : (
           <button
             type="button"
-            onClick={() => setConfirmDeleteId(d.id)}
+            onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(d.id); }}
             className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors"
             aria-label={`Delete ${d.name}`}
           >
@@ -193,115 +238,153 @@ const DashboardPage: React.FC = () => {
     );
   };
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const currentOrder = orderedDashboards.map((d) => d.id);
+    const oldIndex = currentOrder.indexOf(active.id as string);
+    const newIndex = currentOrder.indexOf(over.id as string);
+    setDashboardOrder(arrayMove(currentOrder, oldIndex, newIndex));
+  };
+
   return (
-    <main className="p-6 max-w-7xl mx-auto flex flex-col gap-6" aria-label="Dashboard">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-gray-800">Dashboard</h1>
-        <div className="flex items-center gap-3">
-          {summary?.truncated && (
-            <span
-              className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1"
-              role="status"
-              aria-live="polite"
-            >
-              Results capped at 1,000 items — apply filters to narrow down
-            </span>
-          )}
-          {isOrgAdmin && (
-            <>
+    <div className="flex flex-col min-h-full bg-gray-100" aria-label="Dashboard page">
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 bg-gray-100 px-6 pt-6 pb-4 shrink-0">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            {/* Title + Filter button */}
+            <div className="flex items-center gap-4 min-w-0">
+              <h1 className="text-3xl font-bold text-gray-800 flex items-center whitespace-nowrap">
+                <FiTrello
+                  className="mr-3 text-blue-500 flex-shrink-0"
+                  style={{ transform: 'rotate(180deg)' }}
+                  aria-hidden="true"
+                />
+                Dashboards
+              </h1>
+              <DashboardFilterBar filters={filters} dispatch={dispatch} boardIds={customDashboardBoardIds} />
+            </div>
+
+            {/* Right-side action buttons */}
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {summary?.truncated && (
+                <span
+                  className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-1"
+                  role="status"
+                  aria-live="polite"
+                >
+                  Results capped at 1,000 items — apply filters to narrow down
+                </span>
+              )}
+              {isOrgAdmin && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setArchiveModalOpen(true)}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    aria-label="View archived dashboards"
+                  >
+                    <FiArchive size={16} aria-hidden="true" />
+                    Archived
+                  </button>
+                  <button
+                    type="button"
+                    onClick={openCreate}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                    aria-label="Add custom dashboard"
+                  >
+                    <FiPlusCircle size={16} aria-hidden="true" />
+                    Add Dashboard
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Active filter chips */}
+          {filters.filters.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {filters.filters.map((f, i) => (
+                <FilterChip
+                  key={`${f.type}-${i}`}
+                  filter={f}
+                  onRemove={() => dispatch({ type: 'REMOVE_FILTER', filter: f })}
+                />
+              ))}
               <button
                 type="button"
-                onClick={() => setArchiveModalOpen(true)}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                aria-label="View archived dashboards"
+                onClick={() => dispatch({ type: 'CLEAR' })}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
+                aria-label="Clear all filters"
               >
-                <FiArchive size={16} aria-hidden="true" />
-                Archived
+                <FiX size={11} aria-hidden="true" />
+                Clear
               </button>
-              <button
-                type="button"
-                onClick={openCreate}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-                aria-label="Add custom dashboard"
-              >
-                <FiPlusCircle size={16} aria-hidden="true" />
-                Add Dashboard
-              </button>
-            </>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Filter bar + active chips */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <DashboardFilterBar filters={filters} dispatch={dispatch} boardIds={customDashboardBoardIds} />
-        {filters.filters.map((f, i) => (
-          <FilterChip
-            key={`${f.type}-${i}`}
-            filter={f}
-            onRemove={() => dispatch({ type: 'REMOVE_FILTER', filter: f })}
-          />
-        ))}
-        {filters.filters.length > 0 && (
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'CLEAR' })}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
-            aria-label="Clear all filters"
-          >
-            <FiX size={11} aria-hidden="true" />
-            Clear
-          </button>
-        )}
-      </div>
-
-      {/* Summary stats — full width */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <WidgetCard
-          title="Summary"
-          subtitle="Total, completed, and overdue counts"
-          isLoading={isLoading}
-          isEmpty={summaryIsEmpty}
-          className="md:col-span-2"
-        >
-          {summary && (
-            <SummaryStatsWidget
-              summary={summary.summary}
-              overdueCount={summary.overdue.count}
-            />
-          )}
-        </WidgetCard>
-      </div>
-
-      {/* Custom dashboards */}
-      {customDashboardsList.length > 0 && (
-        <section aria-label="Custom dashboards">
-          <h2 className="text-base font-semibold text-gray-700 mb-3">Custom Dashboards</h2>
+      {/* Scrollable content */}
+      <main className="px-6 pb-6 flex flex-col gap-6" aria-label="Dashboard">
+        <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
+          {/* Summary stats — full width */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {customDashboardsList.map(d => (
-              <WidgetCard
-                key={d.id}
-                title={d.name}
-                subtitle={
-                  d.config.type === 'timeseries'
-                    ? `By ${d.config.xAxisGrouping} · ${d.config.yAxisAggregation.toLowerCase()}`
-                    : d.config.type === 'category'
-                    ? `Grouped by column`
-                    : `${d.config.metrics.length} metric${d.config.metrics.length !== 1 ? 's' : ''}`
-                }
-                boardNames={getBoardNamesForDashboard(d)}
-                actions={buildWidgetActions(d)}
-              >
-                <CustomDashboardWidget
-                  dashboard={d}
-                  dateFrom={dateFrom}
-                  dateTo={dateTo}
+            <WidgetCard
+              title="Summary"
+              subtitle="Total, completed, and overdue counts"
+              isLoading={isLoading}
+              isEmpty={summaryIsEmpty}
+              className="md:col-span-2"
+            >
+              {summary && (
+                <SummaryStatsWidget
+                  summary={summary.summary}
+                  overdueCount={summary.overdue.count}
                 />
-              </WidgetCard>
-            ))}
+              )}
+            </WidgetCard>
           </div>
-        </section>
-      )}
+
+          {/* Custom dashboards with drag-and-drop */}
+          {orderedDashboards.length > 0 && (
+            <section aria-label="Custom dashboards">
+              <h2 className="text-base font-semibold text-gray-700 mb-3">Custom Dashboards</h2>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={orderedDashboards.map((d) => d.id)} strategy={rectSortingStrategy}>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {orderedDashboards.map((d) => (
+                      <SortableWidget key={d.id} id={d.id}>
+                        <WidgetCard
+                          title={d.name}
+                          subtitle={
+                            d.config.type === 'timeseries'
+                              ? `By ${d.config.xAxisGrouping} · ${d.config.yAxisAggregation.toLowerCase()}`
+                              : d.config.type === 'category'
+                              ? `Grouped by column`
+                              : `${d.config.metrics.length} metric${d.config.metrics.length !== 1 ? 's' : ''}`
+                          }
+                          boardNames={getBoardNamesForDashboard(d)}
+                          actions={buildWidgetActions(d)}
+                        >
+                          <CustomDashboardWidget
+                            dashboard={d}
+                            dateFrom={dateFrom}
+                            dateTo={dateTo}
+                          />
+                        </WidgetCard>
+                      </SortableWidget>
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </section>
+          )}
+        </div>
+      </main>
 
       {modalOpen && (
         <AddCustomDashboardModal
@@ -323,7 +406,7 @@ const DashboardPage: React.FC = () => {
           fetchItems={() => {}}
         />
       )}
-    </main>
+    </div>
   );
 };
 
