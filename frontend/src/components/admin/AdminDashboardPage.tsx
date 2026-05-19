@@ -129,7 +129,7 @@ const AdminDashboardPage: React.FC = () => {
         <div className="max-w-6xl mx-auto">
 
         {user.role === UserRole.ORGANIZATION_ADMIN && (!organizationSettings?.description || (!organizationSettings?.contactEmail && !organizationSettings?.contactPhone)) && (
-            <Link to="/admin/workspace-hub">
+            <Link to="/admin/organization-hub">
               <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 cursor-pointer rounded-r-lg shadow-sm">
                 <p className="text-yellow-700">{t('admin.completeOrganizationDetails')}</p>
               </div>

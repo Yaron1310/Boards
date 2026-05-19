@@ -417,11 +417,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   onClick={() => {
                     const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                     if (guard?.isDirty) {
-                        guard.onAttempt('/admin/workspace-hub?openTheme=true');
+                        guard.onAttempt('/admin/organization-hub?openTheme=true');
                         return;
                     }
                     setIsSidebarOpen(false);
-                    sidebarNavigate('/admin/workspace-hub?openTheme=true');
+                    sidebarNavigate('/admin/organization-hub?openTheme=true');
                   }}
                   aria-label={t('layout.clickToEdit')}
                 >
@@ -444,11 +444,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   onClick={() => {
                     const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                     if (guard?.isDirty) {
-                        guard.onAttempt('/admin/workspace-hub');
+                        guard.onAttempt('/admin/organization-hub');
                         return;
                     }
                     setIsSidebarOpen(false);
-                    sidebarNavigate('/admin/workspace-hub');
+                    sidebarNavigate('/admin/organization-hub');
                   }}
                   aria-label={t('layout.clickToEdit')}
                 >
@@ -499,12 +499,12 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               ))}
               <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
                 <NavLink
-                  to='/admin/workspace-hub'
+                  to='/admin/organization-hub'
                   onClick={(e) => {
                       const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                       if (guard?.isDirty) {
                           e.preventDefault();
-                          guard.onAttempt('/admin/workspace-hub');
+                          guard.onAttempt('/admin/organization-hub');
                           return;
                       }
                       setIsSidebarOpen(false);

@@ -273,7 +273,7 @@ const App: React.FC = () => {
               }
             />
             <Route
-              path="/admin/workspace-hub"
+              path="/admin/organization-hub"
               element={
                 <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN]}>
                   <AcademyHubPage />

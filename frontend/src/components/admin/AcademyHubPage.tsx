@@ -7,8 +7,7 @@ import { UserRole } from '../../types';
 import ThemeSettingsPage from './ThemeSettingsPage';
 import OrganizationProfileEditModal from './AcademyProfileEditModal';
 import OrganizationAdminsModal from './AcademyAdminsModal';
-import { FiTrello, FiShield, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
-import OrganizationHubIcon from '../common/AcademyHubIcon';
+import { FiBriefcase, FiShield, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
 
 const OrganizationHubPage: React.FC = () => {
   const { t } = useTranslation();
@@ -167,7 +166,7 @@ const OrganizationHubPage: React.FC = () => {
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
             <h1 className="text-3xl font-bold text-gray-800 flex items-center mb-2 sm:mb-0">
-              <OrganizationHubIcon className="mr-3 text-blue-500"/>{t('admin.organizationHub.title')}
+              <FiBriefcase className="mr-3 text-blue-500" aria-hidden="true" />{t('admin.organizationHub.title')}
             </h1>
             <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
               {isOrganizationAdmin && (
