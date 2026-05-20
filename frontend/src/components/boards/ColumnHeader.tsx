@@ -22,10 +22,11 @@ import type { Column } from '../../types';
 import {
   FiType, FiHash, FiCalendar, FiFlag, FiUser, FiChevronDown,
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
-  FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2,
+  FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings,
 } from 'react-icons/fi';
 import { calculateColumnWidth, COLUMN_TYPE_MIN_WIDTHS } from '../../utils/columnWidths';
 import AddColumnModal from './AddColumnModal';
+import EditColumnConfigModal from './EditColumnConfigModal';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 
 export const ITEM_COL_ID = '__item_name__';
@@ -139,7 +140,12 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState(column.name);
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+  const [showEditConfigModal, setShowEditConfigModal] = useState(false);
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
+
+  const isConfigurable = [
+    ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN,
+  ].includes(column.type);
   const [resizingWidth, setResizingWidth] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -365,6 +371,18 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
                     >
                       Edit name
                     </button>
+                    {isConfigurable && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => { setShowEditConfigModal(true); setMenuOpen(false); }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                        aria-label="Edit column configuration"
+                      >
+                        <FiSettings size={12} aria-hidden="true" />
+                        Edit configuration
+                      </button>
+                    )}
                     <button
                       type="button"
                       role="menuitem"
@@ -415,6 +433,15 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
           }}
           insertAfterColumnId={insertPosition === 'right' ? column.id : undefined}
           insertBeforeColumnId={insertPosition === 'left' ? column.id : undefined}
+        />
+      )}
+
+      {/* Edit column configuration modal */}
+      {showEditConfigModal && (
+        <EditColumnConfigModal
+          boardId={boardId}
+          column={column}
+          onClose={() => setShowEditConfigModal(false)}
         />
       )}
     </div>
