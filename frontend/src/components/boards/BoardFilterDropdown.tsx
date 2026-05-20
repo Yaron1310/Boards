@@ -422,38 +422,33 @@ export function itemMatchesSearch(
 
     if (val == null) continue;
 
-    try {
-      switch (col.type) {
-        case ColumnType.STATUS: {
-          const opts = ((col.settings as StatusColumnSettings).options ?? []);
-          const opt = opts.find((o) => o.id === val);
-          if (typeof opt?.label === 'string' && opt.label.toLowerCase().includes(q)) return true;
-          break;
-        }
-        case ColumnType.PERSON: {
-          const ids = (Array.isArray(val) ? val : []) as string[];
-          if (ids.some((id) => {
-            const name = users.find((u) => u.id === id)?.name;
-            return typeof name === 'string' && name.toLowerCase().includes(q);
-          })) return true;
-          break;
-        }
-        case ColumnType.TAGS: {
-          const tags = (Array.isArray(val) ? val : []) as unknown[];
-          if (tags.some((t) => typeof t === 'string' && t.toLowerCase().includes(q))) return true;
-          break;
-        }
-        case ColumnType.LOCATION: {
-          const loc = val as { address?: string };
-          if (loc.address?.toLowerCase().includes(q)) return true;
-          break;
-        }
-        default:
-          if (String(val).toLowerCase().includes(q)) return true;
+    switch (col.type) {
+      case ColumnType.STATUS: {
+        const opts = ((col.settings as StatusColumnSettings).options ?? []);
+        const opt = opts.find((o) => o.id === val);
+        if (typeof opt?.label === 'string' && opt.label.toLowerCase().includes(q)) return true;
+        break;
       }
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error('[itemMatchesSearch] crash', { colId: col.id, colType: col.type, val, valType: typeof val, err });
+      case ColumnType.PERSON: {
+        const ids = (Array.isArray(val) ? val : []) as string[];
+        if (ids.some((id) => {
+          const name = users.find((u) => u.id === id)?.name;
+          return typeof name === 'string' && name.toLowerCase().includes(q);
+        })) return true;
+        break;
+      }
+      case ColumnType.TAGS: {
+        const tags = (Array.isArray(val) ? val : []) as unknown[];
+        if (tags.some((t) => typeof t === 'string' && t.toLowerCase().includes(q))) return true;
+        break;
+      }
+      case ColumnType.LOCATION: {
+        const loc = val as { address?: string };
+        if (loc.address?.toLowerCase().includes(q)) return true;
+        break;
+      }
+      default:
+        if (String(val).toLowerCase().includes(q)) return true;
     }
   }
   return false;

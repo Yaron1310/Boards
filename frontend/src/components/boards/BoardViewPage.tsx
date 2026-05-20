@@ -199,18 +199,11 @@ const BoardContent: React.FC<BoardContentProps> = ({
     if (!searchText && activeFilters.length === 0) return sortedItemsByGroup;
     const result: Record<string, Item[]> = {};
     for (const [gid, items] of Object.entries(sortedItemsByGroup)) {
-      result[gid] = items.filter((item) => {
-        try {
-          return (
-            itemMatchesSearch(item, columns, allUsers, searchText) &&
-            itemMatchesFilters(item, columns, activeFilters)
-          );
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.error('[displayItemsByGroup] filter crash', { itemId: item.id, itemName: item.name, values: item.values, err });
-          return true;
-        }
-      });
+      result[gid] = items.filter(
+        (item) =>
+          itemMatchesSearch(item, columns, allUsers, searchText) &&
+          itemMatchesFilters(item, columns, activeFilters),
+      );
     }
     return result;
   }, [searchText, activeFilters, sortedItemsByGroup, columns, allUsers]);

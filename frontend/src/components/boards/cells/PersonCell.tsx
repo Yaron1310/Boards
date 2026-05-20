@@ -132,7 +132,7 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
 
   const selectedUsers = allUsers.filter((u) => selected.includes(u.id));
-  const filtered = allUsers.filter((u) => u.name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = allUsers.filter((u) => typeof u.name === 'string' && u.name.toLowerCase().includes(search.toLowerCase()));
 
   const toggle = (userId: string, stopEdit: () => void) => {
     let next: string[];
