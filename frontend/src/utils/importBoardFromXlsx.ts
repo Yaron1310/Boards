@@ -1,5 +1,6 @@
 import ExcelJS from 'exceljs';
 import { ColumnType } from '../types';
+import type { StatusOption } from '../types';
 import * as wm from '../services/workManagementService';
 
 export interface ImportResult {
@@ -65,12 +66,32 @@ function argbToHex(argb: string | undefined): string | undefined {
   return `#${argb.slice(2).toLowerCase()}`;
 }
 
+// Returns the ARGB string if the cell has a solid colored fill that looks like
+// a status indicator (excludes white, near-white, light-gray row stripes, and
+// the dark header background).
+function getCellStatusArgb(cell: ExcelJS.Cell): string | null {
+  const fill = cell.fill;
+  if (!fill || fill.type !== 'pattern' || fill.pattern === 'none') return null;
+  const argb = (fill as ExcelJS.FillPattern).fgColor?.argb;
+  if (!argb || argb.length < 8) return null;
+  const hex = argb.slice(2).toUpperCase();
+  // Skip transparent / white / near-white (row stripe) / dark header
+  const excluded = new Set(['FFFFFF', 'F5F5F5', '2D2D2D', '000000']);
+  if (excluded.has(hex)) return null;
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luminance = (r * 299 + g * 587 + b * 114) / 1000;
+  if (luminance > 230) return null; // very light = not a status color
+  return argb;
+}
+
 // ── Column spec ───────────────────────────────────────────────────────────────
 
 interface ColumnSpec {
   name: string;
   type: ColumnType;
-  /** Indices into the item's raw cells array (0 = first column after Name). */
+  /** Indices into the item's rawCells array (0 = first column after Name). */
   rawIndices: number[];
 }
 
@@ -94,6 +115,12 @@ function buildColumnSpecs(headers: string[]): ColumnSpec[] {
     i++;
   }
   return specs;
+}
+
+// Builds a stable option id from a label string.
+function labelToOptionId(label: string): string {
+  const slug = label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+  return slug || `opt_${Math.random().toString(36).slice(2, 7)}`;
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
@@ -121,14 +148,27 @@ export async function importBoardFromXlsx(
   cursor++; // skip spacer
 
   // ── Parse group blocks ─────────────────────────────────────────────────────
+
+  interface ParsedItem {
+    name: string;
+    rawCells: RawCell[];
+    // Per-column ARGB fill color (null if no colored fill). Indexed parallel to
+    // rawCells.slice(1) — i.e. cellArgbs[0] corresponds to the first data column.
+    cellArgbs: (string | null)[];
+  }
+
   interface ParsedGroup {
     name: string;
     color?: string;
-    items: Array<{ name: string; rawCells: RawCell[] }>;
+    items: ParsedItem[];
   }
 
   const parsedGroups: ParsedGroup[] = [];
   let columnSpecs: ColumnSpec[] = [];
+
+  // colorMap[specIndex] maps ARGB → first label seen for that color.
+  // Populated while scanning item rows; used after scanning to detect STATUS cols.
+  let colorMap: Map<string, string>[] = [];
 
   while (cursor < rows.length) {
     const groupName = cellToText(rows[cursor]?.[0]).trim();
@@ -143,14 +183,36 @@ export async function importBoardFromXlsx(
     const headerNames = headerRow.slice(1).map((c) => cellToText(c).trim()).filter(Boolean);
     if (!columnSpecs.length && headerNames.length) {
       columnSpecs = buildColumnSpecs(headerNames);
+      colorMap = columnSpecs.map(() => new Map<string, string>());
     }
 
     // Item rows until empty row
-    const items: Array<{ name: string; rawCells: RawCell[] }> = [];
+    const items: ParsedItem[] = [];
     while (cursor < rows.length) {
       const itemName = cellToText(rows[cursor]?.[0]).trim();
       if (!itemName) break;
-      items.push({ name: itemName, rawCells: rows[cursor] ?? [] });
+
+      const rawCells = rows[cursor] ?? [];
+      // rows[cursor] → sheet row cursor+1 (1-indexed).
+      // Data columns start at sheet column 2 (column A is item name).
+      const sheetRow = sheet.getRow(cursor + 1);
+      const cellArgbs: (string | null)[] = columnSpecs.map((spec) => {
+        // spec.rawIndices[0] is 0-based index into rawCells.slice(1),
+        // so sheet column index = spec.rawIndices[0] + 2.
+        const cell = sheetRow.getCell(spec.rawIndices[0] + 2);
+        return getCellStatusArgb(cell);
+      });
+
+      // Populate colorMap: record ARGB → label for each column
+      columnSpecs.forEach((spec, si) => {
+        const argb = cellArgbs[si];
+        if (argb && !colorMap[si].has(argb)) {
+          const label = cellToText(rawCells[spec.rawIndices[0] + 1]).trim();
+          colorMap[si].set(argb, label);
+        }
+      });
+
+      items.push({ name: itemName, rawCells, cellArgbs });
       cursor++;
     }
     cursor++; // skip empty spacer
@@ -160,16 +222,50 @@ export async function importBoardFromXlsx(
 
   if (!parsedGroups.length) throw new Error('No groups found in file.');
 
+  // ── Detect STATUS columns and build their options ─────────────────────────
+  // A column is STATUS if at least one cell has a recognisable colored fill.
+  // TIME_RANGE columns are never re-typed (they were explicitly detected by header).
+
+  interface StatusColInfo {
+    options: StatusOption[];
+    argbToOptionId: Map<string, string>;
+  }
+
+  const statusInfoBySpec: (StatusColInfo | null)[] = columnSpecs.map((spec, si) => {
+    if (spec.type === ColumnType.TIME_RANGE) return null;
+    if (colorMap[si].size === 0) return null;
+
+    const options: StatusOption[] = [];
+    const argbToOptionId = new Map<string, string>();
+
+    for (const [argb, label] of colorMap[si].entries()) {
+      const id = labelToOptionId(label) || `opt_${options.length}`;
+      const color = `#${argb.slice(2).toLowerCase()}`;
+      options.push({ id, label: label || color, color });
+      argbToOptionId.set(argb, id);
+    }
+
+    return { options, argbToOptionId };
+  });
+
   // ── Create board ───────────────────────────────────────────────────────────
   const board = await wm.createBoard({ name: boardName, description, workspaceId });
 
   // ── Create columns and fix ordering ───────────────────────────────────────
-  // createColumn in the backend never sets `order`, so we must call reorderColumns
-  // after creation to guarantee the column sequence matches the xlsx.
-  const createdCols: Array<{ id: string; spec: ColumnSpec }> = [];
-  for (const spec of columnSpecs) {
-    const col = await wm.createColumn(board.id, { name: spec.name, type: spec.type });
-    createdCols.push({ id: col.id, spec });
+  const createdCols: Array<{ id: string; spec: ColumnSpec; statusInfo: StatusColInfo | null }> = [];
+  for (let si = 0; si < columnSpecs.length; si++) {
+    const spec = columnSpecs[si];
+    const statusInfo = statusInfoBySpec[si];
+
+    const colType = statusInfo ? ColumnType.STATUS : spec.type;
+    const settings = statusInfo ? { options: statusInfo.options } : undefined;
+
+    const col = await wm.createColumn(board.id, {
+      name: spec.name,
+      type: colType,
+      ...(settings ? { settings } : {}),
+    });
+    createdCols.push({ id: col.id, spec: { ...spec, type: colType }, statusInfo });
   }
   if (createdCols.length > 0) {
     await wm.reorderColumns(board.id, createdCols.map((c, i) => ({ id: c.id, order: i })));
@@ -187,7 +283,9 @@ export async function importBoardFromXlsx(
       const rawValues = item.rawCells.slice(1);
 
       const values: Record<string, unknown> = {};
-      for (const { id, spec } of createdCols) {
+      for (let ci = 0; ci < createdCols.length; ci++) {
+        const { id, spec, statusInfo } = createdCols[ci];
+
         if (spec.type === ColumnType.TIME_RANGE) {
           const startIso = cellToDateIso(rawValues[spec.rawIndices[0]]);
           const endIso = cellToDateIso(rawValues[spec.rawIndices[1]]);
@@ -198,6 +296,18 @@ export async function importBoardFromXlsx(
             const durationDays = !isNaN(durMs) && durMs > 0 ? Math.round(durMs / 86_400_000) : undefined;
             values[id] = { start: startIso, end: endIso, ...(durationDays !== undefined ? { durationDays } : {}) };
           }
+        } else if (statusInfo) {
+          // Match by fill color first (most reliable), then fall back to text label match.
+          const argb = item.cellArgbs[ci];
+          let optionId: string | undefined;
+          if (argb) {
+            optionId = statusInfo.argbToOptionId.get(argb);
+          }
+          if (!optionId) {
+            const label = cellToText(rawValues[spec.rawIndices[0]]).trim();
+            optionId = statusInfo.options.find((o) => o.label === label)?.id;
+          }
+          if (optionId) values[id] = optionId;
         } else {
           const text = cellToText(rawValues[spec.rawIndices[0]]).trim();
           if (text) values[id] = text;
