@@ -9,8 +9,9 @@ import {
   groupsCollection,
   itemsCollection,
   boardMembersCollection,
+  columnsCollection,
 } from '../db/collections.js';
-import { JwtUserPayload, DBWebhook, DBBoard, DBGroup, DBBoardMember } from '../types/index.js';
+import { JwtUserPayload, DBWebhook, DBBoard, DBGroup, DBBoardMember, DBColumn, ColumnType, StatusColumnSettings } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, getClientIp } from '../services/audit.service.js';
 import { touchBoardVersion } from '../services/boardVersion.service.js';
@@ -463,6 +464,24 @@ export const receiveWebhook = async (req: Request, res: Response) => {
       normalizedValues = {};
     }
 
+    // 6b. Apply column defaults — fill in defaultStatusId for STATUS columns not supplied by the webhook
+    const columnsSnap = await columnsCollection(webhook.orgId, webhook.boardId).get();
+    const columns = columnsSnap.docs.map((d) => d.data() as DBColumn);
+    let mirroredStatus: string | null = null;
+    for (const col of columns) {
+      if (col.type === ColumnType.STATUS) {
+        if (normalizedValues[col.id] === undefined || normalizedValues[col.id] === null) {
+          const settings = col.settings as StatusColumnSettings | undefined;
+          if (settings?.defaultStatusId) {
+            normalizedValues[col.id] = settings.defaultStatusId;
+          }
+        }
+        if (mirroredStatus === null && typeof normalizedValues[col.id] === 'string') {
+          mirroredStatus = normalizedValues[col.id] as string;
+        }
+      }
+    }
+
     // 7. Resolve item name based on nameMode
     let sanitizedName: string;
 
@@ -537,7 +556,7 @@ export const receiveWebhook = async (req: Request, res: Response) => {
       createdBy: `webhook:${webhookId}`,
       isArchived: false,
       values: normalizedValues,
-      status: null,
+      status: mirroredStatus,
       assignees: [],
       dueDate: null,
       createdAt: timestamp,
