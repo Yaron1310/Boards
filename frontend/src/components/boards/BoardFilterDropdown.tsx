@@ -431,12 +431,15 @@ export function itemMatchesSearch(
       }
       case ColumnType.PERSON: {
         const ids = (Array.isArray(val) ? val : []) as string[];
-        if (ids.some((id) => users.find((u) => u.id === id)?.name.toLowerCase().includes(q))) return true;
+        if (ids.some((id) => {
+          const name = users.find((u) => u.id === id)?.name;
+          return typeof name === 'string' && name.toLowerCase().includes(q);
+        })) return true;
         break;
       }
       case ColumnType.TAGS: {
-        const tags = (Array.isArray(val) ? val : []) as string[];
-        if (tags.some((t) => t.toLowerCase().includes(q))) return true;
+        const tags = (Array.isArray(val) ? val : []) as unknown[];
+        if (tags.some((t) => typeof t === 'string' && t.toLowerCase().includes(q))) return true;
         break;
       }
       case ColumnType.LOCATION: {
