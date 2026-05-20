@@ -362,6 +362,7 @@ export interface CreateWebhookData {
   fieldMap?: WebhookFieldMappingInput[];
   nameMode?: WebhookNameMode;
   nameFieldPosition?: number | null;
+  defaultColumnValues?: Record<string, string>;
 }
 
 export interface UpdateWebhookData {
@@ -369,6 +370,7 @@ export interface UpdateWebhookData {
   nameMode: WebhookNameMode;
   nameFieldPosition: number | null;
   allowedOrigins?: string[];
+  defaultColumnValues?: Record<string, string>;
 }
 
 export const getGroupWebhook = async (boardId: string, groupId: string): Promise<Webhook | null> => {

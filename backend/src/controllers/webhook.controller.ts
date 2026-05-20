@@ -75,13 +75,24 @@ function parseNameMode(raw: unknown): 'field' | 'timestamp' | 'sequence' | 'sequ
   return 'field';
 }
 
+function parseDefaultColumnValues(raw: unknown): Record<string, string> {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const result: Record<string, string> = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof k === 'string' && k.length > 0 && typeof v === 'string' && v.length > 0) {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // POST /boards/:boardId/groups/:groupId/webhook  (authenticated)
 // ---------------------------------------------------------------------------
 export const createWebhook = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId, groupId } = req.params;
-  const { insertPosition, allowedOrigins, fieldMap: rawFieldMap, nameFieldPosition: rawNamePos, nameMode: rawNameMode } = req.body;
+  const { insertPosition, allowedOrigins, fieldMap: rawFieldMap, nameFieldPosition: rawNamePos, nameMode: rawNameMode, defaultColumnValues: rawDefaultColumnValues } = req.body;
 
   const position: 'top' | 'bottom' = insertPosition === 'top' ? 'top' : 'bottom';
 
@@ -93,6 +104,7 @@ export const createWebhook = async (req: Request, res: Response) => {
     nameMode === 'field' && rawNamePos != null && Number.isInteger(Number(rawNamePos)) && Number(rawNamePos) >= 1
       ? Number(rawNamePos)
       : null;
+  const defaultColumnValues = parseDefaultColumnValues(rawDefaultColumnValues);
 
   try {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
@@ -136,6 +148,7 @@ export const createWebhook = async (req: Request, res: Response) => {
       fieldMap,
       nameMode,
       nameFieldPosition,
+      defaultColumnValues,
       status: 'active',
       createdBy: user.id,
       useCount: 0,
@@ -195,7 +208,7 @@ export const updateWebhook = async (req: Request, res: Response) => {
 
     if (snap.empty) return res.status(404).json({ message: 'No active webhook found.' });
 
-    const { fieldMap: rawFieldMap, nameFieldPosition: rawNamePos, nameMode: rawNameMode, allowedOrigins: rawOrigins } = req.body;
+    const { fieldMap: rawFieldMap, nameFieldPosition: rawNamePos, nameMode: rawNameMode, allowedOrigins: rawOrigins, defaultColumnValues: rawDefaultColumnValues } = req.body;
     const fieldMap = parseFieldMap(rawFieldMap);
     const nameMode = parseNameMode(rawNameMode);
     const nameFieldPosition: number | null =
@@ -203,18 +216,20 @@ export const updateWebhook = async (req: Request, res: Response) => {
         ? Number(rawNamePos)
         : null;
     const allowedOrigins = rawOrigins !== undefined ? sanitizeOrigins(rawOrigins) : undefined;
+    const defaultColumnValues = parseDefaultColumnValues(rawDefaultColumnValues);
 
     const updatePayload: Record<string, unknown> = {
       fieldMap,
       nameMode,
       nameFieldPosition,
+      defaultColumnValues,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
     if (allowedOrigins !== undefined) updatePayload.allowedOrigins = allowedOrigins;
 
     await snap.docs[0].ref.update(updatePayload);
 
-    const updated = { ...(snap.docs[0].data() as DBWebhook), fieldMap, nameMode, nameFieldPosition };
+    const updated = { ...(snap.docs[0].data() as DBWebhook), fieldMap, nameMode, nameFieldPosition, defaultColumnValues };
     if (allowedOrigins !== undefined) updated.allowedOrigins = allowedOrigins;
     const { tokenHash: _omit, ...safeWebhook } = updated;
     res.json(safeWebhook);
@@ -537,7 +552,7 @@ export const receiveWebhook = async (req: Request, res: Response) => {
       order: itemOrder,
       createdBy: `webhook:${webhookId}`,
       isArchived: false,
-      values: normalizedValues,
+      values: { ...(webhook.defaultColumnValues ?? {}), ...normalizedValues },
       status: null,
       assignees: [],
       dueDate: null,

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FiX, FiPlus, FiTrash2, FiCopy, FiCheck, FiLoader, FiAlertTriangle, FiSave } from 'react-icons/fi';
+import { FiX, FiPlus, FiTrash2, FiCopy, FiCheck, FiLoader, FiSave } from 'react-icons/fi';
 import { BACKEND_API_URL } from '../../constants';
 import {
   useGroupWebhook,
@@ -8,7 +8,8 @@ import {
   useRevokeGroupWebhook,
 } from '../../hooks/queries/useWebhookQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
-import type { Webhook, WebhookNameMode } from '../../types';
+import type { Webhook, WebhookNameMode, Column, StatusColumnSettings } from '../../types';
+import { ColumnType } from '../../types';
 import type { WebhookFieldMappingInput } from '../../services/workManagementService';
 
 interface GroupWebhookModalProps {
@@ -149,6 +150,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
   const [nameMode, setNameMode] = useState<WebhookNameMode>('field');
   const [namePos, setNamePos] = useState('');
   const [colPositions, setColPositions] = useState<Record<string, string>>({});
+  const [defaultColumnValues, setDefaultColumnValues] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -173,6 +175,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
       setColPositions(cp);
       setNameMode(nm);
       setNamePos(np);
+      setDefaultColumnValues(wh.defaultColumnValues ?? {});
       setEditOrigins(wh.allowedOrigins ?? []);
       setDirty(false);
       if (!createdResult) {
@@ -240,7 +243,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
     const fieldMap = stateToFieldMap(colPositions);
     const result = await createWebhook({
       boardId, groupId,
-      data: { insertPosition, allowedOrigins: createOrigins, fieldMap, nameMode, nameFieldPosition: parsedNamePos },
+      data: { insertPosition, allowedOrigins: createOrigins, fieldMap, nameMode, nameFieldPosition: parsedNamePos, defaultColumnValues },
     });
     const typed = result as Webhook & { secret: string };
     saveWebhookSecret(typed.id, typed.secret);
@@ -251,7 +254,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
     const fieldMap = stateToFieldMap(colPositions);
     await updateWebhook({
       boardId, groupId,
-      data: { fieldMap, nameMode, nameFieldPosition: parsedNamePos, allowedOrigins: editOrigins },
+      data: { fieldMap, nameMode, nameFieldPosition: parsedNamePos, allowedOrigins: editOrigins, defaultColumnValues },
     });
     setDirty(false); setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -269,6 +272,14 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
     setColPositions((prev) => ({ ...prev, [columnId]: value }));
     setDirty(true); setSaved(false);
   };
+  const setDefaultValue = (columnId: string, value: string) => {
+    setDefaultColumnValues((prev) => {
+      const next = { ...prev };
+      if (value) next[columnId] = value; else delete next[columnId];
+      return next;
+    });
+    setDirty(true); setSaved(false);
+  };
   const setNamePosField = (value: string) => {
     setNamePos(value); setDirty(true); setSaved(false);
   };
@@ -276,12 +287,21 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
     setNameMode(value); setDirty(true); setSaved(false);
   };
 
-  const allPositions: number[] = [];
-  if (nameMode === 'field' && namePos && !isNaN(parseInt(namePos, 10))) allPositions.push(parseInt(namePos, 10));
-  for (const p of Object.values(colPositions)) {
-    if (p && !isNaN(parseInt(p, 10))) allPositions.push(parseInt(p, 10));
+  // Build set of positions used more than once (for inline duplicate warnings)
+  const positionCounts = new Map<number, number>();
+  if (nameMode === 'field' && namePos) {
+    const p = parseInt(namePos, 10);
+    if (!isNaN(p) && p >= 1) positionCounts.set(p, (positionCounts.get(p) ?? 0) + 1);
   }
-  const hasDuplicates = allPositions.length !== new Set(allPositions).size;
+  for (const p of Object.values(colPositions)) {
+    if (p) {
+      const n = parseInt(p, 10);
+      if (!isNaN(n) && n >= 1) positionCounts.set(n, (positionCounts.get(n) ?? 0) + 1);
+    }
+  }
+  const duplicatePositions = new Set(
+    [...positionCounts.entries()].filter(([, count]) => count > 1).map(([pos]) => pos),
+  );
 
   const CopyBtn = ({ text, id, label }: { text: string; id: string; label: string }) => (
     <button type="button" onClick={() => void copyToClipboard(text, id)}
@@ -323,32 +343,41 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
         <div className="px-3 py-2 bg-blue-50/60 border-b border-gray-200">
           <p className="text-xs font-semibold text-blue-800 mb-2">📝 Item name</p>
           <div className="flex flex-col gap-1.5" role="radiogroup" aria-label="Item name source">
-            {NAME_MODES.map(({ value, label, description }) => (
-              <label key={value} className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name={`nameMode-${isExisting ? 'existing' : 'create'}`}
-                  value={value}
-                  checked={nameMode === value}
-                  onChange={() => setNameModeField(value)}
-                  className="accent-blue-600 mt-0.5 flex-shrink-0"
-                  aria-checked={nameMode === value}
-                />
-                <span className="text-xs">
-                  <span className="font-medium text-gray-700">{label}</span>
-                  <span className="text-gray-400 ml-1">— {description}</span>
-                  {value === 'field' && nameMode === 'field' && (
-                    <input
-                      type="number" min={1} max={100} value={namePos}
-                      onChange={(e) => setNamePosField(e.target.value)}
-                      placeholder="position #"
-                      className="ml-2 w-20 text-xs border border-gray-300 rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      aria-label="Field position for item name"
-                    />
-                  )}
-                </span>
-              </label>
-            ))}
+            {NAME_MODES.map(({ value, label, description }) => {
+              const namePosNum = nameMode === 'field' && value === 'field' && namePos ? parseInt(namePos, 10) : NaN;
+              const namePosIsDup = !isNaN(namePosNum) && duplicatePositions.has(namePosNum);
+              return (
+                <label key={value} className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name={`nameMode-${isExisting ? 'existing' : 'create'}`}
+                    value={value}
+                    checked={nameMode === value}
+                    onChange={() => setNameModeField(value)}
+                    className="accent-blue-600 mt-0.5 flex-shrink-0"
+                    aria-checked={nameMode === value}
+                  />
+                  <span className="text-xs">
+                    <span className="font-medium text-gray-700">{label}</span>
+                    <span className="text-gray-400 ml-1">— {description}</span>
+                    {value === 'field' && nameMode === 'field' && (
+                      <>
+                        <input
+                          type="number" min={1} max={100} value={namePos}
+                          onChange={(e) => setNamePosField(e.target.value)}
+                          placeholder="position #"
+                          className={`ml-2 w-20 text-xs border rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 ${namePosIsDup ? 'border-amber-400' : 'border-gray-300'}`}
+                          aria-label="Field position for item name"
+                        />
+                        {namePosIsDup && (
+                          <span className="ml-1.5 text-amber-600 text-xs font-medium">Duplicate field positions</span>
+                        )}
+                      </>
+                    )}
+                  </span>
+                </label>
+              );
+            })}
           </div>
         </div>
 
@@ -358,30 +387,45 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
           <p className="text-xs text-gray-400 mt-0.5">1 = first field Elementor sends, 2 = second, … Leave blank to skip.</p>
         </div>
 
-        {hasDuplicates && (
-          <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-100">
-            <p role="alert" className="text-xs text-amber-600 flex items-center gap-1">
-              <FiAlertTriangle size={11} aria-hidden="true" />
-              Duplicate field positions — each position should map to one target only.
-            </p>
-          </div>
-        )}
-
         {columns.length === 0 ? (
           <div className="px-3 py-3 text-xs text-gray-400 text-center">No columns on this board yet.</div>
-        ) : columns.map((col) => (
-          <div key={col.id} className="flex items-center px-3 py-2 border-b border-gray-100 last:border-0">
-            <span className="flex-1 text-xs text-gray-700 truncate pr-2" title={col.name}>{col.name}</span>
-            <input
-              type="number" min={1} max={100}
-              value={colPositions[col.id] ?? ''}
-              onChange={(e) => setColPos(col.id, e.target.value)}
-              placeholder="—"
-              className="w-16 text-xs text-right border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              aria-label={`Field position for column ${col.name}`}
-            />
-          </div>
-        ))}
+        ) : columns.map((col) => {
+          const posNum = colPositions[col.id] ? parseInt(colPositions[col.id], 10) : NaN;
+          const isDup = !isNaN(posNum) && duplicatePositions.has(posNum);
+          const isStatus = col.type === ColumnType.STATUS;
+          const statusOptions = isStatus ? ((col as Column).settings as StatusColumnSettings)?.options ?? [] : [];
+          return (
+            <div key={col.id} className="flex items-center px-3 py-2 border-b border-gray-100 last:border-0 gap-2">
+              <span className="flex-1 text-xs text-gray-700 truncate min-w-0" title={col.name}>{col.name}</span>
+              {isStatus && (
+                <select
+                  value={defaultColumnValues[col.id] ?? ''}
+                  onChange={(e) => setDefaultValue(col.id, e.target.value)}
+                  className="text-xs border border-gray-300 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white max-w-[110px]"
+                  aria-label={`Default status for ${col.name}`}
+                >
+                  <option value="">No default</option>
+                  {statusOptions.map((opt) => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
+                </select>
+              )}
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <input
+                  type="number" min={1} max={100}
+                  value={colPositions[col.id] ?? ''}
+                  onChange={(e) => setColPos(col.id, e.target.value)}
+                  placeholder="—"
+                  className={`w-16 text-xs text-right border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDup ? 'border-amber-400' : 'border-gray-300'}`}
+                  aria-label={`Field position for column ${col.name}`}
+                />
+                {isDup && (
+                  <span className="text-amber-600 text-xs font-medium whitespace-nowrap">Duplicate field positions</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

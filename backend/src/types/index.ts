@@ -562,6 +562,8 @@ export interface DBWebhook {
   nameMode: 'field' | 'timestamp' | 'sequence' | 'sequence-timestamp';
   /** Which 1-based field position provides the item name when nameMode === 'field'. */
   nameFieldPosition: number | null;
+  /** Pre-set column values applied to every item created by this webhook (e.g. a default Status). Incoming webhook body values take priority. */
+  defaultColumnValues?: Record<string, string>;
 }
 
 // --- PHASE 9: PERMISSIONS & NOTIFICATIONS ---
