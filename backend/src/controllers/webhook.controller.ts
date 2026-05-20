@@ -329,6 +329,7 @@ export const revokeWebhook = async (req: Request, res: Response) => {
  *
  * - Elementor Pro `fields` array → values in array order
  * - Nested `values` object → values in insertion order
+ * - Webflow V1 `data` object → values in insertion order
  * - Flat body → all non-meta keys in insertion order
  */
 function extractPositionalFields(body: Record<string, unknown>): unknown[] {
@@ -338,15 +339,19 @@ function extractPositionalFields(body: Record<string, unknown>): unknown[] {
   if (body.values && typeof body.values === 'object' && !Array.isArray(body.values)) {
     return Object.values(body.values as Record<string, unknown>);
   }
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
+    return Object.values(body.data as Record<string, unknown>);
+  }
   const skip = new Set(['form_id', 'form_name', 'form_post_id', 'action', 'referrer']);
   return Object.entries(body).filter(([k]) => !skip.has(k)).map(([, v]) => v);
 }
 
 /**
- * Parses incoming webhook body across three formats (used when no fieldMap is configured):
- *   1. Nested:   { name, values: { colId: val } }        — standard API callers, Zapier
- *   2. Flat:     { name, colId: val, ... }               — simple form senders
- *   3. Elementor:{ fields: [{id, value}] }               — Elementor Pro Webhook action
+ * Parses incoming webhook body across four formats (used when no fieldMap is configured):
+ *   1. Nested:    { name, values: { colId: val } }        — standard API callers, Zapier
+ *   2. Webflow V1:{ name, data: { fieldLabel: val } }     — Webflow form submissions (V1 API)
+ *   3. Flat:      { name, colId: val, ... }               — simple form senders
+ *   4. Elementor: { fields: [{id, value}] }               — Elementor Pro Webhook action
  */
 function parseWebhookBody(body: Record<string, unknown>): {
   name: string | undefined;
@@ -370,10 +375,18 @@ function parseWebhookBody(body: Record<string, unknown>): {
       values: body.values as Record<string, unknown>,
     };
   }
+  // Webflow V1 form submissions nest field data under a `data` key
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
+    return {
+      name: typeof body.name === 'string' ? body.name : undefined,
+      values: body.data as Record<string, unknown>,
+    };
+  }
   const skip = new Set(['name', '_name', 'form_id', 'form_name', 'form_post_id', 'action', 'referrer']);
   const values: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(body)) {
-    if (!skip.has(k)) values[k] = v;
+    // Skip meta fields and nested objects — only store flat primitive values
+    if (!skip.has(k) && (typeof v !== 'object' || v === null)) values[k] = v;
   }
   return { name: typeof body.name === 'string' ? body.name : undefined, values };
 }

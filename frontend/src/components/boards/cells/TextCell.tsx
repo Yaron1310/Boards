@@ -10,7 +10,8 @@ const LONG_TEXT_THRESHOLD = 16;
 const DEFAULT_MAX_LENGTH = 1000;
 
 const TextCellInner: React.FC<Props> = ({ item, column }) => {
-  const rawValue = (item.values[column.id] ?? '') as string;
+  const stored = item.values[column.id];
+  const rawValue = typeof stored === 'string' ? stored : '';
   const settings = column.settings as TextColumnSettings;
   const { mutate } = useUpdateItem();
   const [draft, setDraft] = useState(rawValue);
