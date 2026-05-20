@@ -209,6 +209,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     { id: 'in_progress', label: 'In Progress', color: '#3B82F6' },
     { id: 'done', label: 'Done', color: '#10B981' },
   ]);
+  const [defaultStatusId, setDefaultStatusId] = useState('');
 
   // PERSON
   const [personMultiple, setPersonMultiple] = useState(true);
@@ -256,7 +257,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       case ColumnType.DATE:
         return { includeTime };
       case ColumnType.STATUS:
-        return { options: statusOptions };
+        return { options: statusOptions, ...(defaultStatusId ? { defaultStatusId } : {}) };
       case ColumnType.PERSON:
         return { multiple: personMultiple };
       case ColumnType.DROPDOWN:
@@ -556,6 +557,25 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                   <FiPlus size={13} aria-hidden="true" />
                   Add Option
                 </button>
+                {statusOptions.length > 0 && (
+                  <div className="pt-2 border-t border-gray-100 mt-2">
+                    <label htmlFor="default-status" className="block text-xs text-gray-600 mb-1">
+                      Default status for new items
+                    </label>
+                    <select
+                      id="default-status"
+                      value={defaultStatusId}
+                      onChange={(e) => setDefaultStatusId(e.target.value)}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      aria-label="Default status for new items"
+                    >
+                      <option value="">None</option>
+                      {statusOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 

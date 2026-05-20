@@ -194,6 +194,7 @@ export interface StatusOption {
 
 export interface StatusColumnSettings {
   options: StatusOption[];
+  defaultStatusId?: string;
 }
 
 export interface PersonColumnSettings {
@@ -341,7 +342,6 @@ export interface Webhook {
   nameMode: WebhookNameMode;
   nameFieldPosition: number | null;
   secret?: string;
-  defaultColumnValues?: Record<string, string>;
 }
 
 // --- Item (flat, stored at WorkHub level) ---

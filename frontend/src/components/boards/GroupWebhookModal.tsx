@@ -8,8 +8,7 @@ import {
   useRevokeGroupWebhook,
 } from '../../hooks/queries/useWebhookQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
-import type { Webhook, WebhookNameMode, Column, StatusColumnSettings } from '../../types';
-import { ColumnType } from '../../types';
+import type { Webhook, WebhookNameMode } from '../../types';
 import type { WebhookFieldMappingInput } from '../../services/workManagementService';
 
 interface GroupWebhookModalProps {
@@ -150,7 +149,6 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
   const [nameMode, setNameMode] = useState<WebhookNameMode>('field');
   const [namePos, setNamePos] = useState('');
   const [colPositions, setColPositions] = useState<Record<string, string>>({});
-  const [defaultColumnValues, setDefaultColumnValues] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -175,7 +173,6 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
       setColPositions(cp);
       setNameMode(nm);
       setNamePos(np);
-      setDefaultColumnValues(wh.defaultColumnValues ?? {});
       setEditOrigins(wh.allowedOrigins ?? []);
       setDirty(false);
       if (!createdResult) {
@@ -243,7 +240,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
     const fieldMap = stateToFieldMap(colPositions);
     const result = await createWebhook({
       boardId, groupId,
-      data: { insertPosition, allowedOrigins: createOrigins, fieldMap, nameMode, nameFieldPosition: parsedNamePos, defaultColumnValues },
+      data: { insertPosition, allowedOrigins: createOrigins, fieldMap, nameMode, nameFieldPosition: parsedNamePos },
     });
     const typed = result as Webhook & { secret: string };
     saveWebhookSecret(typed.id, typed.secret);
@@ -254,7 +251,7 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
     const fieldMap = stateToFieldMap(colPositions);
     await updateWebhook({
       boardId, groupId,
-      data: { fieldMap, nameMode, nameFieldPosition: parsedNamePos, allowedOrigins: editOrigins, defaultColumnValues },
+      data: { fieldMap, nameMode, nameFieldPosition: parsedNamePos, allowedOrigins: editOrigins },
     });
     setDirty(false); setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -270,14 +267,6 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
 
   const setColPos = (columnId: string, value: string) => {
     setColPositions((prev) => ({ ...prev, [columnId]: value }));
-    setDirty(true); setSaved(false);
-  };
-  const setDefaultValue = (columnId: string, value: string) => {
-    setDefaultColumnValues((prev) => {
-      const next = { ...prev };
-      if (value) next[columnId] = value; else delete next[columnId];
-      return next;
-    });
     setDirty(true); setSaved(false);
   };
   const setNamePosField = (value: string) => {
@@ -362,6 +351,9 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
                     <span className="text-gray-400 ml-1">— {description}</span>
                     {value === 'field' && nameMode === 'field' && (
                       <>
+                        {namePosIsDup && (
+                          <span className="ml-2 text-amber-600 text-xs font-medium">Duplicate field positions</span>
+                        )}
                         <input
                           type="number" min={1} max={100} value={namePos}
                           onChange={(e) => setNamePosField(e.target.value)}
@@ -369,9 +361,6 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
                           className={`ml-2 w-20 text-xs border rounded px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 ${namePosIsDup ? 'border-amber-400' : 'border-gray-300'}`}
                           aria-label="Field position for item name"
                         />
-                        {namePosIsDup && (
-                          <span className="ml-1.5 text-amber-600 text-xs font-medium">Duplicate field positions</span>
-                        )}
                       </>
                     )}
                   </span>
@@ -392,25 +381,13 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
         ) : columns.map((col) => {
           const posNum = colPositions[col.id] ? parseInt(colPositions[col.id], 10) : NaN;
           const isDup = !isNaN(posNum) && duplicatePositions.has(posNum);
-          const isStatus = col.type === ColumnType.STATUS;
-          const statusOptions = isStatus ? ((col as Column).settings as StatusColumnSettings)?.options ?? [] : [];
           return (
             <div key={col.id} className="flex items-center px-3 py-2 border-b border-gray-100 last:border-0 gap-2">
               <span className="flex-1 text-xs text-gray-700 truncate min-w-0" title={col.name}>{col.name}</span>
-              {isStatus && (
-                <select
-                  value={defaultColumnValues[col.id] ?? ''}
-                  onChange={(e) => setDefaultValue(col.id, e.target.value)}
-                  className="text-xs border border-gray-300 rounded px-1.5 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white max-w-[110px]"
-                  aria-label={`Default status for ${col.name}`}
-                >
-                  <option value="">No default</option>
-                  {statusOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>{opt.label}</option>
-                  ))}
-                </select>
-              )}
               <div className="flex items-center gap-1.5 flex-shrink-0">
+                {isDup && (
+                  <span className="text-amber-600 text-xs font-medium whitespace-nowrap">Duplicate field positions</span>
+                )}
                 <input
                   type="number" min={1} max={100}
                   value={colPositions[col.id] ?? ''}
@@ -419,9 +396,6 @@ const GroupWebhookModal: React.FC<GroupWebhookModalProps> = ({ boardId, groupId,
                   className={`w-16 text-xs text-right border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 ${isDup ? 'border-amber-400' : 'border-gray-300'}`}
                   aria-label={`Field position for column ${col.name}`}
                 />
-                {isDup && (
-                  <span className="text-amber-600 text-xs font-medium whitespace-nowrap">Duplicate field positions</span>
-                )}
               </div>
             </div>
           );

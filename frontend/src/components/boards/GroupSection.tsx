@@ -10,7 +10,8 @@ import { useCreateItem, useGroupItems } from '../../hooks/queries/useItemQueries
 import { useUpdateGroup, useDeleteGroup, useArchiveGroup } from '../../hooks/queries/useGroupQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
-import type { Group, Item } from '../../types';
+import { ColumnType } from '../../types';
+import type { Group, Item, StatusColumnSettings } from '../../types';
 import ItemRow from './ItemRow';
 import GroupSummaryRow from './GroupSummaryRow';
 import GroupWebhookModal from './GroupWebhookModal';
@@ -216,11 +217,19 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const handleAddItem = async () => {
     const trimmed = newItemName.trim();
     if (!trimmed || !user) return;
+    const defaultValues: Record<string, unknown> = {};
+    for (const col of columns) {
+      if (col.type === ColumnType.STATUS) {
+        const settings = col.settings as StatusColumnSettings;
+        if (settings.defaultStatusId) defaultValues[col.id] = settings.defaultStatusId;
+      }
+    }
     await createItem({
       name: trimmed,
       workspaceId,
       boardId,
       groupId: group.id,
+      ...(Object.keys(defaultValues).length > 0 ? { values: defaultValues } : {}),
     });
     setNewItemName('');
     setAddingItem(false);
