@@ -83,7 +83,7 @@ export const createGroup = async (req: Request, res: Response) => {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    assertGroupAccess(user, provisionalGroup, 'create', board.createdBy, memberData);
+    assertGroupAccess(user, provisionalGroup, 'create', board.createdBy, memberData, board.workspaceId);
 
     // Auto-calculate order if not provided
     let groupOrder = typeof order === 'number' ? order : null;
@@ -190,7 +190,7 @@ export const updateGroup = async (req: Request, res: Response) => {
 
     const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
     const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
-    assertGroupAccess(user, group, 'update', board.createdBy, memberData);
+    assertGroupAccess(user, group, 'update', board.createdBy, memberData, board.workspaceId);
 
     const updateData: Record<string, unknown> = {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -244,7 +244,7 @@ export const deleteGroup = async (req: Request, res: Response) => {
 
     const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
     const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
-    assertGroupAccess(user, group, 'delete', board.createdBy, memberData);
+    assertGroupAccess(user, group, 'delete', board.createdBy, memberData, board.workspaceId);
 
     await groupsCollection(user.orgId, boardId).doc(groupId).delete();
     touchBoardVersion(user.orgId, boardId);
@@ -288,7 +288,7 @@ export const archiveGroup = async (req: Request, res: Response) => {
 
     const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
     const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
-    assertGroupAccess(user, group, 'archive', board.createdBy, memberData);
+    assertGroupAccess(user, group, 'archive', board.createdBy, memberData, board.workspaceId);
 
     await groupsCollection(user.orgId, boardId).doc(groupId).update({
       isArchived: true,
@@ -335,7 +335,7 @@ export const restoreGroup = async (req: Request, res: Response) => {
 
     const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
     const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
-    assertGroupAccess(user, group, 'archive', board.createdBy, memberData);
+    assertGroupAccess(user, group, 'archive', board.createdBy, memberData, board.workspaceId);
 
     await groupsCollection(user.orgId, boardId).doc(groupId).update({
       isArchived: false,

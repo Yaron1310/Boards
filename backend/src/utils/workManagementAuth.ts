@@ -64,12 +64,11 @@ export function effectiveBoardRole(
     user.role === UserRole.WORKSPACE_ADMIN &&
     user.selectedWorkspaceId === board.workspaceId
   ) return 'full_access';
-  if (board.createdBy === user.id) return BoardRole.ADMIN;
-  const baseRole = member?.role ?? null;
-  if (user.role === UserRole.REGULAR_USER && user.workspacePermissions === 'read_only') {
-    return baseRole !== null ? BoardRole.VIEWER : null;
+  if (user.role === UserRole.REGULAR_USER) {
+    if (user.selectedWorkspaceId !== board.workspaceId) return null;
+    return user.workspacePermissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
   }
-  return baseRole;
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,14 +163,14 @@ export function canAccessGroup(
   op: WorkManagementOperation,
   boardCreatedBy?: string,
   member: DBBoardMember | null = null,
+  boardWorkspaceId?: string,
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
+  // group.workspaceId stores orgId (flat storage); this is the tenant isolation check.
   if (user.orgId !== group.workspaceId) return false;
 
   const isOrgAdmin = isAtLeast(user.role, UserRole.WORKSPACE_ADMIN);
-  const isBoardCreator = boardCreatedBy !== undefined && boardCreatedBy === user.id;
-  const boardMemberRole = member?.role ?? null;
 
   switch (op) {
     case 'read':
@@ -179,18 +178,15 @@ export function canAccessGroup(
 
     case 'create':
     case 'update':
-      return (
-        isOrgAdmin ||
-        isBoardCreator ||
-        boardRoleAtLeast(boardMemberRole, BoardRole.EDITOR)
-      );
-
     case 'archive':
     case 'delete':
-      return (
-        isOrgAdmin ||
-        boardRoleAtLeast(boardMemberRole, BoardRole.ADMIN)
-      );
+      if (isOrgAdmin) return true;
+      if (user.role === UserRole.REGULAR_USER && user.workspacePermissions !== 'read_only') {
+        // Workspace-level edit access: verify user is in the board's workspace.
+        // boardWorkspaceId is optional for backwards compatibility; omitting it is permissive.
+        return boardWorkspaceId === undefined || user.selectedWorkspaceId === boardWorkspaceId;
+      }
+      return false;
 
     default:
       return false;
@@ -203,8 +199,9 @@ export function assertGroupAccess(
   op: WorkManagementOperation,
   boardCreatedBy?: string,
   member: DBBoardMember | null = null,
+  boardWorkspaceId?: string,
 ): void {
-  if (!canAccessGroup(user, group, op, boardCreatedBy, member)) {
+  if (!canAccessGroup(user, group, op, boardCreatedBy, member, boardWorkspaceId)) {
     throw { status: 403, message: 'Forbidden: insufficient permissions for this group.' };
   }
 }
@@ -236,22 +233,20 @@ export function canAccessItem(
 ): boolean {
   if (user.role === UserRole.SYSTEM_ADMIN) return true;
 
-  const isOrgMember = user.orgId === item.workspaceId;
   const isAssignee = Array.isArray(item.assignees) && item.assignees.includes(user.id);
   const isCreator = item.createdBy === user.id;
-  const isWorkspaceMember = isOrgMember && user.selectedWorkspaceId === item.workspaceId;
+  // item.workspaceId holds the department ID; compare against selectedWorkspaceId (not orgId).
+  const isInWorkspace = user.selectedWorkspaceId === item.workspaceId;
 
-  // Compute effective board role (simplified — no board.createdBy available)
   let effective: BoardRole | 'full_access' | null = null;
   if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) {
     effective = 'full_access';
-  } else if (user.role === UserRole.WORKSPACE_ADMIN && isWorkspaceMember) {
+  } else if (user.role === UserRole.WORKSPACE_ADMIN && isInWorkspace) {
     effective = 'full_access';
-  } else if (user.role === UserRole.REGULAR_USER && user.workspacePermissions === 'read_only') {
-    const baseRole = member?.role ?? null;
-    effective = baseRole !== null ? BoardRole.VIEWER : null;
+  } else if (user.role === UserRole.REGULAR_USER && isInWorkspace) {
+    effective = user.workspacePermissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
   } else {
-    effective = member?.role ?? null;
+    effective = null;
   }
 
   switch (op) {
