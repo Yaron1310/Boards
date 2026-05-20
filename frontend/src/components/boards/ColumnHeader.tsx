@@ -22,7 +22,7 @@ import type { Column } from '../../types';
 import {
   FiType, FiHash, FiCalendar, FiFlag, FiUser, FiChevronDown,
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
-  FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings,
+  FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings, FiEdit2,
 } from 'react-icons/fi';
 import { calculateColumnWidth, COLUMN_TYPE_MIN_WIDTHS } from '../../utils/columnWidths';
 import AddColumnModal from './AddColumnModal';
@@ -369,6 +369,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
                       className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
                       aria-label="Rename column"
                     >
+                      <FiEdit2 size={12} aria-hidden="true" />
                       Edit name
                     </button>
                     {isConfigurable && (
