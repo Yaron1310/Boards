@@ -364,6 +364,13 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
     return contexts;
 };
 
+const isMultiOrgUser = (userForFrontend: any): boolean => {
+    if (userForFrontend.dbRoles?.systemAdmin) return true;
+    const workspaces: any[] = (userForFrontend.workspaces || []).filter((w: any) => !w.isPersonal && w.name !== 'Default Workspace');
+    const distinctOrgIds = new Set(workspaces.map((w: any) => w.orgId).filter(Boolean));
+    return distinctOrgIds.size > 1;
+};
+
 export const register = async (req: Request, res: Response) => {
     const { password } = req.body;
     const email = sanitizeText(req.body.email);
@@ -573,7 +580,7 @@ export const login = async (req: Request, res: Response) => {
         const userForFrontend = await formatUserForFrontend(user);
         const availableContexts = await calculateAvailableContexts(userForFrontend);
 
-        if (availableContexts.length > 1) {
+        if (isMultiOrgUser(userForFrontend)) {
             if (userForFrontend.dbRoles?.systemAdmin) {
                 logger.info(`System Admin multi-context login for ${user.email}. Fetching all workspaces for context selection UI.`);
                 const allOrgsSnapshot = await workspacesCollection.orderBy('name').get();
@@ -591,7 +598,7 @@ export const login = async (req: Request, res: Response) => {
                 userForFrontend.workspaces = allOrgs;
             }
             return handleMultiOrgOrContextLogin(user, res, undefined, userForFrontend);
-        } else if (availableContexts.length === 1) {
+        } else if (availableContexts.length >= 1) {
             const { role, workspaceId } = availableContexts[0];
             const response = await generateFullLoginResponse(user, workspaceId, memberships, role);
             setAuthCookie(res, response.accessToken);
@@ -915,7 +922,7 @@ export const getGoogleLoginFinalization = async (req: Request, res: Response) =>
 
         const availableContexts = await calculateAvailableContexts(userForFrontend);
         
-        if (availableContexts.length > 1) {
+        if (isMultiOrgUser(userForFrontend)) {
             if (userForFrontend.dbRoles?.systemAdmin) {
                 logger.info(`System Admin multi-context Google login for ${user.email}. Fetching all workspaces for context selection UI.`);
                 const allOrgsSnapshot = await workspacesCollection.orderBy('name').get();
@@ -932,7 +939,7 @@ export const getGoogleLoginFinalization = async (req: Request, res: Response) =>
                 userForFrontend.workspaces = allOrgs;
             }
             return handleMultiOrgOrContextLogin(user, res, tokenFromHeader, userForFrontend);
-        } else if (availableContexts.length === 1) {
+        } else if (availableContexts.length >= 1) {
             const { role, workspaceId } = availableContexts[0];
             const response = await generateFullLoginResponse(user, workspaceId, memberships, role);
             setAuthCookie(res, response.accessToken);
@@ -1059,7 +1066,7 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
         const userForFrontend = await formatUserForFrontend(user);
         const availableContexts = await calculateAvailableContexts(userForFrontend);
 
-        if (availableContexts.length > 1) {
+        if (isMultiOrgUser(userForFrontend)) {
             if (userForFrontend.dbRoles?.systemAdmin) {
                  const allOrgsSnapshot = await workspacesCollection.orderBy('name').get();
                 let allOrgs = querySnapshotToArray<DBWorkspace>(allOrgsSnapshot).map(o => ({ id: o.id, name: o.name, orgId: o.orgId }));
@@ -1075,7 +1082,7 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                 userForFrontend.workspaces = allOrgs;
             }
             return handleMultiOrgOrContextLogin(user, res, undefined, userForFrontend);
-        } else if (availableContexts.length === 1) {
+        } else if (availableContexts.length >= 1) {
             const { role, workspaceId } = availableContexts[0];
             const response = await generateFullLoginResponse(user, workspaceId, memberships, role);
             setAuthCookie(res, response.accessToken);
@@ -1214,7 +1221,7 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
         const userForFrontend = await formatUserForFrontend(user);
         const availableContexts = await calculateAvailableContexts(userForFrontend);
 
-        if (availableContexts.length > 1) {
+        if (isMultiOrgUser(userForFrontend)) {
             if (userForFrontend.dbRoles?.systemAdmin) {
                  const allOrgsSnapshot = await workspacesCollection.orderBy('name').get();
                 let allOrgs = querySnapshotToArray<DBWorkspace>(allOrgsSnapshot).map(o => ({ id: o.id, name: o.name, orgId: o.orgId }));
@@ -1230,7 +1237,7 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                 userForFrontend.workspaces = allOrgs;
             }
             return handleMultiOrgOrContextLogin(user, res, undefined, userForFrontend);
-        } else if (availableContexts.length === 1) {
+        } else if (availableContexts.length >= 1) {
             const { role, workspaceId } = availableContexts[0];
             const response = await generateFullLoginResponse(user, workspaceId, memberships, role);
             setAuthCookie(res, response.accessToken);
