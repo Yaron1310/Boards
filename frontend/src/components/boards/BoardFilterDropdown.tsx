@@ -395,7 +395,7 @@ export function itemMatchesSearch(
   if (!search.trim()) return true;
   const q = search.toLowerCase();
 
-  if (item.name.toLowerCase().includes(q)) return true;
+  if (typeof item.name === 'string' && item.name.toLowerCase().includes(q)) return true;
 
   for (const col of columns) {
     const val = item.values[col.id];
@@ -426,7 +426,7 @@ export function itemMatchesSearch(
       case ColumnType.STATUS: {
         const opts = ((col.settings as StatusColumnSettings).options ?? []);
         const opt = opts.find((o) => o.id === val);
-        if (opt?.label.toLowerCase().includes(q)) return true;
+        if (typeof opt?.label === 'string' && opt.label.toLowerCase().includes(q)) return true;
         break;
       }
       case ColumnType.PERSON: {
