@@ -78,34 +78,25 @@ const SelectContextPage: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 -mr-2">
-            {availableContexts.map(({ groupName, contexts }) => (
-                <div key={groupName} className="mb-4">
-                    <h2 className="text-sm font-semibold text-gray-500 mb-2 flex items-center">
-                        {groupName === 'System Administration' ? <FiGlobe className="mr-2"/> : <FiShield className="mr-2"/>}
-                        {groupName}
-                    </h2>
-                    <div className="space-y-2">
-                        {contexts.map(ctx => {
-                            const Icon = ctx.role === 'system_admin' ? FiShield : ctx.role === 'org_admin' ? FiShield : ctx.role === 'workspace_admin' ? FiBriefcase : FiUser;
-                            return (
-                                <label key={ctx.value} className="flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all border-gray-300 has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50 has-[:checked]:shadow-md">
-                                    <Icon className="mr-3 text-gray-500" />
-                                    <span className="flex-grow text-gray-800 font-medium">{ctx.label}</span>
-                                    <input
-                                        type="radio"
-                                        name="context-selection"
-                                        value={ctx.value}
-                                        checked={selectedValue === ctx.value}
-                                        onChange={(e) => setSelectedValue(e.target.value)}
-                                        className="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-400"
-                                    />
-                                </label>
-                            );
-                        })}
-                    </div>
-                </div>
-            ))}
+          <div className="max-h-60 overflow-y-auto custom-scrollbar pr-2 -mr-2 space-y-2">
+            {availableContexts.flatMap(({ contexts }) => contexts).map(ctx => {
+              const Icon = ctx.role === 'system_admin' ? FiGlobe : ctx.role === 'org_admin' ? FiShield : ctx.role === 'workspace_admin' ? FiBriefcase : FiUser;
+              return (
+                <label key={ctx.value} className="flex items-center p-3 border-2 rounded-lg cursor-pointer transition-all border-gray-300 has-[:checked]:border-purple-500 has-[:checked]:bg-purple-50 has-[:checked]:shadow-md">
+                  <Icon className="mr-3 text-gray-500" aria-hidden="true" />
+                  <span className="flex-grow text-gray-800 font-medium">{ctx.label}</span>
+                  <input
+                    type="radio"
+                    name="context-selection"
+                    value={ctx.value}
+                    checked={selectedValue === ctx.value}
+                    onChange={(e) => setSelectedValue(e.target.value)}
+                    className="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-400"
+                    aria-label={ctx.label}
+                  />
+                </label>
+              );
+            })}
           </div>
 
           <div>

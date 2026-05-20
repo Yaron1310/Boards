@@ -576,82 +576,65 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!userForContexts?.workspaces || !userForContexts?.dbRoles) return [];
 
     const contexts: { label: string; value: string; role: UserRole; organizationName: string }[] = [];
-    const addedContexts = new Set<string>();
 
     const { systemAdmin, organizationAdmin: assignedOrganizationAdmins = [], workspaceAdmin: assignedOrgAdmins = [] } = userForContexts.dbRoles;
 
+    // System admin: single global entry
     if (systemAdmin) {
-      const defaultOrg = userForContexts.workspaces.find(o => o.name === 'Default Workspace') || userForContexts.workspaces[0];
+      const defaultOrg = userForContexts.workspaces.find((o: any) => o.name === 'Default Workspace') || userForContexts.workspaces[0];
       if (defaultOrg) {
-        const contextValue = JSON.stringify({ role: 'system_admin', workspaceId: defaultOrg.id });
-        if (!addedContexts.has(contextValue)) {
-          contexts.push({ label: 'System Administrator', value: contextValue, role: 'system_admin', organizationName: 'System-Wide' });
-          addedContexts.add(contextValue);
-        }
+        contexts.push({ label: 'System Administrator', value: JSON.stringify({ role: 'system_admin', workspaceId: defaultOrg.id }), role: 'system_admin', organizationName: 'System-Wide' });
       }
+      return [{ groupName: 'System Administration', contexts }];
     }
 
-    const academiesForAdminRole = systemAdmin
-      ? (userForContexts.allAcademies || [])
-      : assignedOrganizationAdmins.map(orgId => {
-          const orgForName = userForContexts.workspaces.find(o => o.orgId === orgId);
-          return { id: orgId, name: orgForName?.organizationName || 'Unknown Workspace' };
-        });
+    // One entry per org. Determine the highest role the user holds in each org,
+    // then pick the first eligible workspace as the login workspaceId.
+    const roleOrder: Record<string, number> = { org_admin: 0, workspace_admin: 1, regular_user: 2 };
 
-    const organizationAdminOrganizationIds = new Set(academiesForAdminRole.map(a => a.id));
+    // Collect all orgs the user has any access to (non-personal, non-default)
+    const eligibleWorkspaces = userForContexts.workspaces.filter((o: any) => !o.isPersonal && o.name !== 'Default Workspace');
 
-    academiesForAdminRole.forEach(workspace => {
-      const orgInOrganization = userForContexts.workspaces.find(o => o.orgId === workspace.id);
-      if (orgInOrganization) {
-        const contextValue = JSON.stringify({ role: 'org_admin', workspaceId: orgInOrganization.id });
-        if (!addedContexts.has(contextValue)) {
-          contexts.push({ label: `${workspace.name} Admin`, value: contextValue, role: 'org_admin', organizationName: workspace.name });
-          addedContexts.add(contextValue);
-        }
-      }
+    // Group workspaces by orgId
+    const byOrg = new Map<string, { orgName: string; workspaces: any[] }>();
+    eligibleWorkspaces.forEach((ws: any) => {
+      if (!byOrg.has(ws.orgId)) byOrg.set(ws.orgId, { orgName: ws.organizationName || ws.orgId, workspaces: [] });
+      byOrg.get(ws.orgId)!.workspaces.push(ws);
     });
 
-    assignedOrgAdmins.forEach(orgId => {
-      const org = userForContexts.workspaces.find(o => o.id === orgId);
-      const isManagedPersonalOrg = org?.isPersonal && organizationAdminOrganizationIds.has(org.orgId);
-      if (org && !isManagedPersonalOrg && !organizationAdminOrganizationIds.has(org.orgId)) {
-        const contextValue = JSON.stringify({ role: 'workspace_admin', workspaceId: org.id });
-        if (!addedContexts.has(contextValue)) {
-          contexts.push({ label: `${org.name} Manager`, value: contextValue, role: 'workspace_admin', organizationName: org.organizationName || 'Unknown Workspace' });
-          addedContexts.add(contextValue);
-        }
+    const addedOrgIds = new Set<string>();
+    byOrg.forEach(({ orgName, workspaces }, orgId) => {
+      if (addedOrgIds.has(orgId)) return;
+      addedOrgIds.add(orgId);
+
+      const isOrgAdmin = assignedOrganizationAdmins.includes(orgId);
+      const wsAdminWorkspace = workspaces.find((ws: any) => assignedOrgAdmins.includes(ws.id));
+      const isWsAdmin = !!wsAdminWorkspace;
+
+      let role: UserRole;
+      let workspaceId: string;
+      let label: string;
+
+      if (isOrgAdmin) {
+        role = 'org_admin';
+        workspaceId = workspaces[0].id;
+        label = `${orgName} — Admin`;
+      } else if (isWsAdmin) {
+        role = 'workspace_admin';
+        workspaceId = wsAdminWorkspace.id;
+        label = `${orgName} — Manager`;
+      } else {
+        role = 'regular_user';
+        workspaceId = workspaces[0].id;
+        label = `${orgName} — User`;
       }
+
+      contexts.push({ label, value: JSON.stringify({ role, workspaceId }), role, organizationName: orgName });
     });
 
-    userForContexts.workspaces.forEach(org => {
-      const isManagedPersonalOrg = org.isPersonal && organizationAdminOrganizationIds.has(org.orgId);
-      if (org.name === 'Default Workspace' || isManagedPersonalOrg || systemAdmin) return;
-      if (!organizationAdminOrganizationIds.has(org.orgId) && !assignedOrgAdmins.includes(org.id)) {
-        const contextValue = JSON.stringify({ role: 'regular_user', workspaceId: org.id });
-        if (!addedContexts.has(contextValue)) {
-          contexts.push({ label: `${org.name} User`, value: contextValue, role: 'regular_user', organizationName: org.organizationName || 'Unknown Workspace' });
-          addedContexts.add(contextValue);
-        }
-      }
-    });
+    contexts.sort((a, b) => (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3) || a.organizationName.localeCompare(b.organizationName));
 
-    const grouped = contexts.reduce((acc, ctx) => {
-      const groupName = ctx.organizationName === 'System-Wide' ? 'System Administration' : `Workspace: ${ctx.organizationName}`;
-      if (!acc[groupName]) acc[groupName] = [];
-      acc[groupName].push(ctx);
-      return acc;
-    }, {} as Record<string, typeof contexts>);
-
-    Object.values(grouped).forEach(group => group.sort((a, b) => {
-      const roleOrder = { system_admin: -1, org_admin: 0, workspace_admin: 1, regular_user: 2 } as Record<UserRole, number>;
-      return roleOrder[a.role] - roleOrder[b.role];
-    }));
-
-    const sortedGroupKeys = Object.keys(grouped).sort((a, b) =>
-      a === 'System Administration' ? -1 : b === 'System Administration' ? 1 : a.localeCompare(b),
-    );
-
-    return sortedGroupKeys.map(key => ({ groupName: key, contexts: grouped[key] }));
+    return [{ groupName: 'Select Organization', contexts }];
   }, [user, userForContextSelection, contextSelectionMode]);
 
   // ── Context values — memoized so consumers only re-render on relevant changes
