@@ -99,7 +99,6 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
   const [showFullScope, setShowFullScope] = useState(false);
   const [containerScrollLeft, setContainerScrollLeft] = useState(0);
   const [containerClientWidth, setContainerClientWidth] = useState(0);
-
   const dragRef = useRef<DragState | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevTimeUnitRef = useRef<TimeUnit | null>(null);
@@ -207,13 +206,20 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
   const itemBarH = Math.max(1, Math.min(8, innerH / Math.max(allItemsWithDates.length, 1)));
 
   // ── Track container scroll position and client width ───────────────────
+  // Also auto-open Full Scope on mount if the timeline overflows (scroll is active).
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
     const onScroll = () => setContainerScrollLeft(container.scrollLeft);
-    const onResize = () => setContainerClientWidth(container.clientWidth);
-    setContainerClientWidth(container.clientWidth);
+    const onResize = () => {
+      setContainerClientWidth(container.clientWidth);
+    };
+    const w = container.clientWidth;
+    setContainerClientWidth(w);
     setContainerScrollLeft(container.scrollLeft);
+    // totalWidth is available in the closure via the outer scope — open Full Scope
+    // by default when the timeline is wider than the visible container.
+    if (container.scrollWidth > w) setShowFullScope(true);
     container.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onResize);
     return () => {
