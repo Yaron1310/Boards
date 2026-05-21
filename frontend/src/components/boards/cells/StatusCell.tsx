@@ -84,6 +84,7 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
                   width: '100%',
                   textAlign: 'center',
                   margin: '3px 10px',
+                  minHeight: '26px',
                   backgroundColor: currentOption.color,
                   color: getContrastText(currentOption.color)
                 }}
