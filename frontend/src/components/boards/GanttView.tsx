@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import type { Item, Column, Group } from '../../types';
 import { ColumnType } from '../../types';
 
@@ -6,6 +6,7 @@ import { ColumnType } from '../../types';
 const WEEK_PX = 120;
 const DAY_PX = 38;
 const ROW_H = 36;
+const FULL_SCOPE_H = ROW_H * 2; // 72px — mini-map overview row
 const NAME_W = 282;
 const HANDLE_W = 8;
 const MS_PER_DAY = 86_400_000;
@@ -95,6 +96,9 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [preview, setPreview] = useState<Record<string, { start: Date; end: Date }>>({});
   const [dragLabel, setDragLabel] = useState<{ x: number; y: number; text: string } | null>(null);
+  const [showFullScope, setShowFullScope] = useState(false);
+  const [containerScrollLeft, setContainerScrollLeft] = useState(0);
+  const [containerClientWidth, setContainerClientWidth] = useState(0);
 
   const dragRef = useRef<DragState | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -173,6 +177,50 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
     const end = parseDate(val?.end);
     return start && end ? { start, end } : null;
   }
+
+  // ── All items with resolved dates (for full scope mini-map) ────────────
+  const allItemsWithDates = useMemo(() => {
+    if (!timeRangeCol) return [];
+    return groups.flatMap((group) =>
+      (itemsByGroup[group.id] ?? [])
+        .map((item) => {
+          const p = preview[item.id];
+          if (p) return { item, group, dates: p };
+          const val = item.values[timeRangeCol.id] as { start?: string; end?: string } | null;
+          const start = parseDate(val?.start);
+          const end = parseDate(val?.end);
+          return start && end ? { item, group, dates: { start, end } } : null;
+        })
+        .filter((x): x is { item: Item; group: Group; dates: { start: Date; end: Date } } => x !== null),
+    );
+  }, [groups, itemsByGroup, timeRangeCol, preview]);
+
+  // ── Full scope scale factor and viewport rect ───────────────────────────
+  const fullScopeAvailW = Math.max(0, containerClientWidth - NAME_W);
+  const scaleFactor = timelineWidth > 0 && fullScopeAvailW > 0 ? fullScopeAvailW / timelineWidth : 0;
+  const viewportTimelineOffset = Math.max(0, containerScrollLeft - NAME_W);
+  const viewportRectLeft = viewportTimelineOffset * scaleFactor;
+  const viewportRectWidth = Math.max(6, (containerClientWidth - NAME_W) * scaleFactor);
+
+  // ── Mini-bar layout in full scope ───────────────────────────────────────
+  const innerH = FULL_SCOPE_H - 16; // 8px padding top and bottom
+  const itemBarH = Math.max(1, Math.min(8, innerH / Math.max(allItemsWithDates.length, 1)));
+
+  // ── Track container scroll position and client width ───────────────────
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const onScroll = () => setContainerScrollLeft(container.scrollLeft);
+    const onResize = () => setContainerClientWidth(container.clientWidth);
+    setContainerClientWidth(container.clientWidth);
+    setContainerScrollLeft(container.scrollLeft);
+    container.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onResize);
+    return () => {
+      container.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+    };
+  }, []);
 
   // ── Resize drag start ───────────────────────────────────────────────────
   function handleResizeStart(
@@ -306,6 +354,17 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
     container.scrollLeft = Math.max(0, todayPx - container.clientWidth / 2);
   }, [timeUnit, today, timelineStart, pxPerDay]);
 
+  // ── Click on full scope to navigate main Gantt ─────────────────────────
+  const handleFullScopeClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const container = containerRef.current;
+    if (!container || scaleFactor === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const timelineClickPx = clickX / scaleFactor;
+    const newScrollLeft = NAME_W + timelineClickPx - (container.clientWidth - NAME_W) / 2;
+    container.scrollLeft = Math.max(0, newScrollLeft);
+  }, [scaleFactor]);
+
   // ──────────────────────────────────────────────────────────────────────────
   if (!timeRangeCol) {
     return (
@@ -334,15 +393,30 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
             role="columnheader"
           >
             <span>Item</span>
-            <button
-              type="button"
-              onClick={() => setTimeUnit((u) => u === 'weeks' ? 'days' : 'weeks')}
-              className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-gray-200 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 transition-colors select-none"
-              aria-label={`Switch to ${timeUnit === 'weeks' ? 'days' : 'weeks'} view`}
-              aria-pressed={timeUnit === 'days'}
-            >
-              {timeUnit === 'weeks' ? 'Weeks' : 'Days'}
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setShowFullScope((v) => !v)}
+                className={`text-[11px] font-medium px-2 py-0.5 rounded-md transition-colors select-none ${
+                  showFullScope
+                    ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200'
+                    : 'bg-gray-200 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700'
+                }`}
+                aria-label="Toggle full scope overview"
+                aria-pressed={showFullScope}
+              >
+                Full Scope
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimeUnit((u) => u === 'weeks' ? 'days' : 'weeks')}
+                className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-gray-200 hover:bg-indigo-100 text-gray-600 hover:text-indigo-700 transition-colors select-none"
+                aria-label={`Switch to ${timeUnit === 'weeks' ? 'days' : 'weeks'} view`}
+                aria-pressed={timeUnit === 'days'}
+              >
+                {timeUnit === 'weeks' ? 'Weeks' : 'Days'}
+              </button>
+            </div>
           </div>
           <div className="flex" style={{ width: timelineWidth }}>
             {timeUnit === 'weeks'
@@ -395,6 +469,106 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                 })}
           </div>
         </div>
+
+        {/* ── Full scope mini-map ────────────────────────────────────────── */}
+        {showFullScope && (
+          <div
+            style={{
+              position: 'sticky',
+              top: ROW_H,
+              left: 0,
+              zIndex: 19,
+              width: containerClientWidth || '100%',
+              height: FULL_SCOPE_H,
+              backgroundColor: '#f9fafb',
+              borderBottom: '1px solid #d2d2d4',
+              overflow: 'hidden',
+              flexShrink: 0,
+            }}
+            role="img"
+            aria-label="Full scope timeline overview"
+          >
+            {/* Left label column */}
+            <div
+              style={{
+                position: 'absolute',
+                left: 0,
+                top: 0,
+                width: NAME_W,
+                height: FULL_SCOPE_H,
+                borderRight: '1px solid #d2d2d4',
+                display: 'flex',
+                alignItems: 'center',
+                paddingLeft: 14,
+                backgroundColor: '#f9fafb',
+                zIndex: 1,
+              }}
+            >
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                Full Scope
+              </span>
+            </div>
+
+            {/* Timeline area — clickable for navigation */}
+            <div
+              style={{
+                position: 'absolute',
+                left: NAME_W,
+                top: 0,
+                right: 0,
+                bottom: 0,
+                cursor: 'pointer',
+                overflow: 'hidden',
+              }}
+              onClick={handleFullScopeClick}
+              aria-label="Click to navigate timeline"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleFullScopeClick(e as unknown as React.MouseEvent<HTMLDivElement>); }}
+            >
+              {/* Item bars */}
+              {allItemsWithDates.map(({ item, group, dates }, idx) => {
+                const geom = getBarGeometry(dates.start, dates.end);
+                const scaledLeft = geom.left * scaleFactor;
+                const scaledWidth = Math.max(2, geom.width * scaleFactor);
+                const barTop = 8 + idx * itemBarH;
+                return (
+                  <div
+                    key={item.id}
+                    style={{
+                      position: 'absolute',
+                      left: scaledLeft,
+                      width: scaledWidth,
+                      top: barTop,
+                      height: Math.max(1, itemBarH - 1),
+                      backgroundColor: group.color ?? '#6366f1',
+                      borderRadius: 2,
+                      opacity: 0.75,
+                    }}
+                  />
+                );
+              })}
+
+              {/* Viewport rectangle */}
+              {scaleFactor > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: viewportRectLeft,
+                    width: viewportRectWidth,
+                    top: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(99,102,241,0.08)',
+                    border: '2px solid rgba(99,102,241,0.45)',
+                    borderRadius: 3,
+                    pointerEvents: 'none',
+                  }}
+                  aria-hidden="true"
+                />
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Body */}
         <div role="rowgroup" style={{ width: totalWidth }}>
