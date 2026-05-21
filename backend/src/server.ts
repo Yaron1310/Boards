@@ -32,7 +32,8 @@ export const createApp = async (): Promise<Application> => {
     logger.info(`CORS allowed origins: ${JSON.stringify(allowedOrigins)}`);
     app.use(cors((req: Request, callback: any) => {
         const origin = req.header('Origin');
-        if (!origin || allowedOrigins.includes(origin)) {
+        const isLocalhost = origin ? /^https?:\/\/localhost(:\d+)?$/.test(origin) : false;
+        if (!origin || isLocalhost || allowedOrigins.includes(origin)) {
             callback(null, { origin: true, credentials: true });
         } else {
             callback(new Error('Not allowed by CORS'));
