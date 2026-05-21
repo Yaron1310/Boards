@@ -68,15 +68,15 @@ function argbToHex(argb: string | undefined): string | undefined {
 
 // Returns the ARGB string if the cell has a solid colored fill that looks like
 // a status indicator (excludes white, near-white, light-gray row stripes, and
-// the dark header background).
+// the light header background used by this app's export).
 function getCellStatusArgb(cell: ExcelJS.Cell): string | null {
   const fill = cell.fill;
   if (!fill || fill.type !== 'pattern' || fill.pattern === 'none') return null;
   const argb = (fill as ExcelJS.FillPattern).fgColor?.argb;
   if (!argb || argb.length < 8) return null;
   const hex = argb.slice(2).toUpperCase();
-  // Skip transparent / white / near-white (row stripe) / dark header
-  const excluded = new Set(['FFFFFF', 'F5F5F5', '2D2D2D', '000000']);
+  // Skip transparent / white / alternating-row gray / header gray
+  const excluded = new Set(['FFFFFF', 'EFEFEF', 'D9D9D9', '000000']);
   if (excluded.has(hex)) return null;
   const r = parseInt(hex.slice(0, 2), 16);
   const g = parseInt(hex.slice(2, 4), 16);
@@ -84,6 +84,20 @@ function getCellStatusArgb(cell: ExcelJS.Cell): string | null {
   const luminance = (r * 299 + g * 587 + b * 114) / 1000;
   if (luminance > 230) return null; // very light = not a status color
   return argb;
+}
+
+// Returns true if the cell's font color is white (or near-white).
+// Status cells in this app's export always use white text, so this is the
+// most reliable signal that a column is a STATUS column.
+function cellHasWhiteText(cell: ExcelJS.Cell): boolean {
+  const argb = cell.font?.color?.argb;
+  if (!argb || argb.length < 8) return false;
+  const hex = argb.slice(2).toUpperCase();
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const luminance = (r * 299 + g * 587 + b * 114) / 1000;
+  return luminance > 200; // white or near-white font
 }
 
 // ── Column spec ───────────────────────────────────────────────────────────────
@@ -167,8 +181,11 @@ export async function importBoardFromXlsx(
   let columnSpecs: ColumnSpec[] = [];
 
   // colorMap[specIndex] maps ARGB → first label seen for that color.
-  // Populated while scanning item rows; used after scanning to detect STATUS cols.
+  // Populated while scanning item rows; used after scanning to build STATUS options.
   let colorMap: Map<string, string>[] = [];
+  // colHasWhiteText[specIndex] — true if any item cell in this column had white text.
+  // White text is the reliable indicator that a column is a STATUS column.
+  let colHasWhiteText: boolean[] = [];
 
   while (cursor < rows.length) {
     const groupName = cellToText(rows[cursor]?.[0]).trim();
@@ -184,6 +201,7 @@ export async function importBoardFromXlsx(
     if (!columnSpecs.length && headerNames.length) {
       columnSpecs = buildColumnSpecs(headerNames);
       colorMap = columnSpecs.map(() => new Map<string, string>());
+      colHasWhiteText = columnSpecs.map(() => false);
     }
 
     // Item rows until empty row
@@ -203,8 +221,10 @@ export async function importBoardFromXlsx(
         return getCellStatusArgb(cell);
       });
 
-      // Populate colorMap: record ARGB → label for each column
+      // Populate colorMap and colHasWhiteText for each column
       columnSpecs.forEach((spec, si) => {
+        const sheetCell = sheetRow.getCell(spec.rawIndices[0] + 2);
+        if (cellHasWhiteText(sheetCell)) colHasWhiteText[si] = true;
         const argb = cellArgbs[si];
         if (argb && !colorMap[si].has(argb)) {
           const label = cellToText(rawCells[spec.rawIndices[0] + 1]).trim();
@@ -233,7 +253,7 @@ export async function importBoardFromXlsx(
 
   const statusInfoBySpec: (StatusColInfo | null)[] = columnSpecs.map((spec, si) => {
     if (spec.type === ColumnType.TIME_RANGE) return null;
-    if (colorMap[si].size === 0) return null;
+    if (!colHasWhiteText[si]) return null;
 
     const options: StatusOption[] = [];
     const argbToOptionId = new Map<string, string>();
