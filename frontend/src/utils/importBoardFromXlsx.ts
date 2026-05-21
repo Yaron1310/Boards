@@ -261,7 +261,7 @@ export async function importBoardFromXlsx(
     for (const [argb, label] of colorMap[si].entries()) {
       const id = labelToOptionId(label) || `opt_${options.length}`;
       const color = `#${argb.slice(2).toLowerCase()}`;
-      options.push({ id, label: label || color, color });
+      options.push({ id, label, color });
       argbToOptionId.set(argb, id);
     }
 
