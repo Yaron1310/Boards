@@ -79,10 +79,13 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
           <div className="w-full flex justify-center">
             {currentOption ? (
               <span
-                className="inline-block px-6 py-[0.4rem] rounded-full text-xs font-medium shadow-sm"
-                style={{ 
-                  backgroundColor: currentOption.color, 
-                  color: getContrastText(currentOption.color) 
+                className="inline-block py-[0.4rem] rounded-full text-xs font-medium shadow-sm"
+                style={{
+                  width: '100%',
+                  textAlign: 'center',
+                  margin: '3px 10px',
+                  backgroundColor: currentOption.color,
+                  color: getContrastText(currentOption.color)
                 }}
               >
                 {currentOption.label}
