@@ -98,6 +98,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
 
   const dragRef = useRef<DragState | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevTimeUnitRef = useRef<TimeUnit | null>(null);
 
   // Keep mutable refs in sync so global event handlers can access current values
   const timeRangeColRef = useRef(timeRangeCol);
@@ -293,8 +294,12 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
     };
   }, []); // stable: everything accessed via refs or stable setters
 
-  // ── Auto-scroll to center on today when unit changes ───────────────────
+  // ── Auto-scroll to center on today on mount and when timeUnit changes ──
+  // Guard against re-running when timelineStart shifts due to item edits —
+  // that would cause the scroll to jump after every drag-and-drop.
   useEffect(() => {
+    if (prevTimeUnitRef.current === timeUnit) return;
+    prevTimeUnitRef.current = timeUnit;
     const container = containerRef.current;
     if (!container) return;
     const todayPx = NAME_W + (today.getTime() - timelineStart.getTime()) / MS_PER_DAY * pxPerDay;
