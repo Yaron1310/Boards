@@ -67,7 +67,7 @@ const UndoButton: React.FC = () => {
         type="button"
         disabled={!canUndo}
         onClick={() => undo()}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-l-lg hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm border rounded-l-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${canUndo ? 'text-red-700 border-red-300 hover:bg-red-50' : 'text-gray-600 border-gray-300 hover:bg-gray-50'}`}
         aria-label={canUndo ? `Undo: ${history[0]?.label}` : 'Nothing to undo'}
         title={canUndo ? `Undo: ${history[0]?.label} (Ctrl+Z)` : 'Nothing to undo (Ctrl+Z)'}
       >
@@ -78,7 +78,7 @@ const UndoButton: React.FC = () => {
         type="button"
         disabled={!canUndo}
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center px-1.5 py-1.5 text-sm text-gray-600 border border-l-0 border-gray-300 rounded-r-lg hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        className={`flex items-center px-1.5 py-1.5 text-sm border border-l-0 rounded-r-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${canUndo ? 'text-red-700 border-red-300 hover:bg-red-50' : 'text-gray-600 border-gray-300 hover:bg-gray-50'}`}
         aria-label="Show undo history"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -87,7 +87,7 @@ const UndoButton: React.FC = () => {
       </button>
       {open && (
         <div
-          className="absolute top-full right-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-64 overflow-y-auto"
+          className="absolute top-full right-0 mt-1 w-max min-w-[200px] max-w-[min(560px,calc(100vw-2rem))] bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-64 overflow-y-auto"
           role="listbox"
           aria-label="Undo history"
         >
@@ -97,11 +97,11 @@ const UndoButton: React.FC = () => {
               type="button"
               role="option"
               aria-selected={false}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors whitespace-nowrap"
               onClick={() => { undo(i + 1); setOpen(false); }}
             >
               <FiRotateCcw size={11} className="text-gray-400 flex-shrink-0" aria-hidden="true" />
-              <span className="truncate">{action.label}</span>
+              <span>{action.label}</span>
             </button>
           ))}
         </div>
@@ -959,7 +959,6 @@ const BoardViewPage: React.FC = () => {
                 Archived
               </button>
             )}
-            <UndoButton />
             <button
               type="button"
               onClick={() => void handleExport()}
@@ -970,6 +969,7 @@ const BoardViewPage: React.FC = () => {
               <FiUpload size={13} aria-hidden="true" />
               {isExporting ? 'Exporting…' : 'Export'}
             </button>
+            <UndoButton />
           </div>
         </div>
 
