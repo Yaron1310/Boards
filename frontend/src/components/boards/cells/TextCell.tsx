@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column, TextColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
 
@@ -14,6 +15,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = typeof stored === 'string' ? stored : '';
   const settings = column.settings as TextColumnSettings;
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState(rawValue);
   const [modalOpen, setModalOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(false);
@@ -26,6 +28,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
 
   const commit = (stopEdit: () => void) => {
     if (draft !== rawValue) {
+      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue } } }) });
       mutate({ id: item.id, patch: { values: { [column.id]: draft } } });
     }
     stopEdit();
@@ -33,6 +36,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
 
   const commitModal = () => {
     if (draft !== rawValue) {
+      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue } } }) });
       mutate({ id: item.id, patch: { values: { [column.id]: draft } } });
     }
     setModalOpen(false);

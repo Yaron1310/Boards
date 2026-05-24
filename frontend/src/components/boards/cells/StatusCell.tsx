@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 // Force refresh
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import { useUpdateColumn } from '../../../hooks/queries/useColumnQueries';
 import type { Item, Column, StatusColumnSettings, StatusOption } from '../../../types';
 import CellWrapper from './CellWrapper';
@@ -32,6 +33,7 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
   const settings = column.settings as StatusColumnSettings;
   const { mutate } = useUpdateItem();
   const { mutateAsync: updateColumn } = useUpdateColumn(column.boardId);
+  const { push: pushUndo } = useUndo();
 
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
@@ -41,6 +43,7 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
 
   const select = (optionId: string, stopEdit: () => void) => {
     if (optionId !== value) {
+      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: value } } }) });
       mutate({ id: item.id, patch: { values: { [column.id]: optionId } } });
     }
     stopEdit();

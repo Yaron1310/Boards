@@ -1,5 +1,6 @@
 import React from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column, DropdownColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
 
@@ -10,16 +11,19 @@ const DropdownCellInner: React.FC<Props> = ({ item, column }) => {
   const settings = column.settings as DropdownColumnSettings;
   const multiple = settings?.multiple ?? false;
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
 
   const selectedOptions = settings?.options?.filter((o) => selected.includes(o.id)) ?? [];
 
   const toggle = (optionId: string, stopEdit: () => void) => {
+    const prev = selected;
     let next: string[];
     if (selected.includes(optionId)) {
       next = selected.filter((id) => id !== optionId);
     } else {
       next = multiple ? [...selected, optionId] : [optionId];
     }
+    pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: prev } } }) });
     mutate({ id: item.id, patch: { values: { [column.id]: next } } });
     if (!multiple) stopEdit();
   };

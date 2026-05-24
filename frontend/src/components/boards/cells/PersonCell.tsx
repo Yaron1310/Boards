@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import { useUsersQuery } from '../../../hooks/queries/useUserQueries';
 import type { Item, Column, PersonColumnSettings, User } from '../../../types';
 import CellWrapper from './CellWrapper';
@@ -125,6 +126,7 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   const settings = column.settings as PersonColumnSettings;
   const multiple = settings?.multiple ?? true;
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
   const [search, setSearch] = useState('');
   const [hoveredUser, setHoveredUser] = useState<User | null>(null);
   const [tooltipAnchor, setTooltipAnchor] = useState<TooltipAnchor | null>(null);
@@ -135,12 +137,14 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   const filtered = allUsers.filter((u) => typeof u.name === 'string' && u.name.toLowerCase().includes(search.toLowerCase()));
 
   const toggle = (userId: string, stopEdit: () => void) => {
+    const prev = selected;
     let next: string[];
     if (selected.includes(userId)) {
       next = selected.filter((id) => id !== userId);
     } else {
       next = multiple ? [...selected, userId] : [userId];
     }
+    pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: prev } } }) });
     mutate({ id: item.id, patch: { values: { [column.id]: next } } });
     if (!multiple) stopEdit();
   };

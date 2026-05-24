@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column } from '../../../types';
 import CellWrapper from './CellWrapper';
 
@@ -9,12 +10,14 @@ const TagsCellInner: React.FC<Props> = ({ item, column }) => {
   const itemValue = item.values[column.id];
   const rawValue = useMemo(() => (itemValue ?? []) as string[], [itemValue]);
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState('');
   const [tags, setTags] = useState<string[]>(rawValue);
 
   useEffect(() => { setTags(rawValue); }, [rawValue]);
 
   const commitAll = (nextTags: string[], stopEdit: () => void) => {
+    pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue } } }) });
     mutate({ id: item.id, patch: { values: { [column.id]: nextTags } } });
     stopEdit();
   };

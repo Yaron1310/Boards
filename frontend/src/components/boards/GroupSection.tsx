@@ -8,6 +8,7 @@ import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { useCreateItem, useGroupItems } from '../../hooks/queries/useItemQueries';
 import { useUpdateGroup, useDeleteGroup, useArchiveGroup } from '../../hooks/queries/useGroupQueries';
+import { useUndo } from '../../contexts/UndoContext';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
@@ -52,6 +53,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const { mutateAsync: deleteGroup, isPending: isDeleting } = useDeleteGroup();
   const { mutateAsync: archiveGroup, isPending: isArchiving } = useArchiveGroup();
   const { mutateAsync: createItem, isPending: isCreatingItem } = useCreateItem();
+  const { push: pushUndo } = useUndo();
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(group.name);
@@ -189,6 +191,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       setNameValue(group.name);
       return;
     }
+    const prevName = group.name;
+    pushUndo({ label: `Renamed group "${prevName}" to "${trimmed}"`, undo: () => { void updateGroup({ boardId, groupId: group.id, patch: { name: prevName } }); } });
     await updateGroup({ boardId, groupId: group.id, patch: { name: trimmed } }).catch(() => {
       setNameValue(group.name);
     });

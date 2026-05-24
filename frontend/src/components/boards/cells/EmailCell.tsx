@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column } from '../../../types';
 import CellWrapper from './CellWrapper';
 
@@ -8,12 +9,14 @@ interface Props { item: Item; column: Column }
 const EmailCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = (item.values[column.id] ?? '') as string;
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState(rawValue);
 
   useEffect(() => { setDraft(rawValue); }, [rawValue]);
 
   const commit = (stopEdit: () => void) => {
     if (draft !== rawValue) {
+      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue } } }) });
       mutate({ id: item.id, patch: { values: { [column.id]: draft } } });
     }
     stopEdit();

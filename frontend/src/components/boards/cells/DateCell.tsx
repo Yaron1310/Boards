@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column, DateColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
 
@@ -36,6 +37,7 @@ const DateCellInner: React.FC<Props> = ({ item, column }) => {
   const settings = column.settings as DateColumnSettings;
   const includeTime = settings?.includeTime ?? false;
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState<string>(toInputValue(rawValue, includeTime));
 
   useEffect(() => {
@@ -46,6 +48,7 @@ const DateCellInner: React.FC<Props> = ({ item, column }) => {
     const next = draft ? new Date(draft).toISOString() : null;
     const current = rawValue ? new Date(rawValue as string).toISOString() : null;
     if (next !== current) {
+      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: current } } }) });
       mutate({ id: item.id, patch: { values: { [column.id]: next } } });
     }
     stopEdit();

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column, LocationValue } from '../../../types';
 import CellWrapper from './CellWrapper';
 
@@ -9,12 +10,14 @@ const LocationCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as LocationValue | null | undefined;
   const address = rawValue?.address ?? '';
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState(address);
 
   useEffect(() => { setDraft(rawValue?.address ?? ''); }, [rawValue]);
 
   const commit = (stopEdit: () => void) => {
     if (draft !== address) {
+      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue ?? null } } }) });
       mutate({ id: item.id, patch: { values: { [column.id]: { address: draft } } } });
     }
     stopEdit();

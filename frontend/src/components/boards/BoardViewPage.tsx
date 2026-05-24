@@ -22,7 +22,8 @@ import { useBoardSnapshot } from '../../hooks/useBoardSnapshot';
 import { UserRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiList } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiList, FiRotateCcw, FiChevronDown } from 'react-icons/fi';
+import { UndoProvider, useUndo } from '../../contexts/UndoContext';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader, { ITEM_COL_ID } from './ColumnHeader';
 import GanttView from './GanttView';
@@ -45,6 +46,69 @@ import DependencyApplyModal from './DependencyApplyModal';
 type DragData =
   | { type: 'group'; group: Group }
   | { type: 'item'; item: Item };
+
+const UndoButton: React.FC = () => {
+  const { history, canUndo, undo } = useUndo();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div className="relative flex flex-shrink-0" ref={ref}>
+      <button
+        type="button"
+        disabled={!canUndo}
+        onClick={() => undo()}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-l-lg hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label={canUndo ? `Undo: ${history[0]?.label}` : 'Nothing to undo'}
+        title={canUndo ? `Undo: ${history[0]?.label} (Ctrl+Z)` : 'Nothing to undo (Ctrl+Z)'}
+      >
+        <FiRotateCcw size={13} aria-hidden="true" />
+        Undo
+      </button>
+      <button
+        type="button"
+        disabled={!canUndo}
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center px-1.5 py-1.5 text-sm text-gray-600 border border-l-0 border-gray-300 rounded-r-lg hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="Show undo history"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <FiChevronDown size={12} aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          className="absolute top-full right-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1 max-h-64 overflow-y-auto"
+          role="listbox"
+          aria-label="Undo history"
+        >
+          {history.map((action, i) => (
+            <button
+              key={i}
+              type="button"
+              role="option"
+              aria-selected={false}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-indigo-50 hover:text-indigo-700 flex items-center gap-2 transition-colors"
+              onClick={() => { undo(i + 1); setOpen(false); }}
+            >
+              <FiRotateCcw size={11} className="text-gray-400 flex-shrink-0" aria-hidden="true" />
+              <span className="truncate">{action.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Chip shown in the top bar for each active filter
 const FilterChip: React.FC<{ filter: ActiveFilter; onRemove: () => void }> = ({ filter, onRemove }) => {
@@ -725,7 +789,7 @@ const BoardViewPage: React.FC = () => {
   }
 
   return (
-    <>
+    <UndoProvider>
       <div className="flex flex-col h-full min-h-0">
         {/* Board top bar */}
         <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 bg-white flex items-center gap-3">
@@ -895,6 +959,7 @@ const BoardViewPage: React.FC = () => {
                 Archived
               </button>
             )}
+            <UndoButton />
             <button
               type="button"
               onClick={() => void handleExport()}
@@ -966,7 +1031,7 @@ const BoardViewPage: React.FC = () => {
           onClose={() => setShowInviteModal(false)}
         />
       )}
-    </>
+    </UndoProvider>
   );
 };
 

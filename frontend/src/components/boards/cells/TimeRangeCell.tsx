@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import type { Item, Column, TimeRangeValue, TimeRangeDependency } from '../../../types';
 import { useDependency } from '../../../contexts/DependencyContext';
+import { useUndo } from '../../../contexts/UndoContext';
 import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
@@ -430,6 +431,7 @@ const TrafficLight: React.FC<{ date: Date | null; type: 'start' | 'end' }> = ({ 
 const TimeRangeCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as TimeRangeValue | null | undefined;
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
   const [start, setStart] = useState(toDateInput(rawValue?.start));
   const [end, setEnd] = useState(toDateInput(rawValue?.end));
   const [hovered, setHovered] = useState(false);
@@ -514,8 +516,10 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column }) => {
   // ---------------------------------------------------------------------------
 
   const commitValues = (s: string, e: string, stopEdit: () => void) => {
+    const prevValue = rawValue;
     const nextStart = s ? new Date(s).toISOString() : null;
     const nextEnd = e ? new Date(e).toISOString() : null;
+    pushUndo({ label: `Changed date range on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: prevValue ?? null } } }) });
     const durationDays =
       nextStart && nextEnd
         ? Math.max(1, Math.round((new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / 86_400_000))

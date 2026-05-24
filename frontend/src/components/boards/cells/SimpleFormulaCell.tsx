@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { FiX } from 'react-icons/fi';
 import { useColumns, useUpdateColumn } from '../../../hooks/queries/useColumnQueries';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
 import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import { evaluateFormula } from '../../../utils/formulaEngine';
@@ -27,6 +28,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   const { data: columns = [] } = useColumns(item.boardId);
   const { mutate: updateItem } = useUpdateItem();
   const { mutateAsync: updateColumn } = useUpdateColumn(item.boardId);
+  const { push: pushUndo } = useUndo();
   const { setInsertHandler } = useFormulaEdit();
   const { visibleItems, columns: boardColumns } = useBoardRender();
   const colWidth = calculateColumnWidth(column.name, column.type);
@@ -99,6 +101,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
 
   const persistValue = (newValue: string | null) => {
     if (newValue !== storedValue) {
+      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => updateItem({ id: item.id, patch: { values: { [column.id]: storedValue } } }) });
       updateItem({ id: item.id, patch: { values: { [column.id]: newValue } } });
     }
   };

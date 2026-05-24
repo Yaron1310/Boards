@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
+import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
 import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import type { Item, Column, NumberColumnSettings } from '../../../types';
@@ -22,6 +23,7 @@ const NumberCellInner: React.FC<Props> = ({ item, column }) => {
   const rawValue = item.values[column.id] as number | null | undefined;
   const settings = column.settings as NumberColumnSettings;
   const { mutate } = useUpdateItem();
+  const { push: pushUndo } = useUndo();
   const { isFormulaEditing, insertCellAddress } = useFormulaEdit();
   const { visibleItems, columns: boardColumns } = useBoardRender();
 
@@ -42,6 +44,7 @@ const NumberCellInner: React.FC<Props> = ({ item, column }) => {
     const parsed = draft === '' ? null : parseFloat(draft);
     const next = parsed != null && !isNaN(parsed) ? parsed : null;
     if (next !== rawValue) {
+      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue ?? null } } }) });
       mutate({ id: item.id, patch: { values: { [column.id]: next } } });
     }
     stopEdit();

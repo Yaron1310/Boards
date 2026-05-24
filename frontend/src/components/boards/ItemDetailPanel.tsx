@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader, FiMessageSquare } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useItem, useUpdateItem, useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
+import { useUndo } from '../../contexts/UndoContext';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
@@ -25,6 +26,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   const { mutateAsync: archiveItem, isPending: isArchiving } = useArchiveItem();
   const { mutateAsync: restoreItem, isPending: isRestoring } = useRestoreItem();
   const { mutateAsync: deleteItem, isPending: isDeleting } = useDeleteItem();
+  const { push: pushUndo } = useUndo();
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(item.name);
@@ -68,6 +70,8 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
     setEditingName(false);
     const trimmed = nameValue.trim();
     if (!trimmed || trimmed === item.name) return;
+    const prevName = item.name;
+    pushUndo({ label: `Renamed "${prevName}" to "${trimmed}"`, undo: () => { void updateItem({ id: item.id, patch: { name: prevName } }); } });
     await updateItem({ id: item.id, patch: { name: trimmed } }).catch(() => {
       setNameValue(item.name);
     });
