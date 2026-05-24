@@ -58,7 +58,7 @@ const pluralDays = (n: number) => `${n} day${n !== 1 ? 's' : ''}`;
 
 const getDurationText = (start: Date | null, end: Date | null): string => {
   if (!start || !end) return '';
-  const total = Math.round((end.getTime() - start.getTime()) / 86_400_000);
+  const total = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const left = Math.round((end.getTime() - today.getTime()) / 86_400_000);
@@ -518,7 +518,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column }) => {
     const nextEnd = e ? new Date(e).toISOString() : null;
     const durationDays =
       nextStart && nextEnd
-        ? Math.max(0, Math.round((new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / 86_400_000))
+        ? Math.max(1, Math.round((new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / 86_400_000))
         : (rawValue?.durationDays ?? 1);
 
     // When this cell is formula-driven, update each incoming dep's offsetDays so
