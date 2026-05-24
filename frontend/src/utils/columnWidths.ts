@@ -1,7 +1,7 @@
 import { ColumnType } from '../types';
 
 export const COLUMN_TYPE_MIN_WIDTHS: Partial<Record<ColumnType, number>> = {
-  [ColumnType.TIME_RANGE]: 205,
+  [ColumnType.TIME_RANGE]: 170,
 };
 
 export const ITEM_NAME_WIDTH = 'w-[298px]';
