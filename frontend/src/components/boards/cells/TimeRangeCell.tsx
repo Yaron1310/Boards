@@ -18,9 +18,31 @@ const toDateInput = (val: string | Date | null | undefined): string => {
   return d.toISOString().slice(0, 10);
 };
 
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
 const formatDate = (val: Date | null | undefined): string => {
   if (!val) return '';
-  return `${val.getDate()}.${val.getMonth() + 1}.${val.getFullYear()}`;
+  return `${SHORT_MONTHS[val.getMonth()]} ${val.getDate()}`;
+};
+
+interface DateRangeLabels { startLabel: string; endLabel: string; sameDay: boolean }
+const formatDateRange = (start: Date | null, end: Date | null): DateRangeLabels => {
+  if (!start) return { startLabel: '?', endLabel: '?', sameDay: false };
+  const startLabel = `${SHORT_MONTHS[start.getMonth()]} ${start.getDate()}`;
+  if (!end) return { startLabel, endLabel: '?', sameDay: false };
+  const sameDay =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+  if (sameDay) return { startLabel, endLabel: '', sameDay: true };
+  const sameMonth =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth();
+  const endLabel = sameMonth
+    ? `${end.getDate()}`
+    : `${SHORT_MONTHS[end.getMonth()]} ${end.getDate()}`;
+  return { startLabel, endLabel, sameDay: false };
 };
 
 const toDate = (val: string | Date | null | undefined): Date | null => {
@@ -650,32 +672,37 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column }) => {
                   <div className="px-3 py-2 text-xs text-gray-300 text-center w-full italic">
                     Set range
                   </div>
-                ) : (
-                  <div
-                    className="flex items-center justify-center w-full gap-[2px] px-3 h-[26px] rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] cursor-default"
-                    style={{
-                      background: isDependentCell
-                        ? 'linear-gradient(90deg, #8b5cf6, #6366f1)'
-                        : 'linear-gradient(90deg, #6366f1, #3b82f6)',
-                    }}
-                    aria-label={hovered && durationText ? durationText : `${formatDate(displayStart)} to ${formatDate(displayEnd)}`}
-                  >
-                    {hovered && durationText ? (
-                      <span className="text-center leading-tight">{durationText}</span>
-                    ) : (
-                      <>
-                        <span>{formatDate(displayStart) || '?'}</span>
-                        <span className="mx-1 flex items-center">
-                          <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-none stroke-white stroke-[2.5]">
-                            <line x1="1" y1="12" x2="19" y2="12" />
-                            <polyline points="13 6 19 12 13 18" />
-                          </svg>
-                        </span>
-                        <span>{formatDate(displayEnd) || '?'}</span>
-                      </>
-                    )}
-                  </div>
-                );
+                ) : (() => {
+                    const { startLabel, endLabel, sameDay: isSameDay } = formatDateRange(displayStart, displayEnd);
+                    return (
+                      <div
+                        className="flex items-center justify-center w-full gap-[2px] px-3 h-[26px] rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] cursor-default"
+                        style={{
+                          background: isDependentCell
+                            ? 'linear-gradient(90deg, #8b5cf6, #6366f1)'
+                            : 'linear-gradient(90deg, #6366f1, #3b82f6)',
+                        }}
+                        aria-label={hovered && durationText ? durationText : isSameDay ? startLabel : `${startLabel} to ${endLabel}`}
+                      >
+                        {hovered && durationText ? (
+                          <span className="text-center leading-tight">{durationText}</span>
+                        ) : isSameDay ? (
+                          <span>{startLabel}</span>
+                        ) : (
+                          <>
+                            <span>{startLabel}</span>
+                            <span className="mx-1 flex items-center">
+                              <svg viewBox="0 0 24 24" className="w-[14px] h-[14px] fill-none stroke-white stroke-[2.5]">
+                                <line x1="1" y1="12" x2="19" y2="12" />
+                                <polyline points="13 6 19 12 13 18" />
+                              </svg>
+                            </span>
+                            <span>{endLabel}</span>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })()
               })()}
 
               {/* Incoming dependency dot */}
