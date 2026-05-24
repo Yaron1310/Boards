@@ -48,7 +48,7 @@ export const DEMO_BOARDS: Board[] = [
 export const DEMO_COLUMNS: Column[] = [
   // Campaign Tracker
   {
-    id: 'col-camp-status', boardId: 'board-campaigns', name: 'Status', type: ColumnType.STATUS, width: 140,
+    id: 'col-camp-status', boardId: 'board-campaigns', name: 'Status', type: ColumnType.STATUS,
     settings: { options: [
       { id: 'not-started', label: 'Not Started', color: '#6b7280' },
       { id: 'in-progress', label: 'In Progress', color: '#3b82f6' },
@@ -58,29 +58,29 @@ export const DEMO_COLUMNS: Column[] = [
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-camp-owner', boardId: 'board-campaigns', name: 'Owner', type: ColumnType.TEXT, width: 150,
+    id: 'col-camp-owner', boardId: 'board-campaigns', name: 'Owner', type: ColumnType.TEXT,
     settings: {} as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-camp-due', boardId: 'board-campaigns', name: 'Due Date', type: ColumnType.DATE, width: 140,
+    id: 'col-camp-due', boardId: 'board-campaigns', name: 'Due Date', type: ColumnType.DATE,
     settings: { includeTime: false } as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-camp-priority', boardId: 'board-campaigns', name: 'Priority', type: ColumnType.DROPDOWN, width: 120,
+    id: 'col-camp-priority', boardId: 'board-campaigns', name: 'Priority', type: ColumnType.DROPDOWN,
     settings: { options: ['High', 'Medium', 'Low'] } as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-camp-budget', boardId: 'board-campaigns', name: 'Budget', type: ColumnType.NUMBER, width: 120,
+    id: 'col-camp-budget', boardId: 'board-campaigns', name: 'Budget', type: ColumnType.NUMBER,
     settings: { precision: 0, unit: '$', summary: 'sum' } as Column['settings'],
     summaryConfig: { calc: 'sum', unit: '$', unitAlign: 'left' as const },
     createdAt: NOW, updatedAt: NOW,
   },
   // Content Calendar
   {
-    id: 'col-cont-status', boardId: 'board-content', name: 'Status', type: ColumnType.STATUS, width: 140,
+    id: 'col-cont-status', boardId: 'board-content', name: 'Status', type: ColumnType.STATUS,
     settings: { options: [
       { id: 'draft',     label: 'Draft',     color: '#6b7280' },
       { id: 'review',    label: 'Review',    color: '#8b5cf6' },
@@ -90,29 +90,29 @@ export const DEMO_COLUMNS: Column[] = [
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-cont-author', boardId: 'board-content', name: 'Author', type: ColumnType.TEXT, width: 150,
+    id: 'col-cont-author', boardId: 'board-content', name: 'Author', type: ColumnType.TEXT,
     settings: {} as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-cont-date', boardId: 'board-content', name: 'Publish Date', type: ColumnType.DATE, width: 140,
+    id: 'col-cont-date', boardId: 'board-content', name: 'Publish Date', type: ColumnType.DATE,
     settings: { includeTime: false } as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-cont-channel', boardId: 'board-content', name: 'Channel', type: ColumnType.DROPDOWN, width: 120,
+    id: 'col-cont-channel', boardId: 'board-content', name: 'Channel', type: ColumnType.DROPDOWN,
     settings: { options: ['Blog', 'Social', 'Email', 'Video'] } as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-cont-words', boardId: 'board-content', name: 'Word Count', type: ColumnType.NUMBER, width: 130,
+    id: 'col-cont-words', boardId: 'board-content', name: 'Word Count', type: ColumnType.NUMBER,
     settings: { precision: 0, summary: 'sum' } as Column['settings'],
     summaryConfig: { calc: 'sum', unit: 'words', unitAlign: 'right' as const },
     createdAt: NOW, updatedAt: NOW,
   },
   // Bug Tracker
   {
-    id: 'col-bug-status', boardId: 'board-bugs', name: 'Status', type: ColumnType.STATUS, width: 140,
+    id: 'col-bug-status', boardId: 'board-bugs', name: 'Status', type: ColumnType.STATUS,
     settings: { options: [
       { id: 'open',        label: 'Open',        color: '#ef4444' },
       { id: 'in-progress', label: 'In Progress', color: '#3b82f6' },
@@ -122,22 +122,22 @@ export const DEMO_COLUMNS: Column[] = [
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-bug-assignee', boardId: 'board-bugs', name: 'Assignee', type: ColumnType.TEXT, width: 150,
+    id: 'col-bug-assignee', boardId: 'board-bugs', name: 'Assignee', type: ColumnType.TEXT,
     settings: {} as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-bug-reported', boardId: 'board-bugs', name: 'Reported', type: ColumnType.DATE, width: 130,
+    id: 'col-bug-reported', boardId: 'board-bugs', name: 'Reported', type: ColumnType.DATE,
     settings: { includeTime: false } as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-bug-severity', boardId: 'board-bugs', name: 'Severity', type: ColumnType.DROPDOWN, width: 120,
+    id: 'col-bug-severity', boardId: 'board-bugs', name: 'Severity', type: ColumnType.DROPDOWN,
     settings: { options: ['Critical', 'High', 'Medium', 'Low'] } as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },
   {
-    id: 'col-bug-sprint', boardId: 'board-bugs', name: 'Sprint', type: ColumnType.NUMBER, width: 100,
+    id: 'col-bug-sprint', boardId: 'board-bugs', name: 'Sprint', type: ColumnType.NUMBER,
     settings: { precision: 0 } as Column['settings'],
     createdAt: NOW, updatedAt: NOW,
   },

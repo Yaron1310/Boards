@@ -10,6 +10,7 @@ import { useCreateColumn, useColumns, useReorderColumns } from '../../hooks/quer
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
+import { calculateColumnWidth } from '../../utils/columnWidths';
 import type { StatusOption, DropdownOption } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
@@ -285,7 +286,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
     setError('');
     try {
-      await createColumn({ name: trimmedName, type, settings: buildSettings() });
+      await createColumn({ name: trimmedName, type, settings: buildSettings(), width: calculateColumnWidth(trimmedName, type) });
 
       await qc.refetchQueries({ queryKey: queryKeys.columns.board(boardId) });
       const rawColumns = qc.getQueryData(queryKeys.columns.board(boardId)) as any[] ?? [];
