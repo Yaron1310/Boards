@@ -1,298 +1,462 @@
-import React, { useReducer, useState, useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useLayoutEffect, useState } from 'react';
+import { Routes, Route, Navigate, NavLink } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { FiLayout, FiChevronDown, FiChevronRight, FiGrid, FiInfo } from 'react-icons/fi';
+import { AuthSessionContext } from '../../contexts/AuthContext';
+import type { AuthSessionContextType } from '../../contexts/AuthContext';
+import BoardViewPage from '../boards/BoardViewPage';
+import type { Board, Group, Item, Column } from '../../types';
 import {
-  FiLayout, FiChevronDown, FiChevronRight, FiSearch,
-  FiPlus, FiTrash2, FiArrowUp, FiArrowDown, FiGrid,
-  FiHash, FiCalendar, FiType, FiList, FiCheckSquare, FiInfo, FiCheck,
-} from 'react-icons/fi';
-import {
-  createInitialDemoState,
-  DemoState, DemoColumn, DemoGroup, DemoItem, DemoStatusOption,
+  DEMO_USER, DEMO_SELECTED_WORKSPACE, DEMO_WORKSPACES, DEMO_BOARDS,
+  DEMO_GROUPS, DEMO_ITEMS, DEMO_COLUMNS, DEMO_USERS, DEMO_USER_ID, DEMO_ORG_ID, NOW,
 } from './demoData';
 
-// ── Types ──────────────────────────────────────────────────────────────────
+// ── Demo state (mutable in-memory store, resets on browser refresh) ────────
 
-type DemoAction =
-  | { type: 'SET_ACTIVE_BOARD'; boardId: string }
-  | { type: 'UPDATE_ITEM_NAME'; itemId: string; name: string }
-  | { type: 'UPDATE_CELL'; itemId: string; columnId: string; value: unknown }
-  | { type: 'ADD_ITEM'; groupId: string; boardId: string }
-  | { type: 'DELETE_ITEM'; itemId: string }
-  | { type: 'ADD_GROUP'; boardId: string }
-  | { type: 'DELETE_GROUP'; groupId: string }
-  | { type: 'RENAME_GROUP'; groupId: string; name: string }
-  | { type: 'TOGGLE_GROUP_COLLAPSE'; groupId: string }
-  | { type: 'RENAME_BOARD'; boardId: string; name: string }
-  | { type: 'SET_SEARCH'; text: string }
-  | { type: 'SET_SORT'; columnId: string | null; direction: 'asc' | 'desc' };
-
-interface StatusDropdownOverlay {
-  itemId: string;
-  columnId: string;
-  type: 'status';
-  options: DemoStatusOption[];
-  x: number;
-  y: number;
+interface DemoStore {
+  boards: Board[];
+  groups: Group[];
+  items: Item[];
+  columns: Column[];
 }
 
-interface TextDropdownOverlay {
-  itemId: string;
-  columnId: string;
-  type: 'dropdown';
-  options: string[];
-  x: number;
-  y: number;
+function cloneInitialStore(): DemoStore {
+  return {
+    boards:  JSON.parse(JSON.stringify(DEMO_BOARDS))  as Board[],
+    groups:  JSON.parse(JSON.stringify(DEMO_GROUPS))  as Group[],
+    items:   JSON.parse(JSON.stringify(DEMO_ITEMS))   as Item[],
+    columns: JSON.parse(JSON.stringify(DEMO_COLUMNS)) as Column[],
+  };
 }
 
-type DropdownOverlay = StatusDropdownOverlay | TextDropdownOverlay;
-
-// ── Reducer ────────────────────────────────────────────────────────────────
-
+let store: DemoStore = cloneInitialStore();
 let nextId = 1000;
 function genId() { return `demo-${nextId++}`; }
 
-const GROUP_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#14b8a6', '#ec4899'];
+// ── Fetch interceptor ──────────────────────────────────────────────────────
 
-function demoReducer(state: DemoState, action: DemoAction): DemoState {
-  switch (action.type) {
-    case 'SET_ACTIVE_BOARD':
-      return { ...state, activeBoardId: action.boardId, searchText: '', sortConfig: null };
+function jsonResp(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
 
-    case 'UPDATE_ITEM_NAME':
-      return {
-        ...state,
-        items: state.items.map(item =>
-          item.id === action.itemId ? { ...item, name: action.name } : item
-        ),
+function paginated<T>(data: T[], cursor: string | null = null): Response {
+  return jsonResp({ data, cursor, hasMore: cursor !== null, total: data.length });
+}
+
+function parseBody(body: BodyInit | null | undefined): Record<string, unknown> {
+  if (!body || typeof body !== 'string') return {};
+  try { return JSON.parse(body) as Record<string, unknown>; } catch { return {}; }
+}
+
+function handleGroups(boardId: string, rest: string[], method: string, rawBody: BodyInit | null | undefined): Response {
+  const subId  = rest[0]; // group id or 'reorder'
+  const action = rest[1]; // 'archive' | 'restore'
+  const ts = new Date().toISOString();
+
+  if (!subId) {
+    if (method === 'GET') {
+      const includeArchived = false;
+      const groups = store.groups.filter(g => g.boardId === boardId && (includeArchived || !g.isArchived))
+        .sort((a, b) => a.order - b.order);
+      return jsonResp(groups);
+    }
+    if (method === 'POST') {
+      const data = parseBody(rawBody);
+      const ws = store.boards.find(b => b.id === boardId)?.workspaceId ?? DEMO_WORKSPACES[0].id;
+      const newGroup: Group = {
+        id: genId(), boardId, workspaceId: ws,
+        name: (data.name as string) ?? 'New Group',
+        color: (data.color as string) ?? '#6366f1',
+        order: store.groups.filter(g => g.boardId === boardId).length,
+        isCollapsed: false, isArchived: false, createdAt: ts, updatedAt: ts,
       };
+      store.groups.push(newGroup);
+      return jsonResp(newGroup);
+    }
+  }
 
-    case 'UPDATE_CELL':
-      return {
-        ...state,
-        items: state.items.map(item =>
-          item.id === action.itemId
-            ? { ...item, values: { ...item.values, [action.columnId]: action.value } }
-            : item
-        ),
-      };
+  if (subId === 'reorder') {
+    if (method === 'PATCH') {
+      const { order } = parseBody(rawBody) as { order?: { id: string; order: number }[] };
+      (order ?? []).forEach(({ id, order: o }) => {
+        const g = store.groups.find(gr => gr.id === id);
+        if (g) g.order = o;
+      });
+      return jsonResp({});
+    }
+  }
 
-    case 'ADD_ITEM': {
-      const groupItems = state.items.filter(i => i.groupId === action.groupId);
-      return {
-        ...state,
-        items: [
-          ...state.items,
-          {
-            id: genId(),
-            boardId: action.boardId,
-            groupId: action.groupId,
-            name: 'New Item',
-            order: groupItems.length,
-            values: {},
-          },
-        ],
+  const group = store.groups.find(g => g.id === subId);
+
+  if (!action) {
+    if (method === 'PATCH') {
+      if (!group) return jsonResp({}, 404);
+      const patch = parseBody(rawBody);
+      Object.assign(group, { ...patch, updatedAt: ts });
+      return jsonResp(group);
+    }
+    if (method === 'DELETE') {
+      store.groups = store.groups.filter(g => g.id !== subId);
+      store.items  = store.items.filter(i => i.groupId !== subId);
+      return jsonResp(null);
+    }
+  }
+
+  if (action === 'archive' && method === 'PATCH') {
+    if (group) group.isArchived = true;
+    return jsonResp({});
+  }
+  if (action === 'restore' && method === 'PATCH') {
+    if (group) { group.isArchived = false; return jsonResp(group); }
+  }
+
+  return jsonResp({});
+}
+
+function handleColumns(boardId: string, rest: string[], method: string, rawBody: BodyInit | null | undefined): Response {
+  const subId  = rest[0];
+  const ts = new Date().toISOString();
+
+  if (!subId) {
+    if (method === 'GET') {
+      const cols = store.columns.filter(c => c.boardId === boardId);
+      return jsonResp(cols);
+    }
+    if (method === 'POST') {
+      const data = parseBody(rawBody);
+      const newCol: Column = {
+        id: genId(), boardId,
+        name: (data.name as string) ?? 'New Column',
+        type: (data.type as Column['type']) ?? 'text',
+        settings: (data.settings as Column['settings']) ?? ({} as Column['settings']),
+        width: (data.width as number) ?? 140,
+        createdAt: ts, updatedAt: ts,
       };
+      store.columns.push(newCol);
+      return jsonResp(newCol);
+    }
+  }
+
+  if (subId === 'reorder') {
+    if (method === 'PATCH') {
+      return jsonResp({});
+    }
+  }
+
+  const col = store.columns.find(c => c.id === subId);
+
+  if (method === 'PATCH') {
+    if (!col) return jsonResp({}, 404);
+    const patch = parseBody(rawBody);
+    if (patch.settings) {
+      col.settings = { ...col.settings, ...(patch.settings as object) } as Column['settings'];
+      delete patch.settings;
+    }
+    Object.assign(col, { ...patch, updatedAt: ts });
+    return jsonResp(col);
+  }
+  if (method === 'DELETE') {
+    store.columns = store.columns.filter(c => c.id !== subId);
+    return jsonResp(null);
+  }
+
+  return jsonResp({});
+}
+
+function handleItems(segments: string[], method: string, search: URLSearchParams, rawBody: BodyInit | null | undefined): Response {
+  const subId  = segments[2]; // item id or 'reorder'
+  const action = segments[3]; // 'archive' | 'restore'
+  const ts = new Date().toISOString();
+
+  if (!subId) {
+    if (method === 'GET') {
+      const groupId = search.get('groupId') ?? undefined;
+      const cursor  = search.get('cursor')  || undefined;
+      const limit   = parseInt(search.get('limit') ?? '50');
+      const includeArchived = search.get('includeArchived') === 'true';
+
+      let items = store.items.filter(i =>
+        (!groupId || i.groupId === groupId) && (includeArchived || !i.isArchived)
+      ).sort((a, b) => a.order - b.order);
+
+      if (cursor) {
+        const idx = items.findIndex(i => i.id === cursor);
+        if (idx >= 0) items = items.slice(idx + 1);
+      }
+
+      const page = items.slice(0, limit);
+      const nextCursor = items.length > limit ? items[limit].id : null;
+      return paginated(page, nextCursor);
     }
 
-    case 'DELETE_ITEM':
-      return { ...state, items: state.items.filter(i => i.id !== action.itemId) };
-
-    case 'ADD_GROUP': {
-      const boardGroups = state.groups.filter(g => g.boardId === action.boardId);
-      return {
-        ...state,
-        groups: [
-          ...state.groups,
-          {
-            id: genId(),
-            boardId: action.boardId,
-            name: 'New Group',
-            color: GROUP_COLORS[boardGroups.length % GROUP_COLORS.length],
-            isCollapsed: false,
-            order: boardGroups.length,
-          },
-        ],
+    if (method === 'POST') {
+      const data = parseBody(rawBody);
+      const newItem: Item = {
+        id: genId(),
+        boardId:     (data.boardId     as string) ?? '',
+        groupId:     (data.groupId     as string) ?? '',
+        workspaceId: (data.workspaceId as string) ?? DEMO_WORKSPACES[0].id,
+        name:        (data.name        as string) ?? 'New Item',
+        order: store.items.filter(i => i.groupId === data.groupId).length,
+        createdBy: DEMO_USER_ID,
+        isArchived: false,
+        status:   data.status   as string | undefined,
+        dueDate:  data.dueDate  as string | undefined,
+        assignees: (data.assignees as string[]) ?? [],
+        values:   (data.values   as Record<string, unknown>) ?? {},
+        chatMessageCount: 0,
+        createdAt: ts, updatedAt: ts,
       };
+      store.items.push(newItem);
+      return jsonResp(newItem);
+    }
+  }
+
+  if (subId === 'reorder') {
+    if (method === 'PATCH') {
+      const updates = parseBody(rawBody) as unknown as { id: string; order: number; groupId?: string }[];
+      (Array.isArray(updates) ? updates : []).forEach(({ id, order, groupId }) => {
+        const it = store.items.find(i => i.id === id);
+        if (it) { it.order = order; if (groupId) it.groupId = groupId; }
+      });
+      return jsonResp({});
+    }
+  }
+
+  const it = store.items.find(i => i.id === subId);
+
+  if (!action) {
+    if (method === 'GET') return it ? jsonResp(it) : jsonResp({}, 404);
+    if (method === 'PATCH') {
+      if (!it) return jsonResp({}, 404);
+      const patch = parseBody(rawBody);
+      if (patch.values && typeof patch.values === 'object') {
+        it.values = { ...it.values, ...(patch.values as Record<string, unknown>) };
+        delete patch.values;
+      }
+      Object.assign(it, { ...patch, updatedAt: ts });
+      return jsonResp(it);
+    }
+    if (method === 'DELETE') {
+      store.items = store.items.filter(i => i.id !== subId);
+      return jsonResp(null);
+    }
+  }
+
+  if (action === 'archive' && method === 'PATCH') {
+    if (it) it.isArchived = true;
+    return jsonResp({});
+  }
+  if (action === 'restore' && method === 'PATCH') {
+    if (it) { it.isArchived = false; return jsonResp(it); }
+  }
+
+  return jsonResp({});
+}
+
+function handleDemoFetch(input: RequestInfo | URL, init?: RequestInit): Response | null {
+  const url    = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const method = (init?.method ?? 'GET').toUpperCase();
+
+  const apiIdx = url.indexOf('/api/');
+  if (apiIdx === -1) return null; // not an API call, pass through
+
+  const withQuery = url.slice(apiIdx);
+  const [path, qs = ''] = withQuery.split('?');
+  const search   = new URLSearchParams(qs);
+  const segments = path.split('/').filter(Boolean); // ['api', resource, ...]
+  const resource = segments[1];
+
+  if (resource === 'boards') {
+    const boardId    = segments[2];
+    const subRes     = segments[3]; // 'groups' | 'columns' | 'members' | 'version'
+    const ts = new Date().toISOString();
+
+    if (!boardId) {
+      if (method === 'GET') {
+        const wsId = search.get('workspaceId') ?? undefined;
+        const inc  = search.get('includeArchived') === 'true';
+        const boards = store.boards.filter(b =>
+          (!wsId || b.workspaceId === wsId) && (inc || !b.isArchived)
+        );
+        return jsonResp(boards);
+      }
+      return jsonResp([]);
     }
 
-    case 'DELETE_GROUP':
-      return {
-        ...state,
-        groups: state.groups.filter(g => g.id !== action.groupId),
-        items: state.items.filter(i => i.groupId !== action.groupId),
-      };
+    if (!subRes) {
+      if (method === 'GET') {
+        const b = store.boards.find(b => b.id === boardId);
+        return b ? jsonResp(b) : jsonResp({}, 404);
+      }
+      if (method === 'PATCH') {
+        const b = store.boards.find(b => b.id === boardId);
+        if (b) { Object.assign(b, { ...parseBody(init?.body), updatedAt: ts }); return jsonResp(b); }
+        return jsonResp({}, 404);
+      }
+      return jsonResp({});
+    }
 
-    case 'RENAME_GROUP':
-      return {
-        ...state,
-        groups: state.groups.map(g =>
-          g.id === action.groupId ? { ...g, name: action.name } : g
-        ),
-      };
-
-    case 'TOGGLE_GROUP_COLLAPSE':
-      return {
-        ...state,
-        groups: state.groups.map(g =>
-          g.id === action.groupId ? { ...g, isCollapsed: !g.isCollapsed } : g
-        ),
-      };
-
-    case 'RENAME_BOARD':
-      return {
-        ...state,
-        boards: state.boards.map(b =>
-          b.id === action.boardId ? { ...b, name: action.name } : b
-        ),
-      };
-
-    case 'SET_SEARCH':
-      return { ...state, searchText: action.text };
-
-    case 'SET_SORT':
-      return {
-        ...state,
-        sortConfig: action.columnId
-          ? { columnId: action.columnId, direction: action.direction }
-          : null,
-      };
-
-    default:
-      return state;
+    if (subRes === 'groups')  return handleGroups(boardId,  segments.slice(4), method, init?.body);
+    if (subRes === 'columns') return handleColumns(boardId, segments.slice(4), method, init?.body);
+    if (subRes === 'members') {
+      return jsonResp([{ userId: DEMO_USER_ID, boardId, workspaceId: 'ws-marketing', role: 'admin', addedBy: DEMO_USER_ID, createdAt: NOW, userName: 'Demo User', userEmail: 'demo@logyx.app' }]);
+    }
+    if (subRes === 'version') return jsonResp({ version: 0 });
+    if (subRes === 'invite')  return jsonResp({});
+    return jsonResp({});
   }
-}
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+  if (resource === 'items') return handleItems(segments, method, search, init?.body);
 
-function getContrastColor(hex: string): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? '#1f2937' : '#ffffff';
-}
-
-function formatDate(dateStr: string): string {
-  if (!dateStr) return '';
-  try {
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const d = new Date(year, month - 1, day);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return dateStr;
+  if (resource === 'workspaces') {
+    if (method === 'GET') return jsonResp(DEMO_WORKSPACES);
+    return jsonResp({});
   }
+
+  if (resource === 'users') {
+    if (method === 'GET') return paginated(DEMO_USERS);
+    return jsonResp({});
+  }
+
+  if (resource === 'chat') {
+    if (method === 'GET')  return paginated([]);
+    if (method === 'POST') return jsonResp({ id: genId(), ...parseBody(init?.body), createdAt: new Date().toISOString() });
+    return jsonResp({});
+  }
+
+  if (resource === 'organizations') {
+    return jsonResp([{ id: DEMO_ORG_ID, name: 'Demo Corp', createdAt: NOW }]);
+  }
+
+  // Anything else: silent success
+  return jsonResp({});
 }
 
-const COLUMN_TYPE_ICONS: Record<string, React.ReactNode> = {
-  text: <FiType size={12} aria-hidden="true" />,
-  number: <FiHash size={12} aria-hidden="true" />,
-  date: <FiCalendar size={12} aria-hidden="true" />,
-  status: <FiList size={12} aria-hidden="true" />,
-  dropdown: <FiList size={12} aria-hidden="true" />,
-  checkbox: <FiCheckSquare size={12} aria-hidden="true" />,
+// ── Auth mock ──────────────────────────────────────────────────────────────
+
+const noop = () => { /* no-op for demo */ };
+const noopBool = async () => false;
+const noopVoid = async () => { /* no-op for demo */ };
+
+const MOCK_AUTH: AuthSessionContextType = {
+  user: DEMO_USER,
+  token: 'demo-token',
+  selectedWorkspace: DEMO_SELECTED_WORKSPACE,
+  isOrgSubscriptionActive: true,
+  logout: noop,
+  updateAuthUser: noop,
+  refreshAuthUser: noopVoid,
+  updateUserDetails: noopBool,
+  updateUserPassword: noopBool,
+  updateUserProfileImage: noopBool,
+  setAuthenticatedUserFromGoogle: noopBool,
+  setAuthenticatedUserFromToken: noopBool,
+  nativeGoogleLogin: noopVoid,
+  nativeMicrosoftLogin: noopVoid,
 };
 
-// ── Sidebar ────────────────────────────────────────────────────────────────
+// ── Demo sidebar ───────────────────────────────────────────────────────────
 
-interface SidebarProps {
-  state: DemoState;
-  dispatch: React.Dispatch<DemoAction>;
-}
+interface SidebarProps { activeBoardId: string }
 
-const DemoSidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
-  const [expandedWorkspaces, setExpandedWorkspaces] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(state.workspaces.map(ws => [ws.id, true]))
+const DemoBoardSidebar: React.FC<SidebarProps> = ({ activeBoardId }) => {
+  const [expandedWs, setExpandedWs] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(DEMO_WORKSPACES.map(ws => [ws.id, true]))
   );
 
-  const toggleWorkspace = (id: string) =>
-    setExpandedWorkspaces(prev => ({ ...prev, [id]: !prev[id] }));
+  // Pull board names from store so renames are reflected
+  const getBoard = (id: string) => store.boards.find(b => b.id === id);
+
+  const hoverCss = `
+    .demo-nav-item { position: relative; z-index: 10; overflow: hidden; }
+    .demo-nav-item::before { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0.15); opacity: 0; transition: opacity 0.15s; z-index: -1; }
+    .demo-nav-item:hover::before, .demo-nav-item.active::before { opacity: 1; }
+  `;
 
   return (
     <aside
-      className="w-64 flex-shrink-0 flex flex-col h-full"
+      className="w-64 flex-shrink-0 flex flex-col h-full overflow-hidden"
       style={{ backgroundColor: '#312e81' }}
-      aria-label="Demo navigation sidebar"
+      aria-label="Demo sidebar"
     >
+      <style>{hoverCss}</style>
+
       {/* Logo */}
-      <div className="p-6 pb-3">
-        <div className="flex items-center gap-3">
-          <div
-            className="w-10 h-10 rounded-full bg-indigo-400 flex items-center justify-center flex-shrink-0"
-            aria-hidden="true"
-          >
-            <FiGrid size={18} color="white" />
-          </div>
-          <span className="text-white font-bold text-xl">Logyx</span>
+      <div className="p-6 pb-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-indigo-400 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+          <FiGrid size={18} color="white" />
         </div>
+        <span className="text-white font-bold text-xl">Logyx</span>
       </div>
 
       {/* Demo badge */}
-      <div className="mx-4 mb-3 px-3 py-1.5 bg-amber-500/90 rounded-lg flex items-center gap-2">
+      <div className="mx-4 mb-3 px-3 py-1.5 rounded-lg flex items-center gap-2" style={{ backgroundColor: 'rgba(245,158,11,0.9)' }}>
         <FiInfo size={13} color="white" aria-hidden="true" />
         <span className="text-white text-xs font-medium">Demo — resets on refresh</span>
       </div>
 
       {/* Nav links */}
-      <div className="px-3 mb-3 space-y-0.5">
-        <Link
-          to="/"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white hover:bg-white/10 transition-colors"
-          aria-label="Go to home page"
-        >
-          <FiGrid size={15} aria-hidden="true" />
-          <span>Dashboard</span>
-        </Link>
-        <div
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-400 cursor-default select-none"
-          role="presentation"
-          aria-hidden="true"
-        >
-          <FiLayout size={15} />
-          <span>WorkHubs</span>
-        </div>
+      <div className="px-3 space-y-0.5 mb-3">
+        {[
+          { label: 'Dashboard',  path: '/WorkHubs'   },
+          { label: 'WorkHubs',   path: '/WorkHubs'   },
+        ].map(({ label, path }) => (
+          <NavLink
+            key={label}
+            to={path}
+            className="demo-nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-gray-300 hover:text-white"
+            style={{ color: '#e5e7eb' }}
+            aria-label={label}
+          >
+            <FiGrid size={15} aria-hidden="true" />
+            <span>{label}</span>
+          </NavLink>
+        ))}
       </div>
 
-      <div className="mx-4 mb-2 border-t border-white/10" />
+      <div className="mx-4 mb-3 border-t" style={{ borderColor: 'rgba(229,231,235,0.2)' }} />
 
       {/* Workspaces + boards */}
-      <div className="flex-1 overflow-y-auto px-3 space-y-3">
-        {state.workspaces.map(ws => {
-          const wsBoards = state.boards.filter(b => b.workspaceId === ws.id);
-          const isExpanded = expandedWorkspaces[ws.id] ?? true;
+      <nav className="flex-1 overflow-y-auto px-3 space-y-3" aria-label="Boards">
+        {DEMO_WORKSPACES.map(ws => {
+          const wsBoards = DEMO_BOARDS.filter(b => b.workspaceId === ws.id);
+          const isOpen = expandedWs[ws.id] ?? true;
           return (
             <div key={ws.id}>
               <button
                 type="button"
-                onClick={() => toggleWorkspace(ws.id)}
-                className="flex items-center gap-1 w-full text-left px-2 mb-1 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-200 transition-colors"
-                aria-expanded={isExpanded}
-                aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${ws.name}`}
+                onClick={() => setExpandedWs(prev => ({ ...prev, [ws.id]: !prev[ws.id] }))}
+                className="flex items-center gap-1 w-full px-2 mb-1 text-xs font-semibold uppercase tracking-wider hover:opacity-100 transition-opacity"
+                style={{ color: '#e5e7eb', opacity: 0.7 }}
+                aria-expanded={isOpen}
+                aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${ws.name}`}
               >
-                {isExpanded
-                  ? <FiChevronDown size={11} aria-hidden="true" />
-                  : <FiChevronRight size={11} aria-hidden="true" />}
+                {isOpen ? <FiChevronDown size={11} aria-hidden="true" /> : <FiChevronRight size={11} aria-hidden="true" />}
                 <span>{ws.name}</span>
               </button>
-              {isExpanded && (
+              {isOpen && (
                 <ul role="list" aria-label={`${ws.name} boards`}>
                   {wsBoards.map(board => {
-                    const isActive = state.activeBoardId === board.id;
+                    const current = getBoard(board.id);
+                    const isActive = activeBoardId === board.id;
                     return (
                       <li key={board.id} role="listitem">
-                        <button
-                          type="button"
-                          onClick={() => dispatch({ type: 'SET_ACTIVE_BOARD', boardId: board.id })}
-                          className={`flex items-center gap-2 w-full text-left px-5 py-1.5 rounded-lg text-sm transition-colors ${
-                            isActive
-                              ? 'bg-white/15 text-white font-semibold'
-                              : 'text-gray-300 hover:text-white hover:bg-white/10'
+                        <NavLink
+                          to={`/demo-board/boards/${board.id}`}
+                          className={`demo-nav-item flex items-center gap-2 px-5 py-1.5 rounded-lg text-sm transition-colors ${
+                            isActive ? 'active font-semibold' : ''
                           }`}
+                          style={{ color: '#e5e7eb' }}
                           aria-current={isActive ? 'page' : undefined}
-                          aria-label={`Open ${board.name} board`}
+                          aria-label={`Open board ${current?.name ?? board.name}`}
                         >
                           <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
-                          <span className="truncate">{board.name}</span>
-                        </button>
+                          <span className="truncate">{current?.name ?? board.name}</span>
+                        </NavLink>
                       </li>
                     );
                   })}
@@ -301,20 +465,17 @@ const DemoSidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
             </div>
           );
         })}
-      </div>
+      </nav>
 
-      {/* User profile */}
-      <div className="p-4 border-t border-white/10">
+      {/* Footer */}
+      <div className="p-4 border-t" style={{ borderColor: 'rgba(229,231,235,0.2)' }}>
         <div className="flex items-center gap-3">
-          <div
-            className="w-8 h-8 rounded-full bg-indigo-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
-            aria-hidden="true"
-          >
+          <div className="w-8 h-8 rounded-full bg-indigo-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0" aria-hidden="true">
             DU
           </div>
           <div className="min-w-0">
             <p className="text-white text-sm font-medium truncate">Demo User</p>
-            <p className="text-gray-400 text-xs truncate">demo@example.com</p>
+            <p className="text-xs truncate" style={{ color: '#9ca3af' }}>demo@logyx.app</p>
           </div>
         </div>
       </div>
@@ -322,768 +483,47 @@ const DemoSidebar: React.FC<SidebarProps> = ({ state, dispatch }) => {
   );
 };
 
-// ── Cell ───────────────────────────────────────────────────────────────────
-
-interface CellProps {
-  column: DemoColumn;
-  value: unknown;
-  onSave: (value: unknown) => void;
-  onOpenDropdown: (
-    e: React.MouseEvent,
-    type: 'status' | 'dropdown',
-    options: DemoStatusOption[] | string[]
-  ) => void;
-}
-
-const DemoCell: React.FC<CellProps> = ({ column, value, onSave, onOpenDropdown }) => {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editing) inputRef.current?.focus();
-  }, [editing]);
-
-  const startEdit = () => {
-    setDraft(String(value ?? ''));
-    setEditing(true);
-  };
-
-  const commit = () => {
-    if (column.type === 'number') {
-      const n = parseFloat(draft);
-      onSave(isNaN(n) ? null : n);
-    } else {
-      onSave(draft || null);
-    }
-    setEditing(false);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') commit();
-    if (e.key === 'Escape') setEditing(false);
-  };
-
-  const cellStyle: React.CSSProperties = { width: column.width, minWidth: column.width, maxWidth: column.width };
-
-  // Status
-  if (column.type === 'status') {
-    const opts = column.statusOptions ?? [];
-    const opt = opts.find(o => o.id === value);
-    return (
-      <div style={cellStyle} className="flex-shrink-0 px-2 py-1 flex items-center border-r border-gray-100">
-        <button
-          type="button"
-          onClick={(e) => onOpenDropdown(e, 'status', opts)}
-          className="w-full text-left focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded"
-          aria-label={`Status: ${opt?.label ?? 'None'}. Click to change`}
-        >
-          {opt ? (
-            <span
-              className="inline-block px-2 py-0.5 rounded text-xs font-medium w-full text-center truncate"
-              style={{ backgroundColor: opt.color, color: getContrastColor(opt.color) }}
-            >
-              {opt.label}
-            </span>
-          ) : (
-            <span className="text-gray-300 text-xs px-1">—</span>
-          )}
-        </button>
-      </div>
-    );
-  }
-
-  // Dropdown
-  if (column.type === 'dropdown') {
-    const val = value as string | undefined;
-    return (
-      <div style={cellStyle} className="flex-shrink-0 px-2 py-1 flex items-center border-r border-gray-100">
-        <button
-          type="button"
-          onClick={(e) => onOpenDropdown(e, 'dropdown', column.dropdownOptions ?? [])}
-          className="w-full text-left text-sm text-gray-700 hover:text-indigo-600 truncate focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded"
-          aria-label={`${column.name}: ${val ?? 'None'}. Click to change`}
-        >
-          {val || <span className="text-gray-300">—</span>}
-        </button>
-      </div>
-    );
-  }
-
-  // Checkbox
-  if (column.type === 'checkbox') {
-    return (
-      <div style={cellStyle} className="flex-shrink-0 px-2 py-1 flex items-center justify-center border-r border-gray-100">
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={!!value}
-          onClick={() => onSave(!value)}
-          className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-400 ${
-            value ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300 hover:border-indigo-400'
-          }`}
-          aria-label={`${column.name}: ${value ? 'checked' : 'unchecked'}`}
-        >
-          {value && <FiCheck size={10} color="white" aria-hidden="true" />}
-        </button>
-      </div>
-    );
-  }
-
-  // Date
-  if (column.type === 'date') {
-    if (editing) {
-      return (
-        <div style={cellStyle} className="flex-shrink-0 px-1 py-0.5 border-r border-gray-100">
-          <input
-            ref={inputRef}
-            type="date"
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={handleKeyDown}
-            className="w-full text-sm border border-indigo-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            aria-label={`Edit ${column.name}`}
-          />
-        </div>
-      );
-    }
-    return (
-      <div style={cellStyle} className="flex-shrink-0 px-2 py-1 border-r border-gray-100">
-        <button
-          type="button"
-          onClick={startEdit}
-          className="w-full text-left text-sm text-gray-700 hover:text-indigo-600 truncate focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded"
-          aria-label={`${column.name}: ${value ? formatDate(value as string) : 'None'}. Click to edit`}
-        >
-          {value ? formatDate(value as string) : <span className="text-gray-300">—</span>}
-        </button>
-      </div>
-    );
-  }
-
-  // Text and Number
-  const displayVal = column.type === 'number' && column.unit && value != null
-    ? `${column.unit}${Number(value).toLocaleString()}`
-    : String(value ?? '');
-
-  if (editing) {
-    return (
-      <div style={cellStyle} className="flex-shrink-0 px-1 py-0.5 border-r border-gray-100">
-        <input
-          ref={inputRef}
-          type={column.type === 'number' ? 'number' : 'text'}
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={handleKeyDown}
-          className="w-full text-sm border border-indigo-400 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-          aria-label={`Edit ${column.name}`}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div style={cellStyle} className="flex-shrink-0 px-2 py-1 border-r border-gray-100">
-      <button
-        type="button"
-        onClick={startEdit}
-        className="w-full text-left text-sm text-gray-700 hover:text-indigo-600 truncate focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded"
-        aria-label={`${column.name}: ${displayVal || 'Empty'}. Click to edit`}
-      >
-        {displayVal || <span className="text-gray-300">—</span>}
-      </button>
-    </div>
-  );
-};
-
-// ── Item Row ───────────────────────────────────────────────────────────────
-
-interface ItemRowProps {
-  item: DemoItem;
-  columns: DemoColumn[];
-  onUpdateName: (name: string) => void;
-  onUpdateCell: (columnId: string, value: unknown) => void;
-  onDelete: () => void;
-  onOpenDropdown: (
-    e: React.MouseEvent,
-    itemId: string,
-    columnId: string,
-    type: 'status' | 'dropdown',
-    options: DemoStatusOption[] | string[]
-  ) => void;
-}
-
-const DemoItemRow: React.FC<ItemRowProps> = ({
-  item, columns, onUpdateName, onUpdateCell, onDelete, onOpenDropdown,
-}) => {
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState('');
-  const [hovered, setHovered] = useState(false);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editingName) nameInputRef.current?.focus();
-  }, [editingName]);
-
-  const startNameEdit = () => {
-    setNameDraft(item.name);
-    setEditingName(true);
-  };
-
-  const commitName = () => {
-    if (nameDraft.trim()) onUpdateName(nameDraft.trim());
-    setEditingName(false);
-  };
-
-  const handleNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') commitName();
-    if (e.key === 'Escape') setEditingName(false);
-  };
-
-  return (
-    <div
-      className={`flex border-b border-gray-100 transition-colors ${hovered ? 'bg-indigo-50/40' : 'bg-white'}`}
-      role="row"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Item name — sticky left */}
-      <div
-        className="sticky left-0 z-10 bg-inherit flex-shrink-0 flex items-center gap-2 px-3 py-1.5 border-r border-gray-200"
-        style={{ width: 280, minWidth: 280 }}
-        role="rowheader"
-      >
-        {editingName ? (
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={nameDraft}
-            onChange={e => setNameDraft(e.target.value)}
-            onBlur={commitName}
-            onKeyDown={handleNameKeyDown}
-            className="flex-1 text-sm border border-indigo-400 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            aria-label="Edit item name"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={startNameEdit}
-            className="flex-1 text-left text-sm text-gray-800 hover:text-indigo-600 truncate focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded"
-            aria-label={`Item: ${item.name}. Click to rename`}
-          >
-            {item.name}
-          </button>
-        )}
-        {hovered && !editingName && (
-          <button
-            type="button"
-            onClick={onDelete}
-            className="flex-shrink-0 p-1 text-gray-300 hover:text-red-500 transition-colors rounded"
-            aria-label={`Delete ${item.name}`}
-          >
-            <FiTrash2 size={13} aria-hidden="true" />
-          </button>
-        )}
-      </div>
-
-      {/* Data cells */}
-      {columns.map(col => (
-        <DemoCell
-          key={col.id}
-          column={col}
-          value={item.values[col.id]}
-          onSave={(val) => onUpdateCell(col.id, val)}
-          onOpenDropdown={(e, type, opts) => onOpenDropdown(e, item.id, col.id, type, opts)}
-        />
-      ))}
-    </div>
-  );
-};
-
-// ── Group Section ──────────────────────────────────────────────────────────
-
-interface GroupSectionProps {
-  group: DemoGroup;
-  items: DemoItem[];
-  columns: DemoColumn[];
-  boardId: string;
-  searchText: string;
-  sortConfig: DemoState['sortConfig'];
-  dispatch: React.Dispatch<DemoAction>;
-  onOpenDropdown: (
-    e: React.MouseEvent,
-    itemId: string,
-    columnId: string,
-    type: 'status' | 'dropdown',
-    options: DemoStatusOption[] | string[]
-  ) => void;
-}
-
-const DemoGroupSection: React.FC<GroupSectionProps> = ({
-  group, items, columns, boardId, searchText, sortConfig, dispatch, onOpenDropdown,
-}) => {
-  const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState('');
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const nameInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (editingName) nameInputRef.current?.focus();
-  }, [editingName]);
-
-  const startNameEdit = () => {
-    setNameDraft(group.name);
-    setEditingName(true);
-  };
-
-  const commitName = () => {
-    if (nameDraft.trim()) dispatch({ type: 'RENAME_GROUP', groupId: group.id, name: nameDraft.trim() });
-    setEditingName(false);
-  };
-
-  const handleNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') commitName();
-    if (e.key === 'Escape') setEditingName(false);
-  };
-
-  let displayItems = items;
-  if (searchText) {
-    const q = searchText.toLowerCase();
-    displayItems = items.filter(item =>
-      item.name.toLowerCase().includes(q) ||
-      Object.values(item.values).some(v => String(v ?? '').toLowerCase().includes(q))
-    );
-  }
-
-  if (sortConfig) {
-    displayItems = [...displayItems].sort((a, b) => {
-      const av = a.values[sortConfig.columnId];
-      const bv = b.values[sortConfig.columnId];
-      const cmp = String(av ?? '').localeCompare(String(bv ?? ''), undefined, { numeric: true });
-      return sortConfig.direction === 'asc' ? cmp : -cmp;
-    });
-  }
-
-  return (
-    <div className="mb-2" role="rowgroup" aria-label={group.name}>
-      {/* Group header */}
-      <div
-        className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 border-b border-gray-200"
-        style={{ borderLeft: `4px solid ${group.color}` }}
-      >
-        <button
-          type="button"
-          onClick={() => dispatch({ type: 'TOGGLE_GROUP_COLLAPSE', groupId: group.id })}
-          className="text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-          aria-expanded={!group.isCollapsed}
-          aria-label={`${group.isCollapsed ? 'Expand' : 'Collapse'} ${group.name}`}
-        >
-          {group.isCollapsed
-            ? <FiChevronRight size={15} aria-hidden="true" />
-            : <FiChevronDown size={15} aria-hidden="true" />}
-        </button>
-
-        {editingName ? (
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={nameDraft}
-            onChange={e => setNameDraft(e.target.value)}
-            onBlur={commitName}
-            onKeyDown={handleNameKeyDown}
-            className="text-sm font-semibold border border-indigo-400 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            aria-label="Edit group name"
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={startNameEdit}
-            className="text-sm font-semibold text-gray-700 hover:text-indigo-600 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded"
-            aria-label={`Group: ${group.name}. Click to rename`}
-          >
-            {group.name}
-          </button>
-        )}
-
-        <span className="text-xs text-gray-400">
-          {items.length} {items.length === 1 ? 'item' : 'items'}
-        </span>
-
-        <div className="ml-auto flex items-center gap-1">
-          {confirmDelete ? (
-            <>
-              <span className="text-xs text-gray-500 mr-1">Delete group?</span>
-              <button
-                type="button"
-                onClick={() => dispatch({ type: 'DELETE_GROUP', groupId: group.id })}
-                className="text-xs px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"
-                aria-label="Confirm delete group"
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                onClick={() => setConfirmDelete(false)}
-                className="text-xs px-2 py-0.5 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition-colors"
-                aria-label="Cancel delete group"
-              >
-                Cancel
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              className="p-1 text-gray-300 hover:text-red-400 transition-colors rounded"
-              aria-label={`Delete group ${group.name}`}
-            >
-              <FiTrash2 size={13} aria-hidden="true" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Items */}
-      {!group.isCollapsed && (
-        <>
-          {displayItems.length === 0 && searchText ? (
-            <div className="px-4 py-2 text-sm text-gray-400 italic border-b border-gray-100">
-              No matching items
-            </div>
-          ) : (
-            displayItems.map(item => (
-              <DemoItemRow
-                key={item.id}
-                item={item}
-                columns={columns}
-                onUpdateName={(name) => dispatch({ type: 'UPDATE_ITEM_NAME', itemId: item.id, name })}
-                onUpdateCell={(colId, val) => dispatch({ type: 'UPDATE_CELL', itemId: item.id, columnId: colId, value: val })}
-                onDelete={() => dispatch({ type: 'DELETE_ITEM', itemId: item.id })}
-                onOpenDropdown={onOpenDropdown}
-              />
-            ))
-          )}
-          {/* Add item */}
-          <div
-            className="flex items-center border-b border-gray-100 bg-white"
-            style={{ borderLeft: `4px solid ${group.color}` }}
-          >
-            <button
-              type="button"
-              onClick={() => dispatch({ type: 'ADD_ITEM', groupId: group.id, boardId })}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-sm text-gray-400 hover:text-indigo-600 transition-colors"
-              aria-label={`Add item to ${group.name}`}
-            >
-              <FiPlus size={13} aria-hidden="true" />
-              <span>Add Item</span>
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
-
-// ── Column Headers ─────────────────────────────────────────────────────────
-
-interface ColumnHeaderProps {
-  columns: DemoColumn[];
-  sortConfig: DemoState['sortConfig'];
-  onSort: (columnId: string) => void;
-}
-
-const DemoColumnHeaders: React.FC<ColumnHeaderProps> = ({ columns, sortConfig, onSort }) => (
-  <div className="flex border-b-2 border-gray-200 bg-gray-50 sticky top-0 z-20" role="row">
-    <div
-      className="sticky left-0 z-30 bg-gray-50 flex-shrink-0 flex items-center px-3 py-2 border-r border-gray-200"
-      style={{ width: 280, minWidth: 280 }}
-      role="columnheader"
-    >
-      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Item Name</span>
-    </div>
-    {columns.map(col => {
-      const isSorted = sortConfig?.columnId === col.id;
-      const dir = sortConfig?.direction;
-      return (
-        <div
-          key={col.id}
-          className="flex-shrink-0 flex items-center gap-1.5 px-2 py-2 border-r border-gray-100"
-          style={{ width: col.width, minWidth: col.width }}
-          role="columnheader"
-          aria-sort={isSorted ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
-        >
-          <span className="text-gray-400 flex-shrink-0" aria-hidden="true">
-            {COLUMN_TYPE_ICONS[col.type]}
-          </span>
-          <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider truncate">
-            {col.name}
-          </span>
-          <button
-            type="button"
-            onClick={() => onSort(col.id)}
-            className={`ml-auto flex-shrink-0 p-0.5 rounded hover:bg-gray-200 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-400 ${
-              isSorted ? 'text-indigo-600' : 'text-gray-300 hover:text-gray-500'
-            }`}
-            aria-label={`Sort by ${col.name} ${isSorted && dir === 'asc' ? 'descending' : 'ascending'}`}
-          >
-            {isSorted && dir === 'desc'
-              ? <FiArrowDown size={11} aria-hidden="true" />
-              : <FiArrowUp size={11} aria-hidden="true" />}
-          </button>
-        </div>
-      );
-    })}
-  </div>
-);
-
-// ── Board View ─────────────────────────────────────────────────────────────
-
-interface BoardViewProps {
-  state: DemoState;
-  dispatch: React.Dispatch<DemoAction>;
-}
-
-const DemoBoardView: React.FC<BoardViewProps> = ({ state, dispatch }) => {
-  const [dropdownOverlay, setDropdownOverlay] = useState<DropdownOverlay | null>(null);
-  const [editingBoardName, setEditingBoardName] = useState(false);
-  const [boardNameDraft, setBoardNameDraft] = useState('');
-  const boardNameInputRef = useRef<HTMLInputElement>(null);
-
-  const board = state.boards.find(b => b.id === state.activeBoardId);
-  const columns = state.columns.filter(c => c.boardId === state.activeBoardId);
-  const groups = state.groups
-    .filter(g => g.boardId === state.activeBoardId)
-    .sort((a, b) => a.order - b.order);
-
-  useEffect(() => {
-    if (editingBoardName) boardNameInputRef.current?.focus();
-  }, [editingBoardName]);
-
-  // Reset board name editing when board changes
-  useEffect(() => {
-    setEditingBoardName(false);
-  }, [state.activeBoardId]);
-
-  const startBoardNameEdit = () => {
-    setBoardNameDraft(board?.name ?? '');
-    setEditingBoardName(true);
-  };
-
-  const commitBoardName = () => {
-    if (boardNameDraft.trim() && board) {
-      dispatch({ type: 'RENAME_BOARD', boardId: board.id, name: boardNameDraft.trim() });
-    }
-    setEditingBoardName(false);
-  };
-
-  const handleBoardNameKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') commitBoardName();
-    if (e.key === 'Escape') setEditingBoardName(false);
-  };
-
-  const handleSort = (columnId: string) => {
-    const current = state.sortConfig;
-    if (!current || current.columnId !== columnId) {
-      dispatch({ type: 'SET_SORT', columnId, direction: 'asc' });
-    } else if (current.direction === 'asc') {
-      dispatch({ type: 'SET_SORT', columnId, direction: 'desc' });
-    } else {
-      dispatch({ type: 'SET_SORT', columnId: null, direction: 'asc' });
-    }
-  };
-
-  const handleOpenDropdown = (
-    e: React.MouseEvent,
-    itemId: string,
-    columnId: string,
-    type: 'status' | 'dropdown',
-    options: DemoStatusOption[] | string[]
-  ) => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    if (type === 'status') {
-      setDropdownOverlay({ itemId, columnId, type, options: options as DemoStatusOption[], x: rect.left, y: rect.bottom + 4 });
-    } else {
-      setDropdownOverlay({ itemId, columnId, type, options: options as string[], x: rect.left, y: rect.bottom + 4 });
-    }
-  };
-
-  const handleDropdownSelect = (value: string | null) => {
-    if (!dropdownOverlay) return;
-    dispatch({ type: 'UPDATE_CELL', itemId: dropdownOverlay.itemId, columnId: dropdownOverlay.columnId, value: value || null });
-    setDropdownOverlay(null);
-  };
-
-  useEffect(() => {
-    if (!dropdownOverlay) return;
-    const handler = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (!target.closest('[data-demo-dropdown]')) {
-        setDropdownOverlay(null);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [dropdownOverlay]);
-
-  if (!board) return null;
-
-  const totalWidth = 280 + columns.reduce((sum, c) => sum + c.width, 0);
-
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white">
-      {/* Board header */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center gap-4 flex-wrap">
-          {editingBoardName ? (
-            <input
-              ref={boardNameInputRef}
-              type="text"
-              value={boardNameDraft}
-              onChange={e => setBoardNameDraft(e.target.value)}
-              onBlur={commitBoardName}
-              onKeyDown={handleBoardNameKeyDown}
-              className="text-2xl font-bold text-gray-900 border border-indigo-400 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              aria-label="Edit board name"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={startBoardNameEdit}
-              className="text-2xl font-bold text-gray-900 hover:text-indigo-600 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded"
-              aria-label={`Board name: ${board.name}. Click to rename`}
-            >
-              {board.name}
-            </button>
-          )}
-
-          <div className="ml-auto flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-1.5">
-            <FiSearch size={14} className="text-gray-400 flex-shrink-0" aria-hidden="true" />
-            <input
-              type="search"
-              placeholder="Search items..."
-              value={state.searchText}
-              onChange={e => dispatch({ type: 'SET_SEARCH', text: e.target.value })}
-              className="bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none w-44"
-              aria-label="Search items"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Board body */}
-      <div className="flex-1 overflow-auto">
-        <div style={{ minWidth: totalWidth }}>
-          <DemoColumnHeaders
-            columns={columns}
-            sortConfig={state.sortConfig}
-            onSort={handleSort}
-          />
-
-          <div role="rowgroup">
-            {groups.map(group => (
-              <DemoGroupSection
-                key={group.id}
-                group={group}
-                items={state.items.filter(i => i.groupId === group.id)}
-                columns={columns}
-                boardId={board.id}
-                searchText={state.searchText}
-                sortConfig={state.sortConfig}
-                dispatch={dispatch}
-                onOpenDropdown={handleOpenDropdown}
-              />
-            ))}
-          </div>
-
-          {/* Add group */}
-          <div className="px-4 py-4">
-            <button
-              type="button"
-              onClick={() => dispatch({ type: 'ADD_GROUP', boardId: board.id })}
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-indigo-600 transition-colors focus:outline-none focus:ring-1 focus:ring-indigo-400 rounded"
-              aria-label="Add new group"
-            >
-              <FiPlus size={14} aria-hidden="true" />
-              <span>Add Group</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Dropdown overlay — rendered at fixed position to escape overflow */}
-      {dropdownOverlay && (
-        <div
-          data-demo-dropdown
-          role="menu"
-          aria-label="Select option"
-          style={{
-            position: 'fixed',
-            top: Math.min(dropdownOverlay.y, window.innerHeight - 200),
-            left: Math.min(dropdownOverlay.x, window.innerWidth - 180),
-            zIndex: 9999,
-          }}
-          className="bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-36"
-        >
-          {dropdownOverlay.type === 'status'
-            ? (dropdownOverlay.options as DemoStatusOption[]).map(opt => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => handleDropdownSelect(opt.id)}
-                  className="flex items-center w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  aria-label={`Set status to ${opt.label}`}
-                >
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-full mr-2.5 flex-shrink-0"
-                    style={{ backgroundColor: opt.color }}
-                    aria-hidden="true"
-                  />
-                  {opt.label}
-                </button>
-              ))
-            : (dropdownOverlay.options as string[]).map(opt => (
-                <button
-                  key={opt}
-                  type="button"
-                  role="menuitem"
-                  onClick={() => handleDropdownSelect(opt)}
-                  className="flex items-center w-full px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  aria-label={`Select ${opt}`}
-                >
-                  {opt}
-                </button>
-              ))
-          }
-          <div className="border-t border-gray-100 mt-1 pt-1">
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => handleDropdownSelect(null)}
-              className="w-full px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-50 text-left transition-colors"
-              aria-label="Clear value"
-            >
-              Clear
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
 // ── Page ───────────────────────────────────────────────────────────────────
 
 const DemoBoardPage: React.FC = () => {
-  const [state, dispatch] = useReducer(demoReducer, undefined, createInitialDemoState);
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: { queries: { retry: false, staleTime: 10_000 } },
+  }));
+
+  // Install fetch interceptor before any child effects fire
+  useLayoutEffect(() => {
+    store = cloneInitialStore();
+    const saved = window.fetch.bind(window);
+    window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const mockResp = handleDemoFetch(input, init);
+      if (mockResp !== null) return Promise.resolve(mockResp);
+      return saved(input, init);
+    };
+    return () => { window.fetch = saved; };
+  }, []);
+
+  // Derive current boardId from URL so the sidebar highlights the right entry
+  const pathBoardId = window.location.pathname.split('/').pop() ?? '';
+  const activeBoardId = DEMO_BOARDS.some(b => b.id === pathBoardId)
+    ? pathBoardId
+    : DEMO_BOARDS[0].id;
 
   return (
-    <div className="flex h-screen overflow-hidden" aria-label="Demo board application">
-      <DemoSidebar state={state} dispatch={dispatch} />
-      <DemoBoardView state={state} dispatch={dispatch} />
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <AuthSessionContext.Provider value={MOCK_AUTH}>
+        <div className="flex h-screen overflow-hidden" aria-label="Demo board application">
+          <DemoBoardSidebar activeBoardId={activeBoardId} />
+
+          <div className="flex-1 overflow-hidden">
+            <Routes>
+              <Route index element={<Navigate to={`boards/${DEMO_BOARDS[0].id}`} replace />} />
+              <Route path="boards/:boardId" element={<BoardViewPage />} />
+              <Route path="*" element={<Navigate to={`boards/${DEMO_BOARDS[0].id}`} replace />} />
+            </Routes>
+          </div>
+        </div>
+      </AuthSessionContext.Provider>
+    </QueryClientProvider>
   );
 };
 

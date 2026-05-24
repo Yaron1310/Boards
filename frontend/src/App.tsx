@@ -202,7 +202,7 @@ const App: React.FC = () => {
         <Route path="/approve-user" element={<UserApprovalPage />} />
         <Route path="/legal" element={<LegalPage />} />
         <Route path="/accessibility" element={<AccessibilityPage />} />
-        <Route path="/demo-board" element={<DemoBoardPage />} />
+        <Route path="/demo-board/*" element={<DemoBoardPage />} />
 
         {/* Authenticated routes */}
         <Route element={<Suspense fallback={<PageLoader />}><MainLayout /></Suspense>}>
