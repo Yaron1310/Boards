@@ -548,6 +548,17 @@ export interface BoardMember {
   userProfileImageUrl?: string;
 }
 
+export interface BoardPermissionsWorkspace {
+  id: string;
+  name: string;
+  boards: Array<{
+    id: string;
+    name: string;
+    isMember: boolean;
+    role: BoardRole | null;
+  }>;
+}
+
 export type NotificationType = 'assignment' | 'mention';
 
 export interface Notification {

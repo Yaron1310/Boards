@@ -20,5 +20,7 @@ userRouter.put('/me/profile-image', userController.updateMyProfileImage);
 
 // --- General user management (Admin/Manager) ---
 userRouter.get('/', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]), userController.getAllUsers);
+userRouter.get('/:userId/board-permissions', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), userController.getUserBoardPermissions);
+userRouter.put('/:userId/board-permissions', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), userController.updateUserBoardPermissions);
 userRouter.get('/:userId', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]), userController.getUserById);
 userRouter.delete('/:userId', userController.deleteUser); // Auth logic is inside controller

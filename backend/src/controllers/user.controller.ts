@@ -11,10 +11,12 @@ import {
     workspacesCollection,
     preapprovedUsersCollection,
     membershipsCollection,
-    organizationsCollection
+    organizationsCollection,
+    boardsCollection,
+    boardMembersCollection,
 } from '../db/collections.js';
 import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { JwtUserPayload, DBUser, DBWorkspace, DBPreapprovedUser, UserRole, DBMembership, PaginatedResponse } from '../types/index.js';
+import { JwtUserPayload, DBUser, DBWorkspace, DBPreapprovedUser, UserRole, DBMembership, DBBoard, DBBoardMember, BoardRole, PaginatedResponse } from '../types/index.js';
 import { formatUserForFrontend } from './auth.controller.js';
 import { sanitizeText, sanitizeImageUrl } from '../utils/sanitizer.js';
 import { sendUserInvitationEmail } from '../services/email.service.js';
@@ -260,7 +262,38 @@ export const getAllUsers = async (req: Request, res: Response) => {
         }
 
         const snapshot = await membershipQuery.get();
-        const memberships = querySnapshotToArray<DBMembership>(snapshot);
+        let memberships = querySnapshotToArray<DBMembership>(snapshot);
+
+        // For org admins viewing their own org (without workspace filter), also fetch
+        // org_admin memberships stored with entityId = orgId to ensure they appear.
+        if (user.role === UserRole.ORGANIZATION_ADMIN && !workspaceId && !roleFilter) {
+            const orgAdminSnap = await membershipsCollection
+                .where('entityId', '==', user.orgId)
+                .where('role', '==', UserRole.ORGANIZATION_ADMIN)
+                .get();
+            const orgAdminMemberships = querySnapshotToArray<DBMembership>(orgAdminSnap);
+            const existingUserIds = new Set(memberships.map(m => m.userId));
+            for (const m of orgAdminMemberships) {
+                if (!existingUserIds.has(m.userId)) {
+                    memberships = [...memberships, m];
+                    existingUserIds.add(m.userId);
+                }
+            }
+        } else if (user.role === UserRole.ORGANIZATION_ADMIN && !workspaceId && roleFilter === UserRole.ORGANIZATION_ADMIN) {
+            // When explicitly filtering by org_admin role, use entityId-based query instead
+            const orgAdminSnap = await membershipsCollection
+                .where('entityId', '==', user.orgId)
+                .where('role', '==', UserRole.ORGANIZATION_ADMIN)
+                .get();
+            const orgAdminMemberships = querySnapshotToArray<DBMembership>(orgAdminSnap);
+            const existingUserIds = new Set(memberships.map(m => m.userId));
+            for (const m of orgAdminMemberships) {
+                if (!existingUserIds.has(m.userId)) {
+                    memberships = [...memberships, m];
+                    existingUserIds.add(m.userId);
+                }
+            }
+        }
 
         // Deduplicate by userId (a user can have multiple memberships)
         const seenUserIds = new Set<string>();
@@ -591,3 +624,161 @@ export const deleteUser = async (req: Request, res: Response) => {
 
 // Suppress unused import warning — logAudit is available for future use
 void logAudit;
+
+// ---------------------------------------------------------------------------
+// GET /users/:userId/board-permissions
+// Returns all workhubs and their boards for the org, with user's membership status.
+// ---------------------------------------------------------------------------
+export const getUserBoardPermissions = async (req: Request, res: Response) => {
+    const requestingUser = req.user as JwtUserPayload;
+    const { userId } = req.params;
+
+    if (requestingUser.role !== UserRole.ORGANIZATION_ADMIN && requestingUser.role !== UserRole.SYSTEM_ADMIN) {
+        return res.status(403).json({ message: 'Forbidden.' });
+    }
+
+    try {
+        // Get all non-personal workspaces for the org
+        const workspacesSnap = await workspacesCollection
+            .where('orgId', '==', requestingUser.orgId)
+            .where('isPersonal', '==', false)
+            .get();
+        const workspaces = querySnapshotToArray<DBWorkspace>(workspacesSnap);
+
+        // Get all boards for the org
+        const boardsSnap = await boardsCollection(requestingUser.orgId)
+            .where('isArchived', '==', false)
+            .get();
+        const allBoards = querySnapshotToArray<DBBoard>(boardsSnap);
+
+        // Get all board memberships for the target user across all boards
+        const boardMemberSnaps = await Promise.all(
+            allBoards.map(b => boardMembersCollection(requestingUser.orgId, b.id).doc(userId).get())
+        );
+        const memberBoardIds = new Map<string, BoardRole>();
+        allBoards.forEach((b, i) => {
+            const snap = boardMemberSnaps[i];
+            if (snap.exists) {
+                memberBoardIds.set(b.id, (snap.data() as DBBoardMember).role);
+            }
+        });
+
+        // Build grouped structure
+        const result = workspaces.map(ws => ({
+            id: ws.id,
+            name: ws.name,
+            boards: allBoards
+                .filter(b => b.workspaceId === ws.id)
+                .map(b => ({
+                    id: b.id,
+                    name: b.name,
+                    isMember: memberBoardIds.has(b.id),
+                    role: memberBoardIds.get(b.id) ?? null,
+                })),
+        })).filter(ws => ws.boards.length > 0);
+
+        res.json({ workspaces: result });
+    } catch (error) {
+        logger.error('Error fetching user board permissions:', error);
+        res.status(500).json({ message: 'Failed to fetch board permissions.' });
+    }
+};
+
+// ---------------------------------------------------------------------------
+// PUT /users/:userId/board-permissions
+// Replaces the user's board memberships with the provided list.
+// Body: { boards: Array<{ boardId: string; role: 'viewer' | 'editor' | 'admin' }> }
+// ---------------------------------------------------------------------------
+export const updateUserBoardPermissions = async (req: Request, res: Response) => {
+    const requestingUser = req.user as JwtUserPayload;
+    const { userId } = req.params;
+    const { boards: newBoards } = req.body as { boards: Array<{ boardId: string; role: BoardRole }> };
+
+    if (requestingUser.role !== UserRole.ORGANIZATION_ADMIN && requestingUser.role !== UserRole.SYSTEM_ADMIN) {
+        return res.status(403).json({ message: 'Forbidden.' });
+    }
+    if (!Array.isArray(newBoards)) {
+        return res.status(400).json({ message: 'boards array is required.' });
+    }
+
+    try {
+        // Verify target user belongs to this org
+        const userMemberSnap = await membershipsCollection
+            .where('userId', '==', userId)
+            .where('orgId', '==', requestingUser.orgId)
+            .limit(1)
+            .get();
+        if (userMemberSnap.empty) {
+            return res.status(404).json({ message: 'User not found in this organization.' });
+        }
+
+        // Get all boards for the org
+        const boardsSnap = await boardsCollection(requestingUser.orgId)
+            .where('isArchived', '==', false)
+            .get();
+        const allBoards = querySnapshotToArray<DBBoard>(boardsSnap);
+        const allBoardIds = new Set(allBoards.map(b => b.id));
+        const boardMap = new Map(allBoards.map(b => [b.id, b]));
+
+        // Get current board memberships for this user
+        const currentMemberSnaps = await Promise.all(
+            allBoards.map(b => boardMembersCollection(requestingUser.orgId, b.id).doc(userId).get())
+        );
+        const currentMemberBoardIds = new Set<string>();
+        allBoards.forEach((b, i) => {
+            if (currentMemberSnaps[i].exists) currentMemberBoardIds.add(b.id);
+        });
+
+        const newBoardIdSet = new Set(newBoards.map(b => b.boardId).filter(id => allBoardIds.has(id)));
+
+        const batch = db.batch();
+
+        // Add new memberships
+        for (const { boardId, role } of newBoards) {
+            if (!allBoardIds.has(boardId)) continue;
+            const board = boardMap.get(boardId)!;
+
+            if (!currentMemberBoardIds.has(boardId)) {
+                const userDoc = await usersCollection.doc(userId).get();
+                const userData = userDoc.data() as DBUser | undefined;
+                batch.set(boardMembersCollection(requestingUser.orgId, boardId).doc(userId), {
+                    userId,
+                    boardId,
+                    workspaceId: board.workspaceId,
+                    role: role || BoardRole.VIEWER,
+                    addedBy: requestingUser.id,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    userName: userData?.name ?? null,
+                    userEmail: userData?.email ?? null,
+                    userProfileImageUrl: userData?.profileImageUrl ?? null,
+                });
+            }
+        }
+
+        // Remove old memberships no longer in the new list
+        for (const boardId of currentMemberBoardIds) {
+            if (!newBoardIdSet.has(boardId)) {
+                batch.delete(boardMembersCollection(requestingUser.orgId, boardId).doc(userId));
+            }
+        }
+
+        // Update boardIds in workspace memberships if user has boardOnlyAccess
+        const newBoardIdArray = [...newBoardIdSet];
+        const workspaceMembershipSnap = await membershipsCollection
+            .where('userId', '==', userId)
+            .where('orgId', '==', requestingUser.orgId)
+            .get();
+        workspaceMembershipSnap.docs.forEach(doc => {
+            const data = doc.data() as DBMembership;
+            if (data.boardOnlyAccess) {
+                batch.update(doc.ref, { boardIds: newBoardIdArray });
+            }
+        });
+
+        await batch.commit();
+        res.json({ message: 'Board permissions updated.' });
+    } catch (error) {
+        logger.error('Error updating user board permissions:', error);
+        res.status(500).json({ message: 'Failed to update board permissions.' });
+    }
+};

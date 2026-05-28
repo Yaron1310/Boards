@@ -1,15 +1,22 @@
 import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
-import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
+import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import {
   boardsCollection,
   boardMembersCollection,
   membershipsCollection,
+  usersCollection,
+  workspacesCollection,
+  preapprovedUsersCollection,
 } from '../db/collections.js';
-import { JwtUserPayload, DBBoard, DBBoardMember, DBMembership, BoardRole } from '../types/index.js';
+import { JwtUserPayload, DBBoard, DBBoardMember, DBMembership, DBUser, DBPreapprovedUser, DBWorkspace, BoardRole, UserRole } from '../types/index.js';
 import { logAudit, getClientIp } from '../services/audit.service.js';
 import { assertBoardAccess } from '../utils/workManagementAuth.js';
+import { sendUserInvitationEmail } from '../services/email.service.js';
+import { sanitizeText } from '../utils/sanitizer.js';
+import { env } from '../config/env.js';
+import { Buffer } from 'node:buffer';
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
@@ -243,5 +250,137 @@ export const removeMember = async (req: Request, res: Response) => {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error(`Error removing board member from board ${req.params.boardId}:`, err);
     res.status(500).json({ message: 'Failed to remove board member.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /boards/:boardId/invite  (invite by email — board-level invitation)
+// ---------------------------------------------------------------------------
+export const inviteByEmail = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { boardId } = req.params;
+  const rawEmail = sanitizeText(req.body.email ?? '');
+  const permissions: 'edit' | 'read_only' = req.body.permissions === 'read_only' ? 'read_only' : 'edit';
+  const boardRole = permissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
+
+  const email = rawEmail.toLowerCase().trim();
+  if (!email || !email.includes('@')) {
+    return res.status(400).json({ message: 'A valid email address is required.' });
+  }
+
+  try {
+    const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
+    if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
+    const board = snapshotToData<DBBoard>(boardDoc)!;
+
+    const callerMember = await getCallerMember(user.orgId, boardId, user.id);
+    assertBoardAccess(user, board, 'update', callerMember);
+
+    const userSnap = await usersCollection.where('email', '==', email).limit(1).get();
+
+    if (!userSnap.empty) {
+      const targetUser = snapshotToData<DBUser>(userSnap.docs[0])!;
+      const targetUserId = targetUser.id;
+
+      // Check if already a board member
+      const existingMemberDoc = await boardMembersCollection(user.orgId, boardId).doc(targetUserId).get();
+      if (existingMemberDoc.exists) {
+        return res.status(409).json({ message: 'User is already a member of this board.' });
+      }
+
+      const membershipSnap = await membershipsCollection
+        .where('userId', '==', targetUserId)
+        .where('orgId', '==', user.orgId)
+        .get();
+
+      const existingWorkspaceMembership = membershipSnap.docs.find(
+        (d) => (d.data() as DBMembership).entityId === board.workspaceId,
+      );
+
+      const batch = db.batch();
+
+      if (!existingWorkspaceMembership) {
+        // New to this workspace — add with board-only access
+        const newMemberRef = membershipsCollection.doc();
+        batch.set(newMemberRef, {
+          id: newMemberRef.id,
+          userId: targetUserId,
+          userName: targetUser.name,
+          userEmail: targetUser.email,
+          entityId: board.workspaceId,
+          entityType: 'workspace',
+          role: UserRole.REGULAR_USER,
+          permissions,
+          orgId: user.orgId,
+          boardOnlyAccess: true,
+          boardIds: [boardId],
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Update boardIds if user has boardOnlyAccess
+        const existingData = existingWorkspaceMembership.data() as DBMembership;
+        if (existingData.boardOnlyAccess) {
+          const existingBoardIds = existingData.boardIds ?? [];
+          if (!existingBoardIds.includes(boardId)) {
+            batch.update(existingWorkspaceMembership.ref, {
+              boardIds: [...existingBoardIds, boardId],
+            });
+          }
+        }
+      }
+
+      // Add board member record
+      batch.set(boardMembersCollection(user.orgId, boardId).doc(targetUserId), {
+        userId: targetUserId,
+        boardId,
+        workspaceId: board.workspaceId,
+        role: boardRole,
+        addedBy: user.id,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        userName: targetUser.name ?? null,
+        userEmail: targetUser.email ?? null,
+        userProfileImageUrl: targetUser.profileImageUrl ?? null,
+      });
+
+      await batch.commit();
+      return res.status(201).json({ message: `${email} has been added to this board.` });
+    }
+
+    // User doesn't exist — create pre-approved entry with boardIds
+    const workspaceDoc = await workspacesCollection.doc(board.workspaceId).get();
+    const workspaceData = snapshotToData<DBWorkspace>(workspaceDoc);
+    const workspaceName = workspaceData?.name ?? 'this workspace';
+
+    const docId = Buffer.from(`${email}_${board.workspaceId}`).toString('base64');
+    const docRef = preapprovedUsersCollection.doc(docId);
+    const existing = await docRef.get();
+    if (existing.exists) {
+      const existingData = existing.data() as DBPreapprovedUser;
+      const existingBoardIds = existingData.boardIds ?? [];
+      if (!existingBoardIds.includes(boardId)) {
+        await docRef.update({ boardIds: [...existingBoardIds, boardId] });
+      }
+    } else {
+      await docRef.set({
+        email,
+        workspaceId: board.workspaceId,
+        orgId: user.orgId,
+        addedBy: user.id,
+        permissions,
+        boardOnlyAccess: true,
+        boardIds: [boardId],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      } as Omit<DBPreapprovedUser, 'id'>);
+    }
+
+    const orgDoc = await db.collection('organizations').doc(user.orgId).get();
+    const orgName = orgDoc.exists ? (orgDoc.data()?.name ?? 'Logyx') : 'Logyx';
+    await sendUserInvitationEmail(email, workspaceName, orgName, `${env.FRONTEND_URL}/register`);
+
+    return res.status(200).json({ message: `Invitation sent to ${email}.` });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error inviting user to board ${req.params.boardId}:`, err);
+    res.status(500).json({ message: 'Failed to invite user.' });
   }
 };

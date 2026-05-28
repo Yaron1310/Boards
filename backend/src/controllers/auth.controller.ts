@@ -219,6 +219,7 @@ export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceI
         selectedWorkspaceId: selectedWorkspace.id,
         orgId: orgId,
         workspacePermissions,
+        ...(selectedMembership?.boardIds !== undefined ? { boardIds: selectedMembership.boardIds } : {}),
     };
     const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '7d' });
 
@@ -440,7 +441,13 @@ export const register = async (req: Request, res: Response) => {
                 role: UserRole.REGULAR_USER,
                 orgId,
             };
-            batch.set(newMembershipRef, { ...newMembership, ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}), createdAt: admin.firestore.FieldValue.serverTimestamp() });
+            batch.set(newMembershipRef, {
+                ...newMembership,
+                ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
+                ...(preapprovedData.boardOnlyAccess ? { boardOnlyAccess: true } : {}),
+                ...(preapprovedData.boardIds ? { boardIds: preapprovedData.boardIds } : {}),
+                createdAt: admin.firestore.FieldValue.serverTimestamp()
+            });
         }
 
         await batch.commit();

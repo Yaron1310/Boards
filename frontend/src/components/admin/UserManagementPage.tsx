@@ -6,11 +6,12 @@ import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { UserRole } from '../../types';
-import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiSliders } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
 import InviteUsersOrgModal from './InviteUsersOrgModal';
 import TutorialSection from '../common/TutorialSection';
 import OrganizationAdminsModal from './AcademyAdminsModal';
+import UserPermissionsModal from './UserPermissionsModal';
 import { useUsersInfiniteQuery } from '../../hooks/queries/useUserQueries';
 import { List } from 'react-window';
 import { InfiniteLoader } from 'react-window-infinite-loader';
@@ -49,6 +50,7 @@ const UserManagementPage: React.FC = () => {
   const [showPreApproveModal, setShowPreApproveModal] = useState(false);
   const [showOrganizationAdminsModal, setShowOrganizationAdminsModal] = useState(false);
   const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
+  const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string } | null>(null);
 
   const [feedback, setFeedback] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
@@ -151,18 +153,29 @@ const UserManagementPage: React.FC = () => {
     const u = allUsers[index];
     if (!u) return null;
 
+    const roleLabel = (() => {
+        switch (u.role) {
+            case UserRole.ORGANIZATION_ADMIN: return 'Org Admin';
+            case UserRole.WORKSPACE_ADMIN: return 'Workhub Admin';
+            case UserRole.SYSTEM_ADMIN: return 'System Admin';
+            default: return 'Member';
+        }
+    })();
+
     return (
         <div
             style={style}
-            className="flex hover:bg-gray-50 transition-colors cursor-pointer border-b border-gray-200 bg-white"
-            onClick={() => navigate(`/admin/users/${u.id}`)}
-            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/admin/users/${u.id}`)}
-            tabIndex={0}
-            title="View profile page"
+            className="flex hover:bg-gray-50 transition-colors border-b border-gray-200 bg-white"
             role="row"
             aria-label={`User ${u.name}`}
         >
-            <div className="flex-[2] px-6 py-4 flex items-center min-w-0">
+            <div
+                className="flex-[2] px-6 py-4 flex items-center min-w-0 cursor-pointer"
+                onClick={() => navigate(`/admin/users/${u.id}`)}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/admin/users/${u.id}`)}
+                tabIndex={0}
+                title="View profile page"
+            >
                 <div className="flex-shrink-0 h-10 w-10">
                     <img className="h-10 w-10 rounded-full object-cover" src={u.profileImageUrl || `/default_user.webp`}
                     onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)}
@@ -170,22 +183,37 @@ const UserManagementPage: React.FC = () => {
                 </div>
                 <div className="ml-4 min-w-0">
                     <div className="text-sm font-medium text-gray-900 truncate">{u.name}</div>
-                    <div className="text-xs text-gray-500 capitalize">
-                        {t('common.role')}: {u.role.replace(/_/g, ' ')}
-                    </div>
+                    <div className="text-xs text-gray-500">{roleLabel}</div>
                 </div>
             </div>
-            <div className="flex-[1.5] px-6 py-4 text-sm text-gray-700 flex items-center truncate">
+            <div className="flex-[1.5] px-6 py-4 text-sm text-gray-700 flex items-center truncate cursor-pointer"
+                onClick={() => navigate(`/admin/users/${u.id}`)}>
                 {u.workspaceName || 'N/A'}
             </div>
-            <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center truncate">
+            <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center truncate cursor-pointer"
+                onClick={() => navigate(`/admin/users/${u.id}`)}>
                 {u.email}
             </div>
-            <div className="flex-[0.75] px-6 py-4 text-sm text-gray-700 flex items-center justify-center">
+            <div className="flex-[0.75] px-6 py-4 text-sm text-gray-700 flex items-center justify-center cursor-pointer"
+                onClick={() => navigate(`/admin/users/${u.id}`)}>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${u.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                     {u.status === 'active' ? t('common.active') : u.status}
                 </span>
             </div>
+            {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                <div className="flex-[0.75] px-3 py-4 flex items-center justify-center">
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setPermissionsUser({ id: u.id, name: u.name }); }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                        aria-label={`Manage board permissions for ${u.name}`}
+                        title="Manage board permissions"
+                    >
+                        <FiSliders size={12} aria-hidden="true" />
+                        Permissions
+                    </button>
+                </div>
+            )}
         </div>
     );
   };
@@ -297,7 +325,7 @@ const UserManagementPage: React.FC = () => {
                                     aria-label="Filter by workspace"
                                 >
                                     <option value="">{t('admin.allWorkspaces')}</option>
-                                    {workspaces.map(org => (
+                                    {workspaces.filter(w => !w.isPersonal).map(org => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
                                     ))}
                                 </select>
@@ -317,9 +345,9 @@ const UserManagementPage: React.FC = () => {
                                 aria-label="Filter by role"
                             >
                                 <option value="">{t('admin.allRoles')}</option>
-                                {Object.values(UserRole).map(role => (
-                                    <option key={role} value={role}>{role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</option>
-                                ))}
+                                <option value={UserRole.REGULAR_USER}>Member</option>
+                                <option value={UserRole.WORKSPACE_ADMIN}>Workhub Admin</option>
+                                <option value={UserRole.ORGANIZATION_ADMIN}>Org Admin</option>
                             </select>
                             <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                 <FiChevronDown className="h-5 w-5 text-gray-400" />
@@ -335,6 +363,9 @@ const UserManagementPage: React.FC = () => {
                     <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
                     <div className="flex-1 px-6 py-3 text-left" role="columnheader">{t('common.email')}</div>
                     <div className="flex-[0.75] px-6 py-3 text-center" role="columnheader">{t('common.status')}</div>
+                    {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                        <div className="flex-[0.75] px-3 py-3 text-center" role="columnheader">Permissions</div>
+                    )}
                 </div>
 
                 <div className="flex-grow min-h-0">
@@ -405,6 +436,14 @@ const UserManagementPage: React.FC = () => {
         onClose={() => setShowInviteUsersModal(false)}
         workspaces={workspaces.filter(w => !w.isPersonal)}
       />
+
+      {permissionsUser && (
+        <UserPermissionsModal
+          userId={permissionsUser.id}
+          userName={permissionsUser.name}
+          onClose={() => setPermissionsUser(null)}
+        />
+      )}
 
     </div>
   );

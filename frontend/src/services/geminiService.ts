@@ -334,3 +334,27 @@ export const sendTestEmail = (
         method: 'POST',
         body: JSON.stringify({ toEmail }),
     });
+
+export const inviteUserToBoard = async (
+    boardId: string,
+    email: string,
+    permissions: 'edit' | 'read_only'
+): Promise<{ message: string }> =>
+    fetchWithAuth(`/api/boards/${boardId}/invite`, {
+        method: 'POST',
+        body: JSON.stringify({ email, permissions }),
+    });
+
+export const getUserBoardPermissions = async (
+    userId: string
+): Promise<{ workspaces: import('../types').BoardPermissionsWorkspace[] }> =>
+    fetchWithAuth(`/api/users/${userId}/board-permissions`);
+
+export const updateUserBoardPermissions = async (
+    userId: string,
+    boards: Array<{ boardId: string; role: import('../types').BoardRole }>
+): Promise<{ message: string }> =>
+    fetchWithAuth(`/api/users/${userId}/board-permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({ boards }),
+    });

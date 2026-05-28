@@ -66,6 +66,10 @@ export function effectiveBoardRole(
   ) return 'full_access';
   if (user.role === UserRole.REGULAR_USER) {
     if (user.selectedWorkspaceId !== board.workspaceId) return null;
+    // Board-only access: JWT boardIds restricts which boards this user can see
+    if (user.boardIds !== undefined) {
+      if (!user.boardIds.includes(board.id)) return null;
+    }
     return user.workspacePermissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
   }
   return null;

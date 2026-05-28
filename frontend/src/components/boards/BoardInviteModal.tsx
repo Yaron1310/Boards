@@ -1,9 +1,6 @@
-import React, { useState, useMemo } from 'react';
-import { FiX, FiSearch, FiUserPlus, FiUserCheck, FiLoader } from 'react-icons/fi';
-import { useUsersQuery } from '../../hooks/queries/useUserQueries';
-import { useBoardMembers, useAddBoardMember } from '../../hooks/queries/useBoardMemberQueries';
-import { BoardRole, UserRole } from '../../types';
-import type { User } from '../../types';
+import React, { useState } from 'react';
+import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
+import { useInviteUserToBoard } from '../../hooks/queries/useBoardMemberQueries';
 
 interface Props {
   boardId: string;
@@ -11,86 +8,47 @@ interface Props {
   onClose: () => void;
 }
 
-const AVATAR_BG = ['bg-indigo-500','bg-purple-500','bg-pink-500','bg-green-500','bg-blue-500','bg-amber-500','bg-rose-500'];
-function avatarColor(id: string): string {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) & 0xffffffff;
-  return AVATAR_BG[Math.abs(h) % AVATAR_BG.length];
-}
+const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
+  const [email, setEmail] = useState('');
+  const [permissions, setPermissions] = useState<'edit' | 'read_only'>('edit');
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-const Avatar: React.FC<{ user: User }> = ({ user }) => {
-  const [imgErr, setImgErr] = useState(false);
-  if (user.profileImageUrl && !imgErr) {
-    return (
-      <img
-        src={user.profileImageUrl}
-        alt={user.name}
-        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-        onError={() => setImgErr(true)}
-      />
-    );
-  }
-  return (
-    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0 ${avatarColor(user.id)}`}>
-      {user.name?.[0]?.toUpperCase() ?? '?'}
-    </div>
-  );
-};
+  const { mutateAsync: inviteUser, isPending } = useInviteUserToBoard(boardId);
 
-const BoardInviteModal: React.FC<Props> = ({ boardId, workspaceId, onClose }) => {
-  const [search, setSearch] = useState('');
-  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-
-  const { data: allUsers = [], isLoading: usersLoading } = useUsersQuery({ workspaceId, limit: 200 });
-  const { data: boardMembers = [], isLoading: membersLoading } = useBoardMembers(boardId);
-  const { mutateAsync: addMember } = useAddBoardMember(boardId);
-
-  const memberIds = useMemo(() => new Set(boardMembers.map((m) => m.userId)), [boardMembers]);
-
-  // Show only regular (non-admin) WorkHub users not already on the board
-  const candidates = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allUsers.filter((u) => {
-      if (memberIds.has(u.id)) return false;
-      if (u.role === UserRole.SYSTEM_ADMIN || u.role === UserRole.ORGANIZATION_ADMIN) return false;
-      if (!q) return true;
-      return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-    });
-  }, [allUsers, memberIds, search]);
-
-  const alreadyMembers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return allUsers.filter((u) => {
-      if (!memberIds.has(u.id)) return false;
-      if (!q) return true;
-      return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-    });
-  }, [allUsers, memberIds, search]);
-
-  const handleAdd = async (userId: string) => {
+  const handleSubmit = async () => {
+    const trimmed = email.trim();
+    if (!trimmed || !trimmed.includes('@')) {
+      setFeedback({ type: 'error', text: 'Please enter a valid email address.' });
+      return;
+    }
+    setFeedback(null);
     try {
-      await addMember({ userId, role: BoardRole.EDITOR });
-      setAddedIds((prev) => new Set([...prev, userId]));
-    } catch {
-      // error silently handled; UI stays consistent via query invalidation
+      const result = await inviteUser({ email: trimmed, permissions });
+      setFeedback({ type: 'success', text: result.message });
+      setEmail('');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to invite user.';
+      setFeedback({ type: 'error', text: msg });
     }
   };
 
-  const isLoading = usersLoading || membersLoading;
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') void handleSubmit();
+  };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       role="dialog"
       aria-modal="true"
-      aria-label="Invite users to board"
+      aria-label="Invite user to board"
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[80vh]">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div>
             <h2 className="text-sm font-semibold text-gray-800">Invite to board</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Add WorkHub members as board editors</p>
+            <p className="text-xs text-gray-500 mt-0.5">Invited users will only see this specific board</p>
           </div>
           <button
             type="button"
@@ -102,129 +60,92 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, workspaceId, onClose }) =>
           </button>
         </div>
 
-        {/* Search */}
-        <div className="px-4 py-3 border-b border-gray-100">
-          <div className="relative">
-            <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+        {/* Body */}
+        <div className="px-5 py-4 space-y-4">
+          {feedback && (
+            <div
+              role={feedback.type === 'error' ? 'alert' : 'status'}
+              className={`p-3 rounded-md flex items-center text-xs ${feedback.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}
+            >
+              {feedback.type === 'success'
+                ? <FiCheckCircle className="mr-2 shrink-0" size={13} aria-hidden="true" />
+                : <FiAlertCircle className="mr-2 shrink-0" size={13} aria-hidden="true" />}
+              {feedback.text}
+              <button onClick={() => setFeedback(null)} className="ml-auto font-semibold" aria-label="Dismiss">&times;</button>
+            </div>
+          )}
+
+          {/* Email */}
+          <div>
+            <label htmlFor="board-invite-email" className="block text-xs font-medium text-gray-700 mb-1">
+              Email address
+            </label>
             <input
-              type="text"
-              placeholder="Search by name or email…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              aria-label="Search users"
+              id="board-invite-email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="user@example.com"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              aria-label="Email address to invite"
               autoFocus
+              disabled={isPending}
             />
           </div>
-        </div>
 
-        {/* User list */}
-        <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <div className="flex justify-center items-center py-10" role="status">
-              <FiLoader className="animate-spin text-indigo-400" size={20} aria-hidden="true" />
+          {/* Permissions */}
+          <fieldset>
+            <legend className="text-xs font-medium text-gray-700 mb-2">Permissions</legend>
+            <div className="flex gap-3">
+              {(['edit', 'read_only'] as const).map((p) => (
+                <label
+                  key={p}
+                  className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}
+                >
+                  <input
+                    type="radio"
+                    name="board-invite-perm"
+                    value={p}
+                    checked={permissions === p}
+                    onChange={() => setPermissions(p)}
+                    className="accent-indigo-600"
+                    aria-label={p === 'edit' ? 'Edit' : 'Read only'}
+                  />
+                  <span className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
+                    {p === 'edit' ? <FiEdit2 size={12} aria-hidden="true" /> : <FiLock size={12} aria-hidden="true" />}
+                    {p === 'edit' ? 'Edit' : 'Read only'}
+                  </span>
+                </label>
+              ))}
             </div>
-          ) : (
-            <>
-              {candidates.length > 0 && (
-                <>
-                  {(alreadyMembers.length > 0 || search) && (
-                    <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                      Add to board
-                    </p>
-                  )}
-                  {candidates.map((user) => (
-                    <UserRow
-                      key={user.id}
-                      user={user}
-                      added={addedIds.has(user.id)}
-                      onAdd={() => void handleAdd(user.id)}
-                    />
-                  ))}
-                </>
-              )}
-
-              {alreadyMembers.length > 0 && (
-                <>
-                  <p className="px-4 pt-3 pb-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide">
-                    Already on board
-                  </p>
-                  {alreadyMembers.map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center gap-3 px-4 py-2.5"
-                    >
-                      <Avatar user={user} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-gray-700 truncate">{user.name}</p>
-                        <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-green-600">
-                        <FiUserCheck size={13} aria-hidden="true" />
-                        <span>Member</span>
-                      </div>
-                    </div>
-                  ))}
-                </>
-              )}
-
-              {candidates.length === 0 && alreadyMembers.length === 0 && (
-                <p className="px-4 py-8 text-center text-xs text-gray-400">
-                  {search ? 'No users match your search.' : 'All WorkHub members are already on this board.'}
-                </p>
-              )}
-            </>
-          )}
+          </fieldset>
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-xl">
-          <p className="text-[11px] text-gray-400">
-            Users are added as <strong className="text-gray-500">editors</strong>. Only WorkHub members can be added.
-          </p>
+        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 rounded-b-xl flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            disabled={isPending}
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSubmit()}
+            disabled={isPending || !email.trim()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
+            aria-label="Invite user to board"
+          >
+            {isPending
+              ? <FiLoader size={11} className="animate-spin" aria-hidden="true" />
+              : <FiUserPlus size={11} aria-hidden="true" />}
+            {isPending ? 'Inviting…' : 'Invite'}
+          </button>
         </div>
       </div>
-    </div>
-  );
-};
-
-const UserRow: React.FC<{ user: User; added: boolean; onAdd: () => void }> = ({ user, added, onAdd }) => {
-  const [pending, setPending] = useState(false);
-
-  const handleClick = async () => {
-    if (added || pending) return;
-    setPending(true);
-    await onAdd();
-    setPending(false);
-  };
-
-  return (
-    <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors">
-      <Avatar user={user} />
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-medium text-gray-700 truncate">{user.name}</p>
-        <p className="text-[11px] text-gray-400 truncate">{user.email}</p>
-      </div>
-      <button
-        type="button"
-        onClick={() => void handleClick()}
-        disabled={added || pending}
-        className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border transition-colors flex-shrink-0 ${
-          added
-            ? 'bg-green-50 border-green-200 text-green-600 cursor-default'
-            : 'bg-indigo-50 border-indigo-200 text-indigo-600 hover:bg-indigo-100 disabled:opacity-60'
-        }`}
-        aria-label={added ? `${user.name} added` : `Add ${user.name} to board`}
-      >
-        {pending ? (
-          <FiLoader size={11} className="animate-spin" aria-hidden="true" />
-        ) : added ? (
-          <FiUserCheck size={11} aria-hidden="true" />
-        ) : (
-          <FiUserPlus size={11} aria-hidden="true" />
-        )}
-        {added ? 'Added' : 'Add'}
-      </button>
     </div>
   );
 };
