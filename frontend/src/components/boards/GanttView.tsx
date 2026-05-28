@@ -6,7 +6,6 @@ import { ColumnType } from '../../types';
 const WEEK_PX = 120;
 const DAY_PX = 38;
 const ROW_H = 36;
-const FULL_SCOPE_H = ROW_H * 2; // 72px — mini-map overview row
 const NAME_W = 282;
 const HANDLE_W = 8;
 const MS_PER_DAY = 86_400_000;
@@ -97,13 +96,12 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
   const [preview, setPreview] = useState<Record<string, { start: Date; end: Date }>>({});
   const [dragLabel, setDragLabel] = useState<{ x: number; y: number; text: string } | null>(null);
   const [showFullScope, setShowFullScope] = useState(false);
-  const [containerScrollLeft, setContainerScrollLeft] = useState(0);
   const [containerClientWidth, setContainerClientWidth] = useState(0);
+  const [containerClientHeight, setContainerClientHeight] = useState(0);
   const dragRef = useRef<DragState | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevTimeUnitRef = useRef<TimeUnit | null>(null);
 
-  // Keep mutable refs in sync so global event handlers can access current values
   const timeRangeColRef = useRef(timeRangeCol);
   timeRangeColRef.current = timeRangeCol;
 
@@ -116,7 +114,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
     return d;
   }, []);
 
-  // ── Timeline date range (unit-independent) ──────────────────────────────
+  // ── Timeline date range ─────────────────────────────────────────────────
   const { timelineStart, timelineEnd } = useMemo(() => {
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
@@ -142,7 +140,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
     return { timelineStart: tStart, timelineEnd: tEnd };
   }, [timeRangeCol, itemsByGroup, today]);
 
-  // ── Column array (week starts or individual days) ───────────────────────
+  // ── Column array ────────────────────────────────────────────────────────
   const timeColumns = useMemo<Date[]>(() => {
     if (timeUnit === 'weeks') {
       const count = Math.max(8, Math.ceil((timelineEnd.getTime() - timelineStart.getTime()) / MS_PER_WEEK) + 2);
@@ -152,20 +150,38 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
     return Array.from({ length: count }, (_, i) => addLocalDays(timelineStart, i));
   }, [timeUnit, timelineStart, timelineEnd]);
 
-  // ── Layout metrics ──────────────────────────────────────────────────────
+  // ── Normal layout metrics ───────────────────────────────────────────────
   const columnPx = timeUnit === 'weeks' ? WEEK_PX : DAY_PX;
   const pxPerDay = timeUnit === 'weeks' ? WEEK_PX / 7 : DAY_PX;
-  const timelineWidth = timeColumns.length * columnPx;
-  const totalWidth = NAME_W + timelineWidth;
-  const todayOffset = (today.getTime() - timelineStart.getTime()) / MS_PER_DAY * pxPerDay;
-  const showToday = todayOffset >= 0 && todayOffset <= timelineWidth;
+
+  // ── Full scope: compute effective metrics to fit entire chart on screen ─
+  const totalRowCount = useMemo(
+    () => groups.reduce((acc, g) => acc + 1 + (itemsByGroup[g.id]?.length ?? 0), 0),
+    [groups, itemsByGroup],
+  );
+
+  const effectiveColumnPx = showFullScope && containerClientWidth > NAME_W && timeColumns.length > 0
+    ? Math.max(1, (containerClientWidth - NAME_W) / timeColumns.length)
+    : columnPx;
+
+  const effectivePxPerDay = timeUnit === 'weeks' ? effectiveColumnPx / 7 : effectiveColumnPx;
+
+  // Subtract header row (ROW_H) from available height for item/group rows
+  const effectiveRowH = showFullScope && containerClientHeight > ROW_H && totalRowCount > 0
+    ? Math.max(3, (containerClientHeight - ROW_H) / totalRowCount)
+    : ROW_H;
+
+  const effectiveTimelineWidth = timeColumns.length * effectiveColumnPx;
+  const effectiveTotalWidth = NAME_W + effectiveTimelineWidth;
+  const effectiveTodayOffset = (today.getTime() - timelineStart.getTime()) / MS_PER_DAY * effectivePxPerDay;
+  const effectiveShowToday = effectiveTodayOffset >= 0 && effectiveTodayOffset <= effectiveTimelineWidth;
 
   // ── Bar geometry ────────────────────────────────────────────────────────
-  function getBarGeometry(startDate: Date, endDate: Date) {
-    const left = (startDate.getTime() - timelineStart.getTime()) / MS_PER_DAY * pxPerDay;
-    const width = Math.max(pxPerDay * 0.5, (endDate.getTime() - startDate.getTime() + MS_PER_DAY) / MS_PER_DAY * pxPerDay);
+  const getBarGeometry = useCallback((startDate: Date, endDate: Date) => {
+    const left = (startDate.getTime() - timelineStart.getTime()) / MS_PER_DAY * effectivePxPerDay;
+    const width = Math.max(effectivePxPerDay * 0.5, (endDate.getTime() - startDate.getTime() + MS_PER_DAY) / MS_PER_DAY * effectivePxPerDay);
     return { left, width };
-  }
+  }, [timelineStart, effectivePxPerDay]);
 
   // ── Display dates with preview override ────────────────────────────────
   function getItemDates(item: Item): { start: Date; end: Date } | null {
@@ -177,55 +193,18 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
     return start && end ? { start, end } : null;
   }
 
-  // ── All items with resolved dates (for full scope mini-map) ────────────
-  const allItemsWithDates = useMemo(() => {
-    if (!timeRangeCol) return [];
-    return groups.flatMap((group) =>
-      (itemsByGroup[group.id] ?? [])
-        .map((item) => {
-          const p = preview[item.id];
-          if (p) return { item, group, dates: p };
-          const val = item.values[timeRangeCol.id] as { start?: string; end?: string } | null;
-          const start = parseDate(val?.start);
-          const end = parseDate(val?.end);
-          return start && end ? { item, group, dates: { start, end } } : null;
-        })
-        .filter((x): x is { item: Item; group: Group; dates: { start: Date; end: Date } } => x !== null),
-    );
-  }, [groups, itemsByGroup, timeRangeCol, preview]);
-
-  // ── Full scope scale factor and viewport rect ───────────────────────────
-  const fullScopeAvailW = Math.max(0, containerClientWidth - NAME_W);
-  const scaleFactor = timelineWidth > 0 && fullScopeAvailW > 0 ? fullScopeAvailW / timelineWidth : 0;
-  const viewportTimelineOffset = Math.max(0, containerScrollLeft - NAME_W);
-  const viewportRectLeft = viewportTimelineOffset * scaleFactor;
-  const viewportRectWidth = Math.max(6, (containerClientWidth - NAME_W) * scaleFactor);
-
-  // ── Mini-bar layout in full scope ───────────────────────────────────────
-  const innerH = FULL_SCOPE_H - 16; // 8px padding top and bottom
-  const itemBarH = Math.max(1, Math.min(8, innerH / Math.max(allItemsWithDates.length, 1)));
-
-  // ── Track container scroll position and client width ───────────────────
-  // Also auto-open Full Scope on mount if the timeline overflows (scroll is active).
+  // ── Track container size ────────────────────────────────────────────────
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const onScroll = () => setContainerScrollLeft(container.scrollLeft);
     const onResize = () => {
       setContainerClientWidth(container.clientWidth);
+      setContainerClientHeight(container.clientHeight);
     };
-    const w = container.clientWidth;
-    setContainerClientWidth(w);
-    setContainerScrollLeft(container.scrollLeft);
-    // totalWidth is available in the closure via the outer scope — open Full Scope
-    // by default when the timeline is wider than the visible container.
-    if (container.scrollWidth > w) setShowFullScope(true);
-    container.addEventListener('scroll', onScroll, { passive: true });
+    setContainerClientWidth(container.clientWidth);
+    setContainerClientHeight(container.clientHeight);
     window.addEventListener('resize', onResize);
-    return () => {
-      container.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onResize);
-    };
+    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   // ── Resize drag start ───────────────────────────────────────────────────
@@ -248,13 +227,13 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       origStart: startDate,
       origEnd: endDate,
       mouseX: e.clientX,
-      pxPerDay,
+      pxPerDay: effectivePxPerDay,
       currentStart: startDate,
       currentEnd: endDate,
     };
   }
 
-  // ── Move drag start (shift entire bar) ─────────────────────────────────
+  // ── Move drag start ─────────────────────────────────────────────────────
   function handleMoveStart(
     e: React.MouseEvent,
     item: Item,
@@ -273,13 +252,13 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       origStart: startDate,
       origEnd: endDate,
       mouseX: e.clientX,
-      pxPerDay,
+      pxPerDay: effectivePxPerDay,
       currentStart: startDate,
       currentEnd: endDate,
     };
   }
 
-  // ── Global mouse move / up (stable effect — all data via refs) ──────────
+  // ── Global mouse move / up ──────────────────────────────────────────────
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       const d = dragRef.current;
@@ -324,7 +303,6 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       document.body.style.userSelect = '';
       setPreview({});
       setDragLabel(null);
-      // Update tooltip immediately with the final dates so it shows correctly on release
       setTooltip((prev) => prev
         ? { ...prev, x: e.clientX, y: e.clientY, startDate: currentStart, endDate: currentEnd }
         : null);
@@ -346,30 +324,18 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
-  }, []); // stable: everything accessed via refs or stable setters
+  }, []);
 
-  // ── Auto-scroll to center on today on mount and when timeUnit changes ──
-  // Guard against re-running when timelineStart shifts due to item edits —
-  // that would cause the scroll to jump after every drag-and-drop.
+  // ── Auto-scroll to today when time unit changes ─────────────────────────
   useEffect(() => {
     if (prevTimeUnitRef.current === timeUnit) return;
     prevTimeUnitRef.current = timeUnit;
+    if (showFullScope) return;
     const container = containerRef.current;
     if (!container) return;
     const todayPx = NAME_W + (today.getTime() - timelineStart.getTime()) / MS_PER_DAY * pxPerDay;
     container.scrollLeft = Math.max(0, todayPx - container.clientWidth / 2);
-  }, [timeUnit, today, timelineStart, pxPerDay]);
-
-  // ── Click on full scope to navigate main Gantt ─────────────────────────
-  const handleFullScopeClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const container = containerRef.current;
-    if (!container || scaleFactor === 0) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const timelineClickPx = clickX / scaleFactor;
-    const newScrollLeft = NAME_W + timelineClickPx - (container.clientWidth - NAME_W) / 2;
-    container.scrollLeft = Math.max(0, newScrollLeft);
-  }, [scaleFactor]);
+  }, [timeUnit, today, timelineStart, pxPerDay, showFullScope]);
 
   // ──────────────────────────────────────────────────────────────────────────
   if (!timeRangeCol) {
@@ -385,11 +351,14 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
   return (
     <>
       {/* ── Scrollable gantt ─────────────────────────────────────────────── */}
-      <div ref={containerRef} className="h-full overflow-auto">
+      <div
+        ref={containerRef}
+        className={`h-full ${showFullScope ? 'overflow-hidden' : 'overflow-auto'}`}
+      >
         {/* Header */}
         <div
           className="sticky top-0 z-20 flex bg-gray-50 border-b border-[#d2d2d4] select-none"
-          style={{ width: totalWidth }}
+          style={{ width: effectiveTotalWidth }}
           role="row"
           aria-label="Gantt timeline header"
         >
@@ -424,17 +393,17 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
               </button>
             </div>
           </div>
-          <div className="flex" style={{ width: timelineWidth }}>
+          <div className="flex" style={{ width: effectiveTimelineWidth }}>
             {timeUnit === 'weeks'
               ? timeColumns.map((col, i) => (
                   <div
                     key={i}
                     className="flex-shrink-0 flex items-center px-2 text-xs text-gray-500 border-r border-[#d2d2d4]"
-                    style={{ width: WEEK_PX, height: ROW_H }}
+                    style={{ width: effectiveColumnPx, height: ROW_H }}
                     role="columnheader"
                     aria-label={`Week of ${formatWeekLabel(col)}`}
                   >
-                    {formatWeekLabel(col)}
+                    {!showFullScope && formatWeekLabel(col)}
                   </div>
                 ))
               : timeColumns.map((col, i) => {
@@ -448,136 +417,40 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                       className={`flex-shrink-0 flex flex-col items-center justify-center border-r ${
                         isWeekStart ? 'border-[#b8b8bc]' : 'border-[#e8e8ea]'
                       } ${isWeekend ? 'bg-gray-100/60' : ''}`}
-                      style={{ width: DAY_PX, height: ROW_H }}
+                      style={{ width: effectiveColumnPx, height: ROW_H }}
                       role="columnheader"
                       aria-label={col.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                     >
-                      <span
-                        className={`text-[9px] leading-none mb-0.5 ${
-                          isNewMonth
-                            ? 'text-indigo-500 font-semibold uppercase tracking-wide'
-                            : 'text-gray-400'
-                        }`}
-                      >
-                        {isNewMonth
-                          ? col.toLocaleDateString('en-US', { month: 'short' })
-                          : DAY_ABBREVS[col.getDay()]}
-                      </span>
-                      <span
-                        className={`text-[11px] font-medium leading-none ${
-                          isToday ? 'text-red-500 font-bold' : 'text-gray-600'
-                        }`}
-                      >
-                        {col.getDate()}
-                      </span>
+                      {!showFullScope && (
+                        <>
+                          <span
+                            className={`text-[9px] leading-none mb-0.5 ${
+                              isNewMonth
+                                ? 'text-indigo-500 font-semibold uppercase tracking-wide'
+                                : 'text-gray-400'
+                            }`}
+                          >
+                            {isNewMonth
+                              ? col.toLocaleDateString('en-US', { month: 'short' })
+                              : DAY_ABBREVS[col.getDay()]}
+                          </span>
+                          <span
+                            className={`text-[11px] font-medium leading-none ${
+                              isToday ? 'text-red-500 font-bold' : 'text-gray-600'
+                            }`}
+                          >
+                            {col.getDate()}
+                          </span>
+                        </>
+                      )}
                     </div>
                   );
                 })}
           </div>
         </div>
 
-        {/* ── Full scope mini-map ────────────────────────────────────────── */}
-        {showFullScope && (
-          <div
-            style={{
-              position: 'sticky',
-              top: ROW_H,
-              left: 0,
-              zIndex: 19,
-              width: containerClientWidth || '100%',
-              height: FULL_SCOPE_H,
-              backgroundColor: '#f9fafb',
-              borderBottom: '1px solid #d2d2d4',
-              overflow: 'hidden',
-              flexShrink: 0,
-            }}
-            role="img"
-            aria-label="Full scope timeline overview"
-          >
-            {/* Left label column */}
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                width: NAME_W,
-                height: FULL_SCOPE_H,
-                borderRight: '1px solid #d2d2d4',
-                display: 'flex',
-                alignItems: 'center',
-                paddingLeft: 14,
-                backgroundColor: '#f9fafb',
-                zIndex: 1,
-              }}
-            >
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-                Full Scope
-              </span>
-            </div>
-
-            {/* Timeline area — clickable for navigation */}
-            <div
-              style={{
-                position: 'absolute',
-                left: NAME_W,
-                top: 0,
-                right: 0,
-                bottom: 0,
-                cursor: 'pointer',
-                overflow: 'hidden',
-              }}
-              onClick={handleFullScopeClick}
-              aria-label="Click to navigate timeline"
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleFullScopeClick(e as unknown as React.MouseEvent<HTMLDivElement>); }}
-            >
-              {/* Item bars */}
-              {allItemsWithDates.map(({ item, group, dates }, idx) => {
-                const geom = getBarGeometry(dates.start, dates.end);
-                const scaledLeft = geom.left * scaleFactor;
-                const scaledWidth = Math.max(2, geom.width * scaleFactor);
-                const barTop = 8 + idx * itemBarH;
-                return (
-                  <div
-                    key={item.id}
-                    style={{
-                      position: 'absolute',
-                      left: scaledLeft,
-                      width: scaledWidth,
-                      top: barTop,
-                      height: Math.max(1, itemBarH - 1),
-                      backgroundColor: group.color ?? '#6366f1',
-                      borderRadius: 2,
-                      opacity: 0.75,
-                    }}
-                  />
-                );
-              })}
-
-              {/* Viewport rectangle */}
-              {scaleFactor > 0 && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: viewportRectLeft,
-                    width: viewportRectWidth,
-                    top: 0,
-                    bottom: 0,
-                    backgroundColor: 'rgba(99,102,241,0.08)',
-                    border: '2px solid rgba(99,102,241,0.45)',
-                    borderRadius: 3,
-                    pointerEvents: 'none',
-                  }}
-                  aria-hidden="true"
-                />
-              )}
-            </div>
-          </div>
-        )}
-
         {/* Body */}
-        <div role="rowgroup" style={{ width: totalWidth }}>
+        <div role="rowgroup" style={{ width: effectiveTotalWidth }}>
           {groups.map((group) => {
             const items = itemsByGroup[group.id] ?? [];
             if (items.length === 0) return null;
@@ -587,12 +460,12 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                 {/* Group header */}
                 <div
                   className="flex border-b border-[#d2d2d4]"
-                  style={{ height: 28 }}
+                  style={{ height: effectiveRowH }}
                   role="row"
                   aria-label={`Group: ${group.name}`}
                 >
                   <div
-                    className="sticky left-0 z-10 flex items-center gap-2 px-4 bg-gray-50 flex-shrink-0"
+                    className="sticky left-0 z-10 flex items-center gap-2 px-4 bg-gray-50 flex-shrink-0 overflow-hidden"
                     style={{ width: NAME_W, minWidth: NAME_W }}
                   >
                     <span
@@ -600,7 +473,9 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                       style={{ background: group.color ?? '#6366f1' }}
                       aria-hidden="true"
                     />
-                    <span className="text-xs font-semibold text-gray-600 truncate">{group.name}</span>
+                    {effectiveRowH >= 14 && (
+                      <span className="text-xs font-semibold text-gray-600 truncate">{group.name}</span>
+                    )}
                   </div>
                   <div className="flex-1 bg-gray-50" aria-hidden="true" />
                 </div>
@@ -615,28 +490,30 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                     <div
                       key={item.id}
                       className="flex border-b border-[#d2d2d4] group hover:bg-indigo-50/30"
-                      style={{ height: ROW_H }}
+                      style={{ height: effectiveRowH }}
                       role="row"
                       aria-label={item.name}
                     >
                       {/* Sticky name column */}
                       <div
-                        className="sticky left-0 z-10 flex items-center bg-white group-hover:bg-indigo-50/30 border-r border-[#d2d2d4] flex-shrink-0 text-sm text-gray-800"
+                        className="sticky left-0 z-10 flex items-center bg-white group-hover:bg-indigo-50/30 border-r border-[#d2d2d4] flex-shrink-0 text-sm text-gray-800 overflow-hidden"
                         style={{ width: NAME_W, minWidth: NAME_W, paddingLeft: 25 }}
                         role="gridcell"
                       >
-                        <span className="truncate">{item.name}</span>
+                        {effectiveRowH >= 14 && (
+                          <span className="truncate">{item.name}</span>
+                        )}
                       </div>
 
                       {/* Timeline area */}
                       <div
                         className="relative flex-shrink-0"
-                        style={{ width: timelineWidth }}
+                        style={{ width: effectiveTimelineWidth }}
                         role="gridcell"
                         aria-label={dates ? `${toDateString(dates.start)} to ${toDateString(dates.end)}` : 'No date set'}
                       >
                         {/* Grid lines + weekend shading */}
-                        {timeColumns.map((col, i) => {
+                        {!showFullScope && timeColumns.map((col, i) => {
                           const isWeekend = timeUnit === 'days' && (col.getDay() === 0 || col.getDay() === 6);
                           const isWeekBoundary = timeUnit === 'days' && col.getDay() === 1;
                           return (
@@ -644,7 +521,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                               {isWeekend && (
                                 <div
                                   className="absolute top-0 bottom-0 bg-gray-100/50"
-                                  style={{ left: i * columnPx, width: columnPx }}
+                                  style={{ left: i * effectiveColumnPx, width: effectiveColumnPx }}
                                   aria-hidden="true"
                                 />
                               )}
@@ -652,7 +529,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                                 className={`absolute top-0 bottom-0 w-px ${
                                   isWeekBoundary ? 'bg-gray-300' : 'bg-[#ebebed]'
                                 }`}
-                                style={{ left: (i + 1) * columnPx - 1 }}
+                                style={{ left: (i + 1) * effectiveColumnPx - 1 }}
                                 aria-hidden="true"
                               />
                             </React.Fragment>
@@ -660,10 +537,10 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                         })}
 
                         {/* Today marker */}
-                        {showToday && (
+                        {effectiveShowToday && (
                           <div
                             className="absolute top-0 bottom-0 w-px bg-red-400 z-10"
-                            style={{ left: Math.round(todayOffset) }}
+                            style={{ left: Math.round(effectiveTodayOffset) }}
                             aria-hidden="true"
                           />
                         )}
@@ -675,18 +552,18 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                             style={{
                               left: barGeom.left,
                               width: barGeom.width,
-                              height: 22,
-                              borderRadius: 6,
+                              height: Math.max(3, effectiveRowH * 0.6),
+                              borderRadius: showFullScope ? 2 : 6,
                               background: group.color ?? '#6366f1',
                               boxShadow: isBeingDragged
                                 ? '0 4px 16px rgba(99,102,241,0.45)'
                                 : '0 2px 8px rgba(0,0,0,0.1)',
-                              cursor: 'move',
+                              cursor: showFullScope ? 'default' : 'move',
                               zIndex: 5,
                               transition: isBeingDragged ? 'none' : 'left 0.15s, width 0.15s',
                             }}
                             aria-label={`${item.name}: ${formatTooltipDate(dates.start)} to ${formatTooltipDate(dates.end)}`}
-                            onMouseDown={(e) => handleMoveStart(e, item, dates.start, dates.end)}
+                            onMouseDown={showFullScope ? undefined : (e) => handleMoveStart(e, item, dates.start, dates.end)}
                             onMouseEnter={(e) => {
                               if (!isCurrentlyDragging) {
                                 setTooltip({ x: e.clientX, y: e.clientY, startDate: dates.start, endDate: dates.end });
@@ -699,29 +576,31 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                             }}
                             onMouseLeave={() => setTooltip(null)}
                           >
-                            {/* Left edge handle — changes start date */}
-                            <div
-                              className="absolute top-0 bottom-0 z-10 flex items-center justify-center rounded-l-[6px]"
-                              style={{ left: 0, width: HANDLE_W, cursor: 'ew-resize' }}
-                              onMouseDown={(e) => handleResizeStart(e, item, 'start', dates.start, dates.end)}
-                              role="slider"
-                              aria-label={`${item.name} start date`}
-                              aria-valuenow={dates.start.getTime()}
-                            >
-                              <div className="w-px h-3 bg-white/70 rounded-full pointer-events-none" />
-                            </div>
-
-                            {/* Right edge handle — changes end date */}
-                            <div
-                              className="absolute top-0 bottom-0 z-10 flex items-center justify-center rounded-r-[6px]"
-                              style={{ right: 0, width: HANDLE_W, cursor: 'ew-resize' }}
-                              onMouseDown={(e) => handleResizeStart(e, item, 'end', dates.start, dates.end)}
-                              role="slider"
-                              aria-label={`${item.name} end date`}
-                              aria-valuenow={dates.end.getTime()}
-                            >
-                              <div className="w-px h-3 bg-white/70 rounded-full pointer-events-none" />
-                            </div>
+                            {/* Drag handles — hidden in full scope */}
+                            {!showFullScope && (
+                              <>
+                                <div
+                                  className="absolute top-0 bottom-0 z-10 flex items-center justify-center rounded-l-[6px]"
+                                  style={{ left: 0, width: HANDLE_W, cursor: 'ew-resize' }}
+                                  onMouseDown={(e) => handleResizeStart(e, item, 'start', dates.start, dates.end)}
+                                  role="slider"
+                                  aria-label={`${item.name} start date`}
+                                  aria-valuenow={dates.start.getTime()}
+                                >
+                                  <div className="w-px h-3 bg-white/70 rounded-full pointer-events-none" />
+                                </div>
+                                <div
+                                  className="absolute top-0 bottom-0 z-10 flex items-center justify-center rounded-r-[6px]"
+                                  style={{ right: 0, width: HANDLE_W, cursor: 'ew-resize' }}
+                                  onMouseDown={(e) => handleResizeStart(e, item, 'end', dates.start, dates.end)}
+                                  role="slider"
+                                  aria-label={`${item.name} end date`}
+                                  aria-valuenow={dates.end.getTime()}
+                                >
+                                  <div className="w-px h-3 bg-white/70 rounded-full pointer-events-none" />
+                                </div>
+                              </>
+                            )}
                           </div>
                         )}
                       </div>
