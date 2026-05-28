@@ -86,9 +86,20 @@ export function validateColumnValue(column: DBColumn, value: unknown): Validatio
           return { valid: false, error: `Column "${column.name}": invalid option IDs: ${invalid.join(', ')}.` };
         }
       } else {
-        if (typeof value !== 'string') return { valid: false, error: `Column "${column.name}": value must be a string optionId.` };
-        if (!validIds.includes(value)) {
-          return { valid: false, error: `Column "${column.name}": "${value}" is not a valid option.` };
+        // Accept arrays (frontend format) or plain strings (legacy)
+        if (Array.isArray(value)) {
+          if (!value.every((v) => typeof v === 'string')) {
+            return { valid: false, error: `Column "${column.name}": value must be an array of option ID strings.` };
+          }
+          const invalid = (value as string[]).filter((v) => !validIds.includes(v));
+          if (invalid.length > 0) {
+            return { valid: false, error: `Column "${column.name}": invalid option IDs: ${invalid.join(', ')}.` };
+          }
+        } else {
+          if (typeof value !== 'string') return { valid: false, error: `Column "${column.name}": value must be a string optionId.` };
+          if (!validIds.includes(value)) {
+            return { valid: false, error: `Column "${column.name}": "${value}" is not a valid option.` };
+          }
         }
       }
       return { valid: true };

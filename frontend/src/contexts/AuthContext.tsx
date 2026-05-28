@@ -74,10 +74,14 @@ const getStoredUser = (): User | null => {
   const userString = localStorage.getItem('authUser');
   return userString ? JSON.parse(userString) : null;
 };
-const storeSelectedOrg = (org: Workspace) => localStorage.setItem('authSelectedOrg', JSON.stringify(org));
+const storeSelectedOrg = (org: Workspace) => {
+  if (!org) { localStorage.removeItem('authSelectedOrg'); return; }
+  localStorage.setItem('authSelectedOrg', JSON.stringify(org));
+};
 const getSelectedOrg = (): any | null => {
   const orgString = localStorage.getItem('authSelectedOrg');
-  return orgString ? JSON.parse(orgString) : null;
+  if (!orgString || orgString === 'undefined' || orgString === 'null') return null;
+  try { return JSON.parse(orgString); } catch { return null; }
 };
 
 const PARTIAL_TOKEN_KEY = 'pendingPartialToken';
