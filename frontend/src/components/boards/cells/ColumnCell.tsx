@@ -19,9 +19,10 @@ import SimpleFormulaCell from './SimpleFormulaCell';
 interface ColumnCellProps {
   item: Item;
   column: Column;
+  groupColor?: string;
 }
 
-const ColumnCellInner: React.FC<ColumnCellProps> = ({ item, column }) => {
+const ColumnCellInner: React.FC<ColumnCellProps> = ({ item, column, groupColor }) => {
   switch (column.type) {
     case ColumnType.TEXT:          return <TextCell item={item} column={column} />;
     case ColumnType.NUMBER:        return <NumberCell item={item} column={column} />;
@@ -35,7 +36,7 @@ const ColumnCellInner: React.FC<ColumnCellProps> = ({ item, column }) => {
     case ColumnType.EMAIL:         return <EmailCell item={item} column={column} />;
     case ColumnType.PHONE:         return <PhoneCell item={item} column={column} />;
     case ColumnType.LOCATION:      return <LocationCell item={item} column={column} />;
-    case ColumnType.TIME_RANGE:    return <TimeRangeCell item={item} column={column} />;
+    case ColumnType.TIME_RANGE:    return <TimeRangeCell item={item} column={column} groupColor={groupColor} />;
     case ColumnType.SIMPLE_FORMULA: return <SimpleFormulaCell item={item} column={column} />;
     default:                       return <TextCell item={item} column={column} />;
   }

@@ -579,7 +579,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             )}
 
             {/* Sum / average summary row */}
-            <GroupSummaryRow items={items} columns={columns} groupColor={groupColor} />
+            <GroupSummaryRow items={items} columns={columns} />
           </div>
         )}
 

@@ -210,7 +210,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
 
       {/* Dynamic column cells */}
       {columns.map((col) => (
-        <ColumnCell key={col.id} item={item} column={col} />
+        <ColumnCell key={col.id} item={item} column={col} groupColor={groupColor} />
       ))}
 
       {/* Chat modal — portalled to body to escape DnD transform stacking context */}

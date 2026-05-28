@@ -677,9 +677,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                               width: barGeom.width,
                               height: 22,
                               borderRadius: 6,
-                              background: isBeingDragged
-                                ? 'linear-gradient(90deg, #4f46e5, #2563eb)'
-                                : 'linear-gradient(90deg, #6366f1, #3b82f6)',
+                              background: group.color ?? '#6366f1',
                               boxShadow: isBeingDragged
                                 ? '0 4px 16px rgba(99,102,241,0.45)'
                                 : '0 2px 8px rgba(0,0,0,0.1)',

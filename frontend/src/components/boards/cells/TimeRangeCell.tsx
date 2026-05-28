@@ -6,7 +6,7 @@ import { useDependency } from '../../../contexts/DependencyContext';
 import { useUndo } from '../../../contexts/UndoContext';
 import CellWrapper from './CellWrapper';
 
-interface Props { item: Item; column: Column }
+interface Props { item: Item; column: Column; groupColor?: string }
 
 // ---------------------------------------------------------------------------
 // Date helpers
@@ -428,7 +428,7 @@ const TrafficLight: React.FC<{ date: Date | null; type: 'start' | 'end' }> = ({ 
 // Component
 // ---------------------------------------------------------------------------
 
-const TimeRangeCellInner: React.FC<Props> = ({ item, column }) => {
+const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
   const rawValue = item.values[column.id] as TimeRangeValue | null | undefined;
   const { mutate } = useUpdateItem();
   const { push: pushUndo } = useUndo();
@@ -508,8 +508,6 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column }) => {
 
   const depsIn = getDepsTo(item.id, column.id);
   const { start: displayStart, end: displayEnd, isComputed } = resolveEffectiveDates(rawValue, depsIn, allItems);
-
-  const isDependentCell = hasDepsIn;
 
   // ---------------------------------------------------------------------------
   // Commit — accepts values directly so it works with the async picker flow
@@ -682,9 +680,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column }) => {
                       <div
                         className="flex items-center justify-center w-full gap-[2px] px-3 h-[26px] rounded-full text-[11px] font-semibold text-white whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,0.1)] cursor-default"
                         style={{
-                          background: isDependentCell
-                            ? 'linear-gradient(90deg, #8b5cf6, #6366f1)'
-                            : 'linear-gradient(90deg, #6366f1, #3b82f6)',
+                          background: groupColor ?? '#6366f1',
                         }}
                         aria-label={hovered && durationText ? durationText : isSameDay ? startLabel : `${startLabel} to ${endLabel}`}
                       >

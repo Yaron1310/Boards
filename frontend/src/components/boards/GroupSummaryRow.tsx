@@ -38,22 +38,6 @@ function median(vals: number[]): number {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/** Blend a hex colour with white to produce a solid opaque tint.
- *  alpha=0 → pure white, alpha=1 → original colour. */
-function blendWithWhite(hex: string, alpha = 0.25): string {
-  const h = hex.replace('#', '');
-  const full = h.length === 3
-    ? h.split('').map((c) => c + c).join('')
-    : h.slice(0, 6); // strip alpha channel if 8-char
-  const r = parseInt(full.slice(0, 2), 16);
-  const g = parseInt(full.slice(2, 4), 16);
-  const b = parseInt(full.slice(4, 6), 16);
-  if (isNaN(r) || isNaN(g) || isNaN(b)) return '#f3f4f6';
-  const rOut = Math.round(r * alpha + 255 * (1 - alpha));
-  const gOut = Math.round(g * alpha + 255 * (1 - alpha));
-  const bOut = Math.round(b * alpha + 255 * (1 - alpha));
-  return `rgb(${rOut},${gOut},${bOut})`;
-}
 
 function configFromColumn(col: Column, defaultCalc: CalcMode = 'sum'): CellConfig {
   if (col.summaryConfig) {
@@ -261,7 +245,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
   const isCheckbox = col.type === ColumnType.CHECKBOX;
   const isTimeType = col.type === ColumnType.TIME || col.type === ColumnType.TIME_RANGE;
   const isCountOnly = COUNT_ONLY_TYPES.has(col.type);
-  const defaultCalc: CalcMode = (isCheckbox || isCountOnly) ? 'count' : 'sum';
+  const defaultCalc: CalcMode = isCheckbox ? 'count' : isCountOnly ? 'none' : 'sum';
 
   const [config, setConfig] = useState<CellConfig>(() => configFromColumn(col, defaultCalc));
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
@@ -400,33 +384,45 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
 
   const value = isInteractive ? computeValue() : null;
   const badge = isInteractive && config.calc !== 'none' ? CALC_BADGE[config.calc] : null;
+  const showActive = isInteractive && config.calc !== 'none';
+  const showHoverTrigger = isCountOnly && config.calc === 'none';
 
   return (
     <div
       role="gridcell"
       aria-label={`${col.name} ${config.calc}: ${value ?? 'none'}`}
       style={{ width: `${colWidth}px` }}
-      className={`relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2${isFirst ? ' border-l border-[#d2d2d4]' : ''}`}
+      className={`group relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2${isFirst ? ' border-l border-[#d2d2d4]' : ''}`}
     >
-      {isInteractive && (
+      {showActive && (
         <button
           ref={btnRef}
           type="button"
           onClick={handleOpen}
           className="absolute left-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-normal leading-none transition-colors select-none flex-shrink-0 hover:opacity-80"
-          style={{
-            backgroundColor: config.calc === 'none' ? '#e5e7eb' : '#3b82f6cf',
-            color: config.calc === 'none' ? '#6b7280' : 'white',
-          }}
+          style={{ backgroundColor: '#3b82f6cf', color: 'white' }}
           aria-label={`Open summary settings for ${col.name}`}
           aria-haspopup="dialog"
           title="Click to configure summary"
         >
-          {badge ?? '—'}
+          {badge}
+        </button>
+      )}
+      {showHoverTrigger && (
+        <button
+          ref={btnRef}
+          type="button"
+          onClick={handleOpen}
+          className="absolute left-2 opacity-0 group-hover:opacity-100 inline-flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+          aria-label={`Enable summary for ${col.name}`}
+          aria-haspopup="dialog"
+          title="Click to add summary"
+        >
+          <span className="text-[12px] leading-none">∑</span>
         </button>
       )}
       <span className="flex-1 text-center text-sm font-normal text-gray-500 truncate">
-        {value != null ? value : <span className="text-gray-300">—</span>}
+        {showActive && value != null ? value : showActive ? <span className="text-gray-300">—</span> : null}
       </span>
 
       {anchorRect && (
@@ -449,10 +445,9 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
 interface Props {
   items: Item[];
   columns: Column[];
-  groupColor: string;
 }
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
+const GroupSummaryRow: React.FC<Props> = ({ items, columns }) => {
   const hasSummaryColumns = columns.some(
     (c) => AGGREGATABLE_TYPES.has(c.type) || COUNT_ONLY_TYPES.has(c.type),
   );
@@ -460,7 +455,6 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
 
   const nonArchived = items.filter((i) => !i.isArchived);
   const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
-  const solidBg = blendWithWhite(groupColor, 0.15);
   const { columnWidths } = useBoardRender();
   const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
@@ -468,12 +462,11 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupColor }) => {
     <div
       role="row"
       aria-label="Group summary row"
-      className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] w-max rounded-bl-xl"
-      style={{ backgroundColor: solidBg }}
+      className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] w-max rounded-bl-xl bg-white"
     >
       <div
-        className="flex-shrink-0 sticky left-4 z-[1]"
-        style={{ width: `${itemSectionWidth}px`, backgroundColor: solidBg, borderBottomLeftRadius: '6px' }}
+        className="flex-shrink-0 sticky left-4 z-[1] bg-white"
+        style={{ width: `${itemSectionWidth}px`, borderBottomLeftRadius: '6px' }}
         aria-hidden="true"
       />
       {columns.map((col, index) => (

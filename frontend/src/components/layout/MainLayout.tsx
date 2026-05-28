@@ -3,7 +3,7 @@ import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello, FiPlus } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
@@ -34,6 +34,7 @@ interface WorkspaceBoardsGroupProps {
 const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const { data: boards = [] } = useBoards(workspace.id, false, true);
+  const navigate = useNavigate();
 
   return (
     <div className="mb-1">
@@ -73,6 +74,18 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
               </NavLink>
             </li>
           ))}
+          <li role="listitem">
+            <button
+              type="button"
+              onClick={() => { navigate(`/WorkHubs/${workspace.id}/boards?newBoard=true`); onNavigate(); }}
+              className="flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 w-full text-left hover:opacity-100"
+              style={{ color: sidebarLinkColor, opacity: 0.6 }}
+              aria-label="Create new board"
+            >
+              <FiPlus size={13} className="flex-shrink-0" aria-hidden="true" />
+              <span>New Board</span>
+            </button>
+          </li>
         </ul>
       )}
     </div>
