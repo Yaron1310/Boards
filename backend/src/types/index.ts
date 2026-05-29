@@ -311,6 +311,7 @@ export interface DBBoard {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  isTemplate?: boolean;
   dependencyRules?: DependencyRule[];
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;

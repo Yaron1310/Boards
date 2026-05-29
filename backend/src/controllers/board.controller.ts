@@ -98,7 +98,7 @@ export const createBoard = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 export const getBoards = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  const { workspaceId, includeArchived } = req.query;
+  const { workspaceId, includeArchived, isTemplate } = req.query;
 
   try {
     let query: admin.firestore.Query = boardsCollection(user.orgId);
@@ -113,7 +113,7 @@ export const getBoards = async (req: Request, res: Response) => {
 
     const snapshot = await query.get();
     const boards = querySnapshotToArray<DBBoard>(snapshot).filter((b) =>
-      canAccessBoard(user, b, 'read'),
+      canAccessBoard(user, b, 'read') && (isTemplate === 'true' ? b.isTemplate === true : b.isTemplate !== true),
     );
 
     void logAuditAndCheckAnomaly({
