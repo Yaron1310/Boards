@@ -54,7 +54,9 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
     } catch {
       errorData = { message: `HTTP error! status: ${response.status}` };
     }
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    const httpErr = new Error(errorData.message || `HTTP error! status: ${response.status}`) as Error & { status: number };
+    httpErr.status = response.status;
+    throw httpErr;
   }
   if (response.status === 204) return null;
   return response.json();
