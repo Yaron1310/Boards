@@ -6,6 +6,14 @@ import { useCreateBoard, useBoardTemplates } from '../../hooks/queries/useBoardQ
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 import EmojiPicker from './EmojiPicker';
+import type { DuplicateMode } from '../../services/workManagementService';
+
+const TEMPLATE_MODE_OPTIONS: { value: DuplicateMode; label: string }[] = [
+  { value: 'columns_only', label: 'Columns only' },
+  { value: 'columns_groups', label: 'Columns + groups' },
+  { value: 'columns_groups_items', label: 'Columns + groups + items' },
+  { value: 'full', label: 'Columns + groups + items + data' },
+];
 
 interface CreateBoardModalProps {
   workspaceId?: string;
@@ -21,6 +29,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
   const [error, setError] = useState('');
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateMode, setTemplateMode] = useState<DuplicateMode>('full');
   const [showWorkspacePicker, setShowWorkspacePicker] = useState(false);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState('');
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -28,22 +37,23 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
 
   const { mutateAsync: createBoard, isPending } = useCreateBoard();
   const { data: templates = [] } = useBoardTemplates(!isTemplate);
-  const { data: allWorkspaces = [] } = useWorkspacesQuery(undefined, !!isTemplate && !workspaceId);
+  // Workspace picker only needed for non-template boards
+  const { data: allWorkspaces = [] } = useWorkspacesQuery(undefined, !isTemplate && !workspaceId);
 
-  const nonPersonalWorkspaces = allWorkspaces.filter((w) => !w.isPersonal);
+  const regularWorkspaces = allWorkspaces.filter((w) => !w.isPersonal && !w.isTemplates);
 
-  const effectiveWorkspaceId = workspaceId ?? (isTemplate ? (selectedWorkspaceId || (nonPersonalWorkspaces[0]?.id ?? '')) : '');
+  // For template boards, workspaceId is determined by the backend (templates workspace).
+  // For regular boards, use the provided workspaceId or the picker selection.
+  const effectiveWorkspaceId = isTemplate
+    ? undefined
+    : (workspaceId ?? (selectedWorkspaceId || (regularWorkspaces[0]?.id ?? '')));
 
   const handleTemplateSelect = (templateId: string) => {
     const template = templates.find((t) => t.id === templateId);
     if (template) {
       setSelectedTemplateId(templateId);
-      if (!name.trim()) {
-        setName(template.name);
-      }
-      if (!description.trim() && template.description) {
-        setDescription(template.description);
-      }
+      if (!name.trim()) setName(template.name);
+      if (!description.trim() && template.description) setDescription(template.description);
     }
     setShowTemplatePicker(false);
   };
@@ -55,8 +65,8 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
       setError('Board name is required.');
       return;
     }
-    if (!effectiveWorkspaceId) {
-      setError(isTemplate ? 'Please select a WorkHub.' : 'No WorkHub selected. Please navigate into a WorkHub first.');
+    if (!isTemplate && !effectiveWorkspaceId) {
+      setError('No WorkHub selected. Please navigate into a WorkHub first.');
       return;
     }
     setError('');
@@ -65,8 +75,8 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
       const board = await createBoard({
         name: finalName,
         description: description.trim() || undefined,
-        workspaceId: effectiveWorkspaceId,
-        ...(isTemplate ? { isTemplate: true } : {}),
+        ...(isTemplate ? { isTemplate: true } : { workspaceId: effectiveWorkspaceId }),
+        ...(selectedTemplateId ? { templateId: selectedTemplateId, templateMode } : {}),
       });
       onClose();
       navigate(`/boards/${board.id}`);
@@ -79,7 +89,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
   if (!modalRoot) return null;
 
   const selectedTemplate = selectedTemplateId ? templates.find((t) => t.id === selectedTemplateId) : null;
-  const selectedWorkspace = nonPersonalWorkspaces.find((w) => w.id === (selectedWorkspaceId || nonPersonalWorkspaces[0]?.id));
+  const selectedWorkspace = regularWorkspaces.find((w) => w.id === (selectedWorkspaceId || regularWorkspaces[0]?.id));
 
   return ReactDOM.createPortal(
     <div
@@ -115,8 +125,8 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
 
         <form onSubmit={handleSubmit} noValidate className="flex flex-col min-h-0 flex-1">
           <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
-            {/* Workspace picker — only when creating a template without a pre-set workspaceId */}
-            {isTemplate && !workspaceId && (
+            {/* Workspace picker — only for regular boards without a pre-set workspaceId */}
+            {!isTemplate && !workspaceId && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   WorkHub <span aria-hidden="true" className="text-red-500">*</span>
@@ -131,7 +141,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
                     aria-haspopup="listbox"
                   >
                     <span className="text-gray-700">
-                      {selectedWorkspace?.name ?? (nonPersonalWorkspaces[0]?.name ?? <span className="text-gray-400">Select a WorkHub…</span>)}
+                      {selectedWorkspace?.name ?? (regularWorkspaces[0]?.name ?? <span className="text-gray-400">Select a WorkHub…</span>)}
                     </span>
                     <FiChevronDown
                       size={14}
@@ -146,13 +156,13 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
                       aria-label="Available WorkHubs"
                       className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
                     >
-                      {nonPersonalWorkspaces.map((w) => (
+                      {regularWorkspaces.map((w) => (
                         <li
                           key={w.id}
                           role="option"
-                          aria-selected={w.id === (selectedWorkspaceId || nonPersonalWorkspaces[0]?.id)}
+                          aria-selected={w.id === (selectedWorkspaceId || regularWorkspaces[0]?.id)}
                           onClick={() => { setSelectedWorkspaceId(w.id); setShowWorkspacePicker(false); }}
-                          className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${w.id === (selectedWorkspaceId || nonPersonalWorkspaces[0]?.id) ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700'}`}
+                          className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${w.id === (selectedWorkspaceId || regularWorkspaces[0]?.id) ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700'}`}
                         >
                           {w.color && (
                             <span
@@ -233,6 +243,36 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
                     </ul>
                   )}
                 </div>
+
+                {/* Inline mode selector — shown when a template is selected */}
+                {selectedTemplateId && (
+                  <div className="mt-3 space-y-1.5" role="radiogroup" aria-label="What to copy from the template">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Copy from template</p>
+                    {TEMPLATE_MODE_OPTIONS.map((opt) => (
+                      <label
+                        key={opt.value}
+                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                          templateMode === opt.value
+                            ? 'border-indigo-500 bg-indigo-50'
+                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="template-mode"
+                          value={opt.value}
+                          checked={templateMode === opt.value}
+                          onChange={() => setTemplateMode(opt.value)}
+                          className="accent-indigo-600"
+                          aria-label={opt.label}
+                        />
+                        <span className={`text-sm ${templateMode === opt.value ? 'text-indigo-700 font-medium' : 'text-gray-700'}`}>
+                          {opt.label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -293,7 +333,7 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
             </button>
             <button
               type="submit"
-              disabled={isPending || (!effectiveWorkspaceId)}
+              disabled={isPending || (!isTemplate && !effectiveWorkspaceId)}
               className={`px-5 py-2 text-sm font-medium text-white rounded-lg transition-colors disabled:opacity-60 ${isTemplate ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}
               aria-label={isTemplate ? 'Create template' : 'Create board'}
             >

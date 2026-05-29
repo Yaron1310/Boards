@@ -18,29 +18,52 @@ function isAuthError(err: unknown): err is { status: number; message: string } {
 // ---------------------------------------------------------------------------
 export const createBoard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  const { name, description, workspaceId, order, isTemplate } = req.body;
+  const { name, description, workspaceId: clientWorkspaceId, order, isTemplate, templateId, templateMode = 'full' } = req.body;
 
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ message: 'Board name is required.' });
   }
-  if (!workspaceId || typeof workspaceId !== 'string') {
-    return res.status(400).json({ message: 'workspaceId is required.' });
+
+  const validModes = ['columns_only', 'columns_groups', 'columns_groups_items', 'full'];
+  if (templateId && !validModes.includes(templateMode)) {
+    return res.status(400).json({ message: 'Invalid templateMode.' });
   }
 
   try {
-    // Validate workspaceId belongs to this tenant and is not a personal/default workspace
-    const workspaceDoc = await workspacesCollection.doc(workspaceId).get();
-    if (!workspaceDoc.exists || workspaceDoc.data()?.orgId !== user.orgId) {
-      return res.status(400).json({ message: 'Invalid workspaceId: workspace not found in this organization.' });
-    }
-    if (workspaceDoc.data()?.isPersonal === true) {
-      return res.status(400).json({ message: 'Boards cannot be created in a default workspace. Please select a real workspace.' });
+    let effectiveWorkspaceId: string;
+
+    if (isTemplate === true) {
+      // Always use the templates workspace for template boards
+      const templatesWsSnap = await workspacesCollection
+        .where('orgId', '==', user.orgId)
+        .where('isTemplates', '==', true)
+        .limit(1)
+        .get();
+      if (templatesWsSnap.empty) {
+        return res.status(400).json({ message: 'No templates workspace found for this organization.' });
+      }
+      effectiveWorkspaceId = templatesWsSnap.docs[0].id;
+    } else {
+      if (!clientWorkspaceId || typeof clientWorkspaceId !== 'string') {
+        return res.status(400).json({ message: 'workspaceId is required.' });
+      }
+      const workspaceDoc = await workspacesCollection.doc(clientWorkspaceId).get();
+      if (!workspaceDoc.exists || workspaceDoc.data()?.orgId !== user.orgId) {
+        return res.status(400).json({ message: 'Invalid workspaceId: workspace not found in this organization.' });
+      }
+      if (workspaceDoc.data()?.isPersonal === true) {
+        return res.status(400).json({ message: 'Boards cannot be created in a default workspace. Please select a real workspace.' });
+      }
+      if (workspaceDoc.data()?.isTemplates === true) {
+        return res.status(400).json({ message: 'Regular boards cannot be created in the templates workspace.' });
+      }
+      effectiveWorkspaceId = clientWorkspaceId;
     }
 
     // Build a provisional board to check create permission before writing
     const provisionalBoard: DBBoard = {
       id: '',
-      workspaceId,
+      workspaceId: effectiveWorkspaceId,
       name: sanitizeText(name),
       order: typeof order === 'number' ? order : 0,
       createdBy: user.id,
@@ -58,10 +81,11 @@ export const createBoard = async (req: Request, res: Response) => {
     }
 
     const docRef = boardsCollection(user.orgId).doc();
+    const newBoardId = docRef.id;
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     await docRef.set({
-      id: docRef.id,
-      workspaceId,
+      id: newBoardId,
+      workspaceId: effectiveWorkspaceId,
       name: sanitizeText(name),
       description: description ? sanitizeText(description) : null,
       order: boardOrder,
@@ -72,6 +96,61 @@ export const createBoard = async (req: Request, res: Response) => {
       updatedAt: timestamp,
     });
 
+    // Copy data from template if provided
+    if (templateId && typeof templateId === 'string') {
+      const tmplDoc = await boardsCollection(user.orgId).doc(templateId).get();
+      if (tmplDoc.exists) {
+        const colsSnap = await columnsCollection(user.orgId, templateId).get();
+        if (!colsSnap.empty) {
+          const colBatch = db.batch();
+          colsSnap.docs.forEach((colDoc) => {
+            colBatch.set(columnsCollection(user.orgId, newBoardId).doc(colDoc.id), { ...colDoc.data(), boardId: newBoardId });
+          });
+          await colBatch.commit();
+        }
+
+        if (templateMode === 'columns_groups' || templateMode === 'columns_groups_items' || templateMode === 'full') {
+          const groupsSnap = await groupsCollection(user.orgId, templateId).get();
+          const groupIdMap = new Map<string, string>();
+          if (!groupsSnap.empty) {
+            const groupBatch = db.batch();
+            groupsSnap.docs.forEach((groupDoc) => {
+              const newGroupRef = groupsCollection(user.orgId, newBoardId).doc();
+              groupIdMap.set(groupDoc.id, newGroupRef.id);
+              groupBatch.set(newGroupRef, { ...groupDoc.data(), id: newGroupRef.id, boardId: newBoardId });
+            });
+            await groupBatch.commit();
+          }
+
+          if (templateMode === 'columns_groups_items' || templateMode === 'full') {
+            const itemsSnap = await itemsCollection(user.orgId).where('boardId', '==', templateId).get();
+            if (!itemsSnap.empty) {
+              const BATCH_SIZE = 400;
+              let itemBatch = db.batch();
+              let count = 0;
+              for (const itemDoc of itemsSnap.docs) {
+                const itemData = itemDoc.data();
+                const newItemRef = itemsCollection(user.orgId).doc();
+                itemBatch.set(newItemRef, {
+                  ...itemData,
+                  id: newItemRef.id,
+                  boardId: newBoardId,
+                  groupId: groupIdMap.get(itemData.groupId) ?? itemData.groupId,
+                  workspaceId: effectiveWorkspaceId,
+                  ...(templateMode === 'columns_groups_items' ? { values: {} } : {}),
+                  createdAt: timestamp,
+                  updatedAt: timestamp,
+                });
+                count++;
+                if (count % BATCH_SIZE === 0) { await itemBatch.commit(); itemBatch = db.batch(); }
+              }
+              if (count % BATCH_SIZE !== 0) await itemBatch.commit();
+            }
+          }
+        }
+      }
+    }
+
     const created = snapshotToData<DBBoard>(await docRef.get());
 
     void logAudit({
@@ -79,7 +158,7 @@ export const createBoard = async (req: Request, res: Response) => {
       actorRole: user.role,
       action: 'CREATE',
       resourceType: 'board',
-      resourceId: docRef.id,
+      resourceId: newBoardId,
       workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
@@ -501,6 +580,14 @@ export const saveAsTemplate = async (req: Request, res: Response) => {
     const board = snapshotToData<DBBoard>(doc)!;
     assertBoardAccess(user, board, 'create');
 
+    // Use the dedicated templates workspace
+    const templatesWsSnap = await workspacesCollection
+      .where('orgId', '==', user.orgId)
+      .where('isTemplates', '==', true)
+      .limit(1)
+      .get();
+    const templateWorkspaceId = templatesWsSnap.empty ? board.workspaceId : templatesWsSnap.docs[0].id;
+
     const countSnap = await boardsCollection(user.orgId).count().get();
     const newRef = boardsCollection(user.orgId).doc();
     const newBoardId = newRef.id;
@@ -508,7 +595,7 @@ export const saveAsTemplate = async (req: Request, res: Response) => {
 
     await newRef.set({
       id: newBoardId,
-      workspaceId: board.workspaceId,
+      workspaceId: templateWorkspaceId,
       name: name ? sanitizeText(String(name)) : board.name,
       description: board.description ?? null,
       order: countSnap.data().count,

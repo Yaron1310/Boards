@@ -250,7 +250,7 @@ const TemplatesPage: React.FC = () => {
           boardId={menuBoard.id}
           boardName={menuBoard.name}
           triggerRect={menuTriggerRect}
-          workspaces={allWorkspaces.filter((w) => !w.isPersonal)}
+          workspaces={allWorkspaces.filter((w) => !w.isPersonal && !w.isTemplates)}
           currentWorkspaceId={menuBoard.workspaceId}
           canManage={canManage}
           isTemplate={true}

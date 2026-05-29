@@ -184,7 +184,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
           boardId={menuBoard.id}
           boardName={menuBoard.name}
           triggerRect={menuTriggerRect}
-          workspaces={allWorkspaces.filter((w) => !w.isPersonal)}
+          workspaces={allWorkspaces.filter((w) => !w.isPersonal && !w.isTemplates)}
           currentWorkspaceId={workspace.id}
           canManage={canManage}
           onClose={() => { setMenuBoardId(null); setMenuTriggerRect(null); }}
@@ -262,7 +262,7 @@ const WORKHUB_STORAGE_KEY = 'logyx_selected_workhub_id';
 
 const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate, canManage }) => {
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
-  const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
+  const workspaces = allWorkspaces.filter((w) => !w.isPersonal && !w.isTemplates);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedId, setSelectedId] = useState(() => localStorage.getItem(WORKHUB_STORAGE_KEY) ?? '');

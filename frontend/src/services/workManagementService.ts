@@ -65,9 +65,11 @@ const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
 export interface CreateBoardData {
   name: string;
   description?: string;
-  workspaceId: string;
+  workspaceId?: string;
   order?: number;
   isTemplate?: boolean;
+  templateId?: string;
+  templateMode?: DuplicateMode;
 }
 
 export interface UpdateBoardData {

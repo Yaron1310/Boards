@@ -49,6 +49,16 @@ export const createOrganization = async (req: Request, res: Response) => {
         };
         batch.set(defaultOrgRef, newDefaultOrg);
 
+        const templatesWsRef = workspacesCollection.doc();
+        batch.set(templatesWsRef, {
+            id: templatesWsRef.id,
+            name: 'Templates',
+            orgId: newOrganizationRef.id,
+            isTemplates: true,
+            createdAt: new Date(),
+            status: 'active',
+        });
+
         const settingsRef = organizationSettingsCollection.doc(newOrganizationRef.id);
         const defaultSettings: Omit<DBOrganizationSettings, 'updatedAt'> = {
             id: newOrganizationRef.id,

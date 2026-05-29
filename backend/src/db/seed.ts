@@ -81,6 +81,21 @@ export const seedDefaultData = async () => {
     defaultWorkspaceId = orgDoc.id;
   }
 
+  // --- 4b. Seed Templates Workspace ---
+  const templatesWsRef = workspacesCollection.doc('templates_workspace');
+  const templatesWsDoc = await templatesWsRef.get();
+  if (!templatesWsDoc.exists) {
+    logger.info(`Seeding templates workspace for org: ${orgId}`);
+    batch.set(templatesWsRef, {
+      id: templatesWsRef.id,
+      name: 'Templates',
+      orgId: orgId,
+      isTemplates: true,
+      createdAt: new Date(),
+      status: 'active',
+    });
+  }
+
   // --- 5. Seed System Admin User ---
   const adminDocRef = usersCollection.doc('system_admin_user');
   const adminDoc = await adminDocRef.get();

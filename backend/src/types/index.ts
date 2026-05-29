@@ -17,6 +17,7 @@ export interface DBWorkspace {
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt?: admin.firestore.Timestamp | Date | any;
   isPersonal?: boolean;
+  isTemplates?: boolean;
   status?: 'active' | 'archived';
 }
 

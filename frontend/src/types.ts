@@ -12,6 +12,7 @@ export interface WorkHub {
   color?: string;
   organizationName?: string;
   isPersonal?: boolean;
+  isTemplates?: boolean;
   status?: 'active' | 'archived';
 }
 

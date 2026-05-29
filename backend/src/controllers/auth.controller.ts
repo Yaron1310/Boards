@@ -125,7 +125,7 @@ export const formatUserForFrontend = async (
         dbRoles,
     };
     
-    let userOrgs: (Pick<DBWorkspace, 'id' | 'name' | 'orgId' | 'isPersonal'> & { organizationName?: string })[] = [];
+    let userOrgs: (Pick<DBWorkspace, 'id' | 'name' | 'orgId' | 'isPersonal' | 'isTemplates'> & { organizationName?: string })[] = [];
 
     if (dbRoles.systemAdmin && !context) {
         logger.info(`Formatting user ${user.id} as System Admin, fetching all workspaces and a representative org for each.`);
@@ -145,7 +145,7 @@ export const formatUserForFrontend = async (
                     seenOrganizationIds.add(o.orgId);
                     return true;
                 })
-                .map(o => ({ id: o.id, name: o.name, orgId: o.orgId, isPersonal: o.isPersonal }));
+                .map(o => ({ id: o.id, name: o.name, orgId: o.orgId, isPersonal: o.isPersonal, isTemplates: o.isTemplates }));
         }
     } else if (allRelevantOrgIds.length > 0) {
         const orgFetchPromises: Promise<admin.firestore.QuerySnapshot>[] = [];
@@ -153,7 +153,7 @@ export const formatUserForFrontend = async (
             orgFetchPromises.push(workspacesCollection.where(admin.firestore.FieldPath.documentId(), 'in', allRelevantOrgIds.slice(i, i + 30)).get());
         }
         const orgFetchSnapshots = await Promise.all(orgFetchPromises);
-        let allUserOrgs = orgFetchSnapshots.flatMap(snap => querySnapshotToArray<DBWorkspace>(snap)).map(o => ({ id: o.id, name: o.name, orgId: o.orgId, isPersonal: o.isPersonal }));
+        let allUserOrgs = orgFetchSnapshots.flatMap(snap => querySnapshotToArray<DBWorkspace>(snap)).map(o => ({ id: o.id, name: o.name, orgId: o.orgId, isPersonal: o.isPersonal, isTemplates: o.isTemplates }));
 
         if (context?.orgId) {
             userOrgs = allUserOrgs.filter(org => org.orgId === context.orgId);
@@ -367,7 +367,7 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
 
 const isMultiOrgUser = (userForFrontend: any): boolean => {
     if (userForFrontend.dbRoles?.systemAdmin) return true;
-    const workspaces: any[] = (userForFrontend.workspaces || []).filter((w: any) => !w.isPersonal && w.name !== 'Default Workspace');
+    const workspaces: any[] = (userForFrontend.workspaces || []).filter((w: any) => !w.isPersonal && !w.isTemplates && w.name !== 'Default Workspace');
     const distinctOrgIds = new Set(workspaces.map((w: any) => w.orgId).filter(Boolean));
     return distinctOrgIds.size > 1;
 };
