@@ -43,6 +43,13 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
   const [menuTriggerRect, setMenuTriggerRect] = useState<DOMRect | null>(null);
   const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (renamingBoardId !== null) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }
+  }, [renamingBoardId]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [duplicateTargetId, setDuplicateTargetId] = useState<string | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
@@ -83,6 +90,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
     const id = templateTargetId;
     setTemplateTargetId(null);
     await saveAsTemplate({ id, mode }).catch(() => {});
+    navigate('/admin/templates');
   };
 
   return (
@@ -111,6 +119,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                 <div className="flex-1 min-w-0 flex items-center gap-2 px-8 py-1" style={{ color: sidebarLinkColor }}>
                   <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
                   <input
+                    ref={renameInputRef}
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
@@ -119,7 +128,6 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                       if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
                       if (e.key === 'Escape') { setRenamingBoardId(null); }
                     }}
-                    autoFocus
                     className="flex-1 min-w-0 text-sm bg-white/20 border border-white/40 rounded px-1.5 py-0.5 text-white focus:outline-none focus:ring-1 focus:ring-white/60"
                     aria-label={`Rename board ${board.name}`}
                   />

@@ -34,6 +34,13 @@ const BoardListPage: React.FC = () => {
   }, [searchParams, setSearchParams]);
   const [renamingBoardId, setRenamingBoardId] = React.useState<string | null>(null);
   const [renameValue, setRenameValue] = React.useState('');
+  const renameInputRef = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (renamingBoardId !== null) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }
+  }, [renamingBoardId]);
   const [showArchiveModal, setShowArchiveModal] = React.useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
   const [duplicateTargetId, setDuplicateTargetId] = React.useState<string | null>(null);
@@ -135,6 +142,7 @@ const BoardListPage: React.FC = () => {
     const id = templateTargetId;
     setTemplateTargetId(null);
     await saveAsTemplate({ id, mode }).catch(() => {});
+    navigate('/admin/templates');
   };
 
   const handleRestore = async (id: string) => {
@@ -262,6 +270,7 @@ const BoardListPage: React.FC = () => {
               <div className="min-w-0 flex-1 pr-10">
                 {renamingBoardId === board.id ? (
                   <input
+                    ref={renameInputRef}
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
@@ -271,7 +280,6 @@ const BoardListPage: React.FC = () => {
                       if (e.key === 'Escape') { setRenamingBoardId(null); }
                     }}
                     onClick={(e) => e.stopPropagation()}
-                    autoFocus
                     className="w-full font-semibold text-gray-800 border border-indigo-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     aria-label={`Rename board ${board.name}`}
                   />
