@@ -159,7 +159,7 @@ const ensureTemplatesWorkspaceForAllOrgs = async () => {
   const existingTemplatesSnap = await workspacesCollection.where('isTemplates', '==', true).get();
   const orgsWithTemplatesWs = new Set(existingTemplatesSnap.docs.map((d) => d.data().orgId as string));
 
-  const missing = allOrgIds.filter((id) => !orgsWithTemplatesWs.has(id));
+  const missing = allOrgIds.filter((id) => !orgsWithTemplatesWs.has(id) && id !== 'default_organization');
   if (missing.length === 0) return;
 
   logger.info(`Creating templates workspace for ${missing.length} org(s): ${missing.join(', ')}`);

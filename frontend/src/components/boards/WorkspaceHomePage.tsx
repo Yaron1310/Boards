@@ -196,7 +196,7 @@ const WorkspaceHomePage: React.FC = () => {
     isLoading: isDataLoading,
   } = useData();
 
-  const workspaces = (allWorkspacesData || []).filter((w) => !w.isPersonal);
+  const workspaces = (allWorkspacesData || []).filter((w) => !w.isPersonal && !w.isTemplates);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
