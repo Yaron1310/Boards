@@ -103,11 +103,13 @@ export const restoreBoard = (id: string): Promise<Board> =>
 export const deleteBoard = (id: string): Promise<null> =>
   fetchWithAuth(`/api/boards/${id}`, { method: 'DELETE' });
 
-export const duplicateBoard = (id: string): Promise<Board> =>
-  fetchWithAuth(`/api/boards/${id}/duplicate`, { method: 'POST' });
+export type DuplicateMode = 'columns_only' | 'columns_groups' | 'columns_groups_items' | 'full';
 
-export const saveAsBoardTemplate = (id: string, name?: string): Promise<Board> =>
-  fetchWithAuth(`/api/boards/${id}/save-as-template`, { method: 'POST', body: JSON.stringify({ name }) });
+export const duplicateBoard = (id: string, mode: DuplicateMode = 'full'): Promise<Board> =>
+  fetchWithAuth(`/api/boards/${id}/duplicate`, { method: 'POST', body: JSON.stringify({ mode }) });
+
+export const saveAsBoardTemplate = (id: string, name?: string, mode: DuplicateMode = 'full'): Promise<Board> =>
+  fetchWithAuth(`/api/boards/${id}/save-as-template`, { method: 'POST', body: JSON.stringify({ name, mode }) });
 
 export const listTemplates = (): Promise<Board[]> =>
   fetchWithAuth('/api/boards?isTemplate=true');

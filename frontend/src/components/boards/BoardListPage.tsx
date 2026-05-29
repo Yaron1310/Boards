@@ -12,9 +12,10 @@ import {
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import CreateBoardModal from './CreateBoardModal';
-import EditBoardModal from './EditBoardModal';
 import BoardContextMenu from './BoardContextMenu';
+import DuplicateOptionsModal from './DuplicateOptionsModal';
 import { importBoardFromXlsx } from '../../utils/importBoardFromXlsx';
+import type { DuplicateMode } from '../../services/workManagementService';
 
 const BoardListPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -31,9 +32,12 @@ const BoardListPage: React.FC = () => {
       setSearchParams({}, { replace: true });
     }
   }, [searchParams, setSearchParams]);
-  const [editingBoard, setEditingBoard] = React.useState<Board | null>(null);
+  const [renamingBoardId, setRenamingBoardId] = React.useState<string | null>(null);
+  const [renameValue, setRenameValue] = React.useState('');
   const [showArchiveModal, setShowArchiveModal] = React.useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
+  const [duplicateTargetId, setDuplicateTargetId] = React.useState<string | null>(null);
+  const [templateTargetId, setTemplateTargetId] = React.useState<string | null>(null);
   const [isImporting, setIsImporting] = React.useState(false);
   const [importError, setImportError] = React.useState<string | null>(null);
   const importInputRef = React.useRef<HTMLInputElement>(null);
@@ -103,6 +107,34 @@ const BoardListPage: React.FC = () => {
     setConfirmDeleteId(null);
     await deleteBoard(id).catch(() => {});
     setActioningId(null);
+  };
+
+  const handleRenameStart = (board: Board) => {
+    setMenuBoardId(null);
+    setRenamingBoardId(board.id);
+    setRenameValue(board.name);
+  };
+
+  const handleRenameSubmit = async (id: string) => {
+    const trimmed = renameValue.trim();
+    setRenamingBoardId(null);
+    if (trimmed && trimmed !== boards.find((b) => b.id === id)?.name) {
+      await updateBoard({ id, patch: { name: trimmed } }).catch(() => {});
+    }
+  };
+
+  const handleDuplicate = async (mode: DuplicateMode) => {
+    if (!duplicateTargetId) return;
+    const id = duplicateTargetId;
+    setDuplicateTargetId(null);
+    await duplicateBoard({ id, mode }).catch(() => {});
+  };
+
+  const handleSaveAsTemplate = async (mode: DuplicateMode) => {
+    if (!templateTargetId) return;
+    const id = templateTargetId;
+    setTemplateTargetId(null);
+    await saveAsTemplate({ id, mode }).catch(() => {});
   };
 
   const handleRestore = async (id: string) => {
@@ -221,14 +253,31 @@ const BoardListPage: React.FC = () => {
               key={board.id}
               role="listitem"
               className="group relative flex items-start gap-4 p-5 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer"
-              onClick={() => navigate(`/boards/${board.id}`)}
+              onClick={() => renamingBoardId !== board.id && navigate(`/boards/${board.id}`)}
               aria-label={`Open board ${board.name}`}
             >
               <div className="flex-shrink-0 w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
                 <FiLayout className="text-indigo-500" size={20} aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1 pr-10">
-                <p className="font-semibold truncate text-gray-800">{board.name}</p>
+                {renamingBoardId === board.id ? (
+                  <input
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => { void handleRenameSubmit(board.id); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
+                      if (e.key === 'Escape') { setRenamingBoardId(null); }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                    className="w-full font-semibold text-gray-800 border border-indigo-400 rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    aria-label={`Rename board ${board.name}`}
+                  />
+                ) : (
+                  <p className="font-semibold truncate text-gray-800">{board.name}</p>
+                )}
                 {board.description && (
                   <p className="text-sm text-gray-500 mt-1 line-clamp-2">{board.description}</p>
                 )}
@@ -282,10 +331,10 @@ const BoardListPage: React.FC = () => {
           canManage={canManageBoards}
           onClose={() => { setMenuBoardId(null); setMenuTriggerRect(null); }}
           onOpenNewTab={() => window.open(`/boards/${menuBoard.id}`, '_blank')}
-          onRename={() => setEditingBoard(menuBoard)}
+          onRename={() => handleRenameStart(menuBoard)}
           onMove={(wsId) => void updateBoard({ id: menuBoard.id, patch: { workspaceId: wsId } })}
-          onDuplicate={() => void duplicateBoard(menuBoard.id)}
-          onSaveAsTemplate={() => void saveAsTemplate({ id: menuBoard.id })}
+          onDuplicate={() => { setMenuBoardId(null); setDuplicateTargetId(menuBoard.id); }}
+          onSaveAsTemplate={() => { setMenuBoardId(null); setTemplateTargetId(menuBoard.id); }}
           onArchive={() => void handleArchive(menuBoard.id)}
           onDelete={() => setConfirmDeleteId(menuBoard.id)}
         />
@@ -332,10 +381,21 @@ const BoardListPage: React.FC = () => {
         />
       )}
 
-      {editingBoard && (
-        <EditBoardModal
-          board={editingBoard}
-          onClose={() => setEditingBoard(null)}
+      {duplicateTargetId && (
+        <DuplicateOptionsModal
+          title="Duplicate board"
+          confirmLabel="Duplicate"
+          onConfirm={(mode) => { void handleDuplicate(mode); }}
+          onClose={() => setDuplicateTargetId(null)}
+        />
+      )}
+
+      {templateTargetId && (
+        <DuplicateOptionsModal
+          title="Save as template"
+          confirmLabel="Save"
+          onConfirm={(mode) => { void handleSaveAsTemplate(mode); }}
+          onClose={() => setTemplateTargetId(null)}
         />
       )}
 

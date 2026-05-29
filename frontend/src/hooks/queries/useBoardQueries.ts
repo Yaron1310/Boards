@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
-import type { UpdateBoardData, CreateBoardData } from '@/services/workManagementService';
+import type { UpdateBoardData, CreateBoardData, DuplicateMode } from '@/services/workManagementService';
 
 export const useBoards = (workspaceId?: string, includeArchived = false, enabled = true) =>
   useQuery({
@@ -68,6 +68,7 @@ export const useDeleteBoard = () => {
     onSuccess: (_data, id) => {
       qc.removeQueries({ queryKey: queryKeys.boards.one(id) });
       void qc.invalidateQueries({ queryKey: ['boards'] });
+      void qc.invalidateQueries({ queryKey: ['boardTemplates'] });
     },
   });
 };
@@ -75,7 +76,7 @@ export const useDeleteBoard = () => {
 export const useDuplicateBoard = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => wm.duplicateBoard(id),
+    mutationFn: ({ id, mode }: { id: string; mode: DuplicateMode }) => wm.duplicateBoard(id, mode),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['boards'] });
     },
@@ -85,7 +86,7 @@ export const useDuplicateBoard = () => {
 export const useSaveAsBoardTemplate = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, name }: { id: string; name?: string }) => wm.saveAsBoardTemplate(id, name),
+    mutationFn: ({ id, name, mode }: { id: string; name?: string; mode: DuplicateMode }) => wm.saveAsBoardTemplate(id, name, mode),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['boards'] });
       void qc.invalidateQueries({ queryKey: ['boardTemplates'] });

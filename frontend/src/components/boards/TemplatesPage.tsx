@@ -20,7 +20,9 @@ import ReactDOM from 'react-dom';
 import BoardContextMenu from './BoardContextMenu';
 import EditBoardModal from './EditBoardModal';
 import CreateBoardModal from './CreateBoardModal';
+import DuplicateOptionsModal from './DuplicateOptionsModal';
 import { importBoardFromXlsx } from '../../utils/importBoardFromXlsx';
+import type { DuplicateMode } from '../../services/workManagementService';
 
 const TemplatesPage: React.FC = () => {
   const navigate = useNavigate();
@@ -37,6 +39,7 @@ const TemplatesPage: React.FC = () => {
   const [menuTriggerRect, setMenuTriggerRect] = React.useState<DOMRect | null>(null);
   const [editingBoard, setEditingBoard] = React.useState<Board | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = React.useState<string | null>(null);
+  const [duplicateTargetId, setDuplicateTargetId] = React.useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = React.useState(false);
   const [showArchiveModal, setShowArchiveModal] = React.useState(false);
   const [restoringId, setRestoringId] = React.useState<string | null>(null);
@@ -57,6 +60,13 @@ const TemplatesPage: React.FC = () => {
   const handleDelete = async (id: string) => {
     setConfirmDeleteId(null);
     await deleteBoard(id).catch(() => {});
+  };
+
+  const handleDuplicate = async (mode: DuplicateMode) => {
+    if (!duplicateTargetId) return;
+    const id = duplicateTargetId;
+    setDuplicateTargetId(null);
+    await duplicateBoard({ id, mode }).catch(() => {});
   };
 
   const handleRestore = async (id: string) => {
@@ -248,7 +258,7 @@ const TemplatesPage: React.FC = () => {
           onOpenNewTab={() => window.open(`/boards/${menuBoard.id}`, '_blank')}
           onRename={() => setEditingBoard(menuBoard)}
           onMove={(wsId) => void updateBoard({ id: menuBoard.id, patch: { workspaceId: wsId } })}
-          onDuplicate={() => void duplicateBoard(menuBoard.id)}
+          onDuplicate={() => { setMenuBoardId(null); setDuplicateTargetId(menuBoard.id); }}
           onSaveAsTemplate={() => {}}
           onArchive={() => {}}
           onDelete={() => setConfirmDeleteId(menuBoard.id)}
@@ -266,6 +276,15 @@ const TemplatesPage: React.FC = () => {
         <CreateBoardModal
           isTemplate={true}
           onClose={() => setShowCreateModal(false)}
+        />
+      )}
+
+      {duplicateTargetId && (
+        <DuplicateOptionsModal
+          title="Duplicate template"
+          confirmLabel="Duplicate"
+          onConfirm={(mode) => { void handleDuplicate(mode); }}
+          onClose={() => setDuplicateTargetId(null)}
         />
       )}
 

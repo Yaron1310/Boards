@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { boardsCollection, boardVersionsCollection, groupsCollection, workspacesCollection, boardMembersCollection, itemsCollection } from '../db/collections.js';
+import { boardsCollection, boardVersionsCollection, groupsCollection, columnsCollection, workspacesCollection, boardMembersCollection, itemsCollection } from '../db/collections.js';
 import { JwtUserPayload, DBBoard, DBBoardMember } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -368,10 +368,17 @@ export const deleteBoard = async (req: Request, res: Response) => {
 
 // ---------------------------------------------------------------------------
 // POST /boards/:id/duplicate
+// body: { mode: 'columns_only' | 'columns_groups' | 'columns_groups_items' | 'full' }
 // ---------------------------------------------------------------------------
 export const duplicateBoard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { id } = req.params;
+  const { mode = 'full' } = req.body;
+
+  const validModes = ['columns_only', 'columns_groups', 'columns_groups_items', 'full'];
+  if (!validModes.includes(mode)) {
+    return res.status(400).json({ message: 'Invalid mode.' });
+  }
 
   try {
     const doc = await boardsCollection(user.orgId).doc(id).get();
@@ -382,9 +389,11 @@ export const duplicateBoard = async (req: Request, res: Response) => {
 
     const countSnap = await boardsCollection(user.orgId).count().get();
     const newRef = boardsCollection(user.orgId).doc();
+    const newBoardId = newRef.id;
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
     await newRef.set({
-      id: newRef.id,
+      id: newBoardId,
       workspaceId: board.workspaceId,
       name: `Copy of ${board.name}`,
       description: board.description ?? null,
@@ -395,12 +404,68 @@ export const duplicateBoard = async (req: Request, res: Response) => {
       updatedAt: timestamp,
     });
 
+    // Always copy columns
+    const colsSnap = await columnsCollection(user.orgId, id).get();
+    if (!colsSnap.empty) {
+      const colBatch = db.batch();
+      colsSnap.docs.forEach((colDoc) => {
+        const newColRef = columnsCollection(user.orgId, newBoardId).doc(colDoc.id);
+        colBatch.set(newColRef, { ...colDoc.data(), boardId: newBoardId });
+      });
+      await colBatch.commit();
+    }
+
+    if (mode === 'columns_groups' || mode === 'columns_groups_items' || mode === 'full') {
+      const groupsSnap = await groupsCollection(user.orgId, id).get();
+      const groupIdMap = new Map<string, string>();
+
+      if (!groupsSnap.empty) {
+        const groupBatch = db.batch();
+        groupsSnap.docs.forEach((groupDoc) => {
+          const newGroupRef = groupsCollection(user.orgId, newBoardId).doc();
+          groupIdMap.set(groupDoc.id, newGroupRef.id);
+          groupBatch.set(newGroupRef, { ...groupDoc.data(), id: newGroupRef.id, boardId: newBoardId });
+        });
+        await groupBatch.commit();
+      }
+
+      if (mode === 'columns_groups_items' || mode === 'full') {
+        const itemsSnap = await itemsCollection(user.orgId).where('boardId', '==', id).get();
+        if (!itemsSnap.empty) {
+          const BATCH_SIZE = 400;
+          let itemBatch = db.batch();
+          let count = 0;
+
+          for (const itemDoc of itemsSnap.docs) {
+            const itemData = itemDoc.data();
+            const newItemRef = itemsCollection(user.orgId).doc();
+            const newGroupId = groupIdMap.get(itemData.groupId) ?? itemData.groupId;
+            itemBatch.set(newItemRef, {
+              ...itemData,
+              id: newItemRef.id,
+              boardId: newBoardId,
+              groupId: newGroupId,
+              ...(mode === 'columns_groups_items' ? { values: {} } : {}),
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+            count++;
+            if (count % BATCH_SIZE === 0) {
+              await itemBatch.commit();
+              itemBatch = db.batch();
+            }
+          }
+          if (count % BATCH_SIZE !== 0) await itemBatch.commit();
+        }
+      }
+    }
+
     void logAudit({
       actorUserId: user.id,
       actorRole: user.role,
       action: 'CREATE',
       resourceType: 'board',
-      resourceId: newRef.id,
+      resourceId: newBoardId,
       workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
@@ -417,11 +482,17 @@ export const duplicateBoard = async (req: Request, res: Response) => {
 
 // ---------------------------------------------------------------------------
 // POST /boards/:id/save-as-template
+// body: { name?: string; mode: 'columns_only' | 'columns_groups' | 'columns_groups_items' | 'full' }
 // ---------------------------------------------------------------------------
 export const saveAsTemplate = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { id } = req.params;
-  const { name } = req.body;
+  const { name, mode = 'full' } = req.body;
+
+  const validModes = ['columns_only', 'columns_groups', 'columns_groups_items', 'full'];
+  if (!validModes.includes(mode)) {
+    return res.status(400).json({ message: 'Invalid mode.' });
+  }
 
   try {
     const doc = await boardsCollection(user.orgId).doc(id).get();
@@ -432,9 +503,11 @@ export const saveAsTemplate = async (req: Request, res: Response) => {
 
     const countSnap = await boardsCollection(user.orgId).count().get();
     const newRef = boardsCollection(user.orgId).doc();
+    const newBoardId = newRef.id;
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
     await newRef.set({
-      id: newRef.id,
+      id: newBoardId,
       workspaceId: board.workspaceId,
       name: name ? sanitizeText(String(name)) : board.name,
       description: board.description ?? null,
@@ -446,12 +519,68 @@ export const saveAsTemplate = async (req: Request, res: Response) => {
       updatedAt: timestamp,
     });
 
+    // Always copy columns
+    const colsSnap = await columnsCollection(user.orgId, id).get();
+    if (!colsSnap.empty) {
+      const colBatch = db.batch();
+      colsSnap.docs.forEach((colDoc) => {
+        const newColRef = columnsCollection(user.orgId, newBoardId).doc(colDoc.id);
+        colBatch.set(newColRef, { ...colDoc.data(), boardId: newBoardId });
+      });
+      await colBatch.commit();
+    }
+
+    if (mode === 'columns_groups' || mode === 'columns_groups_items' || mode === 'full') {
+      const groupsSnap = await groupsCollection(user.orgId, id).get();
+      const groupIdMap = new Map<string, string>();
+
+      if (!groupsSnap.empty) {
+        const groupBatch = db.batch();
+        groupsSnap.docs.forEach((groupDoc) => {
+          const newGroupRef = groupsCollection(user.orgId, newBoardId).doc();
+          groupIdMap.set(groupDoc.id, newGroupRef.id);
+          groupBatch.set(newGroupRef, { ...groupDoc.data(), id: newGroupRef.id, boardId: newBoardId });
+        });
+        await groupBatch.commit();
+      }
+
+      if (mode === 'columns_groups_items' || mode === 'full') {
+        const itemsSnap = await itemsCollection(user.orgId).where('boardId', '==', id).get();
+        if (!itemsSnap.empty) {
+          const BATCH_SIZE = 400;
+          let itemBatch = db.batch();
+          let count = 0;
+
+          for (const itemDoc of itemsSnap.docs) {
+            const itemData = itemDoc.data();
+            const newItemRef = itemsCollection(user.orgId).doc();
+            const newGroupId = groupIdMap.get(itemData.groupId) ?? itemData.groupId;
+            itemBatch.set(newItemRef, {
+              ...itemData,
+              id: newItemRef.id,
+              boardId: newBoardId,
+              groupId: newGroupId,
+              ...(mode === 'columns_groups_items' ? { values: {} } : {}),
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+            count++;
+            if (count % BATCH_SIZE === 0) {
+              await itemBatch.commit();
+              itemBatch = db.batch();
+            }
+          }
+          if (count % BATCH_SIZE !== 0) await itemBatch.commit();
+        }
+      }
+    }
+
     void logAudit({
       actorUserId: user.id,
       actorRole: user.role,
       action: 'CREATE',
       resourceType: 'board',
-      resourceId: newRef.id,
+      resourceId: newBoardId,
       workspaceId: user.orgId,
       orgId: user.orgId,
       ipAddress: getClientIp(req),
