@@ -144,4 +144,38 @@ export const seedDefaultData = async () => {
       throw error;
     }
   }
+
+  // --- Migration: ensure every org has a templates workspace ---
+  await ensureTemplatesWorkspaceForAllOrgs();
+};
+
+const ensureTemplatesWorkspaceForAllOrgs = async () => {
+  const allOrgsSnap = await organizationsCollection.get();
+  if (allOrgsSnap.empty) return;
+
+  const allOrgIds = allOrgsSnap.docs.map((d) => d.id);
+
+  // Fetch all existing templates workspaces in one query
+  const existingTemplatesSnap = await workspacesCollection.where('isTemplates', '==', true).get();
+  const orgsWithTemplatesWs = new Set(existingTemplatesSnap.docs.map((d) => d.data().orgId as string));
+
+  const missing = allOrgIds.filter((id) => !orgsWithTemplatesWs.has(id));
+  if (missing.length === 0) return;
+
+  logger.info(`Creating templates workspace for ${missing.length} org(s): ${missing.join(', ')}`);
+
+  const migrationBatch = db.batch();
+  for (const missingOrgId of missing) {
+    const ref = workspacesCollection.doc();
+    migrationBatch.set(ref, {
+      id: ref.id,
+      name: 'Templates',
+      orgId: missingOrgId,
+      isTemplates: true,
+      createdAt: new Date(),
+      status: 'active',
+    });
+  }
+  await migrationBatch.commit();
+  logger.info('Templates workspace migration complete.');
 };
