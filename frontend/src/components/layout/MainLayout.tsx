@@ -3,7 +3,7 @@ import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User, WorkHub } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello, FiPlus, FiMoreVertical, FiBookmark } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
@@ -69,13 +69,13 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
             </li>
           )}
           {boards.map((board) => (
-            <li key={board.id} role="listitem" className="group/board relative flex items-center">
+            <li key={board.id} role="listitem" className="group/board flex items-center pr-2">
               <NavLink
                 to={`/boards/${board.id}`}
                 onClick={onNavigate}
                 style={() => ({ color: sidebarLinkColor })}
                 className={({ isActive }) =>
-                  `sidebar-nav-item flex-1 flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 pr-8 ${
+                  `sidebar-nav-item flex-1 min-w-0 flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 ${
                     isActive ? 'active font-semibold' : 'hover:text-white'
                   }`
                 }
@@ -98,13 +98,13 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                       setMenuTriggerRect(rect);
                     }
                   }}
-                  className="absolute right-2 opacity-0 group-hover/board:opacity-100 p-1 rounded transition-opacity"
+                  className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 rounded-md transition-opacity hover:bg-white/20 z-10 relative"
                   style={{ color: sidebarLinkColor }}
                   aria-label={`More options for ${board.name}`}
                   aria-haspopup="true"
                   aria-expanded={menuBoardId === board.id}
                 >
-                  <FiMoreVertical size={12} aria-hidden="true" />
+                  <FiMoreHorizontal size={13} aria-hidden="true" />
                 </button>
               )}
             </li>
