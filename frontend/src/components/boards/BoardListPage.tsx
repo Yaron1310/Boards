@@ -1,18 +1,19 @@
 import React from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
+import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole, Board } from '../../types';
 import {
-  FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX, FiEdit,
-  FiRotateCcw, FiLoader, FiInbox, FiTrash2, FiDownload,
+  FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX,
+  FiRotateCcw, FiLoader, FiInbox, FiDownload, FiMoreVertical,
 } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import CreateBoardModal from './CreateBoardModal';
 import EditBoardModal from './EditBoardModal';
+import BoardContextMenu from './BoardContextMenu';
 import { importBoardFromXlsx } from '../../utils/importBoardFromXlsx';
 
 const BoardListPage: React.FC = () => {
@@ -36,6 +37,10 @@ const BoardListPage: React.FC = () => {
   const [isImporting, setIsImporting] = React.useState(false);
   const [importError, setImportError] = React.useState<string | null>(null);
   const importInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Context menu state
+  const [menuBoardId, setMenuBoardId] = React.useState<string | null>(null);
+  const [menuTriggerRect, setMenuTriggerRect] = React.useState<DOMRect | null>(null);
 
   const handleImportClick = () => {
     setImportError(null);
@@ -74,6 +79,9 @@ const BoardListPage: React.FC = () => {
   const { mutateAsync: archiveBoard } = useArchiveBoard();
   const { mutateAsync: restoreBoard } = useRestoreBoard();
   const { mutateAsync: deleteBoard } = useDeleteBoard();
+  const { mutateAsync: duplicateBoard } = useDuplicateBoard();
+  const { mutateAsync: saveAsTemplate } = useSaveAsBoardTemplate();
+  const { mutateAsync: updateBoard } = useUpdateBoard();
 
   const [actioningId, setActioningId] = React.useState<string | null>(null);
   const [restoringId, setRestoringId] = React.useState<string | null>(null);
@@ -85,6 +93,7 @@ const BoardListPage: React.FC = () => {
 
   const handleArchive = async (id: string) => {
     setActioningId(id);
+    setMenuBoardId(null);
     await archiveBoard(id).catch(() => {});
     setActioningId(null);
   };
@@ -123,6 +132,8 @@ const BoardListPage: React.FC = () => {
       </div>
     );
   }
+
+  const menuBoard = menuBoardId ? boards.find((b) => b.id === menuBoardId) : null;
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -216,77 +227,102 @@ const BoardListPage: React.FC = () => {
               <div className="flex-shrink-0 w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
                 <FiLayout className="text-indigo-500" size={20} aria-hidden="true" />
               </div>
-              <div className="min-w-0 flex-1 pr-14">
+              <div className="min-w-0 flex-1 pr-10">
                 <p className="font-semibold truncate text-gray-800">{board.name}</p>
                 {board.description && (
                   <p className="text-sm text-gray-500 mt-1 line-clamp-2">{board.description}</p>
                 )}
               </div>
 
-              {/* Action icons — visible on hover */}
+              {/* 3-dot context menu trigger */}
               {canManageBoards && (
                 <div
-                  className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {actioningId === board.id ? (
-                    <FiLoader className="animate-spin text-gray-400" size={16} aria-hidden="true" />
-                  ) : confirmDeleteId === board.id ? (
-                    <>
-                      <span className="text-xs text-red-600 mr-1">Delete?</span>
-                      <button
-                        type="button"
-                        onClick={() => void handleDelete(board.id)}
-                        className="px-2 py-0.5 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors"
-                        aria-label="Confirm delete board"
-                      >
-                        Yes
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteId(null)}
-                        className="px-2 py-0.5 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors"
-                        aria-label="Cancel delete"
-                      >
-                        No
-                      </button>
-                    </>
+                    <FiLoader className="animate-spin text-gray-400 m-1.5" size={16} aria-hidden="true" />
                   ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => setEditingBoard(board)}
-                        className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        aria-label={`Edit board ${board.name}`}
-                        title="Edit"
-                      >
-                        <FiEdit size={15} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleArchive(board.id)}
-                        className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                        aria-label={`Archive board ${board.name}`}
-                        title="Archive"
-                      >
-                        <FiArchive size={15} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteId(board.id)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        aria-label={`Delete board ${board.name}`}
-                        title="Delete"
-                      >
-                        <FiTrash2 size={15} aria-hidden="true" />
-                      </button>
-                    </>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                        if (menuBoardId === board.id) {
+                          setMenuBoardId(null);
+                          setMenuTriggerRect(null);
+                        } else {
+                          setMenuBoardId(board.id);
+                          setMenuTriggerRect(rect);
+                        }
+                      }}
+                      className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      aria-label={`More options for ${board.name}`}
+                      aria-haspopup="true"
+                      aria-expanded={menuBoardId === board.id}
+                    >
+                      <FiMoreVertical size={16} aria-hidden="true" />
+                    </button>
                   )}
                 </div>
               )}
             </div>
           ))}
         </div>
+      )}
+
+      {/* Context menu */}
+      {menuBoard && menuTriggerRect && (
+        <BoardContextMenu
+          boardId={menuBoard.id}
+          boardName={menuBoard.name}
+          triggerRect={menuTriggerRect}
+          workspaces={allWorkspaces.filter((w) => !w.isPersonal)}
+          currentWorkspaceId={workspaceId ?? ''}
+          canManage={canManageBoards}
+          onClose={() => { setMenuBoardId(null); setMenuTriggerRect(null); }}
+          onOpenNewTab={() => window.open(`/boards/${menuBoard.id}`, '_blank')}
+          onRename={() => setEditingBoard(menuBoard)}
+          onMove={(wsId) => void updateBoard({ id: menuBoard.id, patch: { workspaceId: wsId } })}
+          onDuplicate={() => void duplicateBoard(menuBoard.id)}
+          onSaveAsTemplate={() => void saveAsTemplate({ id: menuBoard.id })}
+          onArchive={() => void handleArchive(menuBoard.id)}
+          onDelete={() => setConfirmDeleteId(menuBoard.id)}
+        />
+      )}
+
+      {/* Delete confirmation dialog */}
+      {confirmDeleteId && ReactDOM.createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm delete board"
+        >
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-base font-semibold text-gray-800 mb-2">Delete board?</h3>
+            <p className="text-sm text-gray-500 mb-5">This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                aria-label="Cancel delete"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDelete(confirmDeleteId)}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                aria-label="Confirm delete board"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.getElementById('modal-root')!,
       )}
 
       {showCreateModal && (

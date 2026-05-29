@@ -366,6 +366,106 @@ export const deleteBoard = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
+// POST /boards/:id/duplicate
+// ---------------------------------------------------------------------------
+export const duplicateBoard = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { id } = req.params;
+
+  try {
+    const doc = await boardsCollection(user.orgId).doc(id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Board not found.' });
+
+    const board = snapshotToData<DBBoard>(doc)!;
+    assertBoardAccess(user, board, 'create');
+
+    const countSnap = await boardsCollection(user.orgId).count().get();
+    const newRef = boardsCollection(user.orgId).doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    await newRef.set({
+      id: newRef.id,
+      workspaceId: board.workspaceId,
+      name: `Copy of ${board.name}`,
+      description: board.description ?? null,
+      order: countSnap.data().count,
+      createdBy: user.id,
+      isArchived: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    void logAudit({
+      actorUserId: user.id,
+      actorRole: user.role,
+      action: 'CREATE',
+      resourceType: 'board',
+      resourceId: newRef.id,
+      workspaceId: user.orgId,
+      orgId: user.orgId,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    res.status(201).json(snapshotToData<DBBoard>(await newRef.get()));
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error duplicating board ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to duplicate board.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /boards/:id/save-as-template
+// ---------------------------------------------------------------------------
+export const saveAsTemplate = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { id } = req.params;
+  const { name } = req.body;
+
+  try {
+    const doc = await boardsCollection(user.orgId).doc(id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Board not found.' });
+
+    const board = snapshotToData<DBBoard>(doc)!;
+    assertBoardAccess(user, board, 'create');
+
+    const countSnap = await boardsCollection(user.orgId).count().get();
+    const newRef = boardsCollection(user.orgId).doc();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    await newRef.set({
+      id: newRef.id,
+      workspaceId: board.workspaceId,
+      name: name ? sanitizeText(String(name)) : board.name,
+      description: board.description ?? null,
+      order: countSnap.data().count,
+      createdBy: user.id,
+      isArchived: false,
+      isTemplate: true,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    void logAudit({
+      actorUserId: user.id,
+      actorRole: user.role,
+      action: 'CREATE',
+      resourceType: 'board',
+      resourceId: newRef.id,
+      workspaceId: user.orgId,
+      orgId: user.orgId,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    res.status(201).json(snapshotToData<DBBoard>(await newRef.get()));
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error saving board as template ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to save as template.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
 // GET /boards/:id/version
 // ---------------------------------------------------------------------------
 export const getBoardVersion = async (req: Request, res: Response) => {

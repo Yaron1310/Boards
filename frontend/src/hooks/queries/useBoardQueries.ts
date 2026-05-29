@@ -71,3 +71,32 @@ export const useDeleteBoard = () => {
     },
   });
 };
+
+export const useDuplicateBoard = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => wm.duplicateBoard(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['boards'] });
+    },
+  });
+};
+
+export const useSaveAsBoardTemplate = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name?: string }) => wm.saveAsBoardTemplate(id, name),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['boards'] });
+      void qc.invalidateQueries({ queryKey: ['boardTemplates'] });
+    },
+  });
+};
+
+export const useBoardTemplates = (enabled = true) =>
+  useQuery({
+    queryKey: ['boardTemplates'],
+    queryFn: () => wm.listTemplates(),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  });

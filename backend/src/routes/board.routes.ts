@@ -11,6 +11,8 @@ boardRouter.post('/', boardController.createBoard);
 boardRouter.get('/:id/version', boardController.getBoardVersion);
 boardRouter.patch('/:id/archive', boardController.archiveBoard);
 boardRouter.patch('/:id/restore', boardController.restoreBoard);
+boardRouter.post('/:id/duplicate', boardController.duplicateBoard);
+boardRouter.post('/:id/save-as-template', boardController.saveAsTemplate);
 
 boardRouter.get('/:id', boardController.getBoardById);
 boardRouter.patch('/:id', boardController.updateBoard);

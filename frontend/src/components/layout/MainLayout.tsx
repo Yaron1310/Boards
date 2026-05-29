@@ -2,11 +2,12 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import { UserRole, User } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello, FiPlus } from 'react-icons/fi';
+import { UserRole, User, WorkHub } from '../../types';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello, FiPlus, FiMoreVertical, FiBookmark } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
-import { useBoards } from '../../hooks/queries/useBoardQueries';
+import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
+import BoardContextMenu from '../boards/BoardContextMenu';
 
 import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
@@ -29,12 +30,23 @@ interface WorkspaceBoardsGroupProps {
   workspace: { id: string; name: string };
   sidebarLinkColor: string;
   onNavigate: () => void;
+  allWorkspaces: WorkHub[];
+  canManage: boolean;
 }
 
-const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate }) => {
+const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate, allWorkspaces, canManage }) => {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [menuBoardId, setMenuBoardId] = useState<string | null>(null);
+  const [menuTriggerRect, setMenuTriggerRect] = useState<DOMRect | null>(null);
   const { data: boards = [] } = useBoards(workspace.id, false, true);
   const navigate = useNavigate();
+  const { mutateAsync: duplicateBoard } = useDuplicateBoard();
+  const { mutateAsync: saveAsTemplate } = useSaveAsBoardTemplate();
+  const { mutateAsync: updateBoard } = useUpdateBoard();
+  const { mutateAsync: archiveBoard } = useArchiveBoard();
+  const { mutateAsync: deleteBoard } = useDeleteBoard();
+
+  const menuBoard = menuBoardId ? boards.find((b) => b.id === menuBoardId) : null;
 
   return (
     <div className="mb-1">
@@ -57,13 +69,13 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
             </li>
           )}
           {boards.map((board) => (
-            <li key={board.id} role="listitem">
+            <li key={board.id} role="listitem" className="group/board relative flex items-center">
               <NavLink
                 to={`/boards/${board.id}`}
                 onClick={onNavigate}
                 style={() => ({ color: sidebarLinkColor })}
                 className={({ isActive }) =>
-                  `sidebar-nav-item flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 ${
+                  `sidebar-nav-item flex-1 flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 pr-8 ${
                     isActive ? 'active font-semibold' : 'hover:text-white'
                   }`
                 }
@@ -72,6 +84,29 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                 <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
                 <span className="truncate">{board.name}</span>
               </NavLink>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                    if (menuBoardId === board.id) {
+                      setMenuBoardId(null);
+                      setMenuTriggerRect(null);
+                    } else {
+                      setMenuBoardId(board.id);
+                      setMenuTriggerRect(rect);
+                    }
+                  }}
+                  className="absolute right-2 opacity-0 group-hover/board:opacity-100 p-1 rounded transition-opacity"
+                  style={{ color: sidebarLinkColor }}
+                  aria-label={`More options for ${board.name}`}
+                  aria-haspopup="true"
+                  aria-expanded={menuBoardId === board.id}
+                >
+                  <FiMoreVertical size={12} aria-hidden="true" />
+                </button>
+              )}
             </li>
           ))}
           <li role="listitem">
@@ -88,6 +123,24 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
           </li>
         </ul>
       )}
+      {menuBoard && menuTriggerRect && (
+        <BoardContextMenu
+          boardId={menuBoard.id}
+          boardName={menuBoard.name}
+          triggerRect={menuTriggerRect}
+          workspaces={allWorkspaces.filter((w) => !w.isPersonal)}
+          currentWorkspaceId={workspace.id}
+          canManage={canManage}
+          onClose={() => { setMenuBoardId(null); setMenuTriggerRect(null); }}
+          onOpenNewTab={() => window.open(`/boards/${menuBoard.id}`, '_blank')}
+          onRename={() => navigate(`/boards/${menuBoard.id}`)}
+          onMove={(wsId) => void updateBoard({ id: menuBoard.id, patch: { workspaceId: wsId } })}
+          onDuplicate={() => void duplicateBoard(menuBoard.id)}
+          onSaveAsTemplate={() => void saveAsTemplate({ id: menuBoard.id })}
+          onArchive={() => void archiveBoard(menuBoard.id)}
+          onDelete={() => void deleteBoard(menuBoard.id)}
+        />
+      )}
     </div>
   );
 };
@@ -95,11 +148,12 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
 interface WorkspacesNavSectionProps {
   sidebarLinkColor: string;
   onNavigate: () => void;
+  canManage: boolean;
 }
 
 const WORKHUB_STORAGE_KEY = 'logyx_selected_workhub_id';
 
-const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate }) => {
+const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate, canManage }) => {
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
   const workspaces = allWorkspaces.filter((w) => !w.isPersonal);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -185,6 +239,8 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
           workspace={selectedWorkspace}
           sidebarLinkColor={sidebarLinkColor}
           onNavigate={onNavigate}
+          allWorkspaces={workspaces}
+          canManage={canManage}
         />
       )}
     </div>
@@ -535,6 +591,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               <WorkspacesNavSection
                 sidebarLinkColor={sidebarLinkColor}
                 onNavigate={() => setIsSidebarOpen(false)}
+                canManage={user?.role === UserRole.WORKSPACE_ADMIN || user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN}
               />
 
               {availableAdminNavItems.length > 0 && (
@@ -780,6 +837,7 @@ const MainLayout: React.FC = () => {
 
   const adminNavItems: AdminNavItem[] = [
      { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
+     { name: 'Templates', path: '/admin/templates', icon: <FiBookmark className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
   ];
 
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);

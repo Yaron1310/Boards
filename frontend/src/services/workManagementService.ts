@@ -102,6 +102,15 @@ export const restoreBoard = (id: string): Promise<Board> =>
 export const deleteBoard = (id: string): Promise<null> =>
   fetchWithAuth(`/api/boards/${id}`, { method: 'DELETE' });
 
+export const duplicateBoard = (id: string): Promise<Board> =>
+  fetchWithAuth(`/api/boards/${id}/duplicate`, { method: 'POST' });
+
+export const saveAsBoardTemplate = (id: string, name?: string): Promise<Board> =>
+  fetchWithAuth(`/api/boards/${id}/save-as-template`, { method: 'POST', body: JSON.stringify({ name }) });
+
+export const listTemplates = (): Promise<Board[]> =>
+  fetchWithAuth('/api/boards?isTemplate=true');
+
 export const getBoardVersion = (id: string): Promise<{ lastUpdatedAt: string | null }> =>
   fetchWithAuth(`/api/boards/${id}/version`);
 

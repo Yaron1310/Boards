@@ -296,6 +296,7 @@ export interface Board {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  isTemplate?: boolean;
   /** Column-level dependency rules that apply to every item on this board */
   dependencyRules?: DependencyRule[];
   createdAt: Date | string;

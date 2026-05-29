@@ -45,6 +45,9 @@ const AcademyManagementPage = React.lazy(() => import('./components/admin/Academ
 const TutorialSettingsPage = React.lazy(() => import('./components/admin/TutorialSettingsPage'));
 const EmailTemplatesPage = React.lazy(() => import('./components/admin/EmailTemplatesPage'));
 
+// -- Templates chunk --
+const TemplatesPage = React.lazy(() => import('./components/boards/TemplatesPage'));
+
 const PageLoader: React.FC = () => (
   <div
     className="flex items-center justify-center min-h-screen bg-gray-50"
@@ -302,6 +305,14 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]}>
                   <EmailTemplatesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/templates"
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                  <TemplatesPage />
                 </ProtectedRoute>
               }
             />
