@@ -18,7 +18,7 @@ function isAuthError(err: unknown): err is { status: number; message: string } {
 // ---------------------------------------------------------------------------
 export const createBoard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  const { name, description, workspaceId, order } = req.body;
+  const { name, description, workspaceId, order, isTemplate } = req.body;
 
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ message: 'Board name is required.' });
@@ -67,6 +67,7 @@ export const createBoard = async (req: Request, res: Response) => {
       order: boardOrder,
       createdBy: user.id,
       isArchived: false,
+      ...(isTemplate === true ? { isTemplate: true } : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
     });

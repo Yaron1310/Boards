@@ -67,6 +67,7 @@ export interface CreateBoardData {
   description?: string;
   workspaceId: string;
   order?: number;
+  isTemplate?: boolean;
 }
 
 export interface UpdateBoardData {
@@ -110,6 +111,9 @@ export const saveAsBoardTemplate = (id: string, name?: string): Promise<Board> =
 
 export const listTemplates = (): Promise<Board[]> =>
   fetchWithAuth('/api/boards?isTemplate=true');
+
+export const listArchivedTemplates = (): Promise<Board[]> =>
+  fetchWithAuth('/api/boards?isTemplate=true&includeArchived=true');
 
 export const getBoardVersion = (id: string): Promise<{ lastUpdatedAt: string | null }> =>
   fetchWithAuth(`/api/boards/${id}/version`);

@@ -100,3 +100,14 @@ export const useBoardTemplates = (enabled = true) =>
     enabled,
     staleTime: 5 * 60 * 1000,
   });
+
+export const useArchivedBoardTemplates = (enabled = false) =>
+  useQuery({
+    queryKey: ['boardTemplates', 'archived'],
+    queryFn: async () => {
+      const all = await wm.listArchivedTemplates();
+      return all.filter((b) => b.isArchived === true);
+    },
+    enabled,
+    staleTime: 2 * 60 * 1000,
+  });
