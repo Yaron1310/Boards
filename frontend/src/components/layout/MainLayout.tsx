@@ -45,9 +45,16 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
+    console.log('[Rename:Sidebar] effect fired — renamingBoardId:', renamingBoardId, '| ref:', renameInputRef.current);
     if (renamingBoardId !== null) {
-      renameInputRef.current?.focus();
-      renameInputRef.current?.select();
+      const el = renameInputRef.current;
+      if (el) {
+        el.focus();
+        el.select();
+        console.log('[Rename:Sidebar] focus called on', el);
+      } else {
+        console.warn('[Rename:Sidebar] ref is null — input not mounted yet');
+      }
     }
   }, [renamingBoardId]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -64,6 +71,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
   const menuBoard = menuBoardId ? boards.find((b) => b.id === menuBoardId) : null;
 
   const handleRenameStart = (board: { id: string; name: string }) => {
+    console.log('[Rename:Sidebar] handleRenameStart called', { id: board.id, name: board.name });
     setMenuBoardId(null);
     setMenuTriggerRect(null);
     setRenamingBoardId(board.id);
@@ -123,7 +131,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    onBlur={() => { void handleRenameSubmit(board.id); }}
+                    onBlur={() => { console.log('[Rename:Sidebar] onBlur fired for', board.id, '| renameValue:', renameValue); void handleRenameSubmit(board.id); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
                       if (e.key === 'Escape') { setRenamingBoardId(null); }
@@ -162,7 +170,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                       setMenuTriggerRect(rect);
                     }
                   }}
-                  className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 rounded-md transition-opacity hover:bg-white/20 z-10 relative"
+                  className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 rounded-md transition hover:bg-white/25 z-10 relative"
                   style={{ color: sidebarLinkColor }}
                   aria-label={`More options for ${board.name}`}
                   aria-haspopup="true"
