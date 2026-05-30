@@ -35,16 +35,12 @@ const BoardListPage: React.FC = () => {
   const [renamingBoardId, setRenamingBoardId] = React.useState<string | null>(null);
   const [renameValue, setRenameValue] = React.useState('');
   const renameInputRef = React.useRef<HTMLInputElement>(null);
-  React.useEffect(() => {
-    console.log('[Rename:BoardList] effect fired — renamingBoardId:', renamingBoardId, '| ref:', renameInputRef.current);
+  React.useLayoutEffect(() => {
     if (renamingBoardId !== null) {
       const el = renameInputRef.current;
       if (el) {
         el.focus();
         el.select();
-        console.log('[Rename:BoardList] focus called on', el);
-      } else {
-        console.warn('[Rename:BoardList] ref is null — input not mounted yet');
       }
     }
   }, [renamingBoardId]);
@@ -282,7 +278,7 @@ const BoardListPage: React.FC = () => {
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    onBlur={() => { console.log('[Rename:BoardList] onBlur fired for', board.id, '| renameValue:', renameValue); void handleRenameSubmit(board.id); }}
+                    onBlur={() => { void handleRenameSubmit(board.id); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
                       if (e.key === 'Escape') { setRenamingBoardId(null); }

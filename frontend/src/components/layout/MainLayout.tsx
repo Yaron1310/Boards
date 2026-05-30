@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, Suspense } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
@@ -44,16 +44,12 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
   const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    console.log('[Rename:Sidebar] effect fired — renamingBoardId:', renamingBoardId, '| ref:', renameInputRef.current);
+  useLayoutEffect(() => {
     if (renamingBoardId !== null) {
       const el = renameInputRef.current;
       if (el) {
         el.focus();
         el.select();
-        console.log('[Rename:Sidebar] focus called on', el);
-      } else {
-        console.warn('[Rename:Sidebar] ref is null — input not mounted yet');
       }
     }
   }, [renamingBoardId]);
@@ -131,7 +127,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    onBlur={() => { console.log('[Rename:Sidebar] onBlur fired for', board.id, '| renameValue:', renameValue); void handleRenameSubmit(board.id); }}
+                    onBlur={() => { void handleRenameSubmit(board.id); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
                       if (e.key === 'Escape') { setRenamingBoardId(null); }
