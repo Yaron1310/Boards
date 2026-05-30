@@ -167,7 +167,9 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                       setMenuTriggerRect(rect);
                     }
                   }}
-                  className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 rounded-md transition hover:bg-current/10 z-10 relative"
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(128,128,128,0.2)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''; }}
+                  className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 rounded-md transition z-10 relative"
                   style={{ color: sidebarLinkColor }}
                   aria-label={`More options for ${board.name}`}
                   aria-haspopup="true"
