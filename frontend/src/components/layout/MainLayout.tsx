@@ -167,7 +167,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                       setMenuTriggerRect(rect);
                     }
                   }}
-                  className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 rounded-md transition hover:bg-white/25 z-10 relative"
+                  className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 rounded-md transition hover:bg-current/10 z-10 relative"
                   style={{ color: sidebarLinkColor }}
                   aria-label={`More options for ${board.name}`}
                   aria-haspopup="true"
