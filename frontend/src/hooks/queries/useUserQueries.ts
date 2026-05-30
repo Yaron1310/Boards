@@ -16,7 +16,18 @@ export const useUsersQuery = (params?: { limit?: number; cursor?: string; search
 export const useUsersInfiniteQuery = (params?: { limit?: number; search?: string; workspaceId?: string; role?: string }, enabled = true) => {
   return useInfiniteQuery({
     queryKey: [...queryKeys.users.all, 'infinite', params],
-    queryFn: ({ pageParam }) => apiService.getUsers({ ...params, cursor: pageParam as string }),
+    queryFn: async ({ pageParam }) => {
+      console.log('[DBG:useUsersInfiniteQuery] queryFn called', { params, pageParam });
+      const res = await apiService.getUsers({ ...params, cursor: pageParam as string });
+      console.log('[DBG:useUsersInfiniteQuery] API response', {
+        dataCount: res.data?.length,
+        hasMore: res.hasMore,
+        cursor: res.cursor,
+        total: (res as any).total,
+        userIds: res.data?.map((u: any) => `${u.id}:${u.role}:${u.name}`),
+      });
+      return res;
+    },
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) => lastPage.cursor ?? undefined,
     enabled,

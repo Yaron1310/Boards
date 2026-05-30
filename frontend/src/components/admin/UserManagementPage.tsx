@@ -76,7 +76,17 @@ const UserManagementPage: React.FC = () => {
   }, !!authUser);
 
   const allUsers = useMemo(() => {
-    return infiniteData?.pages.flatMap(page => page.data) ?? [];
+    const users = infiniteData?.pages.flatMap(page => page.data) ?? [];
+    console.log('[DBG:UserManagementPage] allUsers computed', {
+      pageCount: infiniteData?.pages.length ?? 0,
+      totalUsers: users.length,
+      users: users.map((u: any) => `${u.id}:${u.role}:${u.name}`),
+      isLoading: isUsersLoading,
+      isError: isUsersError,
+      hasNextPage,
+    });
+    return users;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [infiniteData]);
 
   useEffect(() => {

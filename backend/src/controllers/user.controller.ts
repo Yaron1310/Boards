@@ -238,6 +238,15 @@ export const getAllUsers = async (req: Request, res: Response) => {
         const workspaceId = req.query.workspaceId as string;
         const roleFilter = req.query.role as string;
 
+        logger.info('[DBG:getAllUsers] START', {
+            requestingUserId: user.id,
+            requestingUserRole: user.role,
+            requestingUserOrgId: user.orgId,
+            limit, cursor: cursor ?? null, search: search ?? null,
+            workspaceId: workspaceId || null,
+            roleFilter: roleFilter || null,
+        });
+
         // Build membership query scoped by role
         let membershipQuery: admin.firestore.Query = membershipsCollection;
 
@@ -254,6 +263,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
         } else if (user.role === UserRole.WORKSPACE_ADMIN && user.selectedWorkspaceId) {
             membershipQuery = membershipQuery.where('entityId', '==', user.selectedWorkspaceId);
         } else {
+            logger.info('[DBG:getAllUsers] No matching role — returning empty');
             return res.json({ data: [], cursor: null, hasMore: false });
         }
 
@@ -264,22 +274,36 @@ export const getAllUsers = async (req: Request, res: Response) => {
         const snapshot = await membershipQuery.get();
         let memberships = querySnapshotToArray<DBMembership>(snapshot);
 
+        logger.info('[DBG:getAllUsers] Main query returned memberships', {
+            count: memberships.length,
+            roles: memberships.map(m => `${m.userId}:${m.role}:entityId=${m.entityId}:orgId=${m.orgId}`),
+        });
+
         // Supplement org_admin memberships when needed. Org admin memberships are stored
         // with entityId = orgId (not a workspace entityId), so they are excluded when a
         // workspace filter is applied. We fetch them via a single-field query on entityId
         // (avoids composite index requirements) since entityId == orgId is exclusive to
         // org_admin memberships — workspace memberships use entityId == workspaceId.
         if (user.role === UserRole.ORGANIZATION_ADMIN && (!roleFilter || roleFilter === UserRole.ORGANIZATION_ADMIN)) {
+            logger.info('[DBG:getAllUsers] Running org admin supplement query for entityId ==', user.orgId);
             const orgAdminSnap = await membershipsCollection
                 .where('entityId', '==', user.orgId)
                 .get();
             const orgAdminMemberships = querySnapshotToArray<DBMembership>(orgAdminSnap)
                 .filter(m => m.role === UserRole.ORGANIZATION_ADMIN);
+            logger.info('[DBG:getAllUsers] Supplement query returned org admins', {
+                rawCount: orgAdminSnap.size,
+                afterRoleFilter: orgAdminMemberships.length,
+                orgAdmins: orgAdminMemberships.map(m => `${m.userId}:${m.userName}:entityId=${m.entityId}:orgId=${m.orgId}`),
+            });
             const existingUserIds = new Set(memberships.map(m => m.userId));
             for (const m of orgAdminMemberships) {
                 if (!existingUserIds.has(m.userId)) {
                     memberships = [...memberships, m];
                     existingUserIds.add(m.userId);
+                    logger.info('[DBG:getAllUsers] Added org admin to memberships:', m.userId, m.userName);
+                } else {
+                    logger.info('[DBG:getAllUsers] Org admin already in memberships (skipped):', m.userId, m.userName);
                 }
             }
         }
@@ -290,6 +314,11 @@ export const getAllUsers = async (req: Request, res: Response) => {
             if (seenUserIds.has(m.userId)) return false;
             seenUserIds.add(m.userId);
             return true;
+        });
+
+        logger.info('[DBG:getAllUsers] After dedup:', {
+            uniqueCount: uniqueMemberships.length,
+            users: uniqueMemberships.map(m => `${m.userId}:${m.userName}:${m.role}`),
         });
 
         // Sort in-memory to include users without userName field
@@ -322,7 +351,13 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
         // Fetch full user data for this page only
         const userIdsForPage = pageData.map(m => m.userId);
+        logger.info('[DBG:getAllUsers] Page slice', {
+            startIndex, limit, totalUnique: uniqueMemberships.length,
+            hasMore, userIdsForPage,
+        });
+
         if (userIdsForPage.length === 0) {
+            logger.info('[DBG:getAllUsers] No users for page — returning empty');
             return res.json({ data: [], cursor: null, hasMore: false });
         }
 
@@ -333,6 +368,13 @@ export const getAllUsers = async (req: Request, res: Response) => {
         }
         const userDocSnapshots = await Promise.all(userDocPromises);
         const dbUsers = userDocSnapshots.flatMap(snap => querySnapshotToArray<DBUser>(snap));
+
+        logger.info('[DBG:getAllUsers] Fetched user docs', {
+            requested: userIdsForPage.length,
+            found: dbUsers.length,
+            foundIds: dbUsers.map(u => u.id),
+            missingIds: userIdsForPage.filter(id => !dbUsers.find(u => u.id === id)),
+        });
 
         const formattedUsersPromises = dbUsers.map(u => formatUserForFrontend(u, {
             orgId: user.role === UserRole.ORGANIZATION_ADMIN ? user.orgId : undefined,
@@ -346,11 +388,24 @@ export const getAllUsers = async (req: Request, res: Response) => {
             ? formattedUsers
             : formattedUsers.filter(u => !u.dbRoles.systemAdmin);
 
+        logger.info('[DBG:getAllUsers] After format+filter', {
+            formattedCount: formattedUsers.length,
+            finalCount: finalUsers.length,
+            filtered: formattedUsers.filter(u => u.dbRoles.systemAdmin).map(u => u.id),
+            finalUserIds: finalUsers.map(u => `${u.id}:${u.role}:${u.name}`),
+        });
+
         // Maintain the same order as the membership query
         const userMap = new Map(finalUsers.map(u => [u.id, u]));
         const orderedUsers = userIdsForPage.map(id => userMap.get(id)).filter(Boolean);
 
         const nextCursor = hasMore && orderedUsers.length > 0 ? orderedUsers[orderedUsers.length - 1]!.id : null;
+
+        logger.info('[DBG:getAllUsers] RESPONSE', {
+            dataCount: orderedUsers.length,
+            hasMore,
+            nextCursor,
+        });
 
         res.json({
             data: orderedUsers,
@@ -359,6 +414,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
             total: uniqueMemberships.length,
         } as PaginatedResponse<any>);
     } catch (error: any) {
+        logger.error("[DBG:getAllUsers] ERROR caught:", error);
         logger.error("Error fetching users:", error);
         res.status(500).json({ message: "Failed to fetch users." });
     }
