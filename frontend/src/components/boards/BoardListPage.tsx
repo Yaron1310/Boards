@@ -38,11 +38,9 @@ const BoardListPage: React.FC = () => {
   React.useLayoutEffect(() => {
     if (renamingBoardId !== null) {
       const el = renameInputRef.current;
-      console.log('[DBG:BoardList] layoutEffect — ref:', el ? 'found' : 'NULL');
       if (el) {
         el.focus();
         el.select();
-        console.log('[DBG:BoardList] after focus — activeElement:', document.activeElement?.tagName, document.activeElement === el ? '✓ IS input' : '✗ NOT input', document.activeElement);
       }
     }
   }, [renamingBoardId]);
@@ -279,10 +277,7 @@ const BoardListPage: React.FC = () => {
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    onBlur={(e) => {
-                      console.log('[DBG:BoardList] BLUR — relatedTarget (new focus):', e.relatedTarget, '| activeElement:', document.activeElement);
-                      void handleRenameSubmit(board.id);
-                    }}
+                    onBlur={() => { void handleRenameSubmit(board.id); }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
                       if (e.key === 'Escape') { setRenamingBoardId(null); }
@@ -310,6 +305,7 @@ const BoardListPage: React.FC = () => {
                   ) : (
                     <button
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={(e) => {
                         e.stopPropagation();
                         const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
