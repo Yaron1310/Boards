@@ -2,7 +2,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
-import { JwtUserPayload, UserRole, JwtMultiOrgPayload } from '../types/index.js';
+import { JwtUserPayload, UserRole, JwtMultiOrgPayload, DBUser } from '../types/index.js';
+import { usersCollection } from '../db/collections.js';
+import { snapshotToData } from '../services/firestore.service.js';
 
 export const authenticateToken = (req: Request, res: Response, next: NextFunction) => {
     // Read token from __session httpOnly cookie first (the only cookie Firebase Hosting forwards),
@@ -23,6 +25,18 @@ export const authenticateToken = (req: Request, res: Response, next: NextFunctio
         
         // Allow full user tokens
         if (payload.id && payload.role && payload.selectedWorkspaceId && payload.orgId) {
+            // Check if this user's session was forcibly revoked (e.g. removed from org)
+            const userDoc = await usersCollection.doc(payload.id).get();
+            if (userDoc.exists) {
+                const userData = snapshotToData<DBUser>(userDoc);
+                if (userData?.forceLogoutAt) {
+                    const revokedAtMs = userData.forceLogoutAt.toMillis();
+                    const tokenIssuedAtMs = (payload as any).iat * 1000;
+                    if (tokenIssuedAtMs < revokedAtMs) {
+                        return res.status(401).json({ message: "Session revoked. Please log in again." });
+                    }
+                }
+            }
             req.user = payload as Express.User;
             return next();
         }

@@ -623,3 +623,46 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
         return res.status(500).json({ message: 'An internal server error occurred.' });
     }
 };
+
+export const removeUserFromOrg = async (req: Request, res: Response) => {
+    const { orgId, userId } = req.params;
+    const requestingUser = req.user as JwtUserPayload;
+
+    if (requestingUser.id === userId) {
+        return res.status(403).json({ message: "You cannot remove yourself from the organization." });
+    }
+
+    try {
+        // Authorization: org admin of this org or system admin only
+        if (requestingUser.role !== UserRole.SYSTEM_ADMIN) {
+            if (requestingUser.role !== UserRole.ORGANIZATION_ADMIN || requestingUser.orgId !== orgId) {
+                return res.status(403).json({ message: "Forbidden: You do not have permission to remove users from this organization." });
+            }
+        }
+
+        const orgDoc = await organizationsCollection.doc(orgId).get();
+        if (!orgDoc.exists) return res.status(404).json({ message: "Organization not found." });
+
+        const userDoc = await usersCollection.doc(userId).get();
+        if (!userDoc.exists) return res.status(404).json({ message: "User not found." });
+
+        // Remove ALL memberships for this user within the org
+        const membershipsSnap = await membershipsCollection.where('userId', '==', userId).where('orgId', '==', orgId).get();
+
+        const batch = db.batch();
+        membershipsSnap.forEach(doc => batch.delete(doc.ref));
+
+        // Stamp forceLogoutAt so the user's current JWT is invalidated on next request
+        batch.update(usersCollection.doc(userId), {
+            forceLogoutAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        await batch.commit();
+
+        logger.info(`User ${userId} removed from org ${orgId} by ${requestingUser.id}`);
+        return res.status(204).send();
+    } catch (error) {
+        logger.error(`Error removing user ${userId} from org ${orgId}:`, error);
+        return res.status(500).json({ message: "An internal server error occurred." });
+    }
+};

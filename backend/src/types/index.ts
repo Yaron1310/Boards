@@ -82,6 +82,7 @@ export interface DBUser {
   preferences?: {
     darkContrast?: boolean;
   };
+  forceLogoutAt?: admin.firestore.Timestamp | null;
 }
 
 export interface DBMembership {

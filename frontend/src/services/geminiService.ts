@@ -202,6 +202,7 @@ export const updateOrganization = async (id: string, name: string): Promise<Work
 export const deleteOrganization = async (id: string): Promise<null> => fetchWithAuth(`/api/organizations/${id}`, { method: 'DELETE' });
 export const addOrganizationAdmin = async (orgId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${orgId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
 export const removeOrganizationAdmin = async (orgId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${orgId}/admins/${userId}`, { method: 'DELETE' });
+export const removeUserFromOrg = async (orgId: string, userId: string): Promise<null> => fetchWithAuth(`/api/organizations/${orgId}/users/${userId}`, { method: 'DELETE' });
 
 
 // --- WorkHubs ---

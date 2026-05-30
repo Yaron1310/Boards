@@ -6,13 +6,16 @@ import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { UserRole } from '../../types';
-import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiSliders } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiEdit2, FiTrash2 } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
 import InviteUsersOrgModal from './InviteUsersOrgModal';
 import TutorialSection from '../common/TutorialSection';
 import OrganizationAdminsModal from './AcademyAdminsModal';
 import UserPermissionsModal from './UserPermissionsModal';
 import { useUsersInfiniteQuery } from '../../hooks/queries/useUserQueries';
+import { useQueryClient } from '@tanstack/react-query';
+import { removeUserFromOrg } from '../../services/geminiService';
+import { queryKeys } from '../../hooks/queries/queryKeys';
 
 const exportToCSV = (rows: Record<string, unknown>[], filename: string) => {
     if (!rows.length) return;
@@ -48,8 +51,11 @@ const UserManagementPage: React.FC = () => {
   const [showOrganizationAdminsModal, setShowOrganizationAdminsModal] = useState(false);
   const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
   const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const [feedback, setFeedback] = useState<{type: 'success' | 'error', text: string} | null>(null);
+  const queryClient = useQueryClient();
 
   // Debounce search
   useEffect(() => {
@@ -122,6 +128,21 @@ const UserManagementPage: React.FC = () => {
     return null;
   }
 
+  const handleRemoveUser = async () => {
+    if (!removeTarget || !authUser?.orgId) return;
+    setIsRemoving(true);
+    try {
+      await removeUserFromOrg(authUser.orgId, removeTarget.id);
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+      setFeedback({ type: 'success', text: `${removeTarget.name} has been removed from the organization.` });
+    } catch (err: any) {
+      setFeedback({ type: 'error', text: err.message || 'Failed to remove user.' });
+    } finally {
+      setIsRemoving(false);
+      setRemoveTarget(null);
+    }
+  };
+
   const handleExportToExcel = () => {
     // Note: For very large datasets, we should fetch all pages or use a server-side export.
     // For now, we export the loaded pages.
@@ -187,12 +208,25 @@ const UserManagementPage: React.FC = () => {
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setPermissionsUser({ id: u.id, name: u.name }); }}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                         aria-label={`Manage board permissions for ${u.name}`}
                         title="Manage board permissions"
                     >
-                        <FiSliders size={12} aria-hidden="true" />
-                        Permissions
+                        <FiEdit2 size={15} aria-hidden="true" />
+                    </button>
+                </div>
+            )}
+            {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                <div className="flex-[0.75] px-3 py-4 flex items-center justify-center">
+                    <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setRemoveTarget({ id: u.id, name: u.name }); }}
+                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        aria-label={`Remove ${u.name} from organization`}
+                        title="Remove from organization"
+                        disabled={u.id === authUser.id}
+                    >
+                        <FiTrash2 size={15} aria-hidden="true" />
                     </button>
                 </div>
             )}
@@ -348,6 +382,9 @@ const UserManagementPage: React.FC = () => {
                     {authUser.role === UserRole.ORGANIZATION_ADMIN && (
                         <div className="flex-[0.75] px-3 py-3 text-center" role="columnheader">Permissions</div>
                     )}
+                    {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                        <div className="flex-[0.75] px-3 py-3 text-center" role="columnheader">Actions</div>
+                    )}
                 </div>
 
                 <div className="flex-grow overflow-y-auto custom-scrollbar">
@@ -419,6 +456,37 @@ const UserManagementPage: React.FC = () => {
           userName={permissionsUser.name}
           onClose={() => setPermissionsUser(null)}
         />
+      )}
+
+      {removeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" role="dialog" aria-modal="true" aria-labelledby="remove-user-title">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-sm w-full mx-4">
+            <h2 id="remove-user-title" className="text-lg font-semibold text-gray-900 mb-2">Remove user from organization</h2>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to remove <span className="font-medium">{removeTarget.name}</span> from the organization? They will lose all access immediately.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setRemoveTarget(null)}
+                disabled={isRemoving}
+                className="px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRemoveUser}
+                disabled={isRemoving}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-md disabled:opacity-50 flex items-center gap-2"
+                aria-label={`Confirm removal of ${removeTarget.name}`}
+              >
+                {isRemoving ? <FiLoader className="animate-spin" aria-hidden="true" /> : <FiTrash2 size={14} aria-hidden="true" />}
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

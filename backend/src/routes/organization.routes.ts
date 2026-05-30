@@ -21,6 +21,7 @@ academyRouter.get('/', requireRole([UserRole.SYSTEM_ADMIN]), organizationControl
 academyRouter.post('/', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.createOrganization);
 academyRouter.post('/:orgId/admins', organizationController.addOrganizationAdmin);
 academyRouter.delete('/:orgId/admins/:userId', organizationController.removeOrganizationAdmin);
+academyRouter.delete('/:orgId/users/:userId', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), organizationController.removeUserFromOrg);
 academyRouter.post('/:orgId/invite-users', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), organizationController.inviteUsersToOrg);
 academyRouter.put('/:id', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.updateOrganization);
 academyRouter.delete('/:id', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.deleteOrganization);
