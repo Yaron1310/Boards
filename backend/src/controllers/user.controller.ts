@@ -264,23 +264,9 @@ export const getAllUsers = async (req: Request, res: Response) => {
         const snapshot = await membershipQuery.get();
         let memberships = querySnapshotToArray<DBMembership>(snapshot);
 
-        // For org admins viewing their own org (without workspace filter), also fetch
-        // org_admin memberships stored with entityId = orgId to ensure they appear.
-        if (user.role === UserRole.ORGANIZATION_ADMIN && !workspaceId && !roleFilter) {
-            const orgAdminSnap = await membershipsCollection
-                .where('entityId', '==', user.orgId)
-                .where('role', '==', UserRole.ORGANIZATION_ADMIN)
-                .get();
-            const orgAdminMemberships = querySnapshotToArray<DBMembership>(orgAdminSnap);
-            const existingUserIds = new Set(memberships.map(m => m.userId));
-            for (const m of orgAdminMemberships) {
-                if (!existingUserIds.has(m.userId)) {
-                    memberships = [...memberships, m];
-                    existingUserIds.add(m.userId);
-                }
-            }
-        } else if (user.role === UserRole.ORGANIZATION_ADMIN && !workspaceId && roleFilter === UserRole.ORGANIZATION_ADMIN) {
-            // When explicitly filtering by org_admin role, use entityId-based query instead
+        // Always supplement org_admin memberships (stored with entityId = orgId, not a
+        // workspace entityId) so they appear regardless of workspace or role filters.
+        if (user.role === UserRole.ORGANIZATION_ADMIN && (!roleFilter || roleFilter === UserRole.ORGANIZATION_ADMIN)) {
             const orgAdminSnap = await membershipsCollection
                 .where('entityId', '==', user.orgId)
                 .where('role', '==', UserRole.ORGANIZATION_ADMIN)

@@ -325,7 +325,7 @@ const UserManagementPage: React.FC = () => {
                                     aria-label="Filter by workspace"
                                 >
                                     <option value="">{t('admin.allWorkspaces')}</option>
-                                    {workspaces.filter(w => !w.isPersonal).map(org => (
+                                    {workspaces.filter(w => !w.isPersonal && !w.isTemplates).map(org => (
                                         <option key={org.id} value={org.id}>{org.name}</option>
                                     ))}
                                 </select>
@@ -345,7 +345,7 @@ const UserManagementPage: React.FC = () => {
                                 aria-label="Filter by role"
                             >
                                 <option value="">{t('admin.allRoles')}</option>
-                                <option value={UserRole.REGULAR_USER}>Member</option>
+                                <option value={UserRole.REGULAR_USER}>Board member</option>
                                 <option value={UserRole.WORKSPACE_ADMIN}>Workhub Admin</option>
                                 <option value={UserRole.ORGANIZATION_ADMIN}>Org Admin</option>
                             </select>
