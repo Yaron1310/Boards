@@ -13,9 +13,6 @@ import TutorialSection from '../common/TutorialSection';
 import OrganizationAdminsModal from './AcademyAdminsModal';
 import UserPermissionsModal from './UserPermissionsModal';
 import { useUsersInfiniteQuery } from '../../hooks/queries/useUserQueries';
-import { List } from 'react-window';
-import { InfiniteLoader } from 'react-window-infinite-loader';
-import { AutoSizer } from 'react-virtualized-auto-sizer';
 
 const exportToCSV = (rows: Record<string, unknown>[], filename: string) => {
     if (!rows.length) return;
@@ -76,26 +73,7 @@ const UserManagementPage: React.FC = () => {
   }, !!authUser);
 
   const allUsers = useMemo(() => {
-    const pages = infiniteData?.pages ?? [];
-    console.log('[DBG:UserManagementPage] allUsers RAW infiniteData', infiniteData);
-    console.log('[DBG:UserManagementPage] allUsers pages detail', pages.map((p: any, i: number) => ({
-      pageIndex: i,
-      pageType: typeof p,
-      pageKeys: p ? Object.keys(p) : 'null',
-      dataIsArray: Array.isArray(p?.data),
-      dataLength: p?.data?.length,
-      rawPage: p,
-    })));
-    const users = pages.flatMap((page: any) => page?.data ?? []);
-    console.log('[DBG:UserManagementPage] allUsers computed', {
-      pageCount: pages.length,
-      totalUsers: users.length,
-      isLoading: isUsersLoading,
-      isError: isUsersError,
-      firstUser: users[0],
-    });
-    return users;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return infiniteData?.pages.flatMap((page: any) => page?.data ?? []) ?? [];
   }, [infiniteData]);
 
   useEffect(() => {
@@ -157,21 +135,7 @@ const UserManagementPage: React.FC = () => {
     exportToCSV(dataForExport, "Logyx_Users_Export.csv");
   };
 
-  const isItemLoaded = (index: number) => !hasNextPage || index < allUsers.length;
-  const loadMoreItems = isFetchingNextPage ? () => Promise.resolve() : () => fetchNextPage();
-
-  const UserRow = ({ index, style }: { index: number, style: React.CSSProperties }) => {
-    if (!isItemLoaded(index)) {
-        return (
-            <div style={style} className="flex items-center justify-center py-4 border-b border-gray-200 bg-white">
-                <FiLoader className="animate-spin text-blue-500" size={24} />
-            </div>
-        );
-    }
-
-    const u = allUsers[index];
-    if (!u) return null;
-
+  const UserRow = ({ user: u }: { user: User }) => {
     const roleLabel = (() => {
         switch (u.role) {
             case UserRole.ORGANIZATION_ADMIN: return 'Org Admin';
@@ -183,7 +147,6 @@ const UserManagementPage: React.FC = () => {
 
     return (
         <div
-            style={style}
             className="flex hover:bg-gray-50 transition-colors border-b border-gray-200 bg-white"
             role="row"
             aria-label={`User ${u.name}`}
@@ -387,13 +350,13 @@ const UserManagementPage: React.FC = () => {
                     )}
                 </div>
 
-                <div className="flex-grow min-h-0">
+                <div className="flex-grow overflow-y-auto custom-scrollbar">
                     {isUsersLoading && !infiniteData ? (
-                        <div className="flex items-center justify-center h-full">
+                        <div className="flex items-center justify-center py-16">
                             <FiLoader className="animate-spin text-blue-500" size={48} aria-label="Loading users" />
                         </div>
                     ) : isUsersError ? (
-                        <div className="flex items-center justify-center h-full text-red-500" role="alert">
+                        <div className="flex items-center justify-center py-16 text-red-500" role="alert">
                             <FiAlertTriangle className="mr-2" /> {t('admin.errorLoadingUsers')}
                         </div>
                     ) : allUsers.length === 0 ? (
@@ -402,29 +365,23 @@ const UserManagementPage: React.FC = () => {
                             <p className="text-lg">{t('admin.noUsersFound')}</p>
                         </div>
                     ) : (
-                        <AutoSizer>
-                            {({ height, width }) => (
-                                <InfiniteLoader
-                                    isItemLoaded={isItemLoaded}
-                                    itemCount={hasNextPage ? allUsers.length + 1 : allUsers.length}
-                                    loadMoreItems={loadMoreItems}
-                                >
-                                    {({ onItemsRendered, ref }) => (
-                                        <List
-                                            height={height}
-                                            itemCount={hasNextPage ? allUsers.length + 1 : allUsers.length}
-                                            itemSize={72}
-                                            onItemsRendered={onItemsRendered}
-                                            ref={ref}
-                                            width={width}
-                                            className="custom-scrollbar"
-                                        >
-                                            {UserRow}
-                                        </List>
-                                    )}
-                                </InfiniteLoader>
+                        <>
+                            {allUsers.map((u: any) => (
+                                <UserRow key={u.id} user={u} />
+                            ))}
+                            {hasNextPage && (
+                                <div className="flex items-center justify-center py-4">
+                                    <button
+                                        onClick={() => fetchNextPage()}
+                                        disabled={isFetchingNextPage}
+                                        className="px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 disabled:opacity-50"
+                                    >
+                                        {isFetchingNextPage ? <FiLoader className="animate-spin inline mr-2" /> : null}
+                                        Load more
+                                    </button>
+                                </div>
                             )}
-                        </AutoSizer>
+                        </>
                     )}
                 </div>
             </div>
