@@ -47,9 +47,11 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
   useLayoutEffect(() => {
     if (renamingBoardId !== null) {
       const el = renameInputRef.current;
+      console.log('[DBG:Sidebar] layoutEffect — ref:', el ? 'found' : 'NULL');
       if (el) {
         el.focus();
         el.select();
+        console.log('[DBG:Sidebar] after focus — activeElement:', document.activeElement?.tagName, document.activeElement === el ? '✓ IS input' : '✗ NOT input', document.activeElement);
       }
     }
   }, [renamingBoardId]);
@@ -126,7 +128,10 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                     type="text"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
-                    onBlur={() => { void handleRenameSubmit(board.id); }}
+                    onBlur={(e) => {
+                      console.log('[DBG:Sidebar] BLUR — relatedTarget (new focus):', e.relatedTarget, '| activeElement:', document.activeElement);
+                      void handleRenameSubmit(board.id);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
                       if (e.key === 'Escape') { setRenamingBoardId(null); }
