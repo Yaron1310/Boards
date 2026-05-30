@@ -19,12 +19,16 @@ export const useUsersInfiniteQuery = (params?: { limit?: number; search?: string
     queryFn: async ({ pageParam }) => {
       console.log('[DBG:useUsersInfiniteQuery] queryFn called', { params, pageParam });
       const res = await apiService.getUsers({ ...params, cursor: pageParam as string });
-      console.log('[DBG:useUsersInfiniteQuery] API response', {
-        dataCount: res.data?.length,
-        hasMore: res.hasMore,
-        cursor: res.cursor,
-        total: (res as any).total,
-        userIds: res.data?.map((u: any) => `${u.id}:${u.role}:${u.name}`),
+      console.log('[DBG:useUsersInfiniteQuery] API response RAW', res);
+      console.log('[DBG:useUsersInfiniteQuery] API response parsed', {
+        resType: typeof res,
+        resKeys: res ? Object.keys(res) : 'null/undefined',
+        dataType: typeof res?.data,
+        dataIsArray: Array.isArray(res?.data),
+        dataCount: res?.data?.length,
+        hasMore: res?.hasMore,
+        cursor: res?.cursor,
+        firstItem: res?.data?.[0],
       });
       return res;
     },
