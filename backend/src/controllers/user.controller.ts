@@ -367,14 +367,42 @@ export const getAllUsers = async (req: Request, res: Response) => {
             userDocPromises.push(usersCollection.where(admin.firestore.FieldPath.documentId(), 'in', chunk).get());
         }
         const userDocSnapshots = await Promise.all(userDocPromises);
-        const dbUsers = userDocSnapshots.flatMap(snap => querySnapshotToArray<DBUser>(snap));
+        let dbUsers = userDocSnapshots.flatMap(snap => querySnapshotToArray<DBUser>(snap));
+
+        const foundIds = new Set(dbUsers.map(u => u.id));
+        const missingIds = userIdsForPage.filter(id => !foundIds.has(id));
 
         logger.info('[DBG:getAllUsers] Fetched user docs', {
             requested: userIdsForPage.length,
             found: dbUsers.length,
-            foundIds: dbUsers.map(u => u.id),
-            missingIds: userIdsForPage.filter(id => !dbUsers.find(u => u.id === id)),
+            foundIds: [...foundIds],
+            missingIds,
         });
+
+        // Fallback: for memberships whose userId no longer has a user document (e.g. the user
+        // re-registered with a new auth ID), try to locate the user document by the denormalized
+        // userEmail stored on the membership. This handles stale userId references transparently.
+        if (missingIds.length > 0) {
+            const missingMemberships = pageData.filter(m => missingIds.includes(m.userId) && m.userEmail);
+            const emailsToLookup = [...new Set(missingMemberships.map(m => m.userEmail!))];
+            if (emailsToLookup.length > 0) {
+                const emailLookupPromises: Promise<admin.firestore.QuerySnapshot>[] = [];
+                for (let i = 0; i < emailsToLookup.length; i += 10) {
+                    emailLookupPromises.push(
+                        usersCollection.where('email', 'in', emailsToLookup.slice(i, i + 10)).get()
+                    );
+                }
+                const emailSnapshots = await Promise.all(emailLookupPromises);
+                const foundByEmail = emailSnapshots.flatMap(snap => querySnapshotToArray<DBUser>(snap))
+                    .filter(u => !foundIds.has(u.id)); // avoid duplicates
+                logger.info('[DBG:getAllUsers] Email fallback found', {
+                    looked: emailsToLookup.length,
+                    found: foundByEmail.length,
+                    ids: foundByEmail.map(u => `${u.id}:${u.email}`),
+                });
+                dbUsers = [...dbUsers, ...foundByEmail];
+            }
+        }
 
         const formattedUsersPromises = dbUsers.map(u => formatUserForFrontend(u, {
             orgId: user.role === UserRole.ORGANIZATION_ADMIN ? user.orgId : undefined,
@@ -395,9 +423,17 @@ export const getAllUsers = async (req: Request, res: Response) => {
             finalUserIds: finalUsers.map(u => `${u.id}:${u.role}:${u.name}`),
         });
 
-        // Maintain the same order as the membership query
+        // Maintain the same order as the membership query.
+        // Also build an email→user map to resolve email-fallback users whose membership
+        // userId differs from their current user document ID.
         const userMap = new Map(finalUsers.map(u => [u.id, u]));
-        const orderedUsers = userIdsForPage.map(id => userMap.get(id)).filter(Boolean);
+        const emailToUser = new Map(finalUsers.filter(u => u.email).map(u => [u.email as string, u]));
+        const membershipEmailMap = new Map(
+            pageData.filter(m => m.userEmail).map(m => [m.userId, m.userEmail!])
+        );
+        const orderedUsers = userIdsForPage.map(id => {
+            return userMap.get(id) ?? emailToUser.get(membershipEmailMap.get(id) ?? '');
+        }).filter(Boolean);
 
         const nextCursor = hasMore && orderedUsers.length > 0 ? orderedUsers[orderedUsers.length - 1]!.id : null;
 
