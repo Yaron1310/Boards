@@ -120,7 +120,6 @@ const BoardListPage: React.FC = () => {
   };
 
   const handleRenameStart = (board: Board) => {
-    console.log('[Rename:BoardList] handleRenameStart called', { id: board.id, name: board.name });
     setMenuBoardId(null);
     setRenamingBoardId(board.id);
     setRenameValue(board.name);

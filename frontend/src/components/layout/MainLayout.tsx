@@ -67,7 +67,6 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
   const menuBoard = menuBoardId ? boards.find((b) => b.id === menuBoardId) : null;
 
   const handleRenameStart = (board: { id: string; name: string }) => {
-    console.log('[Rename:Sidebar] handleRenameStart called', { id: board.id, name: board.name });
     setMenuBoardId(null);
     setMenuTriggerRect(null);
     setRenamingBoardId(board.id);

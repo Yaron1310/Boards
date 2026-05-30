@@ -69,6 +69,7 @@ const BoardContextMenu: React.FC<BoardContextMenuProps> = ({
     <button
       key={label}
       type="button"
+      onMouseDown={(e) => e.preventDefault()}
       onClick={(e) => { e.stopPropagation(); onClick(); onClose(); }}
       className={`flex items-center gap-2.5 w-full px-3 py-2 text-sm text-left rounded-md transition-colors ${
         danger ? 'text-red-600 hover:bg-red-50' : 'text-gray-700 hover:bg-gray-100'
