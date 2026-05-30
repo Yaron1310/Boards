@@ -131,7 +131,8 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                       if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
                       if (e.key === 'Escape') { setRenamingBoardId(null); }
                     }}
-                    className="flex-1 min-w-0 text-sm bg-white/20 border border-white/40 rounded px-1.5 py-0.5 text-white focus:outline-none focus:ring-1 focus:ring-white/60"
+                    className="flex-1 min-w-0 text-sm rounded px-1.5 py-0.5 focus:outline-none focus:ring-1"
+                    style={{ color: sidebarLinkColor, backgroundColor: 'rgba(128,128,128,0.15)', border: `1px solid ${sidebarLinkColor}55`, outline: 'none' }}
                     aria-label={`Rename board ${board.name}`}
                   />
                 </div>
