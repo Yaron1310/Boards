@@ -283,7 +283,7 @@ const UserManagementPage: React.FC = () => {
 
       {/* Main Content */}
       <div className="px-4 md:px-8 pb-4 flex-grow flex flex-col min-h-0 overflow-hidden">
-        <div className="max-w-6xl mx-auto w-full flex-grow flex flex-col overflow-hidden">
+        <div className="max-w-6xl mx-auto w-full flex-grow flex flex-col min-h-0 overflow-hidden">
             {feedback && (
                 <div className={`p-3 mb-4 rounded-md flex items-center text-sm shrink-0 ${feedback.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`} role="alert">
                     {feedback.type === 'success' ? <FiCheckCircle className="mr-2"/> : <FiAlertCircle className="mr-2"/>}
@@ -367,7 +367,7 @@ const UserManagementPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-grow flex flex-col bg-white shadow-md rounded-lg overflow-hidden border border-gray-200">
+            <div className="flex-grow flex flex-col bg-white shadow-md rounded-lg overflow-hidden border border-gray-200 min-h-0">
                 <div className="flex bg-gray-50 border-b border-gray-200 shrink-0 font-medium text-xs text-gray-500 uppercase tracking-wider" role="rowgroup">
                     <div className="flex-[2] px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
                     <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
