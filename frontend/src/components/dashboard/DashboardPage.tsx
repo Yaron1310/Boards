@@ -175,6 +175,19 @@ const DashboardPage: React.FC = () => {
     return ids.map((id) => boardNameById[id]).filter(Boolean);
   };
 
+  const isDashboardSourceMissing = (d: CustomDashboard): boolean => {
+    if (customDashboardsLoading) return false;
+    let ids: string[];
+    if (d.config.type === 'metric') {
+      ids = [...new Set(d.config.metrics.map((m) => m.boardId))];
+    } else if (d.config.type === 'timeseries') {
+      ids = [d.config.boardId, ...(d.config.series ?? []).map((s) => s.boardId)];
+    } else {
+      ids = [(d.config as { boardId: string }).boardId];
+    }
+    return ids.some((id) => !boardNameById[id]);
+  };
+
   const timeRangeFilter = filters.filters.find(
     (f): f is { type: 'timerange'; start: string; end: string } => f.type === 'timerange',
   );
@@ -356,32 +369,38 @@ const DashboardPage: React.FC = () => {
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={orderedDashboards.map((d) => d.id)} strategy={rectSortingStrategy}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {orderedDashboards.map((d) => (
-                      <SortableWidget key={d.id} id={d.id}>
-                        <WidgetCard
-                          title={d.name}
-                          titleIcon={d.visibility === 'admins_only'
-                            ? <FiLock size={13} className="text-gray-400 flex-shrink-0" aria-label="Admins only" />
-                            : <FiEye size={13} className="text-gray-400 flex-shrink-0" aria-label="All users" />
-                          }
-                          subtitle={
-                            d.config.type === 'timeseries'
-                              ? `By ${d.config.xAxisGrouping} · ${d.config.yAxisAggregation.toLowerCase()}`
-                              : d.config.type === 'category'
-                              ? `Grouped by column`
-                              : `${d.config.metrics.length} metric${d.config.metrics.length !== 1 ? 's' : ''}`
-                          }
-                          boardNames={getBoardNamesForDashboard(d)}
-                          actions={buildWidgetActions(d)}
-                        >
-                          <CustomDashboardWidget
-                            dashboard={d}
-                            dateFrom={dateFrom}
-                            dateTo={dateTo}
-                          />
-                        </WidgetCard>
-                      </SortableWidget>
-                    ))}
+                    {orderedDashboards.map((d) => {
+                      const sourceMissing = isDashboardSourceMissing(d);
+                      return (
+                        <SortableWidget key={d.id} id={d.id}>
+                          <WidgetCard
+                            title={d.name}
+                            titleIcon={d.visibility === 'admins_only'
+                              ? <FiLock size={13} className="text-gray-400 flex-shrink-0" aria-label="Admins only" />
+                              : <FiEye size={13} className="text-gray-400 flex-shrink-0" aria-label="All users" />
+                            }
+                            subtitle={
+                              d.config.type === 'timeseries'
+                                ? `By ${d.config.xAxisGrouping} · ${d.config.yAxisAggregation.toLowerCase()}`
+                                : d.config.type === 'category'
+                                ? `Grouped by column`
+                                : `${d.config.metrics.length} metric${d.config.metrics.length !== 1 ? 's' : ''}`
+                            }
+                            boardNames={getBoardNamesForDashboard(d)}
+                            actions={buildWidgetActions(d)}
+                            sourceMissing={sourceMissing}
+                          >
+                            {!sourceMissing && (
+                              <CustomDashboardWidget
+                                dashboard={d}
+                                dateFrom={dateFrom}
+                                dateTo={dateTo}
+                              />
+                            )}
+                          </WidgetCard>
+                        </SortableWidget>
+                      );
+                    })}
                   </div>
                 </SortableContext>
               </DndContext>

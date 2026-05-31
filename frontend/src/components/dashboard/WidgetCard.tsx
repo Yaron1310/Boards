@@ -1,4 +1,5 @@
 import React, { useId } from 'react';
+import { FiAlertTriangle } from 'react-icons/fi';
 
 interface WidgetCardProps {
   title: string;
@@ -11,6 +12,7 @@ interface WidgetCardProps {
   children?: React.ReactNode;
   className?: string;
   actions?: React.ReactNode;
+  sourceMissing?: boolean;
 }
 
 const WidgetCard: React.FC<WidgetCardProps> = ({
@@ -24,6 +26,7 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
   children,
   className = '',
   actions,
+  sourceMissing = false,
 }) => {
   const titleId = useId();
 
@@ -59,7 +62,17 @@ const WidgetCard: React.FC<WidgetCardProps> = ({
         )}
       </div>
 
-      {isLoading ? (
+      {sourceMissing ? (
+        <div
+          className="flex flex-col items-center justify-center py-8 gap-2 text-amber-500"
+          role="status"
+          aria-label="Source board unavailable"
+        >
+          <FiAlertTriangle size={22} aria-hidden="true" />
+          <p className="text-sm font-medium text-amber-600">Source board no longer available</p>
+          <p className="text-xs text-gray-400 text-center">The board this dashboard relies on has been deleted.</p>
+        </div>
+      ) : isLoading ? (
         <div
           className="flex flex-col gap-2 animate-pulse"
           role="status"

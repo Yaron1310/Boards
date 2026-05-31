@@ -3,8 +3,9 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
+import { useCustomDashboards } from '../../hooks/queries/useCustomDashboardQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
-import { UserRole, Board } from '../../types';
+import { UserRole, Board, CustomDashboard } from '../../types';
 import {
   FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX,
   FiRotateCcw, FiLoader, FiInbox, FiDownload, FiMoreVertical,
@@ -82,6 +83,19 @@ const BoardListPage: React.FC = () => {
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
   const currentWorkspace = allWorkspaces.find((w) => w.id === workspaceId);
   const workspaceName = currentWorkspace?.name ?? 'Boards';
+
+  const { data: allDashboards = [] } = useCustomDashboards(false);
+
+  const getDashboardsUsingBoard = React.useCallback((boardId: string): CustomDashboard[] => {
+    return allDashboards.filter((d) => {
+      if (d.config.type === 'metric') return d.config.metrics.some((m) => m.boardId === boardId);
+      if (d.config.type === 'timeseries') {
+        const cfg = d.config;
+        return cfg.boardId === boardId || (cfg.series ?? []).some((s) => s.boardId === boardId);
+      }
+      return (d.config as { boardId: string }).boardId === boardId;
+    });
+  }, [allDashboards]);
 
   const { data: boards = [], isLoading, error } = useBoards(workspaceId, false, !!workspaceId);
   const { data: archivedBoards = [], isLoading: archivedLoading, refetch: refetchArchived } = useBoards(
@@ -354,35 +368,56 @@ const BoardListPage: React.FC = () => {
 
       {/* Delete confirmation dialog */}
       {confirmDeleteId && ReactDOM.createPortal(
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Confirm delete board"
-        >
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
-            <h3 className="text-base font-semibold text-gray-800 mb-2">Delete board?</h3>
-            <p className="text-sm text-gray-500 mb-5">This action cannot be undone.</p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setConfirmDeleteId(null)}
-                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                aria-label="Cancel delete"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDelete(confirmDeleteId)}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
-                aria-label="Confirm delete board"
-              >
-                Delete
-              </button>
+        (() => {
+          const affectedDashboards = getDashboardsUsingBoard(confirmDeleteId);
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Confirm delete board"
+            >
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+                <h3 className="text-base font-semibold text-gray-800 mb-2">Delete board?</h3>
+                {affectedDashboards.length > 0 ? (
+                  <div className="mb-5">
+                    <p className="text-sm text-gray-600 mb-2">
+                      This board is the data source for{' '}
+                      <strong>{affectedDashboards.length} dashboard{affectedDashboards.length > 1 ? 's' : ''}</strong>.
+                      Deleting it will leave {affectedDashboards.length > 1 ? 'those dashboards' : 'that dashboard'} without a data source.
+                    </p>
+                    <ul className="text-sm text-gray-500 list-disc list-inside space-y-0.5 mb-2">
+                      {affectedDashboards.map((d) => (
+                        <li key={d.id}>{d.name}</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-amber-600 font-medium">This action cannot be undone.</p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500 mb-5">This action cannot be undone.</p>
+                )}
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    aria-label="Cancel delete"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDelete(confirmDeleteId)}
+                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                    aria-label="Confirm delete board"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>,
+          );
+        })(),
         document.getElementById('modal-root')!,
       )}
 
