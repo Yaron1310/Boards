@@ -174,7 +174,7 @@ const UserManagementPage: React.FC = () => {
             aria-label={`User ${u.name}`}
         >
             <div
-                className="w-52 shrink-0 px-6 py-4 flex items-center min-w-0 cursor-pointer"
+                className="flex-1 min-w-0 px-6 py-4 flex items-center cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/admin/users/${u.id}`)}
                 tabIndex={0}
@@ -192,7 +192,7 @@ const UserManagementPage: React.FC = () => {
             </div>
             <div className="flex-1 min-w-0 px-6 py-4 text-sm text-gray-700 flex items-center cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}>
-                <span className="break-all">{u.email}</span>
+                <span className="truncate">{u.email}</span>
             </div>
             <div className="w-36 shrink-0 px-6 py-4 text-sm text-gray-700 flex items-center cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}>
@@ -377,7 +377,7 @@ const UserManagementPage: React.FC = () => {
 
             <div className="flex-grow flex flex-col bg-white shadow-md rounded-lg overflow-hidden border border-gray-200 min-h-0">
                 <div className="flex bg-gray-50 border-b border-gray-200 shrink-0 font-medium text-xs text-gray-500 uppercase tracking-wider" role="rowgroup">
-                    <div className="w-52 shrink-0 px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
+                    <div className="flex-1 min-w-0 px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
                     <div className="flex-1 min-w-0 px-6 py-3 text-left" role="columnheader">{t('common.email')}</div>
                     <div className="w-36 shrink-0 px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
                     <div className="w-24 shrink-0 px-4 py-3 text-center" role="columnheader">{t('common.status')}</div>
