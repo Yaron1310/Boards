@@ -611,13 +611,6 @@ const ProfilePage: React.FC = () => {
                         <FiKey className="mr-2"/> {authUser?.hasPassword ? t('profile.changePassword') : t('profile.createPassword')}
                     </button>
                     <button
-                        onClick={() => { setIsLanguageSettingsOpen(true); clearMessages(); }}
-                        className="text-sm text-teal-600 hover:text-teal-800 py-1 px-2 rounded-md hover:bg-teal-50 flex items-center transition-colors"
-                        aria-label={t('profile.openLanguageSettings')}
-                    >
-                        <FiGlobe className="mr-2" /> {t('profile.language')}
-                    </button>
-                    <button
                         onClick={handleLogoutClick}
                         className="text-sm text-gray-600 hover:text-gray-800 py-1 px-2 rounded-md hover:bg-gray-50 flex items-center transition-colors"
                     >
