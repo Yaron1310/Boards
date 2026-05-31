@@ -13,6 +13,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { useBoard, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
+import { useOrganizationSettingsQuery } from '../../hooks/queries/useAcademyQueries';
 import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries';
 import { useReorderItems, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { usePageSize } from '../../hooks/usePageSize';
@@ -324,6 +325,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
           itemsByGroup={displayItemsByGroup}
           columns={columns}
           onItemUpdate={onGanttItemUpdate}
+          workingDays={orgSettings?.workingDays}
         />
       ) : (
         <div
@@ -474,6 +476,8 @@ const BoardViewPage: React.FC = () => {
 
   // Real-time updates via Firestore onSnapshot (requires Firebase custom token auth)
   useBoardSnapshot(boardId, selectedWorkspace?.orgId ?? user?.orgId);
+
+  const { data: orgSettings } = useOrganizationSettingsQuery();
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');

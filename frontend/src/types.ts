@@ -41,6 +41,8 @@ export interface OrganizationSettings {
   logoCircle?: boolean;
   bridgeEnabled?: boolean;
   bridgeSecretKey?: string;
+  /** Array of day-of-week indices that are working days (0=Sun, 1=Mon, …, 6=Sat). Defaults to Mon–Fri [1,2,3,4,5]. */
+  workingDays?: number[];
 }
 
 export interface EmailTemplate {

@@ -82,6 +82,7 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
         contactPhone,
         website,
         socialMedia,
+        workingDays,
     } = req.body;
 
     try {
@@ -123,6 +124,11 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
             if (socialMedia.linkedin) dataToUpdate.socialMedia.linkedin = sanitizeUrl(socialMedia.linkedin);
             if (socialMedia.facebook) dataToUpdate.socialMedia.facebook = sanitizeUrl(socialMedia.facebook);
             if (socialMedia.instagram) dataToUpdate.socialMedia.instagram = sanitizeUrl(socialMedia.instagram);
+        }
+        if (Array.isArray(workingDays)) {
+            dataToUpdate.workingDays = workingDays
+                .map((d: unknown) => Number(d))
+                .filter((d: number) => Number.isInteger(d) && d >= 0 && d <= 6);
         }
 
         await docRef.set(dataToUpdate, { merge: true });

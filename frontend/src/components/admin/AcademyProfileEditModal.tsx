@@ -4,6 +4,18 @@ import ReactDOM from 'react-dom';
 import { OrganizationSettings } from '../../types';
 import { useData } from '../../hooks/useData';
 
+const DAY_LABELS: { index: number; label: string }[] = [
+  { index: 0, label: 'Sunday' },
+  { index: 1, label: 'Monday' },
+  { index: 2, label: 'Tuesday' },
+  { index: 3, label: 'Wednesday' },
+  { index: 4, label: 'Thursday' },
+  { index: 5, label: 'Friday' },
+  { index: 6, label: 'Saturday' },
+];
+
+const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
+
 interface OrganizationProfileEditModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -14,10 +26,11 @@ const OrganizationProfileEditModal: React.FC<OrganizationProfileEditModalProps> 
   const { t } = useTranslation();
   const { updateOrganizationSettings } = useData();
   const [formData, setFormData] = useState<Partial<OrganizationSettings>>({});
+  const [workingDays, setWorkingDays] = useState<number[]>(DEFAULT_WORKING_DAYS);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-    useEffect(() => {
+  useEffect(() => {
     if (settings) {
       setFormData({
         appName: settings.appName,
@@ -32,6 +45,7 @@ const OrganizationProfileEditModal: React.FC<OrganizationProfileEditModalProps> 
           instagram: settings.socialMedia?.instagram || '',
         },
       });
+      setWorkingDays(settings.workingDays ?? DEFAULT_WORKING_DAYS);
     }
   }, [settings]);
 
@@ -53,12 +67,18 @@ const OrganizationProfileEditModal: React.FC<OrganizationProfileEditModalProps> 
     }));
   };
 
+  const toggleWorkingDay = (index: number) => {
+    setWorkingDays(prev =>
+      prev.includes(index) ? prev.filter(d => d !== index) : [...prev, index].sort((a, b) => a - b)
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveError(null);
     setIsSaving(true);
     try {
-      await updateOrganizationSettings(formData);
+      await updateOrganizationSettings({ ...formData, workingDays });
       onClose();
     } catch (error) {
       setSaveError('Failed to save changes. Please try again.');
@@ -140,36 +160,65 @@ const OrganizationProfileEditModal: React.FC<OrganizationProfileEditModalProps> 
               />
             </div>
 
+            {/* Working Days */}
+            <div className="pt-4 border-t mt-6">
+              <h3 className="text-lg font-medium mb-1">Working Days</h3>
+              <p className="text-xs text-gray-500 mb-3">Select the days your organization considers working days. Rest days will appear shaded in the Gantt chart.</p>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Working days">
+                {DAY_LABELS.map(({ index, label }) => {
+                  const checked = workingDays.includes(index);
+                  return (
+                    <label
+                      key={index}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm transition-colors ${
+                        checked
+                          ? 'bg-indigo-50 border-indigo-400 text-indigo-700 font-medium'
+                          : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleWorkingDay(index)}
+                        className="w-4 h-4 accent-indigo-600"
+                        aria-label={label}
+                      />
+                      {label}
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
             <h3 className="text-lg font-medium pt-4 border-t mt-6">{t('admin.socialMediaLinks')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 <div>
-                  <label htmlFor="twitter" className="block text-sm font-medium text-gray-700">{t('admin.twitterUrl')}</label>
-                  <input type="url" id="twitter" name="twitter" className="mt-1 block w-full rounded-md shadow-sm text-black p-2 border border-gray-300" value={formData.socialMedia?.twitter || ''} onChange={handleSocialChange} />
-                </div>
-                <div>
-                  <label htmlFor="linkedin" className="block text-sm font-medium text-gray-700">{t('admin.linkedinUrl')}</label>
-                  <input type="url" id="linkedin" name="linkedin" className="mt-1 block w-full rounded-md shadow-sm text-black p-2 border border-gray-300" value={formData.socialMedia?.linkedin || ''} onChange={handleSocialChange} />
-                </div>
-                <div>
-                  <label htmlFor="facebook" className="block text-sm font-medium text-gray-700">{t('admin.facebookUrl')}</label>
-                  <input type="url" id="facebook" name="facebook" className="mt-1 block w-full rounded-md shadow-sm text-black p-2 border border-gray-300" value={formData.socialMedia?.facebook || ''} onChange={handleSocialChange} />
-                </div>
-                <div>
-                  <label htmlFor="instagram" className="block text-sm font-medium text-gray-700">{t('admin.instagramUrl')}</label>
-                  <input type="url" id="instagram" name="instagram" className="mt-1 block w-full rounded-md shadow-sm text-black p-2 border border-gray-300" value={formData.socialMedia?.instagram || ''} onChange={handleSocialChange} />
-                </div>
+              <div>
+                <label htmlFor="twitter" className="block text-sm font-medium text-gray-700">{t('admin.twitterUrl')}</label>
+                <input type="url" id="twitter" name="twitter" className="mt-1 block w-full rounded-md shadow-sm text-black p-2 border border-gray-300" value={formData.socialMedia?.twitter || ''} onChange={handleSocialChange} />
+              </div>
+              <div>
+                <label htmlFor="linkedin" className="block text-sm font-medium text-gray-700">{t('admin.linkedinUrl')}</label>
+                <input type="url" id="linkedin" name="linkedin" className="mt-1 block w-full rounded-md shadow-sm text-black p-2 border border-gray-300" value={formData.socialMedia?.linkedin || ''} onChange={handleSocialChange} />
+              </div>
+              <div>
+                <label htmlFor="facebook" className="block text-sm font-medium text-gray-700">{t('admin.facebookUrl')}</label>
+                <input type="url" id="facebook" name="facebook" className="mt-1 block w-full rounded-md shadow-sm text-black p-2 border border-gray-300" value={formData.socialMedia?.facebook || ''} onChange={handleSocialChange} />
+              </div>
+              <div>
+                <label htmlFor="instagram" className="block text-sm font-medium text-gray-700">{t('admin.instagramUrl')}</label>
+                <input type="url" id="instagram" name="instagram" className="mt-1 block w-full rounded-md shadow-sm text-black p-2 border border-gray-300" value={formData.socialMedia?.instagram || ''} onChange={handleSocialChange} />
+              </div>
             </div>
           </div>
-
-          </form>
+        </form>
         <div className="p-6 border-t flex justify-end space-x-3">
-            <button type="button" onClick={onClose} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
-              {t('common.cancel')}
-            </button>
-            <button type="submit" form="workspace-profile-form" disabled={isSaving} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300">
-              {isSaving ? t('common.saving') : t('common.saveChanges')}
-            </button>
-          </div>
+          <button type="button" onClick={onClose} className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300">
+            {t('common.cancel')}
+          </button>
+          <button type="submit" form="workspace-profile-form" disabled={isSaving} className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-blue-300">
+            {isSaving ? t('common.saving') : t('common.saveChanges')}
+          </button>
+        </div>
       </div>
     </div>,
     document.getElementById('modal-root')!

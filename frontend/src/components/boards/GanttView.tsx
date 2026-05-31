@@ -35,11 +35,14 @@ interface TooltipState {
   endDate: Date;
 }
 
+const DEFAULT_WORKING_DAYS = new Set([1, 2, 3, 4, 5]); // Mon–Fri
+
 interface GanttViewProps {
   groups: Group[];
   itemsByGroup: Record<string, Item[]>;
   columns: Column[];
   onItemUpdate: (itemId: string, groupId: string, colId: string, start: string, end: string) => void;
+  workingDays?: number[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -88,7 +91,8 @@ function formatDragDate(d: Date): string {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, onItemUpdate }) => {
+const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, onItemUpdate, workingDays }) => {
+  const workingDaySet = workingDays ? new Set(workingDays) : DEFAULT_WORKING_DAYS;
   const timeRangeCol = columns.find((c) => c.type === ColumnType.TIME_RANGE);
 
   const [timeUnit, setTimeUnit] = useState<TimeUnit>('weeks');
@@ -409,7 +413,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
               : timeColumns.map((col, i) => {
                   const isNewMonth = i === 0 || col.getMonth() !== timeColumns[i - 1].getMonth();
                   const isWeekStart = col.getDay() === 1;
-                  const isWeekend = col.getDay() === 0 || col.getDay() === 6;
+                  const isWeekend = !workingDaySet.has(col.getDay());
                   const isToday = col.toDateString() === today.toDateString();
                   return (
                     <div
@@ -514,7 +518,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                       >
                         {/* Grid lines + weekend shading */}
                         {!showFullScope && timeColumns.map((col, i) => {
-                          const isWeekend = timeUnit === 'days' && (col.getDay() === 0 || col.getDay() === 6);
+                          const isWeekend = timeUnit === 'days' && !workingDaySet.has(col.getDay());
                           const isWeekBoundary = timeUnit === 'days' && col.getDay() === 1;
                           return (
                             <React.Fragment key={i}>
