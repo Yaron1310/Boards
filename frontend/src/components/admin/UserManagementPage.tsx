@@ -219,7 +219,9 @@ const UserManagementPage: React.FC = () => {
             )}
             {authUser.role === UserRole.ORGANIZATION_ADMIN && (
                 <td className="px-3 py-4 text-center">
-                    {u.id !== authUser.id && (
+                    {u.id === authUser.id ? (
+                        <span className="text-xs text-gray-400">N/A</span>
+                    ) : (
                         <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); setRemoveTarget({ id: u.id, name: u.name }); }}
