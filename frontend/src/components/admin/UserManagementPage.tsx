@@ -6,7 +6,7 @@ import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { UserRole } from '../../types';
-import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiEdit, FiTrash2 } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
 import InviteUsersOrgModal from './InviteUsersOrgModal';
 import TutorialSection from '../common/TutorialSection';
@@ -50,7 +50,7 @@ const UserManagementPage: React.FC = () => {
   const [showPreApproveModal, setShowPreApproveModal] = useState(false);
   const [showOrganizationAdminsModal, setShowOrganizationAdminsModal] = useState(false);
   const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
-  const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string } | null>(null);
+  const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string; isOrgAdmin: boolean } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
 
@@ -129,13 +129,20 @@ const UserManagementPage: React.FC = () => {
   }
 
   const handleRemoveUser = async () => {
-    if (!removeTarget || !authUser?.orgId) return;
+    console.log('[DBG:handleRemoveUser] called', { removeTarget, orgId: authUser?.orgId });
+    if (!removeTarget || !authUser?.orgId) {
+      console.warn('[DBG:handleRemoveUser] aborted — missing removeTarget or orgId', { removeTarget, orgId: authUser?.orgId });
+      return;
+    }
     setIsRemoving(true);
     try {
+      console.log('[DBG:handleRemoveUser] calling API', { orgId: authUser.orgId, userId: removeTarget.id });
       await removeUserFromOrg(authUser.orgId, removeTarget.id);
+      console.log('[DBG:handleRemoveUser] API success');
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setFeedback({ type: 'success', text: `${removeTarget.name} has been removed from the organization.` });
     } catch (err: any) {
+      console.error('[DBG:handleRemoveUser] API error', err);
       setFeedback({ type: 'error', text: err.message || 'Failed to remove user.' });
     } finally {
       setIsRemoving(false);
@@ -207,24 +214,27 @@ const UserManagementPage: React.FC = () => {
                 <div className="flex-[0.75] px-3 py-4 flex items-center justify-center">
                     <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setPermissionsUser({ id: u.id, name: u.name }); }}
+                        onClick={(e) => { e.stopPropagation(); setPermissionsUser({ id: u.id, name: u.name, isOrgAdmin: u.role === UserRole.ORGANIZATION_ADMIN }); }}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                         aria-label={`Manage board permissions for ${u.name}`}
                         title="Manage board permissions"
                     >
-                        <FiEdit2 size={15} aria-hidden="true" />
+                        <FiEdit size={15} aria-hidden="true" />
                     </button>
                 </div>
             )}
-            {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+            {authUser.role === UserRole.ORGANIZATION_ADMIN && u.id !== authUser.id && (
                 <div className="flex-[0.75] px-3 py-4 flex items-center justify-center">
                     <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setRemoveTarget({ id: u.id, name: u.name }); }}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            console.log('[DBG:deleteBtn] clicked', { userId: u.id, userName: u.name, authUserId: authUser.id, orgId: authUser.orgId });
+                            setRemoveTarget({ id: u.id, name: u.name });
+                        }}
                         className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         aria-label={`Remove ${u.name} from organization`}
                         title="Remove from organization"
-                        disabled={u.id === authUser.id}
                     >
                         <FiTrash2 size={15} aria-hidden="true" />
                     </button>
@@ -454,6 +464,7 @@ const UserManagementPage: React.FC = () => {
         <UserPermissionsModal
           userId={permissionsUser.id}
           userName={permissionsUser.name}
+          isOrgAdmin={permissionsUser.isOrgAdmin}
           onClose={() => setPermissionsUser(null)}
         />
       )}

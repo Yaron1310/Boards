@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { FiX, FiLoader, FiCheckCircle, FiAlertCircle, FiChevronDown, FiChevronRight } from 'react-icons/fi';
+import { FiX, FiLoader, FiCheckCircle, FiAlertCircle, FiChevronDown, FiChevronRight, FiShield } from 'react-icons/fi';
 import { useUserBoardPermissions, useUpdateUserBoardPermissions } from '../../hooks/queries/useBoardMemberQueries';
 import { BoardRole } from '../../types';
 import type { BoardPermissionsWorkspace } from '../../types';
@@ -8,10 +8,11 @@ import type { BoardPermissionsWorkspace } from '../../types';
 interface Props {
   userId: string;
   userName: string;
+  isOrgAdmin?: boolean;
   onClose: () => void;
 }
 
-const UserPermissionsModal: React.FC<Props> = ({ userId, userName, onClose }) => {
+const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, onClose }) => {
   const { data, isLoading, isError } = useUserBoardPermissions(userId);
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
 
@@ -113,7 +114,19 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, onClose }) =>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {feedback && (
+          {isOrgAdmin && (
+            <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
+              <div className="p-3 bg-indigo-50 rounded-full">
+                <FiShield size={28} className="text-indigo-500" aria-hidden="true" />
+              </div>
+              <p className="text-sm font-semibold text-gray-700">Org Admin — Full Permissions</p>
+              <p className="text-xs text-gray-400 max-w-xs">
+                Organization admins have unrestricted access to all boards and workspaces in this organization.
+              </p>
+            </div>
+          )}
+
+          {!isOrgAdmin && feedback && (
             <div
               role={feedback.type === 'error' ? 'alert' : 'status'}
               className={`mb-4 p-3 rounded-md flex items-center text-sm ${feedback.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}
@@ -125,23 +138,23 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, onClose }) =>
             </div>
           )}
 
-          {isLoading && (
+          {!isOrgAdmin && isLoading && (
             <div className="flex items-center justify-center py-12" role="status">
               <FiLoader className="animate-spin text-indigo-400" size={24} aria-hidden="true" />
             </div>
           )}
 
-          {isError && (
+          {!isOrgAdmin && isError && (
             <div className="text-center py-8 text-red-500 text-sm" role="alert">
               Failed to load board permissions.
             </div>
           )}
 
-          {data && data.workspaces.length === 0 && (
+          {!isOrgAdmin && data && data.workspaces.length === 0 && (
             <p className="text-center py-8 text-gray-400 text-sm">No workhubs or boards found.</p>
           )}
 
-          {data && data.workspaces.map((ws) => {
+          {!isOrgAdmin && data && data.workspaces.map((ws) => {
             const state = getWorkspaceState(ws);
             const isExpanded = expandedWorkspaces.has(ws.id);
 
@@ -205,26 +218,30 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, onClose }) =>
 
         {/* Footer */}
         <div className="px-6 py-4 border-t bg-gray-50 rounded-b-xl flex justify-between items-center">
-          <p className="text-xs text-gray-400">
-            {checkedBoards.size} board{checkedBoards.size !== 1 ? 's' : ''} selected
-          </p>
-          <div className="flex gap-2">
+          {!isOrgAdmin && (
+            <p className="text-xs text-gray-400">
+              {checkedBoards.size} board{checkedBoards.size !== 1 ? 's' : ''} selected
+            </p>
+          )}
+          <div className={`flex gap-2 ${isOrgAdmin ? 'ml-auto' : ''}`}>
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               disabled={isSaving}
             >
-              Cancel
+              Close
             </button>
-            <button
-              onClick={() => void handleSave()}
-              disabled={isSaving || isLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-              aria-label="Save board permissions"
-            >
-              {isSaving && <FiLoader size={13} className="animate-spin" aria-hidden="true" />}
-              Save permissions
-            </button>
+            {!isOrgAdmin && (
+              <button
+                onClick={() => void handleSave()}
+                disabled={isSaving || isLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                aria-label="Save board permissions"
+              >
+                {isSaving && <FiLoader size={13} className="animate-spin" aria-hidden="true" />}
+                Save permissions
+              </button>
+            )}
           </div>
         </div>
       </div>
