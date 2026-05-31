@@ -313,7 +313,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
 
   return (
     <div className="flex-1 relative min-h-0">
-      <div className="absolute inset-y-0 left-0 w-4 bg-gray-50 z-[20] pointer-events-none" aria-hidden="true" />
+      <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
 
       {/* SVG overlay — only in table/rows views; Gantt has no cells to connect */}
       {boardView !== 'gantt' && <DependencyOverlay />}
