@@ -171,6 +171,7 @@ interface BoardContentProps {
   onPageItemsChange: (groupId: string, items: Item[]) => void;
   columnWidths: Record<string, number>;
   onWidthChange: (columnId: string, width: number) => void;
+  workingDays?: number[];
 }
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' };
@@ -234,6 +235,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
   onPageItemsChange,
   columnWidths,
   onWidthChange,
+  workingDays,
 }) => {
   const { data: columns = [] } = useColumns(boardId);
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
@@ -325,7 +327,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
           itemsByGroup={displayItemsByGroup}
           columns={columns}
           onItemUpdate={onGanttItemUpdate}
-          workingDays={orgSettings?.workingDays}
+          workingDays={workingDays}
         />
       ) : (
         <div
@@ -1005,6 +1007,7 @@ const BoardViewPage: React.FC = () => {
             onPageItemsChange={handlePageItemsChange}
             columnWidths={columnWidths}
             onWidthChange={handleWidthChange}
+            workingDays={orgSettings?.workingDays}
           />
         </DependencyProvider>
         </FormulaEditProvider>
