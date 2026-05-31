@@ -481,7 +481,17 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                       <span className="text-xs font-semibold text-gray-600 truncate">{group.name}</span>
                     )}
                   </div>
-                  <div className="flex-1 bg-gray-50" aria-hidden="true" />
+                  <div className="relative flex-1 bg-gray-50" style={{ height: '100%' }} aria-hidden="true">
+                    {!showFullScope && timeUnit === 'days' && timeColumns.map((col, i) => (
+                      !workingDaySet.has(col.getDay()) && (
+                        <div
+                          key={i}
+                          className="absolute top-0 bottom-0 bg-gray-200/40"
+                          style={{ left: i * effectiveColumnPx, width: effectiveColumnPx }}
+                        />
+                      )
+                    ))}
+                  </div>
                 </div>
 
                 {/* Item rows */}
@@ -512,7 +522,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                       {/* Timeline area */}
                       <div
                         className="relative flex-shrink-0"
-                        style={{ width: effectiveTimelineWidth }}
+                        style={{ width: effectiveTimelineWidth, height: '100%' }}
                         role="gridcell"
                         aria-label={dates ? `${toDateString(dates.start)} to ${toDateString(dates.end)}` : 'No date set'}
                       >
