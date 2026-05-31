@@ -535,8 +535,24 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const sidebarNavigate = useNavigate();
     const isOrganizationAdmin = user?.role === UserRole.ORGANIZATION_ADMIN;
-    // We use a semi-transparent white overlay (rgba 255,255,255, 0.15) instead of a solid color
-    // to ensure the gradient behind the link shows through while being "brightened".
+
+    // Calculate sidebar brightness (0=black, 1=white) to pick a contrasting hover overlay.
+    // For bright sidebars we use a dark semi-transparent overlay; for dark ones a light overlay.
+    const sidebarBrightness = (() => {
+        const hex = sidebarColor.replace('#', '');
+        if (hex.length < 6) return 0;
+        const r = parseInt(hex.slice(0, 2), 16) / 255;
+        const g = parseInt(hex.slice(2, 4), 16) / 255;
+        const b = parseInt(hex.slice(4, 6), 16) / 255;
+        // Perceived luminance (sRGB)
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    })();
+    // Bright sidebar (luminance > 0.5): dark overlay scaled by how bright it is.
+    // Dark sidebar: light overlay at 15% opacity (original behaviour).
+    const hoverBg = sidebarBrightness > 0.5
+        ? `rgba(0, 0, 0, ${(0.08 + sidebarBrightness * 0.22).toFixed(2)})`
+        : 'rgba(255, 255, 255, 0.15)';
+
     const hoverEffectStyle = `
         .sidebar-nav-item {
             position: relative;
@@ -550,7 +566,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(255, 255, 255, 0.15);
+            background-color: ${hoverBg};
             opacity: 0;
             transition: opacity 0.2s ease-in-out;
             z-index: -1;
