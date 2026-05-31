@@ -190,13 +190,13 @@ const UserManagementPage: React.FC = () => {
                     <div className="text-xs text-gray-500">{roleLabel}</div>
                 </div>
             </div>
+            <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center min-w-0 cursor-pointer"
+                onClick={() => navigate(`/admin/users/${u.id}`)}>
+                <span className="break-all">{u.email}</span>
+            </div>
             <div className="flex-[1.5] px-6 py-4 text-sm text-gray-700 flex items-center truncate cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}>
                 {u.workspaceName || 'N/A'}
-            </div>
-            <div className="flex-1 px-6 py-4 text-sm text-gray-700 flex items-center truncate cursor-pointer"
-                onClick={() => navigate(`/admin/users/${u.id}`)}>
-                {u.email}
             </div>
             <div className="flex-[0.75] px-6 py-4 text-sm text-gray-700 flex items-center justify-center cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}>
@@ -217,17 +217,19 @@ const UserManagementPage: React.FC = () => {
                     </button>
                 </div>
             )}
-            {authUser.role === UserRole.ORGANIZATION_ADMIN && u.id !== authUser.id && (
-                <div className="flex-[0.75] px-3 py-4 flex items-center justify-center">
-                    <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setRemoveTarget({ id: u.id, name: u.name }); }}
-                        className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        aria-label={`Remove ${u.name} from organization`}
-                        title="Remove from organization"
-                    >
-                        <FiTrash2 size={15} aria-hidden="true" />
-                    </button>
+            {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                <div className="w-10 px-1 py-4 flex items-center justify-center shrink-0">
+                    {u.id !== authUser.id && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setRemoveTarget({ id: u.id, name: u.name }); }}
+                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            aria-label={`Remove ${u.name} from organization`}
+                            title="Remove from organization"
+                        >
+                            <FiTrash2 size={15} aria-hidden="true" />
+                        </button>
+                    )}
                 </div>
             )}
         </div>
@@ -376,14 +378,14 @@ const UserManagementPage: React.FC = () => {
             <div className="flex-grow flex flex-col bg-white shadow-md rounded-lg overflow-hidden border border-gray-200 min-h-0">
                 <div className="flex bg-gray-50 border-b border-gray-200 shrink-0 font-medium text-xs text-gray-500 uppercase tracking-wider" role="rowgroup">
                     <div className="flex-[2] px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
-                    <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
                     <div className="flex-1 px-6 py-3 text-left" role="columnheader">{t('common.email')}</div>
+                    <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
                     <div className="flex-[0.75] px-6 py-3 text-center" role="columnheader">{t('common.status')}</div>
                     {authUser.role === UserRole.ORGANIZATION_ADMIN && (
                         <div className="flex-[0.75] px-3 py-3 text-center" role="columnheader">Permissions</div>
                     )}
                     {authUser.role === UserRole.ORGANIZATION_ADMIN && (
-                        <div className="flex-[0.75] px-3 py-3 text-center" role="columnheader">Actions</div>
+                        <div className="w-10 px-3 py-3 text-center shrink-0" role="columnheader">Actions</div>
                     )}
                 </div>
 
