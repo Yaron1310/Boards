@@ -85,6 +85,24 @@ const RadarView: React.FC<{ data: CustomDashboardDataPoint[] }> = ({ data }) => 
 
 const LINE_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444'];
 
+// Detect if labels look like ISO dates (yyyy-mm-dd) and format them compactly
+function isIsoDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function formatAxisDate(value: string): string {
+  if (!isIsoDate(value)) return value;
+  const [, month, day] = value.split('-');
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[parseInt(month, 10) - 1]} ${parseInt(day, 10)}`;
+}
+
+function formatTooltipDate(value: string): string {
+  if (!isIsoDate(value)) return value;
+  const [year, month, day] = value.split('-');
+  return `${day}-${month}-${year}`;
+}
+
 const LineView: React.FC<{ data: CustomDashboardDataPoint[]; seriesLabels?: string[] }> = ({ data, seriesLabels }) => {
   const isMulti = seriesLabels && seriesLabels.length > 1;
   const [hidden, setHidden] = React.useState<Set<string>>(() => new Set());
@@ -121,9 +139,9 @@ const LineView: React.FC<{ data: CustomDashboardDataPoint[]; seriesLabels?: stri
       <ResponsiveContainer width="100%" height={260}>
         <LineChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+          <XAxis dataKey="label" tick={{ fontSize: 12 }} tickFormatter={formatAxisDate} />
           <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-          <Tooltip />
+          <Tooltip labelFormatter={formatTooltipDate} />
           {isMulti
             ? seriesLabels.filter(sl => !hidden.has(sl)).map((sl, i) => (
                 <Line key={sl} type="monotone" dataKey={sl} stroke={LINE_COLORS[seriesLabels.indexOf(sl) % LINE_COLORS.length]} strokeWidth={2} dot={{ r: 3 }} name={sl} />

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { FiFilter, FiChevronLeft, FiCalendar, FiUser, FiFlag, FiTag, FiCheck } from 'react-icons/fi';
+import { FiFilter, FiChevronLeft, FiCalendar, FiUser, FiFlag, FiTag, FiCheck, FiChevronDown } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useQuery } from '@tanstack/react-query';
 import { getUsers } from '../../services/geminiService';
@@ -24,9 +24,48 @@ export interface FilterState {
   filters: DashboardActiveFilter[];
 }
 
-export const INITIAL_FILTER_STATE: FilterState = {
-  filters: [],
-};
+// ---------------------------------------------------------------------------
+// Preset range helpers
+// ---------------------------------------------------------------------------
+
+export type PresetRangeKey = '7d' | '14d' | '30d' | '3m' | '1y' | 'custom';
+
+export interface PresetRange {
+  key: PresetRangeKey;
+  label: string;
+}
+
+export const PRESET_RANGES: PresetRange[] = [
+  { key: '7d',     label: 'Last 7 days' },
+  { key: '14d',    label: 'Last 14 days' },
+  { key: '30d',    label: 'Last 30 days' },
+  { key: '3m',     label: 'Last 3 months' },
+  { key: '1y',     label: 'Last year' },
+  { key: 'custom', label: 'Custom range' },
+];
+
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export function presetToRange(key: PresetRangeKey): { start: string; end: string } | null {
+  if (key === 'custom') return null;
+  const end = new Date();
+  const start = new Date();
+  if (key === '7d')  start.setDate(end.getDate() - 6);
+  if (key === '14d') start.setDate(end.getDate() - 13);
+  if (key === '30d') start.setDate(end.getDate() - 29);
+  if (key === '3m')  start.setMonth(end.getMonth() - 3);
+  if (key === '1y')  start.setFullYear(end.getFullYear() - 1);
+  return { start: toIsoDate(start), end: toIsoDate(end) };
+}
+
+function makeDefaultFilterState(): FilterState {
+  const range = presetToRange('30d')!;
+  return { filters: [{ type: 'timerange', start: range.start, end: range.end }] };
+}
+
+export const INITIAL_FILTER_STATE: FilterState = makeDefaultFilterState();
 
 export type FilterAction =
   | { type: 'SET_DATE'; value: string }
@@ -110,10 +149,126 @@ export function toDashboardParams(state: FilterState): DashboardParams {
 }
 
 // ---------------------------------------------------------------------------
+// DateRangePresetPicker — standalone dropdown exported for DashboardPage
+// ---------------------------------------------------------------------------
+
+interface DateRangePresetPickerProps {
+  filters: FilterState;
+  dispatch: React.Dispatch<FilterAction>;
+}
+
+export const DateRangePresetPicker: React.FC<DateRangePresetPickerProps> = ({ filters, dispatch }) => {
+  const [open, setOpen] = useState(false);
+  const [customAnchor, setCustomAnchor] = useState<HTMLElement | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const currentRange = filters.filters.find(
+    (f): f is { type: 'timerange'; start: string; end: string } => f.type === 'timerange',
+  );
+
+  // Detect which preset is currently active
+  const activePreset = useMemo((): PresetRangeKey | null => {
+    if (!currentRange) return null;
+    for (const p of PRESET_RANGES) {
+      if (p.key === 'custom') continue;
+      const r = presetToRange(p.key)!;
+      if (r.start === currentRange.start && r.end === currentRange.end) return p.key;
+    }
+    return 'custom';
+  }, [currentRange]);
+
+  const activeLabel = activePreset
+    ? PRESET_RANGES.find((p) => p.key === activePreset)?.label ?? 'Date range'
+    : 'Last 30 days';
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+        setCustomAnchor(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const handlePreset = (key: PresetRangeKey, e: React.MouseEvent<HTMLButtonElement>) => {
+    if (key === 'custom') {
+      setCustomAnchor(e.currentTarget);
+      return;
+    }
+    const range = presetToRange(key)!;
+    dispatch({ type: 'SET_TIME_RANGE', start: range.start, end: range.end });
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative flex-shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => { setOpen((v) => !v); setCustomAnchor(null); }}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+        aria-label="Select date range"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <FiCalendar size={12} aria-hidden="true" />
+        {activeLabel}
+        <FiChevronDown size={11} aria-hidden="true" />
+      </button>
+
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-30 py-1"
+          style={{ minWidth: '160px' }}
+          role="listbox"
+          aria-label="Date range options"
+        >
+          {PRESET_RANGES.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              role="option"
+              aria-selected={activePreset === p.key}
+              onClick={(e) => handlePreset(p.key, e)}
+              className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors ${
+                activePreset === p.key
+                  ? 'bg-indigo-50 text-indigo-700 font-medium'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span className="flex-1 text-left">{p.label}</span>
+              {activePreset === p.key && p.key !== 'custom' && (
+                <FiCheck size={11} className="text-indigo-600 flex-shrink-0" aria-hidden="true" />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {customAnchor && (
+        <DateRangePicker
+          initialStart={currentRange?.start ?? ''}
+          initialEnd={currentRange?.end ?? ''}
+          anchorEl={customAnchor}
+          onCommit={(start, end) => {
+            dispatch({ type: 'SET_TIME_RANGE', start, end });
+            setCustomAnchor(null);
+            setOpen(false);
+          }}
+          onCancel={() => setCustomAnchor(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 // DashboardFilterBar
 // ---------------------------------------------------------------------------
 
-type Step = 'root' | 'date' | 'user' | 'status' | 'tag' | 'timerange';
+type Step = 'root' | 'date' | 'user' | 'status' | 'tag';
 
 interface DashboardFilterBarProps {
   filters: FilterState;
@@ -178,11 +333,10 @@ const SubHeader: React.FC<{ label: string; onBack: () => void }> = ({ label, onB
 );
 
 const FILTER_OPTIONS: { step: Step; label: string; icon: React.ReactNode }[] = [
-  { step: 'date',      label: 'Date',       icon: <FiCalendar size={13} aria-hidden="true" /> },
-  { step: 'timerange', label: 'Time Range', icon: <FiCalendar size={13} aria-hidden="true" /> },
-  { step: 'user',      label: 'User',       icon: <FiUser size={13} aria-hidden="true" /> },
-  { step: 'status',    label: 'Status',     icon: <FiFlag size={13} aria-hidden="true" /> },
-  { step: 'tag',       label: 'Tags',       icon: <FiTag size={13} aria-hidden="true" /> },
+  { step: 'date',   label: 'Date',   icon: <FiCalendar size={13} aria-hidden="true" /> },
+  { step: 'user',   label: 'User',   icon: <FiUser size={13} aria-hidden="true" /> },
+  { step: 'status', label: 'Status', icon: <FiFlag size={13} aria-hidden="true" /> },
+  { step: 'tag',    label: 'Tags',   icon: <FiTag size={13} aria-hidden="true" /> },
 ];
 
 // ---------------------------------------------------------------------------
@@ -190,8 +344,6 @@ const FILTER_OPTIONS: { step: Step; label: string; icon: React.ReactNode }[] = [
 // ---------------------------------------------------------------------------
 
 const useOrgStatusOptions = (enabled: boolean, specificBoardIds?: string[]) => {
-  // specificBoardIds=undefined → no restriction, use org-wide boards as fallback.
-  // specificBoardIds=[] or non-empty → restrict; never fall back to all boards.
   const restrictToSpecific = specificBoardIds !== undefined;
   const { data: boards = [] } = useBoards(undefined, false, enabled && !restrictToSpecific);
   const boardIds: string[] = restrictToSpecific
@@ -237,7 +389,6 @@ const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispat
   const { user } = useAuthSession();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('root');
-  const [timeRangeAnchor, setTimeRangeAnchor] = useState<HTMLElement | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const { data: usersData } = useQuery({
@@ -256,18 +407,15 @@ const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispat
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
         setStep('root');
-        setTimeRangeAnchor(null);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const activeCount = filters.filters.length;
+  // Count only non-timerange active filters (timerange has its own picker)
+  const activeCount = filters.filters.filter((f) => f.type !== 'timerange').length;
   const currentDate = filters.filters.find((f): f is { type: 'date'; value: string } => f.type === 'date')?.value ?? '';
-  const currentTimeRange = filters.filters.find(
-    (f): f is { type: 'timerange'; start: string; end: string } => f.type === 'timerange',
-  );
 
   const isActive = (type: string, value: string) =>
     filters.filters.some((f) => f.type === type && (f as Record<string, string>).value === value);
@@ -360,52 +508,6 @@ const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispat
                   </button>
                 )}
               </div>
-            </>
-          )}
-
-          {step === 'timerange' && (
-            <>
-              <SubHeader label="Time Range" onBack={() => { setStep('root'); setTimeRangeAnchor(null); }} />
-              <div className="px-3 py-2">
-                {currentTimeRange ? (
-                  <div className="text-xs text-gray-700 mb-2">
-                    <span className="font-medium">{currentTimeRange.start}</span>
-                    <span className="mx-1 text-gray-400">→</span>
-                    <span className="font-medium">{currentTimeRange.end}</span>
-                  </div>
-                ) : (
-                  <p className="text-xs text-gray-400 mb-2">No time range set</p>
-                )}
-                <button
-                  type="button"
-                  onClick={(e) => setTimeRangeAnchor(e.currentTarget)}
-                  className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-left text-gray-600"
-                  aria-label="Open date range picker"
-                >
-                  {currentTimeRange ? 'Change range' : 'Select range'}
-                </button>
-                {currentTimeRange && (
-                  <button
-                    type="button"
-                    onClick={() => dispatch({ type: 'SET_TIME_RANGE', start: '', end: '' })}
-                    className="mt-1.5 w-full text-xs text-gray-400 hover:text-red-500 transition-colors"
-                  >
-                    Clear time range
-                  </button>
-                )}
-              </div>
-              {timeRangeAnchor && (
-                <DateRangePicker
-                  initialStart={currentTimeRange?.start ?? ''}
-                  initialEnd={currentTimeRange?.end ?? ''}
-                  anchorEl={timeRangeAnchor}
-                  onCommit={(start, end) => {
-                    dispatch({ type: 'SET_TIME_RANGE', start, end });
-                    setTimeRangeAnchor(null);
-                  }}
-                  onCancel={() => setTimeRangeAnchor(null)}
-                />
-              )}
             </>
           )}
 

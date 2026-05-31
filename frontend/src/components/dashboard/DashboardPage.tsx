@@ -6,6 +6,7 @@ import DashboardFilterBar, {
   filterReducer,
   toDashboardParams,
   INITIAL_FILTER_STATE,
+  DateRangePresetPicker,
 } from './DashboardFilterBar';
 import type { DashboardActiveFilter } from './DashboardFilterBar';
 import WidgetCard from './WidgetCard';
@@ -278,6 +279,7 @@ const DashboardPage: React.FC = () => {
                 />
                 Dashboards
               </h1>
+              <DateRangePresetPicker filters={filters} dispatch={dispatch} />
               <DashboardFilterBar filters={filters} dispatch={dispatch} boardIds={customDashboardBoardIds} />
             </div>
 
@@ -317,10 +319,10 @@ const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Active filter chips */}
-          {filters.filters.length > 0 && (
+          {/* Active filter chips — timerange is shown via the preset picker, skip it here */}
+          {filters.filters.some((f) => f.type !== 'timerange') && (
             <div className="flex flex-wrap items-center gap-1.5 mt-2">
-              {filters.filters.map((f, i) => (
+              {filters.filters.filter((f) => f.type !== 'timerange').map((f, i) => (
                 <FilterChip
                   key={`${f.type}-${i}`}
                   filter={f}
