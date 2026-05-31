@@ -167,45 +167,45 @@ const UserManagementPage: React.FC = () => {
         }
     })();
 
+    const navigateToUser = () => navigate(`/admin/users/${u.id}`);
+    const tdNav = "px-6 py-4 text-sm text-gray-700 cursor-pointer whitespace-nowrap";
+
     return (
-        <div
-            className="flex hover:bg-gray-50 transition-colors border-b border-gray-200 bg-white"
-            role="row"
+        <tr
+            className="hover:bg-gray-50 transition-colors border-b border-gray-200"
             aria-label={`User ${u.name}`}
         >
-            <div
-                className="flex-1 min-w-0 px-6 py-4 flex items-center cursor-pointer"
-                onClick={() => navigate(`/admin/users/${u.id}`)}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/admin/users/${u.id}`)}
+            <td
+                className="px-6 py-4 cursor-pointer"
+                onClick={navigateToUser}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigateToUser()}
                 tabIndex={0}
                 title="View profile page"
             >
-                <div className="flex-shrink-0 h-10 w-10">
-                    <img className="h-10 w-10 rounded-full object-cover" src={u.profileImageUrl || `/default_user.webp`}
-                    onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)}
-                    alt={`${u.name}'s profile picture`} />
+                <div className="flex items-center gap-3">
+                    <img
+                        className="h-10 w-10 rounded-full object-cover shrink-0"
+                        src={u.profileImageUrl || `/default_user.webp`}
+                        onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)}
+                        alt={`${u.name}'s profile picture`}
+                    />
+                    <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{u.name}</div>
+                        <div className="text-xs text-gray-500">{roleLabel}</div>
+                    </div>
                 </div>
-                <div className="ml-4 min-w-0">
-                    <div className="text-sm font-medium text-gray-900 truncate">{u.name}</div>
-                    <div className="text-xs text-gray-500">{roleLabel}</div>
-                </div>
-            </div>
-            <div className="flex-1 min-w-0 px-6 py-4 text-sm text-gray-700 flex items-center cursor-pointer"
-                onClick={() => navigate(`/admin/users/${u.id}`)}>
-                <span className="truncate">{u.email}</span>
-            </div>
-            <div className="w-36 shrink-0 px-6 py-4 text-sm text-gray-700 flex items-center cursor-pointer"
-                onClick={() => navigate(`/admin/users/${u.id}`)}>
-                <span className="truncate">{u.role === UserRole.ORGANIZATION_ADMIN ? 'All Workhubs' : (u.workspaceName || 'N/A')}</span>
-            </div>
-            <div className="w-24 shrink-0 px-4 py-4 text-sm text-gray-700 flex items-center justify-center cursor-pointer"
-                onClick={() => navigate(`/admin/users/${u.id}`)}>
+            </td>
+            <td className={tdNav} onClick={navigateToUser}>{u.email}</td>
+            <td className={tdNav} onClick={navigateToUser}>
+                {u.role === UserRole.ORGANIZATION_ADMIN ? 'All Workhubs' : (u.workspaceName || 'N/A')}
+            </td>
+            <td className="px-4 py-4 text-center cursor-pointer" onClick={navigateToUser}>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${u.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                     {u.status === 'active' ? t('common.active') : u.status}
                 </span>
-            </div>
+            </td>
             {authUser.role === UserRole.ORGANIZATION_ADMIN && (
-                <div className="w-24 shrink-0 px-3 py-4 flex items-center justify-center">
+                <td className="px-3 py-4 text-center">
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setPermissionsUser({ id: u.id, name: u.name, isOrgAdmin: u.role === UserRole.ORGANIZATION_ADMIN }); }}
@@ -215,10 +215,10 @@ const UserManagementPage: React.FC = () => {
                     >
                         <FiEdit size={15} aria-hidden="true" />
                     </button>
-                </div>
+                </td>
             )}
             {authUser.role === UserRole.ORGANIZATION_ADMIN && (
-                <div className="w-16 px-1 py-4 flex items-center justify-center shrink-0">
+                <td className="px-3 py-4 text-center">
                     {u.id !== authUser.id && (
                         <button
                             type="button"
@@ -230,9 +230,9 @@ const UserManagementPage: React.FC = () => {
                             <FiTrash2 size={15} aria-hidden="true" />
                         </button>
                     )}
-                </div>
+                </td>
             )}
-        </div>
+        </tr>
     );
   };
 
@@ -375,54 +375,57 @@ const UserManagementPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="flex-grow flex flex-col bg-white shadow-md rounded-lg overflow-hidden border border-gray-200 min-h-0">
-                <div className="flex bg-gray-50 border-b border-gray-200 shrink-0 font-medium text-xs text-gray-500 uppercase tracking-wider" role="rowgroup">
-                    <div className="flex-1 min-w-0 px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
-                    <div className="flex-1 min-w-0 px-6 py-3 text-left" role="columnheader">{t('common.email')}</div>
-                    <div className="w-36 shrink-0 px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
-                    <div className="w-24 shrink-0 px-4 py-3 text-center" role="columnheader">{t('common.status')}</div>
-                    {authUser.role === UserRole.ORGANIZATION_ADMIN && (
-                        <div className="w-24 shrink-0 px-3 py-3 text-center" role="columnheader">Permissions</div>
-                    )}
-                    {authUser.role === UserRole.ORGANIZATION_ADMIN && (
-                        <div className="w-16 shrink-0 px-3 py-3 text-center" role="columnheader">Actions</div>
-                    )}
-                </div>
-
-                <div className="flex-grow overflow-y-auto custom-scrollbar">
-                    {isUsersLoading && !infiniteData ? (
-                        <div className="flex items-center justify-center py-16">
-                            <FiLoader className="animate-spin text-blue-500" size={48} aria-label="Loading users" />
-                        </div>
-                    ) : isUsersError ? (
-                        <div className="flex items-center justify-center py-16 text-red-500" role="alert">
-                            <FiAlertTriangle className="mr-2" /> {t('admin.errorLoadingUsers')}
-                        </div>
-                    ) : allUsers.length === 0 ? (
-                        <div className="text-center py-10 text-gray-500">
-                            <FiUsers size={48} className="mx-auto mb-4 opacity-50" aria-hidden="true" />
-                            <p className="text-lg">{t('admin.noUsersFound')}</p>
-                        </div>
-                    ) : (
-                        <>
+            <div className="flex-grow overflow-y-auto custom-scrollbar bg-white shadow-md rounded-lg border border-gray-200 min-h-0">
+                {isUsersLoading && !infiniteData ? (
+                    <div className="flex items-center justify-center py-16">
+                        <FiLoader className="animate-spin text-blue-500" size={48} aria-label="Loading users" />
+                    </div>
+                ) : isUsersError ? (
+                    <div className="flex items-center justify-center py-16 text-red-500" role="alert">
+                        <FiAlertTriangle className="mr-2" /> {t('admin.errorLoadingUsers')}
+                    </div>
+                ) : allUsers.length === 0 ? (
+                    <div className="text-center py-10 text-gray-500">
+                        <FiUsers size={48} className="mx-auto mb-4 opacity-50" aria-hidden="true" />
+                        <p className="text-lg">{t('admin.noUsersFound')}</p>
+                    </div>
+                ) : (
+                    <table className="w-full text-left border-collapse">
+                        <thead>
+                            <tr className="bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <th className="px-6 py-3 font-medium">{t('common.name')}</th>
+                                <th className="px-6 py-3 font-medium">{t('common.email')}</th>
+                                <th className="px-6 py-3 font-medium">{t('common.workspace')}</th>
+                                <th className="px-4 py-3 font-medium text-center">{t('common.status')}</th>
+                                {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                                    <th className="px-3 py-3 font-medium text-center">Permissions</th>
+                                )}
+                                {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+                                    <th className="px-3 py-3 font-medium text-center">Actions</th>
+                                )}
+                            </tr>
+                        </thead>
+                        <tbody>
                             {allUsers.map((u: any) => (
                                 <UserRow key={u.id} user={u} />
                             ))}
                             {hasNextPage && (
-                                <div className="flex items-center justify-center py-4">
-                                    <button
-                                        onClick={() => fetchNextPage()}
-                                        disabled={isFetchingNextPage}
-                                        className="px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 disabled:opacity-50"
-                                    >
-                                        {isFetchingNextPage ? <FiLoader className="animate-spin inline mr-2" /> : null}
-                                        Load more
-                                    </button>
-                                </div>
+                                <tr>
+                                    <td colSpan={authUser.role === UserRole.ORGANIZATION_ADMIN ? 6 : 4} className="text-center py-4">
+                                        <button
+                                            onClick={() => fetchNextPage()}
+                                            disabled={isFetchingNextPage}
+                                            className="px-4 py-2 text-sm text-blue-600 border border-blue-300 rounded-md hover:bg-blue-50 disabled:opacity-50"
+                                        >
+                                            {isFetchingNextPage ? <FiLoader className="animate-spin inline mr-2" /> : null}
+                                            Load more
+                                        </button>
+                                    </td>
+                                </tr>
                             )}
-                        </>
-                    )}
-                </div>
+                        </tbody>
+                    </table>
+                )}
             </div>
         </div>
       </div>
