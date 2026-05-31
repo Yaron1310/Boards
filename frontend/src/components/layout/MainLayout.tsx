@@ -536,22 +536,22 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     const sidebarNavigate = useNavigate();
     const isOrganizationAdmin = user?.role === UserRole.ORGANIZATION_ADMIN;
 
-    // Calculate sidebar brightness (0=black, 1=white) to pick a contrasting hover overlay.
-    // For bright sidebars we use a dark semi-transparent overlay; for dark ones a light overlay.
+    // Calculate sidebar perceived luminance (0=black, 1=white) to pick a contrasting hover overlay.
     const sidebarBrightness = (() => {
         const hex = sidebarColor.replace('#', '');
         if (hex.length < 6) return 0;
         const r = parseInt(hex.slice(0, 2), 16) / 255;
         const g = parseInt(hex.slice(2, 4), 16) / 255;
         const b = parseInt(hex.slice(4, 6), 16) / 255;
-        // Perceived luminance (sRGB)
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     })();
-    // Bright sidebar (luminance > 0.5): dark overlay scaled by how bright it is.
-    // Dark sidebar: light overlay at 15% opacity (original behaviour).
-    const hoverBg = sidebarBrightness > 0.5
-        ? `rgba(0, 0, 0, ${(0.08 + sidebarBrightness * 0.22).toFixed(2)})`
-        : 'rgba(255, 255, 255, 0.15)';
+    // Stepped overlay: dark overlay for bright sidebars, light overlay for dark sidebars.
+    const hoverBg =
+        sidebarBrightness >= 0.85 ? 'rgba(0, 0, 0, 0.07)'   // near white
+      : sidebarBrightness >= 0.60 ? 'rgba(0, 0, 0, 0.10)'   // light
+      : sidebarBrightness >= 0.20 ? 'rgba(255, 255, 255, 0.40)' // medium
+      : sidebarBrightness >= 0.03 ? 'rgba(255, 255, 255, 0.20)' // dark
+      :                              'rgba(255, 255, 255, 0.25)'; // near black
 
     const hoverEffectStyle = `
         .sidebar-nav-item {
