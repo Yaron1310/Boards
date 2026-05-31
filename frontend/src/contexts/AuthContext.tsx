@@ -7,6 +7,8 @@ import { Capacitor } from '@capacitor/core';
 import i18n from '../i18n';
 import { signInWithCustomToken } from 'firebase/auth';
 import { firebaseAuth } from '../firebase';
+import { useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from '../hooks/queries/queryKeys';
 
 // ---------------------------------------------------------------------------
 // Session context — stable identity data, changes only on login / logout
@@ -101,6 +103,7 @@ const removeAuthData = () => {
 // ---------------------------------------------------------------------------
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [selectedWorkspace, setSelectedWorkspace] = useState<Workspace | null>(null);
@@ -321,12 +324,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const updatedUser = await apiService.updateMyUserDetails(details);
       updateAuthUser(updatedUser);
+      queryClient.setQueryData(queryKeys.users.all, (old: User[] | undefined) =>
+        old ? old.map(u => u.id === updatedUser.id ? { ...u, ...details } : u) : old
+      );
       return true;
     } catch (error: any) {
       setAuthError(error.message || 'Failed to update details');
       return false;
     }
-  }, [updateAuthUser]);
+  }, [updateAuthUser, queryClient]);
 
   const updateUserPassword = useCallback(async (passwords: { currentPassword?: string; newPassword: string }): Promise<boolean> => {
     try {
