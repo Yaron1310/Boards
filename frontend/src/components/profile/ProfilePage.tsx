@@ -529,8 +529,8 @@ const ProfilePage: React.FC = () => {
           <div className={`text-center md:text-left flex-grow ${isOwnProfile && isEditingImage ? 'hidden' : ''}`}>
             {!isEditingDetails && (
               <>
-                <h1 className="text-3xl md:text-4xl font-bold text-gray-800">{profileUser.name}</h1>
-                <p className="text-gray-600 text-lg">{profileUser.email}</p>
+                <h1 className="text-3xl md:text-4xl font-bold text-gray-800">{isOwnProfile ? (authUser?.name ?? profileUser.name) : profileUser.name}</h1>
+                <p className="text-gray-600 text-lg">{isOwnProfile ? (authUser?.email ?? profileUser.email) : profileUser.email}</p>
               </>
             )}
             {isOwnProfile && isEditingDetails && (
