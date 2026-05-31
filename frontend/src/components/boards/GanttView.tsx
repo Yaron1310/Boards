@@ -469,7 +469,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                   aria-label={`Group: ${group.name}`}
                 >
                   <div
-                    className="sticky left-0 z-10 flex items-center gap-2 px-4 bg-gray-50 flex-shrink-0 overflow-hidden"
+                    className="sticky left-0 z-20 flex items-center gap-2 px-4 bg-gray-50 flex-shrink-0 overflow-hidden"
                     style={{ width: NAME_W, minWidth: NAME_W }}
                   >
                     <span
@@ -510,7 +510,7 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                     >
                       {/* Sticky name column */}
                       <div
-                        className="sticky left-0 z-10 flex items-center bg-white group-hover:bg-indigo-50/30 border-r border-[#d2d2d4] flex-shrink-0 text-sm text-gray-800 overflow-hidden"
+                        className="sticky left-0 z-20 flex items-center bg-white group-hover:bg-indigo-50 border-r border-[#d2d2d4] flex-shrink-0 text-sm text-gray-800 overflow-hidden"
                         style={{ width: NAME_W, minWidth: NAME_W, paddingLeft: 25 }}
                         role="gridcell"
                       >
@@ -534,8 +534,8 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                             <React.Fragment key={i}>
                               {isWeekend && (
                                 <div
-                                  className="absolute top-0 bottom-0 bg-gray-100/50"
-                                  style={{ left: i * effectiveColumnPx, width: effectiveColumnPx }}
+                                  className="absolute top-0 bottom-0"
+                                  style={{ left: i * effectiveColumnPx, width: effectiveColumnPx, backgroundColor: '#e3e4e557' }}
                                   aria-hidden="true"
                                 />
                               )}
