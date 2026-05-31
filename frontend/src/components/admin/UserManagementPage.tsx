@@ -129,20 +129,14 @@ const UserManagementPage: React.FC = () => {
   }
 
   const handleRemoveUser = async () => {
-    console.log('[DBG:handleRemoveUser] called', { removeTarget, orgId: authUser?.orgId });
-    if (!removeTarget || !authUser?.orgId) {
-      console.warn('[DBG:handleRemoveUser] aborted — missing removeTarget or orgId', { removeTarget, orgId: authUser?.orgId });
-      return;
-    }
+    const orgId = selectedWorkspace?.orgId;
+    if (!removeTarget || !orgId) return;
     setIsRemoving(true);
     try {
-      console.log('[DBG:handleRemoveUser] calling API', { orgId: authUser.orgId, userId: removeTarget.id });
-      await removeUserFromOrg(authUser.orgId, removeTarget.id);
-      console.log('[DBG:handleRemoveUser] API success');
+      await removeUserFromOrg(orgId, removeTarget.id);
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setFeedback({ type: 'success', text: `${removeTarget.name} has been removed from the organization.` });
     } catch (err: any) {
-      console.error('[DBG:handleRemoveUser] API error', err);
       setFeedback({ type: 'error', text: err.message || 'Failed to remove user.' });
     } finally {
       setIsRemoving(false);
@@ -227,11 +221,7 @@ const UserManagementPage: React.FC = () => {
                 <div className="flex-[0.75] px-3 py-4 flex items-center justify-center">
                     <button
                         type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            console.log('[DBG:deleteBtn] clicked', { userId: u.id, userName: u.name, authUserId: authUser.id, orgId: authUser.orgId });
-                            setRemoveTarget({ id: u.id, name: u.name });
-                        }}
+                        onClick={(e) => { e.stopPropagation(); setRemoveTarget({ id: u.id, name: u.name }); }}
                         className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                         aria-label={`Remove ${u.name} from organization`}
                         title="Remove from organization"
