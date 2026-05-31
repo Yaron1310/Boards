@@ -211,8 +211,8 @@ const AccessibilityContent: React.FC = () => {
                     <strong>Contact:</strong> Logyx's accessibility manager.
                     <br />
                     <strong>Email:</strong>{' '}
-                    <a href="mailto:info@logyx.co" className="text-blue-600 hover:underline">
-                        info@logyx.co
+                    <a href="mailto:info@logyx.co.il" className="text-blue-600 hover:underline">
+                        info@logyx.co.il
                     </a>
                 </p>
                 <p className="mt-2">When we receive a request we will:</p>

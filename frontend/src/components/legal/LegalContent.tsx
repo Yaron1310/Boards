@@ -6,7 +6,7 @@ const LegalContent: React.FC = () => {
     const { t } = useTranslation();
     const companyName = "Logyx innovative solutions"; // Main legal entity
     const serviceName = "Logyx";
-    const contactEmail = "info@logyx.co";
+    const contactEmail = "info@logyx.co.il";
     const effectiveDateToS = "March 6, 2025";
     const effectiveDatePrivacy = "October 22, 2024";
 
@@ -74,7 +74,7 @@ const LegalContent: React.FC = () => {
                     <ul className="list-disc pl-5 space-y-1">
                         <li><strong>Content Responsibility:</strong> All courses, materials, and specific AI behavior instructions are created and managed solely by the <strong>Workspace</strong>. The WorkHub is solely responsible for the accuracy, legality, and safety of their content.</li>
                         <li><strong>No Liability:</strong> Logyx is not liable for any misinformation, harmful advice, or offensive material resulting from an Workspace's configuration of the AI or their course content. Any reliance on such content is at your own risk.</li>
-                        <li><strong>Disputes & Reporting:</strong> Any disputes regarding course material, grading, or specific AI interactions should be directed to the administrator of your specific WorkHub or Workspace. However, if you believe any content hosted on our platform is harmful, illegal, or violates copyright laws, please send a detailed report to <a href="mailto:support@logyx.co" className="text-blue-600 hover:underline">support@logyx.co</a> so we may investigate in accordance with our policies.</li>
+                        <li><strong>Disputes & Reporting:</strong> Any disputes regarding course material, grading, or specific AI interactions should be directed to the administrator of your specific WorkHub or Workspace. However, if you believe any content hosted on our platform is harmful, illegal, or violates copyright laws, please send a detailed report to <a href="mailto:support@logyx.co.il" className="text-blue-600 hover:underline">support@logyx.co.il</a> so we may investigate in accordance with our policies.</li>
                     </ul>
 
                     <h3>8. Third-Party Material in the Services</h3>
