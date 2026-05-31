@@ -174,7 +174,7 @@ const UserManagementPage: React.FC = () => {
             aria-label={`User ${u.name}`}
         >
             <div
-                className="flex-[1.5] px-6 py-4 flex items-center min-w-0 cursor-pointer"
+                className="w-52 shrink-0 px-6 py-4 flex items-center min-w-0 cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigate(`/admin/users/${u.id}`)}
                 tabIndex={0}
@@ -190,22 +190,22 @@ const UserManagementPage: React.FC = () => {
                     <div className="text-xs text-gray-500">{roleLabel}</div>
                 </div>
             </div>
-            <div className="flex-[1.5] px-6 py-4 text-sm text-gray-700 flex items-center min-w-0 cursor-pointer"
+            <div className="flex-1 min-w-0 px-6 py-4 text-sm text-gray-700 flex items-center cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}>
                 <span className="break-all">{u.email}</span>
             </div>
-            <div className="flex-[0.75] px-6 py-4 text-sm text-gray-700 flex items-center min-w-0 cursor-pointer"
+            <div className="w-36 shrink-0 px-6 py-4 text-sm text-gray-700 flex items-center cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}>
                 <span className="truncate">{u.role === UserRole.ORGANIZATION_ADMIN ? 'All Workhubs' : (u.workspaceName || 'N/A')}</span>
             </div>
-            <div className="w-24 px-4 py-4 text-sm text-gray-700 flex items-center justify-center shrink-0 cursor-pointer"
+            <div className="w-24 shrink-0 px-4 py-4 text-sm text-gray-700 flex items-center justify-center cursor-pointer"
                 onClick={() => navigate(`/admin/users/${u.id}`)}>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${u.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                     {u.status === 'active' ? t('common.active') : u.status}
                 </span>
             </div>
             {authUser.role === UserRole.ORGANIZATION_ADMIN && (
-                <div className="w-24 px-3 py-4 flex items-center justify-center shrink-0">
+                <div className="w-24 shrink-0 px-3 py-4 flex items-center justify-center">
                     <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); setPermissionsUser({ id: u.id, name: u.name, isOrgAdmin: u.role === UserRole.ORGANIZATION_ADMIN }); }}
@@ -377,15 +377,15 @@ const UserManagementPage: React.FC = () => {
 
             <div className="flex-grow flex flex-col bg-white shadow-md rounded-lg overflow-hidden border border-gray-200 min-h-0">
                 <div className="flex bg-gray-50 border-b border-gray-200 shrink-0 font-medium text-xs text-gray-500 uppercase tracking-wider" role="rowgroup">
-                    <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
-                    <div className="flex-[1.5] px-6 py-3 text-left" role="columnheader">{t('common.email')}</div>
-                    <div className="flex-[0.75] px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
-                    <div className="w-24 px-4 py-3 text-center shrink-0" role="columnheader">{t('common.status')}</div>
+                    <div className="w-52 shrink-0 px-6 py-3 text-left" role="columnheader">{t('common.name')}</div>
+                    <div className="flex-1 min-w-0 px-6 py-3 text-left" role="columnheader">{t('common.email')}</div>
+                    <div className="w-36 shrink-0 px-6 py-3 text-left" role="columnheader">{t('common.workspace')}</div>
+                    <div className="w-24 shrink-0 px-4 py-3 text-center" role="columnheader">{t('common.status')}</div>
                     {authUser.role === UserRole.ORGANIZATION_ADMIN && (
-                        <div className="w-24 px-3 py-3 text-center shrink-0" role="columnheader">Permissions</div>
+                        <div className="w-24 shrink-0 px-3 py-3 text-center" role="columnheader">Permissions</div>
                     )}
                     {authUser.role === UserRole.ORGANIZATION_ADMIN && (
-                        <div className="w-16 px-3 py-3 text-center shrink-0" role="columnheader">Actions</div>
+                        <div className="w-16 shrink-0 px-3 py-3 text-center" role="columnheader">Actions</div>
                     )}
                 </div>
 
