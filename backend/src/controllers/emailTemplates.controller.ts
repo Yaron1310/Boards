@@ -141,9 +141,9 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         name: 'User Invitation',
         description: 'Sent to pre-approved users who have been invited to join an workspace.',
         subject: "You've been invited to join {{orgName}} on Logyx",
-        variables: ['orgName', 'organizationName', 'registrationLink'],
+        variables: ['orgName', 'organizationName', 'partOfText', 'registrationLink'],
         html: `<p>Hello,</p>
-<p>You've been invited to join <strong>{{orgName}}</strong> (part of <strong>{{organizationName}}</strong>) on Logyx.</p>
+<p>You've been invited to join <strong>{{orgName}}</strong>{{partOfText}} on Logyx.</p>
 <p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p>
 <p><a href="{{registrationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
@@ -161,8 +161,11 @@ const ensureDefaultsExist = async (): Promise<void> => {
     const now = new Date();
     const batch = emailTemplatesCollection.firestore.batch();
     let writes = 0;
+    // Templates that must always be kept in sync with the latest default (bug fixes, new variables).
+    const FORCE_UPDATE_IDS = new Set(['user_invitation']);
+
     for (const tpl of DEFAULT_TEMPLATES) {
-        if (!existingIds.has(tpl.id)) {
+        if (!existingIds.has(tpl.id) || FORCE_UPDATE_IDS.has(tpl.id)) {
             const docRef = emailTemplatesCollection.doc(tpl.id);
             batch.set(docRef, { ...tpl, updatedAt: now });
             writes++;

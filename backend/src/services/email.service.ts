@@ -472,13 +472,16 @@ export const sendUserInvitationEmail = async (
 
     const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
-    const vars = { orgName, organizationName, registrationLink };
+    const partOfText = orgName !== organizationName
+        ? ` (part of <strong>${organizationName}</strong>)`
+        : '';
+    const vars = { orgName, organizationName, partOfText, registrationLink };
 
     const tpl = await fetchTemplate('user_invitation');
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `You've been invited to join ${orgName} on Logyx`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong> (part of <strong>${organizationName}</strong>) on Logyx.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
+        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong>${partOfText} on Logyx.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
