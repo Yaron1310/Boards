@@ -722,9 +722,9 @@ export const getUserBoardPermissions = async (req: Request, res: Response) => {
         // Get all non-personal workspaces for the org
         const workspacesSnap = await workspacesCollection
             .where('orgId', '==', requestingUser.orgId)
-            .where('isPersonal', '==', false)
             .get();
-        const workspaces = querySnapshotToArray<DBWorkspace>(workspacesSnap);
+        const workspaces = querySnapshotToArray<DBWorkspace>(workspacesSnap)
+            .filter(w => !w.isPersonal && !w.isTemplates);
 
         // Get all boards for the org
         const boardsSnap = await boardsCollection(requestingUser.orgId)

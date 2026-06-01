@@ -529,9 +529,10 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
         if (workspaceIds === 'all') {
             const wsSnap = await workspacesCollection
                 .where('orgId', '==', orgId)
-                .where('isPersonal', '==', false)
                 .get();
-            targetWorkspaceIds = wsSnap.docs.map(d => d.id);
+            targetWorkspaceIds = wsSnap.docs
+                .filter(d => !d.data().isPersonal && !d.data().isTemplates)
+                .map(d => d.id);
         } else {
             if (!Array.isArray(workspaceIds) || workspaceIds.length === 0) {
                 return res.status(400).json({ message: 'At least one workspace must be selected.' });
