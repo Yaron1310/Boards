@@ -18,18 +18,38 @@ export const getAllWorkspaces = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
 
     try {
-        let query: admin.firestore.Query = workspacesCollection;
-        if (user.role === UserRole.ORGANIZATION_ADMIN) {
-            query = query.where('orgId', '==', user.orgId);
-        } else if (user.role === UserRole.WORKSPACE_ADMIN) {
-            query = query.where(admin.firestore.FieldPath.documentId(), '==', user.selectedWorkspaceId);
+        let orgs: DBWorkspace[];
+
+        if (user.role === UserRole.REGULAR_USER) {
+            // Fetch only workspaces the user is explicitly a member of
+            const memberSnap = await membershipsCollection
+                .where('userId', '==', user.id)
+                .where('entityType', '==', 'workspace')
+                .get();
+            const wsIds = [...new Set(querySnapshotToArray<DBMembership>(memberSnap).map(m => m.entityId))];
+            if (wsIds.length === 0) {
+                return res.json([]);
+            }
+            const chunks: DBWorkspace[] = [];
+            for (let i = 0; i < wsIds.length; i += 30) {
+                const snap = await workspacesCollection
+                    .where(admin.firestore.FieldPath.documentId(), 'in', wsIds.slice(i, i + 30))
+                    .where('status', '!=', 'archived')
+                    .get();
+                chunks.push(...querySnapshotToArray<DBWorkspace>(snap));
+            }
+            orgs = chunks.sort((a, b) => a.name.localeCompare(b.name));
+        } else {
+            let query: admin.firestore.Query = workspacesCollection;
+            if (user.role === UserRole.ORGANIZATION_ADMIN) {
+                query = query.where('orgId', '==', user.orgId);
+            } else if (user.role === UserRole.WORKSPACE_ADMIN) {
+                query = query.where(admin.firestore.FieldPath.documentId(), '==', user.selectedWorkspaceId);
+            }
+            query = query.where('status', '!=', 'archived');
+            const snapshot = await query.orderBy('name').get();
+            orgs = querySnapshotToArray<DBWorkspace>(snapshot);
         }
-
-        // Filter out archived workspaces from the main list
-        query = query.where('status', '!=', 'archived');
-
-        const snapshot = await query.orderBy('name').get();
-        const orgs = querySnapshotToArray<DBWorkspace>(snapshot);
 
         res.json(orgs);
     } catch (error) {
