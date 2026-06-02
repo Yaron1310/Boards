@@ -7,6 +7,7 @@ import {
     usersCollection,
     membershipsCollection,
     organizationsCollection,
+    boardsCollection,
 } from '../db/collections.js';
 import { JwtUserPayload, DBWorkspace, DBUser, UserRole, DBMembership, JwtVerificationPayload, DBOrganization } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
@@ -145,12 +146,14 @@ export const deleteWorkspace = async (req: Request, res: Response) => {
             }
         }
 
-        // If force is true or no dependencies, archive it
-        await docRef.update({
-            status: 'archived',
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
-        });
-        logger.info(`Successfully archived workspace ${id}.`);
+        // If force is true or no dependencies, archive it + cascade-archive all boards
+        const orgId = doc.data()!.orgId;
+        const boardsSnap = await boardsCollection(orgId).where('workspaceId', '==', id).get();
+        const batch = db.batch();
+        batch.update(docRef, { status: 'archived', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+        boardsSnap.forEach(b => batch.update(b.ref, { isArchived: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }));
+        await batch.commit();
+        logger.info(`Successfully archived workspace ${id} and ${boardsSnap.size} boards.`);
 
         res.status(204).send();
     } catch (error) {

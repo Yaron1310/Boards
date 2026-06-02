@@ -724,7 +724,7 @@ export const getUserBoardPermissions = async (req: Request, res: Response) => {
             .where('orgId', '==', requestingUser.orgId)
             .get();
         const workspaces = querySnapshotToArray<DBWorkspace>(workspacesSnap)
-            .filter(w => !w.isPersonal && !w.isTemplates);
+            .filter(w => !w.isPersonal && !w.isTemplates && w.status !== 'archived');
 
         // Get all boards for the org
         const boardsSnap = await boardsCollection(requestingUser.orgId)
