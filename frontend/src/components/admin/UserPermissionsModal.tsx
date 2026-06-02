@@ -21,7 +21,6 @@ const WS_PERM_OPTIONS: Array<{ value: 'edit' | 'read_only'; label: string }> = [
 const BOARD_ROLE_OPTIONS: Array<{ value: BoardRole; label: string }> = [
   { value: BoardRole.VIEWER, label: 'View' },
   { value: BoardRole.EDITOR, label: 'Edit' },
-  { value: BoardRole.ADMIN, label: 'Admin' },
 ];
 
 const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, onClose }) => {
