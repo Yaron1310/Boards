@@ -406,58 +406,57 @@ export const register = async (req: Request, res: Response) => {
         }
 
         // Standard Workspace Pre-approved Flow
-        const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
+        // Fetch ALL pre-approval records for this email (there may be one per workspace when invited org-wide)
+        const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).get();
         if (preapprovedQuery.empty) {
             logger.warn(`Registration attempt by non-pre-approved email: ${email}`);
             return res.status(403).json({ message: 'You are not authorized to register. Please contact your workspace manager.' });
         }
 
-        const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedQuery.docs[0])!;
-        const workspaceId = preapprovedData.workspaceId;
-
+        const allPreapprovedDocs = preapprovedQuery.docs;
         const passwordHash = await bcrypt.hash(password, 10);
         const newUserRef = usersCollection.doc();
+        // Invited users are trusted — mark active immediately, no email verification needed
         const newUser: Omit<DBUser, 'createdAt' | 'googleId'> = {
             id: newUserRef.id, email, name, passwordHash,
-            status: 'pending',
+            status: 'active',
+            emailVerified: true,
             profileImageUrl: '/default_user.webp',
         };
 
         const batch = db.batch();
         batch.set(newUserRef, { ...newUser, createdAt: new Date() });
 
+        // Create a membership for every workspace the user was pre-approved into
         let orgId = '';
-        if (workspaceId) {
-            const orgDoc = await workspacesCollection.doc(workspaceId).get();
-            if (orgDoc.exists) orgId = orgDoc.data()?.orgId || '';
-            const newMembershipRef = membershipsCollection.doc();
-            const newMembership: Omit<DBMembership, 'createdAt'> = {
-                id: newMembershipRef.id,
-                userId: newUser.id,
-                userName: newUser.name,
-                userEmail: newUser.email,
-                entityId: workspaceId,
-                entityType: 'workspace',
-                role: UserRole.REGULAR_USER,
-                orgId,
-            };
-            batch.set(newMembershipRef, {
-                ...newMembership,
-                ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
-                ...(preapprovedData.boardOnlyAccess ? { boardOnlyAccess: true } : {}),
-                ...(preapprovedData.boardIds ? { boardIds: preapprovedData.boardIds } : {}),
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+        for (const preapprovedDoc of allPreapprovedDocs) {
+            const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedDoc)!;
+            const workspaceId = preapprovedData.workspaceId;
+            if (workspaceId) {
+                const orgDoc = await workspacesCollection.doc(workspaceId).get();
+                const wsOrgId = orgDoc.exists ? (orgDoc.data()?.orgId || '') : '';
+                if (!orgId) orgId = wsOrgId;
+                const newMembershipRef = membershipsCollection.doc();
+                batch.set(newMembershipRef, {
+                    id: newMembershipRef.id,
+                    userId: newUser.id,
+                    userName: newUser.name,
+                    userEmail: newUser.email,
+                    entityId: workspaceId,
+                    entityType: 'workspace',
+                    role: UserRole.REGULAR_USER,
+                    orgId: wsOrgId,
+                    ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
+                    ...(preapprovedData.boardOnlyAccess ? { boardOnlyAccess: true } : {}),
+                    ...(preapprovedData.boardIds ? { boardIds: preapprovedData.boardIds } : {}),
+                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
+            // Delete pre-approval record immediately — no longer needed
+            batch.delete(preapprovedDoc.ref);
         }
 
         await batch.commit();
-
-        const verificationTokenPayload: JwtVerificationPayload = {
-            userId: newUser.id,
-            action: 'verify_email',
-        };
-        const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
-        const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
 
         let organizationName = 'Logyx';
         if (orgId) {
@@ -465,11 +464,12 @@ export const register = async (req: Request, res: Response) => {
             organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
         }
 
-        await sendAccountVerificationEmail(email, name, verificationLink, organizationName);
+        // Send welcome email (fire and forget) — verification email is skipped for invited users
+        sendWelcomeEmail(email, name).catch(err => logger.error("Failed to send welcome email:", err));
 
         return res.status(201).json({
             success: true,
-            message: `Registration successful! An email has been sent to ${email}. Please click the link inside to verify your account.`
+            message: `Welcome to ${organizationName}! Your account is ready. You can now log in.`
         });
 
     } catch (error) {

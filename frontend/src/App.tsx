@@ -271,7 +271,7 @@ const App: React.FC = () => {
             <Route
               path="/admin/organization-hub"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <AcademyHubPage />
                 </ProtectedRoute>
               }
