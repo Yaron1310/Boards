@@ -34,9 +34,8 @@ export const getAllWorkspaces = async (req: Request, res: Response) => {
             for (let i = 0; i < wsIds.length; i += 30) {
                 const snap = await workspacesCollection
                     .where(admin.firestore.FieldPath.documentId(), 'in', wsIds.slice(i, i + 30))
-                    .where('status', '!=', 'archived')
                     .get();
-                chunks.push(...querySnapshotToArray<DBWorkspace>(snap));
+                chunks.push(...querySnapshotToArray<DBWorkspace>(snap).filter(w => w.status !== 'archived'));
             }
             orgs = chunks.sort((a, b) => a.name.localeCompare(b.name));
         } else {
