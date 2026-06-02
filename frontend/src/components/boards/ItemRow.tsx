@@ -153,26 +153,22 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
             />
           ) : (
             <div
-              className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer group/name"
-              onClick={() => onOpenDetail(item)}
+              className="flex items-center gap-1 flex-1 min-w-0 cursor-text group/name"
+              onClick={() => canManage ? setEditingName(true) : onOpenDetail(item)}
               tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(item); }}
-              aria-label={`Open details for ${item.name}`}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') canManage ? setEditingName(true) : onOpenDetail(item); }}
+              aria-label={canManage ? `Edit name of ${item.name}` : `Open details for ${item.name}`}
             >
               <span className="text-sm font-medium text-gray-800 truncate">{item.name}</span>
               {item.isArchived && (
                 <span className="ml-2 text-xs text-gray-400 flex-shrink-0">(archived)</span>
               )}
               {canManage && (
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); setEditingName(true); }}
-                  className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 text-gray-400 opacity-0 group-hover/name:opacity-100 hover:bg-gray-200 hover:text-gray-600 transition-opacity ml-1"
-                  aria-label={`Edit name of ${item.name}`}
-                  tabIndex={-1}
-                >
-                  <FiEdit2 size={10} aria-hidden="true" />
-                </button>
+                <FiEdit2
+                  size={10}
+                  aria-hidden="true"
+                  className="flex-shrink-0 text-gray-400 opacity-0 group-hover/name:opacity-100 transition-opacity ml-1"
+                />
               )}
             </div>
           )}
