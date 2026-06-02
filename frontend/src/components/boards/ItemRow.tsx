@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare } from 'react-icons/fi';
+import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiEdit2 } from 'react-icons/fi';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
-import { useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
+import { useArchiveItem, useRestoreItem, useDeleteItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
@@ -32,6 +32,32 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(item.name);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { mutateAsync: updateItem } = useUpdateItem();
+
+  useEffect(() => { setNameValue(item.name); }, [item.name]);
+
+  useEffect(() => {
+    if (editingName) inputRef.current?.select();
+  }, [editingName]);
+
+  const commitName = useCallback(async () => {
+    const trimmed = nameValue.trim();
+    if (!trimmed || trimmed === item.name) {
+      setNameValue(item.name);
+      setEditingName(false);
+      return;
+    }
+    setEditingName(false);
+    await updateItem({ id: item.id, patch: { name: trimmed } });
+  }, [nameValue, item.name, item.id, updateItem]);
+
+  const handleNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitName(); }
+    if (e.key === 'Escape') { setNameValue(item.name); setEditingName(false); }
+  };
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
 
@@ -112,15 +138,43 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
         {/* Item name */}
         <div
           role="gridcell"
-          className="flex items-center flex-1 min-w-0 px-3 py-2 cursor-pointer"
-          onClick={() => onOpenDetail(item)}
-          aria-label={`Open details for ${item.name}`}
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(item); }}
+          className="flex items-center flex-1 min-w-0 px-3 py-2"
         >
-          <span className="text-sm font-medium text-gray-800 truncate">{item.name}</span>
-          {item.isArchived && (
-            <span className="ml-2 text-xs text-gray-400 flex-shrink-0">(archived)</span>
+          {editingName && canManage ? (
+            <input
+              ref={inputRef}
+              value={nameValue}
+              onChange={e => setNameValue(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={handleNameKeyDown}
+              onClick={e => e.stopPropagation()}
+              className="w-full text-sm font-medium text-gray-800 bg-white border border-indigo-400 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-indigo-400"
+              aria-label="Edit item name"
+            />
+          ) : (
+            <div
+              className="flex items-center gap-1 flex-1 min-w-0 cursor-pointer group/name"
+              onClick={() => onOpenDetail(item)}
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onOpenDetail(item); }}
+              aria-label={`Open details for ${item.name}`}
+            >
+              <span className="text-sm font-medium text-gray-800 truncate">{item.name}</span>
+              {item.isArchived && (
+                <span className="ml-2 text-xs text-gray-400 flex-shrink-0">(archived)</span>
+              )}
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setEditingName(true); }}
+                  className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 text-gray-400 opacity-0 group-hover/name:opacity-100 hover:bg-gray-200 hover:text-gray-600 transition-opacity ml-1"
+                  aria-label={`Edit name of ${item.name}`}
+                  tabIndex={-1}
+                >
+                  <FiEdit2 size={10} aria-hidden="true" />
+                </button>
+              )}
+            </div>
           )}
         </div>
 
