@@ -354,9 +354,10 @@ export const getUserBoardPermissions = async (
 export const updateUserBoardPermissions = async (
     userId: string,
     boards: Array<{ boardId: string; role: import('../types').BoardRole }>,
-    workspaceIds: string[]
+    workspaceIds: string[],
+    workspacePermissions: Record<string, 'edit' | 'read_only'>
 ): Promise<{ message: string }> =>
     fetchWithAuth(`/api/users/${userId}/board-permissions`, {
         method: 'PUT',
-        body: JSON.stringify({ boards, workspaceIds }),
+        body: JSON.stringify({ boards, workspaceIds, workspacePermissions }),
     });

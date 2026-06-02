@@ -13,27 +13,47 @@ interface Props {
   onClose: () => void;
 }
 
+const WS_PERM_OPTIONS: Array<{ value: 'edit' | 'read_only'; label: string }> = [
+  { value: 'edit', label: 'Edit' },
+  { value: 'read_only', label: 'Read only' },
+];
+
+const BOARD_ROLE_OPTIONS: Array<{ value: BoardRole; label: string }> = [
+  { value: BoardRole.VIEWER, label: 'View' },
+  { value: BoardRole.EDITOR, label: 'Edit' },
+  { value: BoardRole.ADMIN, label: 'Admin' },
+];
+
 const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, onClose }) => {
   const { data, isLoading, isError } = useUserBoardPermissions(userId);
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
 
-  // checkedBoards: set of boardIds the user should have access to
   const [checkedBoards, setCheckedBoards] = useState<Set<string>>(new Set());
+  const [boardRoles, setBoardRoles] = useState<Map<string, BoardRole>>(new Map());
+  const [wsPermissions, setWsPermissions] = useState<Map<string, 'edit' | 'read_only'>>(new Map());
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
     if (data && !initialized) {
-      const initial = new Set<string>();
+      const initialBoards = new Set<string>();
+      const initialRoles = new Map<string, BoardRole>();
+      const initialWsPerms = new Map<string, 'edit' | 'read_only'>();
       const expanded = new Set<string>();
       for (const ws of data.workspaces) {
         expanded.add(ws.id);
+        initialWsPerms.set(ws.id, ws.permissions ?? 'edit');
         for (const board of ws.boards) {
-          if (board.isMember) initial.add(board.id);
+          if (board.isMember) {
+            initialBoards.add(board.id);
+            initialRoles.set(board.id, board.role ?? BoardRole.EDITOR);
+          }
         }
       }
-      setCheckedBoards(initial);
+      setCheckedBoards(initialBoards);
+      setBoardRoles(initialRoles);
+      setWsPermissions(initialWsPerms);
       setExpandedWorkspaces(expanded);
       setInitialized(true);
     }
@@ -47,7 +67,12 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
       if (allChecked) {
         allBoardIds.forEach((id) => next.delete(id));
       } else {
-        allBoardIds.forEach((id) => next.add(id));
+        allBoardIds.forEach((id) => {
+          next.add(id);
+          if (!boardRoles.has(id)) {
+            setBoardRoles(r => new Map(r).set(id, BoardRole.EDITOR));
+          }
+        });
       }
       return next;
     });
@@ -56,10 +81,22 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
   const toggleBoard = (boardId: string) => {
     setCheckedBoards((prev) => {
       const next = new Set(prev);
-      if (next.has(boardId)) next.delete(boardId);
-      else next.add(boardId);
+      if (next.has(boardId)) {
+        next.delete(boardId);
+      } else {
+        next.add(boardId);
+        setBoardRoles(r => r.has(boardId) ? r : new Map(r).set(boardId, BoardRole.EDITOR));
+      }
       return next;
     });
+  };
+
+  const setBoardRole = (boardId: string, role: BoardRole) => {
+    setBoardRoles(prev => new Map(prev).set(boardId, role));
+  };
+
+  const setWsPerm = (wsId: string, perm: 'edit' | 'read_only') => {
+    setWsPermissions(prev => new Map(prev).set(wsId, perm));
   };
 
   const toggleExpanded = (wsId: string) => {
@@ -83,15 +120,17 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
   const handleSave = async () => {
     setFeedback(null);
     try {
-      const boards = [...checkedBoards].map((boardId) => ({ boardId, role: BoardRole.EDITOR }));
-      // Derive workspace memberships from selected boards so users without a
-      // workspace membership get one automatically when boards are granted.
+      const boards = [...checkedBoards].map((boardId) => ({
+        boardId,
+        role: boardRoles.get(boardId) ?? BoardRole.EDITOR,
+      }));
       const workspaceIds = [...new Set(
         (data?.workspaces ?? [])
           .filter(ws => ws.boards.some(b => checkedBoards.has(b.id)) || ws.isMember)
           .map(ws => ws.id)
       )];
-      await savePermissions({ boards, workspaceIds });
+      const workspacePermissions = Object.fromEntries(wsPermissions);
+      await savePermissions({ boards, workspaceIds, workspacePermissions });
       setFeedback({ type: 'success', text: 'Permissions saved successfully.' });
       setTimeout(() => onClose(), 1200);
     } catch {
@@ -165,6 +204,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
           {!isOrgAdmin && data && data.workspaces.map((ws) => {
             const state = getWorkspaceState(ws);
             const isExpanded = expandedWorkspaces.has(ws.id);
+            const wsPerm = wsPermissions.get(ws.id) ?? 'edit';
 
             return (
               <div key={ws.id} className="mb-3">
@@ -180,40 +220,73 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
                       ? <FiChevronDown size={14} aria-hidden="true" />
                       : <FiChevronRight size={14} aria-hidden="true" />}
                   </button>
-                  <label className="flex items-center gap-2 flex-1 cursor-pointer">
+                  <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
                     <input
                       type="checkbox"
                       checked={state === 'all'}
-                      ref={(el) => {
-                        if (el) el.indeterminate = state === 'partial';
-                      }}
+                      ref={(el) => { if (el) el.indeterminate = state === 'partial'; }}
                       onChange={() => toggleWorkspace(ws)}
-                      className="accent-indigo-600 w-3.5 h-3.5"
+                      className="accent-indigo-600 w-3.5 h-3.5 flex-shrink-0"
                       aria-label={`Select all boards in ${ws.name}`}
                     />
-                    <span className="text-sm font-semibold text-gray-700">{ws.name}</span>
-                    <span className="text-xs text-gray-400">({ws.boards.length} boards)</span>
+                    <span className="text-sm font-semibold text-gray-700 truncate">{ws.name}</span>
+                    <span className="text-xs text-gray-400 flex-shrink-0">({ws.boards.length} boards)</span>
                   </label>
+                  {/* Workspace-level permission toggle */}
+                  <div className="flex items-center rounded-md border border-gray-200 overflow-hidden flex-shrink-0" role="group" aria-label={`Permission level for ${ws.name}`}>
+                    {WS_PERM_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setWsPerm(ws.id, opt.value)}
+                        className={`px-2 py-0.5 text-xs transition-colors ${wsPerm === opt.value ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                        aria-pressed={wsPerm === opt.value}
+                        aria-label={`Set ${ws.name} to ${opt.label}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Board rows */}
                 {isExpanded && (
                   <div className="ml-8 space-y-0.5">
-                    {ws.boards.map((board) => (
-                      <label
-                        key={board.id}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checkedBoards.has(board.id)}
-                          onChange={() => toggleBoard(board.id)}
-                          className="accent-indigo-600 w-3.5 h-3.5"
-                          aria-label={`Grant access to board ${board.name}`}
-                        />
-                        <span className="text-sm text-gray-600">{board.name}</span>
-                      </label>
-                    ))}
+                    {ws.boards.map((board) => {
+                      const isChecked = checkedBoards.has(board.id);
+                      const role = boardRoles.get(board.id) ?? BoardRole.EDITOR;
+                      return (
+                        <div key={board.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50">
+                          <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleBoard(board.id)}
+                              className="accent-indigo-600 w-3.5 h-3.5 flex-shrink-0"
+                              aria-label={`Grant access to board ${board.name}`}
+                            />
+                            <span className="text-sm text-gray-600 truncate">{board.name}</span>
+                          </label>
+                          {/* Board role selector — visible only when board is checked */}
+                          {isChecked && (
+                            <div className="flex items-center rounded-md border border-gray-200 overflow-hidden flex-shrink-0" role="group" aria-label={`Role for board ${board.name}`}>
+                              {BOARD_ROLE_OPTIONS.map(opt => (
+                                <button
+                                  key={opt.value}
+                                  type="button"
+                                  onClick={() => setBoardRole(board.id, opt.value)}
+                                  className={`px-2 py-0.5 text-xs transition-colors ${role === opt.value ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'}`}
+                                  aria-pressed={role === opt.value}
+                                  aria-label={`Set role to ${opt.label} for ${board.name}`}
+                                >
+                                  {opt.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                     {ws.boards.length === 0 && (
                       <p className="px-2 py-1 text-xs text-gray-400">No boards in this workhub.</p>
                     )}

@@ -744,20 +744,22 @@ export const getUserBoardPermissions = async (req: Request, res: Response) => {
             }
         });
 
-        // Check which workspaces the user already has a membership in
+        // Check which workspaces the user already has a membership in, and their permissions
         const wsMemberSnap = await membershipsCollection
             .where('userId', '==', userId)
             .where('orgId', '==', requestingUser.orgId)
             .get();
-        const memberWorkspaceIds = new Set(
-            querySnapshotToArray<DBMembership>(wsMemberSnap).map(m => m.entityId)
-        );
+        const wsMembershipMap = new Map<string, 'edit' | 'read_only'>();
+        querySnapshotToArray<DBMembership>(wsMemberSnap).forEach(m => {
+            wsMembershipMap.set(m.entityId, m.permissions ?? 'edit');
+        });
 
         // Build grouped structure — include ALL workspaces so admin can add membership
         const result = workspaces.map(ws => ({
             id: ws.id,
             name: ws.name,
-            isMember: memberWorkspaceIds.has(ws.id),
+            isMember: wsMembershipMap.has(ws.id),
+            permissions: wsMembershipMap.get(ws.id) ?? 'edit',
             boards: allBoards
                 .filter(b => b.workspaceId === ws.id)
                 .map(b => ({
@@ -783,9 +785,10 @@ export const getUserBoardPermissions = async (req: Request, res: Response) => {
 export const updateUserBoardPermissions = async (req: Request, res: Response) => {
     const requestingUser = req.user as JwtUserPayload;
     const { userId } = req.params;
-    const { boards: newBoards, workspaceIds: newWorkspaceIds } = req.body as {
+    const { boards: newBoards, workspaceIds: newWorkspaceIds, workspacePermissions: newWsPermissions } = req.body as {
         boards: Array<{ boardId: string; role: BoardRole }>;
         workspaceIds?: string[];
+        workspacePermissions?: Record<string, 'edit' | 'read_only'>;
     };
 
     if (requestingUser.role !== UserRole.ORGANIZATION_ADMIN && requestingUser.role !== UserRole.SYSTEM_ADMIN) {
@@ -833,8 +836,9 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
 
         // --- Workspace membership changes ---
         if (Array.isArray(newWorkspaceIds)) {
-            // Add workspace memberships that are now desired but missing
+            // Add or update workspace memberships
             for (const wsId of desiredWsIds) {
+                const wsPerms: 'edit' | 'read_only' = newWsPermissions?.[wsId] === 'read_only' ? 'read_only' : 'edit';
                 if (!currentWsIds.has(wsId)) {
                     const wsDoc = await workspacesCollection.doc(wsId).get();
                     if (!wsDoc.exists || (wsDoc.data() as DBWorkspace).orgId !== requestingUser.orgId) continue;
@@ -848,9 +852,13 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
                         entityType: 'workspace',
                         role: UserRole.REGULAR_USER,
                         orgId: requestingUser.orgId,
-                        permissions: 'edit',
+                        permissions: wsPerms,
                         createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     });
+                } else {
+                    // Update permissions on existing membership
+                    const existingDoc = currentWsMemberSnap.docs.find(d => (d.data() as DBMembership).entityId === wsId);
+                    if (existingDoc) batch.update(existingDoc.ref, { permissions: wsPerms });
                 }
             }
             // Remove workspace memberships no longer desired
