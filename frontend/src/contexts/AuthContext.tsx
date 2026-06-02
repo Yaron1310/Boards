@@ -55,7 +55,7 @@ export interface AuthUIContextType {
   cancelContextSelection: () => void;
   finalizeLoginSession: (loginData: any) => void;
 
-  register: (userData: Omit<User, 'id' | 'role' | 'workspaceIds' | 'workspaces' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string; planId?: string }, recaptchaToken?: string | null) => Promise<{ success: boolean; message: string }>;
+  register: (userData: Omit<User, 'id' | 'role' | 'workspaceIds' | 'workspaces' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string; planId?: string }, recaptchaToken?: string | null) => Promise<{ success: boolean; message: string; requiresVerification?: boolean }>;
   initiateCheckoutRegistration: (formData: any, recaptchaToken?: string | null) => Promise<{ success: boolean; message?: string }>;
   registerOrganizationAdmin: (userData: Omit<User, 'id' | 'role' | 'workspaceIds' | 'workspaces' | 'profileImageUrl' | 'status' | 'dbRoles'> & { password: string }, planId: string, recaptchaToken?: string | null) => Promise<{ success: boolean; user?: User }>;
 }

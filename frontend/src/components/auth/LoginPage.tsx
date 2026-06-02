@@ -80,6 +80,7 @@ const LoginPage: React.FC = () => {
     const accountVerified = searchParams.get('account_verified');
     const passwordCreated = searchParams.get('password_created');
     const passwordReset = searchParams.get('password_reset');
+    const ready = searchParams.get('ready');
     const infoMessage = searchParams.get('message');
 
 
@@ -89,7 +90,7 @@ const LoginPage: React.FC = () => {
         setPageSpecificInfo(t('auth.sessionExpired'));
     } else if (accountVerified) {
         setPageSpecificInfo(t('auth.emailVerified'));
-    } else if (passwordCreated) {
+    } else if (passwordCreated || ready) {
         setPageSpecificInfo(infoMessage || t('auth.passwordCreated'));
     } else if (passwordReset) {
         setPageSpecificInfo(t('auth.passwordResetSuccess'));
@@ -98,7 +99,7 @@ const LoginPage: React.FC = () => {
     }
 
     // Clean up URL after reading the messages, but keep planId info if present
-    const paramsToClean = ['google_auth_failed', 'error_message', 'session_expired', 'account_verified', 'password_created', 'password_reset', 'message'];
+    const paramsToClean = ['google_auth_failed', 'error_message', 'session_expired', 'account_verified', 'password_created', 'password_reset', 'ready', 'message'];
     let paramsChanged = false;
     paramsToClean.forEach(param => {
         if (searchParams.has(param)) {

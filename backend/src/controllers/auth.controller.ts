@@ -469,6 +469,7 @@ export const register = async (req: Request, res: Response) => {
 
         return res.status(201).json({
             success: true,
+            requiresVerification: false,
             message: `Welcome to ${organizationName}! Your account is ready. You can now log in.`
         });
 

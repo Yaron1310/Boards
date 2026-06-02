@@ -10,6 +10,7 @@ import {
     usersCollection,
     systemSettingsCollection,
     membershipsCollection,
+    boardsCollection,
 } from './collections.js';
 import { DBOrganization, DBWorkspace, DBUser, UserRole, DBOrganizationSettings, DBMembership } from '../types/index.js';
 
@@ -147,6 +148,9 @@ export const seedDefaultData = async () => {
 
   // --- Migration: ensure every org has a templates workspace ---
   await ensureTemplatesWorkspaceForAllOrgs();
+
+  // --- One-time migration: archive boards in archived workspaces ---
+  await archiveBoardsInArchivedWorkspaces();
 };
 
 const ensureTemplatesWorkspaceForAllOrgs = async () => {
@@ -178,4 +182,34 @@ const ensureTemplatesWorkspaceForAllOrgs = async () => {
   }
   await migrationBatch.commit();
   logger.info('Templates workspace migration complete.');
+};
+
+const archiveBoardsInArchivedWorkspaces = async () => {
+  const markerRef = db.collection('migrations').doc('archive_boards_in_archived_workspaces');
+  const marker = await markerRef.get();
+  if (marker.exists) return; // Already ran
+
+  const archivedWsSnap = await workspacesCollection.where('status', '==', 'archived').get();
+  if (archivedWsSnap.empty) {
+    await markerRef.set({ completedAt: new Date() });
+    return;
+  }
+
+  let totalArchived = 0;
+  for (const wsDoc of archivedWsSnap.docs) {
+    const wsData = wsDoc.data();
+    if (!wsData.orgId) continue;
+    const boardsSnap = await boardsCollection(wsData.orgId)
+      .where('workspaceId', '==', wsDoc.id)
+      .where('isArchived', '==', false)
+      .get();
+    if (boardsSnap.empty) continue;
+    const batch = db.batch();
+    boardsSnap.forEach(b => batch.update(b.ref, { isArchived: true, updatedAt: new Date() }));
+    await batch.commit();
+    totalArchived += boardsSnap.size;
+  }
+
+  await markerRef.set({ completedAt: new Date(), boardsArchived: totalArchived });
+  logger.info(`Migration complete: archived ${totalArchived} boards in archived workspaces.`);
 };

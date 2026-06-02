@@ -136,8 +136,8 @@ const RegistrationPage: React.FC = () => {
     const result = await register({ name, email, password, planId: planId || undefined }, recaptchaToken);
 
     if (result.success) {
-      if (result.message.includes("Password created")) {
-        navigate(`/login?password_created=true&message=${encodeURIComponent(result.message)}`);
+      if (result.message.includes("Password created") || result.requiresVerification === false) {
+        navigate(`/login?ready=true&message=${encodeURIComponent(result.message)}`);
       } else {
         setPendingMessage(result.message);
         setRegistrationState('pending');

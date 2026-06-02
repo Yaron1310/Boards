@@ -35,6 +35,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
 
   const [checkedBoards, setCheckedBoards] = useState<Set<string>>(new Set());
+  const [checkedWorkspaces, setCheckedWorkspaces] = useState<Set<string>>(new Set());
   const [boardRoles, setBoardRoles] = useState<Map<string, BoardRole>>(new Map());
   const [wsPermissions, setWsPermissions] = useState<Map<string, 'edit' | 'read_only' | 'admin'>>(new Map());
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
@@ -44,12 +45,14 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
   useEffect(() => {
     if (data && !initialized) {
       const initialBoards = new Set<string>();
+      const initialWorkspaces = new Set<string>();
       const initialRoles = new Map<string, BoardRole>();
-      const initialWsPerms = new Map<string, 'edit' | 'read_only'>();
+      const initialWsPerms = new Map<string, 'edit' | 'read_only' | 'admin'>();
       const expanded = new Set<string>();
       for (const ws of data.workspaces) {
         expanded.add(ws.id);
         initialWsPerms.set(ws.id, ws.permissions ?? 'edit');
+        if (ws.isMember) initialWorkspaces.add(ws.id);
         for (const board of ws.boards) {
           if (board.isMember) {
             initialBoards.add(board.id);
@@ -58,6 +61,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
         }
       }
       setCheckedBoards(initialBoards);
+      setCheckedWorkspaces(initialWorkspaces);
       setBoardRoles(initialRoles);
       setWsPermissions(initialWsPerms);
       setExpandedWorkspaces(expanded);
@@ -66,22 +70,19 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
   }, [data, initialized]);
 
   const toggleWorkspace = (ws: BoardPermissionsWorkspace) => {
+    const isWsChecked = checkedWorkspaces.has(ws.id);
     const allBoardIds = ws.boards.map((b) => b.id);
-    const allChecked = allBoardIds.every((id) => checkedBoards.has(id));
-    setCheckedBoards((prev) => {
-      const next = new Set(prev);
-      if (allChecked) {
-        allBoardIds.forEach((id) => next.delete(id));
-      } else {
-        allBoardIds.forEach((id) => {
-          next.add(id);
-          if (!boardRoles.has(id)) {
-            setBoardRoles(r => new Map(r).set(id, BoardRole.EDITOR));
-          }
-        });
-      }
-      return next;
-    });
+    if (isWsChecked) {
+      // Uncheck workspace and all its boards
+      setCheckedWorkspaces(prev => { const n = new Set(prev); n.delete(ws.id); return n; });
+      setCheckedBoards(prev => { const n = new Set(prev); allBoardIds.forEach(id => n.delete(id)); return n; });
+    } else {
+      // Check workspace (boards stay as-is — user can select boards separately)
+      setCheckedWorkspaces(prev => new Set(prev).add(ws.id));
+      allBoardIds.forEach(id => {
+        if (!boardRoles.has(id)) setBoardRoles(r => new Map(r).set(id, BoardRole.EDITOR));
+      });
+    }
   };
 
   const toggleBoard = (boardId: string) => {
@@ -130,11 +131,12 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
         boardId,
         role: boardRoles.get(boardId) ?? BoardRole.EDITOR,
       }));
-      const workspaceIds = [...new Set(
-        (data?.workspaces ?? [])
-          .filter(ws => ws.boards.some(b => checkedBoards.has(b.id)) || ws.isMember)
-          .map(ws => ws.id)
-      )];
+      const workspaceIds = [...new Set([
+        ...checkedWorkspaces,
+        ...(data?.workspaces ?? [])
+          .filter(ws => ws.boards.some(b => checkedBoards.has(b.id)))
+          .map(ws => ws.id),
+      ])];
       const workspacePermissions = Object.fromEntries(wsPermissions);
       await savePermissions({ boards, workspaceIds, workspacePermissions });
       setFeedback({ type: 'success', text: 'Permissions saved successfully.' });
@@ -230,11 +232,11 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
                   <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
                     <input
                       type="checkbox"
-                      checked={state === 'all'}
-                      ref={(el) => { if (el) el.indeterminate = state === 'partial'; }}
+                      checked={checkedWorkspaces.has(ws.id)}
+                      ref={(el) => { if (el) el.indeterminate = !checkedWorkspaces.has(ws.id) && state !== 'none'; }}
                       onChange={() => toggleWorkspace(ws)}
                       className="accent-indigo-600 w-3.5 h-3.5 flex-shrink-0"
-                      aria-label={`Select all boards in ${ws.name}`}
+                      aria-label={`Grant access to workhub ${ws.name}`}
                     />
                     <span className="text-sm font-semibold text-gray-700 truncate">{ws.name}</span>
                     <span className="text-xs text-gray-400 flex-shrink-0">({ws.boards.length} boards)</span>
@@ -308,7 +310,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
         <div className="px-6 py-4 border-t bg-gray-50 rounded-b-xl flex justify-between items-center">
           {!isOrgAdmin && (
             <p className="text-xs text-gray-400">
-              {checkedBoards.size} board{checkedBoards.size !== 1 ? 's' : ''} selected
+              {checkedWorkspaces.size} workhub{checkedWorkspaces.size !== 1 ? 's' : ''}, {checkedBoards.size} board{checkedBoards.size !== 1 ? 's' : ''} selected
             </p>
           )}
           <div className={`flex gap-2 ${isOrgAdmin ? 'ml-auto' : ''}`}>
