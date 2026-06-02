@@ -555,6 +555,7 @@ export interface BoardMember {
 export interface BoardPermissionsWorkspace {
   id: string;
   name: string;
+  isMember: boolean;
   boards: Array<{
     id: string;
     name: string;

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { FiX, FiLoader, FiCheckCircle, FiAlertCircle, FiChevronDown, FiChevronRight, FiShield } from 'react-icons/fi';
@@ -16,7 +17,9 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
   const { data, isLoading, isError } = useUserBoardPermissions(userId);
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
 
-  // checkedBoards: set of boardIds the user should have access to
+  // workspaceIds the user is a member of
+  const [memberWorkspaces, setMemberWorkspaces] = useState<Set<string>>(new Set());
+  // boardIds the user has board-level access to
   const [checkedBoards, setCheckedBoards] = useState<Set<string>>(new Set());
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -24,36 +27,45 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
 
   useEffect(() => {
     if (data && !initialized) {
-      const initial = new Set<string>();
+      const initialBoards = new Set<string>();
+      const initialMemberWs = new Set<string>();
       const expanded = new Set<string>();
       for (const ws of data.workspaces) {
         expanded.add(ws.id);
+        if (ws.isMember) initialMemberWs.add(ws.id);
         for (const board of ws.boards) {
-          if (board.isMember) initial.add(board.id);
+          if (board.isMember) initialBoards.add(board.id);
         }
       }
-      setCheckedBoards(initial);
+      setCheckedBoards(initialBoards);
+      setMemberWorkspaces(initialMemberWs);
       setExpandedWorkspaces(expanded);
       setInitialized(true);
     }
   }, [data, initialized]);
 
-  const toggleWorkspace = (ws: BoardPermissionsWorkspace) => {
-    const allBoardIds = ws.boards.map((b) => b.id);
-    const allChecked = allBoardIds.every((id) => checkedBoards.has(id));
-    setCheckedBoards((prev) => {
+  const toggleWorkspaceMembership = (wsId: string) => {
+    setMemberWorkspaces(prev => {
       const next = new Set(prev);
-      if (allChecked) {
-        allBoardIds.forEach((id) => next.delete(id));
-      } else {
-        allBoardIds.forEach((id) => next.add(id));
-      }
+      if (next.has(wsId)) next.delete(wsId);
+      else next.add(wsId);
+      return next;
+    });
+  };
+
+  const toggleAllBoards = (ws: BoardPermissionsWorkspace) => {
+    const allBoardIds = ws.boards.map(b => b.id);
+    const allChecked = allBoardIds.every(id => checkedBoards.has(id));
+    setCheckedBoards(prev => {
+      const next = new Set(prev);
+      if (allChecked) allBoardIds.forEach(id => next.delete(id));
+      else allBoardIds.forEach(id => next.add(id));
       return next;
     });
   };
 
   const toggleBoard = (boardId: string) => {
-    setCheckedBoards((prev) => {
+    setCheckedBoards(prev => {
       const next = new Set(prev);
       if (next.has(boardId)) next.delete(boardId);
       else next.add(boardId);
@@ -62,7 +74,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
   };
 
   const toggleExpanded = (wsId: string) => {
-    setExpandedWorkspaces((prev) => {
+    setExpandedWorkspaces(prev => {
       const next = new Set(prev);
       if (next.has(wsId)) next.delete(wsId);
       else next.add(wsId);
@@ -70,20 +82,20 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
     });
   };
 
-  const getWorkspaceState = (ws: BoardPermissionsWorkspace): 'all' | 'none' | 'partial' => {
-    const ids = ws.boards.map((b) => b.id);
+  const getBoardState = (ws: BoardPermissionsWorkspace): 'all' | 'none' | 'partial' => {
+    const ids = ws.boards.map(b => b.id);
     if (ids.length === 0) return 'none';
-    const checkedCount = ids.filter((id) => checkedBoards.has(id)).length;
-    if (checkedCount === ids.length) return 'all';
-    if (checkedCount === 0) return 'none';
+    const count = ids.filter(id => checkedBoards.has(id)).length;
+    if (count === ids.length) return 'all';
+    if (count === 0) return 'none';
     return 'partial';
   };
 
   const handleSave = async () => {
     setFeedback(null);
     try {
-      const boards = [...checkedBoards].map((boardId) => ({ boardId, role: BoardRole.EDITOR }));
-      await savePermissions(boards);
+      const boards = [...checkedBoards].map(boardId => ({ boardId, role: BoardRole.EDITOR }));
+      await savePermissions({ boards, workspaceIds: [...memberWorkspaces] });
       setFeedback({ type: 'success', text: 'Permissions saved successfully.' });
       setTimeout(() => onClose(), 1200);
     } catch {
@@ -100,7 +112,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div>
-            <h2 className="text-base font-semibold text-gray-800">Board Permissions</h2>
+            <h2 className="text-base font-semibold text-gray-800">Permissions</h2>
             <p className="text-xs text-gray-500 mt-0.5">{userName}</p>
           </div>
           <button
@@ -146,55 +158,73 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
 
           {!isOrgAdmin && isError && (
             <div className="text-center py-8 text-red-500 text-sm" role="alert">
-              Failed to load board permissions.
+              Failed to load permissions.
             </div>
           )}
 
           {!isOrgAdmin && data && data.workspaces.length === 0 && (
-            <p className="text-center py-8 text-gray-400 text-sm">No workhubs or boards found.</p>
+            <p className="text-center py-8 text-gray-400 text-sm">No workhubs found in this organization.</p>
           )}
 
           {!isOrgAdmin && data && data.workspaces.map((ws) => {
-            const state = getWorkspaceState(ws);
+            const boardState = getBoardState(ws);
             const isExpanded = expandedWorkspaces.has(ws.id);
+            const isMember = memberWorkspaces.has(ws.id);
 
             return (
-              <div key={ws.id} className="mb-3">
-                {/* Workhub row */}
-                <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50 group">
-                  <button
-                    type="button"
-                    onClick={() => toggleExpanded(ws.id)}
-                    className="p-0.5 text-gray-400 hover:text-gray-600"
-                    aria-label={isExpanded ? `Collapse ${ws.name}` : `Expand ${ws.name}`}
-                  >
-                    {isExpanded
-                      ? <FiChevronDown size={14} aria-hidden="true" />
-                      : <FiChevronRight size={14} aria-hidden="true" />}
-                  </button>
-                  <label className="flex items-center gap-2 flex-1 cursor-pointer">
+              <div key={ws.id} className="mb-3 border border-gray-200 rounded-lg overflow-hidden">
+                {/* Workspace header row */}
+                <div className={`flex items-center gap-2 px-3 py-2.5 ${isMember ? 'bg-indigo-50' : 'bg-gray-50'}`}>
+                  {/* Workspace membership toggle */}
+                  <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
                     <input
                       type="checkbox"
-                      checked={state === 'all'}
-                      ref={(el) => {
-                        if (el) el.indeterminate = state === 'partial';
-                      }}
-                      onChange={() => toggleWorkspace(ws)}
-                      className="accent-indigo-600 w-3.5 h-3.5"
-                      aria-label={`Select all boards in ${ws.name}`}
+                      checked={isMember}
+                      onChange={() => toggleWorkspaceMembership(ws.id)}
+                      className="accent-indigo-600 w-3.5 h-3.5 flex-shrink-0"
+                      aria-label={`Grant ${userName} access to workhub ${ws.name}`}
                     />
-                    <span className="text-sm font-semibold text-gray-700">{ws.name}</span>
-                    <span className="text-xs text-gray-400">({ws.boards.length} boards)</span>
+                    <span className="text-sm font-semibold text-gray-700 truncate">{ws.name}</span>
+                    {!isMember && (
+                      <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded flex-shrink-0">No access</span>
+                    )}
                   </label>
+
+                  {/* Board-level toggle (only when workspace member) */}
+                  {isMember && ws.boards.length > 0 && (
+                    <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer flex-shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={boardState === 'all'}
+                        ref={el => { if (el) el.indeterminate = boardState === 'partial'; }}
+                        onChange={() => toggleAllBoards(ws)}
+                        className="accent-indigo-600 w-3 h-3"
+                        aria-label={`Select all boards in ${ws.name}`}
+                      />
+                      All boards
+                    </label>
+                  )}
+
+                  {/* Expand/collapse boards */}
+                  {isMember && ws.boards.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpanded(ws.id)}
+                      className="p-0.5 text-gray-400 hover:text-gray-600 flex-shrink-0"
+                      aria-label={isExpanded ? `Collapse ${ws.name}` : `Expand ${ws.name}`}
+                    >
+                      {isExpanded ? <FiChevronDown size={14} aria-hidden="true" /> : <FiChevronRight size={14} aria-hidden="true" />}
+                    </button>
+                  )}
                 </div>
 
-                {/* Board rows */}
-                {isExpanded && (
-                  <div className="ml-8 space-y-0.5">
-                    {ws.boards.map((board) => (
+                {/* Board list */}
+                {isMember && isExpanded && ws.boards.length > 0 && (
+                  <div className="divide-y divide-gray-100">
+                    {ws.boards.map(board => (
                       <label
                         key={board.id}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 cursor-pointer"
+                        className="flex items-center gap-2 px-5 py-1.5 hover:bg-gray-50 cursor-pointer"
                       >
                         <input
                           type="checkbox"
@@ -206,10 +236,11 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
                         <span className="text-sm text-gray-600">{board.name}</span>
                       </label>
                     ))}
-                    {ws.boards.length === 0 && (
-                      <p className="px-2 py-1 text-xs text-gray-400">No boards in this workhub.</p>
-                    )}
                   </div>
+                )}
+
+                {isMember && isExpanded && ws.boards.length === 0 && (
+                  <p className="px-5 py-2 text-xs text-gray-400">No boards in this workhub.</p>
                 )}
               </div>
             );
@@ -220,7 +251,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
         <div className="px-6 py-4 border-t bg-gray-50 rounded-b-xl flex justify-between items-center">
           {!isOrgAdmin && (
             <p className="text-xs text-gray-400">
-              {checkedBoards.size} board{checkedBoards.size !== 1 ? 's' : ''} selected
+              {memberWorkspaces.size} workhub{memberWorkspaces.size !== 1 ? 's' : ''} · {checkedBoards.size} board{checkedBoards.size !== 1 ? 's' : ''}
             </p>
           )}
           <div className={`flex gap-2 ${isOrgAdmin ? 'ml-auto' : ''}`}>
@@ -236,7 +267,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
                 onClick={() => void handleSave()}
                 disabled={isSaving || isLoading}
                 className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-                aria-label="Save board permissions"
+                aria-label="Save permissions"
               >
                 {isSaving && <FiLoader size={13} className="animate-spin" aria-hidden="true" />}
                 Save permissions

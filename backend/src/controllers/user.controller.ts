@@ -744,10 +744,20 @@ export const getUserBoardPermissions = async (req: Request, res: Response) => {
             }
         });
 
-        // Build grouped structure
+        // Check which workspaces the user already has a membership in
+        const wsMemberSnap = await membershipsCollection
+            .where('userId', '==', userId)
+            .where('orgId', '==', requestingUser.orgId)
+            .get();
+        const memberWorkspaceIds = new Set(
+            querySnapshotToArray<DBMembership>(wsMemberSnap).map(m => m.entityId)
+        );
+
+        // Build grouped structure — include ALL workspaces so admin can add membership
         const result = workspaces.map(ws => ({
             id: ws.id,
             name: ws.name,
+            isMember: memberWorkspaceIds.has(ws.id),
             boards: allBoards
                 .filter(b => b.workspaceId === ws.id)
                 .map(b => ({
@@ -756,7 +766,7 @@ export const getUserBoardPermissions = async (req: Request, res: Response) => {
                     isMember: memberBoardIds.has(b.id),
                     role: memberBoardIds.get(b.id) ?? null,
                 })),
-        })).filter(ws => ws.boards.length > 0);
+        }));
 
         res.json({ workspaces: result });
     } catch (error) {
@@ -773,7 +783,10 @@ export const getUserBoardPermissions = async (req: Request, res: Response) => {
 export const updateUserBoardPermissions = async (req: Request, res: Response) => {
     const requestingUser = req.user as JwtUserPayload;
     const { userId } = req.params;
-    const { boards: newBoards } = req.body as { boards: Array<{ boardId: string; role: BoardRole }> };
+    const { boards: newBoards, workspaceIds: newWorkspaceIds } = req.body as {
+        boards: Array<{ boardId: string; role: BoardRole }>;
+        workspaceIds?: string[];
+    };
 
     if (requestingUser.role !== UserRole.ORGANIZATION_ADMIN && requestingUser.role !== UserRole.SYSTEM_ADMIN) {
         return res.status(403).json({ message: 'Forbidden.' });
@@ -783,15 +796,18 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
     }
 
     try {
-        // Verify target user belongs to this org
-        const userMemberSnap = await membershipsCollection
+        // Load target user
+        const userDoc = await usersCollection.doc(userId).get();
+        if (!userDoc.exists) return res.status(404).json({ message: 'User not found.' });
+        const userData = userDoc.data() as DBUser;
+
+        // Current workspace memberships for this user in this org
+        const currentWsMemberSnap = await membershipsCollection
             .where('userId', '==', userId)
             .where('orgId', '==', requestingUser.orgId)
-            .limit(1)
             .get();
-        if (userMemberSnap.empty) {
-            return res.status(404).json({ message: 'User not found in this organization.' });
-        }
+        const currentWsMemberships = querySnapshotToArray<DBMembership>(currentWsMemberSnap);
+        const currentWsIds = new Set(currentWsMemberships.map(m => m.entityId));
 
         // Get all boards for the org
         const boardsSnap = await boardsCollection(requestingUser.orgId)
@@ -811,17 +827,46 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
         });
 
         const newBoardIdSet = new Set(newBoards.map(b => b.boardId).filter(id => allBoardIds.has(id)));
+        const desiredWsIds = new Set(Array.isArray(newWorkspaceIds) ? newWorkspaceIds : []);
 
         const batch = db.batch();
 
-        // Add new memberships
+        // --- Workspace membership changes ---
+        if (Array.isArray(newWorkspaceIds)) {
+            // Add workspace memberships that are now desired but missing
+            for (const wsId of desiredWsIds) {
+                if (!currentWsIds.has(wsId)) {
+                    const wsDoc = await workspacesCollection.doc(wsId).get();
+                    if (!wsDoc.exists || (wsDoc.data() as DBWorkspace).orgId !== requestingUser.orgId) continue;
+                    const newRef = membershipsCollection.doc();
+                    batch.set(newRef, {
+                        id: newRef.id,
+                        userId,
+                        userName: userData.name,
+                        userEmail: userData.email,
+                        entityId: wsId,
+                        entityType: 'workspace',
+                        role: UserRole.REGULAR_USER,
+                        orgId: requestingUser.orgId,
+                        permissions: 'edit',
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                }
+            }
+            // Remove workspace memberships no longer desired
+            for (const m of currentWsMemberships) {
+                if (!desiredWsIds.has(m.entityId)) {
+                    const docSnap = currentWsMemberSnap.docs.find(d => d.id === m.id);
+                    if (docSnap) batch.delete(docSnap.ref);
+                }
+            }
+        }
+
+        // --- Board membership changes ---
         for (const { boardId, role } of newBoards) {
             if (!allBoardIds.has(boardId)) continue;
             const board = boardMap.get(boardId)!;
-
             if (!currentMemberBoardIds.has(boardId)) {
-                const userDoc = await usersCollection.doc(userId).get();
-                const userData = userDoc.data() as DBUser | undefined;
                 batch.set(boardMembersCollection(requestingUser.orgId, boardId).doc(userId), {
                     userId,
                     boardId,
@@ -829,35 +874,28 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
                     role: role || BoardRole.VIEWER,
                     addedBy: requestingUser.id,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    userName: userData?.name ?? null,
-                    userEmail: userData?.email ?? null,
-                    userProfileImageUrl: userData?.profileImageUrl ?? null,
+                    userName: userData.name ?? null,
+                    userEmail: userData.email ?? null,
+                    userProfileImageUrl: userData.profileImageUrl ?? null,
                 });
             }
         }
-
-        // Remove old memberships no longer in the new list
         for (const boardId of currentMemberBoardIds) {
             if (!newBoardIdSet.has(boardId)) {
                 batch.delete(boardMembersCollection(requestingUser.orgId, boardId).doc(userId));
             }
         }
 
-        // Update boardIds in workspace memberships if user has boardOnlyAccess
+        // Update boardIds on workspace memberships that use boardOnlyAccess
         const newBoardIdArray = [...newBoardIdSet];
-        const workspaceMembershipSnap = await membershipsCollection
-            .where('userId', '==', userId)
-            .where('orgId', '==', requestingUser.orgId)
-            .get();
-        workspaceMembershipSnap.docs.forEach(doc => {
-            const data = doc.data() as DBMembership;
-            if (data.boardOnlyAccess) {
+        currentWsMemberSnap.docs.forEach(doc => {
+            if ((doc.data() as DBMembership).boardOnlyAccess) {
                 batch.update(doc.ref, { boardIds: newBoardIdArray });
             }
         });
 
         await batch.commit();
-        res.json({ message: 'Board permissions updated.' });
+        res.json({ message: 'Permissions updated.' });
     } catch (error) {
         logger.error('Error updating user board permissions:', error);
         res.status(500).json({ message: 'Failed to update board permissions.' });

@@ -47,8 +47,8 @@ export const useUserBoardPermissions = (userId: string, enabled = true) =>
 export const useUpdateUserBoardPermissions = (userId: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (boards: Array<{ boardId: string; role: BoardRole }>) =>
-      api.updateUserBoardPermissions(userId, boards),
+    mutationFn: ({ boards, workspaceIds }: { boards: Array<{ boardId: string; role: BoardRole }>; workspaceIds: string[] }) =>
+      api.updateUserBoardPermissions(userId, boards, workspaceIds),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['userBoardPermissions', userId] }),
   });
 };
