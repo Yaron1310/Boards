@@ -462,6 +462,7 @@ const UserManagementPage: React.FC = () => {
           userId={permissionsUser.id}
           userName={permissionsUser.name}
           isOrgAdmin={permissionsUser.isOrgAdmin}
+          canAssignAdmin={authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN}
           onClose={() => setPermissionsUser(null)}
         />
       )}

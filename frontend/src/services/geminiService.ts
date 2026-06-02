@@ -355,7 +355,7 @@ export const updateUserBoardPermissions = async (
     userId: string,
     boards: Array<{ boardId: string; role: import('../types').BoardRole }>,
     workspaceIds: string[],
-    workspacePermissions: Record<string, 'edit' | 'read_only'>
+    workspacePermissions: Record<string, 'edit' | 'read_only' | 'admin'>
 ): Promise<{ message: string }> =>
     fetchWithAuth(`/api/users/${userId}/board-permissions`, {
         method: 'PUT',

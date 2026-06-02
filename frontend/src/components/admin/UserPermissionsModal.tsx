@@ -10,12 +10,19 @@ interface Props {
   userId: string;
   userName: string;
   isOrgAdmin?: boolean;
+  canAssignAdmin?: boolean;
   onClose: () => void;
 }
 
-const WS_PERM_OPTIONS: Array<{ value: 'edit' | 'read_only'; label: string }> = [
+const WS_PERM_OPTIONS_BASE: Array<{ value: 'edit' | 'read_only' | 'admin'; label: string }> = [
   { value: 'edit', label: 'Edit' },
   { value: 'read_only', label: 'Read only' },
+];
+
+const WS_PERM_OPTIONS_WITH_ADMIN: Array<{ value: 'edit' | 'read_only' | 'admin'; label: string }> = [
+  { value: 'edit', label: 'Edit' },
+  { value: 'read_only', label: 'Read only' },
+  { value: 'admin', label: 'Admin' },
 ];
 
 const BOARD_ROLE_OPTIONS: Array<{ value: BoardRole; label: string }> = [
@@ -23,13 +30,13 @@ const BOARD_ROLE_OPTIONS: Array<{ value: BoardRole; label: string }> = [
   { value: BoardRole.EDITOR, label: 'Edit' },
 ];
 
-const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, onClose }) => {
+const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, canAssignAdmin, onClose }) => {
   const { data, isLoading, isError } = useUserBoardPermissions(userId);
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
 
   const [checkedBoards, setCheckedBoards] = useState<Set<string>>(new Set());
   const [boardRoles, setBoardRoles] = useState<Map<string, BoardRole>>(new Map());
-  const [wsPermissions, setWsPermissions] = useState<Map<string, 'edit' | 'read_only'>>(new Map());
+  const [wsPermissions, setWsPermissions] = useState<Map<string, 'edit' | 'read_only' | 'admin'>>(new Map());
   const [expandedWorkspaces, setExpandedWorkspaces] = useState<Set<string>>(new Set());
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [initialized, setInitialized] = useState(false);
@@ -94,7 +101,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
     setBoardRoles(prev => new Map(prev).set(boardId, role));
   };
 
-  const setWsPerm = (wsId: string, perm: 'edit' | 'read_only') => {
+  const setWsPerm = (wsId: string, perm: 'edit' | 'read_only' | 'admin') => {
     setWsPermissions(prev => new Map(prev).set(wsId, perm));
   };
 
@@ -204,6 +211,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
             const state = getWorkspaceState(ws);
             const isExpanded = expandedWorkspaces.has(ws.id);
             const wsPerm = wsPermissions.get(ws.id) ?? 'edit';
+            const wsPermOptions = canAssignAdmin ? WS_PERM_OPTIONS_WITH_ADMIN : WS_PERM_OPTIONS_BASE;
 
             return (
               <div key={ws.id} className="mb-3">
@@ -233,7 +241,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, o
                   </label>
                   {/* Workspace-level permission toggle */}
                   <div className="flex items-center rounded-md border border-gray-200 overflow-hidden flex-shrink-0" role="group" aria-label={`Permission level for ${ws.name}`}>
-                    {WS_PERM_OPTIONS.map(opt => (
+                    {wsPermOptions.map(opt => (
                       <button
                         key={opt.value}
                         type="button"

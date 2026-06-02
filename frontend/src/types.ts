@@ -556,7 +556,7 @@ export interface BoardPermissionsWorkspace {
   id: string;
   name: string;
   isMember: boolean;
-  permissions: 'edit' | 'read_only';
+  permissions: 'edit' | 'read_only' | 'admin';
   boards: Array<{
     id: string;
     name: string;
