@@ -176,7 +176,7 @@ const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEd
 const WorkspaceHomePage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuthSession();
-  const isOrgAdmin = user?.role === UserRole.ORGANIZATION_ADMIN;
+  const isOrgAdmin = user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.ORG_EDITOR;
 
   const {
     workspaces: allWorkspacesData,

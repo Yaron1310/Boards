@@ -729,7 +729,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               <WorkspacesNavSection
                 sidebarLinkColor={sidebarLinkColor}
                 onNavigate={() => setIsSidebarOpen(false)}
-                canManage={user?.role === UserRole.WORKSPACE_ADMIN || user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN}
+                canManage={user?.role === UserRole.WORKSPACE_ADMIN || user?.role === UserRole.ORG_EDITOR || user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN}
               />
 
               {availableAdminNavItems.length > 0 && (
@@ -975,7 +975,7 @@ const MainLayout: React.FC = () => {
 
   const adminNavItems: AdminNavItem[] = [
      { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN] },
-     { name: 'Templates', path: '/admin/templates', icon: <FiBookmark className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
+     { name: 'Templates', path: '/admin/templates', icon: <FiBookmark className={iconClassName} />, roles: [UserRole.ORG_EDITOR, UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
   ];
 
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);

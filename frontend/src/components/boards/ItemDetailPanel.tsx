@@ -40,6 +40,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
 
   const canManage =
     user?.role === UserRole.WORKSPACE_ADMIN ||
+    user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
     item.createdBy === user?.id ||
@@ -47,6 +48,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
 
   const canDelete =
     user?.role === UserRole.WORKSPACE_ADMIN ||
+    user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN;
 

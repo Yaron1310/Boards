@@ -80,6 +80,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
 
   const canManage =
     user?.role === UserRole.WORKSPACE_ADMIN ||
+    user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
     item.createdBy === user?.id ||
