@@ -479,6 +479,28 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
              return res.json({ user: formattedUser, selectedWorkspace: null });
         }
 
+        // Derive workspacePermissions from the JWT (already validated on login)
+        const workspacePermissions: 'edit' | 'read_only' = userPayload.workspacePermissions ?? 'edit';
+
+        // org_editor: selectedWorkspaceId is actually the orgId — build a synthetic workspace from the org doc
+        if (userPayload.role === UserRole.ORG_EDITOR) {
+            const orgId = userPayload.selectedWorkspaceId;
+            const organizationDoc = await organizationsCollection.doc(orgId).get();
+            if (!organizationDoc.exists) {
+                return res.json({ user: formattedUser, selectedWorkspace: null });
+            }
+            const orgName = organizationDoc.data()?.name ?? orgId;
+            const selectedWorkspaceForFrontend: any = {
+                id: orgId,
+                name: orgName,
+                orgId,
+                isPersonal: false,
+                organizationName: orgName,
+                workspacePermissions,
+            };
+            return res.json({ user: formattedUser, selectedWorkspace: selectedWorkspaceForFrontend });
+        }
+
         let orgData: DBWorkspace | null = null;
         const orgDoc = await workspacesCollection.doc(userPayload.selectedWorkspaceId).get();
         if (orgDoc.exists) {
@@ -495,9 +517,6 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
             }
             orgData = snapshotToData<DBWorkspace>(fallbackOrgDoc)!;
         }
-
-        // Derive workspacePermissions from the JWT (already validated on login)
-        const workspacePermissions: 'edit' | 'read_only' = userPayload.workspacePermissions ?? 'edit';
 
         const selectedWorkspaceForFrontend: any = {
             id: orgData.id,

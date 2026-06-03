@@ -105,12 +105,13 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const isSystemAdmin = role === UserRole.SYSTEM_ADMIN;
   const isOrganizationAdmin = role === UserRole.ORGANIZATION_ADMIN;
   const isOrgAdmin = role === UserRole.WORKSPACE_ADMIN;
+  const isOrgEditor = role === UserRole.ORG_EDITOR;
   const isAdminRole = isSystemAdmin || isOrganizationAdmin || isOrgAdmin;
-  const isNonSystemUser = isOrganizationAdmin || isOrgAdmin || role === UserRole.REGULAR_USER;
+  const isNonSystemUser = isOrganizationAdmin || isOrgAdmin || isOrgEditor || role === UserRole.REGULAR_USER;
 
   // --- React Query hooks (enabled per role — data loads lazily) ---
   const academiesQuery = useAcademiesQuery(isLoggedIn && isSystemAdmin);
-  const workspacesQuery = useWorkspacesQuery(undefined, isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
+  const workspacesQuery = useWorkspacesQuery(undefined, isLoggedIn && (isSystemAdmin || isOrganizationAdmin || isOrgEditor));
   const archivedWorkspacesQuery = useArchivedWorkspacesQuery(false);
   const usersQuery = useUsersQuery(undefined, isLoggedIn && isAdminRole);
   const preApprovedUsersQuery = usePreApprovedUsersQuery(isLoggedIn && (isOrganizationAdmin || isOrgAdmin));
