@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { FiFilter, FiChevronLeft, FiCalendar, FiUser, FiFlag, FiTag, FiCheck } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
-import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { ColumnType } from '../../types';
 import type { Item, Column, StatusColumnSettings, StatusOption, User, SimpleFormulaColumnSettings } from '../../types';
 import { evaluateFormula } from '../../utils/formulaEngine';
@@ -20,6 +19,7 @@ interface Props {
   allItems: Item[];
   activeFilters: ActiveFilter[];
   onFilterChange: (filters: ActiveFilter[]) => void;
+  isReadOnly?: boolean;
 }
 
 type Step = 'root' | 'date' | 'user' | 'status' | 'tag' | 'timerange';
@@ -39,15 +39,14 @@ function avatarColor(id: string): string {
   return AVATAR_BG[Math.abs(h) % AVATAR_BG.length];
 }
 
-const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilters, onFilterChange }) => {
+const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilters, onFilterChange, isReadOnly = false }) => {
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('root');
   const ref = useRef<HTMLDivElement>(null);
   const [timeRangeAnchor, setTimeRangeAnchor] = useState<HTMLElement | null>(null);
 
-  const { isBoardReadOnly } = useBoardRender();
   const { data: columns = [] } = useColumns(boardId);
-  const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, !isBoardReadOnly);
+  const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, !isReadOnly);
 
   useEffect(() => {
     if (!open) return;

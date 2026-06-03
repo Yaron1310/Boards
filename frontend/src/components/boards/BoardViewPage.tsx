@@ -862,6 +862,7 @@ const BoardViewPage: React.FC = () => {
               allItems={allItems}
               activeFilters={activeFilters}
               onFilterChange={setActiveFilters}
+              isReadOnly={isBoardReadOnly}
             />
 
             {/* Active filter chips */}
