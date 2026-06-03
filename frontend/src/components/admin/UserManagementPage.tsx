@@ -143,13 +143,23 @@ const UserManagementPage: React.FC = () => {
 
   const handleRemoveUser = async () => {
     const orgId = selectedWorkspace?.orgId ?? authUser?.orgId;
-    if (!removeTarget || !orgId) return;
+    console.log('[removeUser] removeTarget:', removeTarget);
+    console.log('[removeUser] selectedWorkspace:', selectedWorkspace);
+    console.log('[removeUser] authUser.orgId:', authUser?.orgId);
+    console.log('[removeUser] resolved orgId:', orgId);
+    if (!removeTarget || !orgId) {
+      console.warn('[removeUser] bailing out — missing removeTarget or orgId');
+      return;
+    }
     setIsRemoving(true);
     try {
-      await removeUserFromOrg(orgId, removeTarget.id);
+      console.log('[removeUser] calling API:', orgId, removeTarget.id);
+      const result = await removeUserFromOrg(orgId, removeTarget.id);
+      console.log('[removeUser] API success:', result);
       queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setFeedback({ type: 'success', text: `${removeTarget.name} has been removed from the organization.` });
     } catch (err: any) {
+      console.error('[removeUser] API error:', err);
       setFeedback({ type: 'error', text: err.message || 'Failed to remove user.' });
     } finally {
       setIsRemoving(false);
