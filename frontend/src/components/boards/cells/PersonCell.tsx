@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useUsersQuery } from '../../../hooks/queries/useUserQueries';
+import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import type { Item, Column, PersonColumnSettings, User } from '../../../types';
 import CellWrapper from './CellWrapper';
 
@@ -131,7 +132,8 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   const [hoveredUser, setHoveredUser] = useState<User | null>(null);
   const [tooltipAnchor, setTooltipAnchor] = useState<TooltipAnchor | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
+  const { isBoardReadOnly } = useBoardRender();
+  const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, !isBoardReadOnly);
 
   const selectedUsers = allUsers.filter((u) => selected.includes(u.id));
   const filtered = allUsers.filter((u) => typeof u.name === 'string' && u.name.toLowerCase().includes(search.toLowerCase()));

@@ -386,7 +386,7 @@ const useOrgStatusOptions = (enabled: boolean, specificBoardIds?: string[]) => {
 // ---------------------------------------------------------------------------
 
 const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispatch, boardIds }) => {
-  const { user } = useAuthSession();
+  const { user, selectedWorkspace } = useAuthSession();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<Step>('root');
   const ref = useRef<HTMLDivElement>(null);
@@ -394,7 +394,7 @@ const DashboardFilterBar: React.FC<DashboardFilterBarProps> = ({ filters, dispat
   const { data: usersData } = useQuery({
     queryKey: ['users', 'org', user?.workspaces?.[0]?.orgId],
     queryFn: () => getUsers({ limit: 200 }),
-    enabled: !!user,
+    enabled: !!user && selectedWorkspace?.workspacePermissions !== 'read_only',
     staleTime: 5 * 60 * 1000,
   });
   const members = usersData?.data ?? [];
