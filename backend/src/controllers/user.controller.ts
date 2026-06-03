@@ -487,11 +487,15 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
             orgData = snapshotToData<DBWorkspace>(fallbackOrgDoc)!;
         }
 
+        // Derive workspacePermissions from the JWT (already validated on login)
+        const workspacePermissions: 'edit' | 'read_only' = userPayload.workspacePermissions ?? 'edit';
+
         const selectedWorkspaceForFrontend: any = {
             id: orgData.id,
             name: orgData.name,
             orgId: orgData.orgId,
-            isPersonal: orgData.isPersonal
+            isPersonal: orgData.isPersonal,
+            workspacePermissions,
         };
 
         // Fetch workspace name to include in the response
