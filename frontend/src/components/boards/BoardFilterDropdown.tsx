@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { FiFilter, FiChevronLeft, FiCalendar, FiUser, FiFlag, FiTag, FiCheck } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
+import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { ColumnType } from '../../types';
 import type { Item, Column, StatusColumnSettings, StatusOption, User, SimpleFormulaColumnSettings } from '../../types';
 import { evaluateFormula } from '../../utils/formulaEngine';
@@ -44,8 +45,9 @@ const BoardFilterDropdown: React.FC<Props> = ({ boardId, allItems, activeFilters
   const ref = useRef<HTMLDivElement>(null);
   const [timeRangeAnchor, setTimeRangeAnchor] = useState<HTMLElement | null>(null);
 
+  const { isBoardReadOnly } = useBoardRender();
   const { data: columns = [] } = useColumns(boardId);
-  const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
+  const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, !isBoardReadOnly);
 
   useEffect(() => {
     if (!open) return;
