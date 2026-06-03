@@ -242,12 +242,20 @@ export function canAccessItem(
   // item.workspaceId holds the department ID; compare against selectedWorkspaceId (not orgId).
   const isInWorkspace = user.selectedWorkspaceId === item.workspaceId;
 
+  // Board-only invited users: JWT boardIds grants access to items in those boards
+  // even when the item's workspaceId doesn't match selectedWorkspaceId.
+  const isBoardOnlyAccess =
+    user.role === UserRole.REGULAR_USER &&
+    Array.isArray(user.boardIds) &&
+    user.boardIds.length > 0 &&
+    user.boardIds.includes(item.boardId);
+
   let effective: BoardRole | 'full_access' | null = null;
   if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) {
     effective = 'full_access';
   } else if (user.role === UserRole.WORKSPACE_ADMIN && isInWorkspace) {
     effective = 'full_access';
-  } else if (user.role === UserRole.REGULAR_USER && isInWorkspace) {
+  } else if (user.role === UserRole.REGULAR_USER && (isInWorkspace || isBoardOnlyAccess)) {
     effective = user.workspacePermissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
   } else {
     effective = null;
