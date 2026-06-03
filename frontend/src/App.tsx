@@ -212,7 +212,7 @@ const App: React.FC = () => {
             <Route
               path="/dashboard"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <DashboardPage />
                 </ProtectedRoute>
               }
@@ -221,7 +221,7 @@ const App: React.FC = () => {
             <Route
               path="/WorkHubs"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <WorkspaceHomePage />
                 </ProtectedRoute>
               }
@@ -229,7 +229,7 @@ const App: React.FC = () => {
             <Route
               path="/WorkHubs/:workspaceId/boards"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <BoardListPage />
                 </ProtectedRoute>
               }
@@ -237,7 +237,7 @@ const App: React.FC = () => {
             <Route
               path="/boards/:boardId"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <BoardViewPage />
                 </ProtectedRoute>
               }
@@ -245,7 +245,7 @@ const App: React.FC = () => {
             <Route
               path="/profile"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <ProfilePage />
                 </ProtectedRoute>
               }
@@ -271,7 +271,7 @@ const App: React.FC = () => {
             <Route
               path="/admin/organization-hub"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <AcademyHubPage />
                 </ProtectedRoute>
               }
@@ -311,7 +311,7 @@ const App: React.FC = () => {
             <Route
               path="/admin/templates"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.ORG_EDITOR, UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <TemplatesPage />
                 </ProtectedRoute>
               }
