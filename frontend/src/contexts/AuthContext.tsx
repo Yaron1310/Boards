@@ -250,7 +250,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     applyUserLanguage(data.user);
 
     if (!data.user.preferredLanguage) {
-      setShowLanguageModal(true);
+      i18n.changeLanguage('en');
+      apiService.updateMyUserDetails({ preferredLanguage: 'en' }).catch(() => {});
     }
   }, [applyUserLanguage]);
 
