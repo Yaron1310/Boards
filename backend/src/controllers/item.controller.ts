@@ -367,6 +367,20 @@ export const getItems = async (req: Request, res: Response) => {
 
     // Debug: log when items are filtered out so we can diagnose access issues
     if (rawItems.length !== allItems.length) {
+      const passedItems = allItems.map(i => ({
+        id: i.id,
+        boardId: i.boardId,
+        workspaceId: i.workspaceId,
+        assignees: i.assignees ?? [],
+        createdBy: i.createdBy,
+      }));
+      const filteredItems = rawItems.filter(i => !allItems.includes(i)).map(i => ({
+        id: i.id,
+        boardId: i.boardId,
+        workspaceId: i.workspaceId,
+        assignees: i.assignees ?? [],
+        createdBy: i.createdBy,
+      }));
       logger.warn('[getItems] canAccessItem filtered items', {
         userId: user.id,
         userRole: user.role,
@@ -377,9 +391,8 @@ export const getItems = async (req: Request, res: Response) => {
         boardId: boardId ?? null,
         rawCount: rawItems.length,
         passedCount: allItems.length,
-        filteredOutWorkspaceIds: [...new Set(
-          rawItems.filter(i => !allItems.includes(i)).map(i => i.workspaceId ?? '(missing)')
-        )],
+        passedItems,
+        filteredItems,
       });
     }
 
