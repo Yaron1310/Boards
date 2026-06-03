@@ -6,7 +6,7 @@ import { UserRole } from '../types/index.js';
 export const workspaceRouter = Router();
 
 // GET for all authenticated users
-workspaceRouter.get('/', requireRole([UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]), orgController.getAllWorkspaces);
+workspaceRouter.get('/', requireRole([UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]), orgController.getAllWorkspaces);
 
 // Admin-only routes
 const adminRoles = [UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN];

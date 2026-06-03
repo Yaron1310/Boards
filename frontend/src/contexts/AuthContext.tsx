@@ -588,7 +588,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const contexts: { label: string; value: string; role: UserRole; organizationName: string }[] = [];
 
-    const { systemAdmin, organizationAdmin: assignedOrganizationAdmins = [], workspaceAdmin: assignedOrgAdmins = [] } = userForContexts.dbRoles;
+    const { systemAdmin, organizationAdmin: assignedOrganizationAdmins = [], workspaceAdmin: assignedOrgAdmins = [], orgEditor: assignedOrgEditors = [] } = userForContexts.dbRoles;
 
     // System admin: single global entry
     if (systemAdmin) {
@@ -601,7 +601,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // One entry per org. Determine the highest role the user holds in each org,
     // then pick the first eligible workspace as the login workspaceId.
-    const roleOrder: Record<string, number> = { org_admin: 0, workspace_admin: 1, regular_user: 2 };
+    const roleOrder: Record<string, number> = { org_admin: 0, workspace_admin: 1, org_editor: 2, regular_user: 3 };
 
     // Collect all orgs the user has any access to (non-personal, non-default)
     const eligibleWorkspaces = userForContexts.workspaces.filter((o: any) => !o.isPersonal && o.name !== 'Default Workspace');
@@ -613,6 +613,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       byOrg.get(ws.orgId)!.workspaces.push(ws);
     });
 
+    // org_editor: their membership entityId is the orgId — no workspace docs, build context directly
+    (assignedOrgEditors as string[]).forEach((orgId: string) => {
+      if (byOrg.has(orgId)) return; // already covered via workspace membership
+      const orgName = (userForContexts.orgEditorOrgs as any[])?.find((o: any) => o.id === orgId)?.name || orgId;
+      contexts.push({ label: `${orgName} — Editor`, value: JSON.stringify({ role: UserRole.ORG_EDITOR, workspaceId: orgId }), role: UserRole.ORG_EDITOR, organizationName: orgName });
+    });
+
     const addedOrgIds = new Set<string>();
     byOrg.forEach(({ orgName, workspaces }, orgId) => {
       if (addedOrgIds.has(orgId)) return;
@@ -621,21 +628,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const isOrgAdmin = assignedOrganizationAdmins.includes(orgId);
       const wsAdminWorkspace = workspaces.find((ws: any) => assignedOrgAdmins.includes(ws.id));
       const isWsAdmin = !!wsAdminWorkspace;
+      const isOrgEditor = (assignedOrgEditors as string[]).includes(orgId);
 
       let role: UserRole;
       let workspaceId: string;
       let label: string;
 
       if (isOrgAdmin) {
-        role = 'org_admin';
+        role = UserRole.ORGANIZATION_ADMIN;
         workspaceId = workspaces[0].id;
         label = `${orgName} — Admin`;
       } else if (isWsAdmin) {
-        role = 'workspace_admin';
+        role = UserRole.WORKSPACE_ADMIN;
         workspaceId = wsAdminWorkspace.id;
         label = `${orgName} — Manager`;
+      } else if (isOrgEditor) {
+        role = UserRole.ORG_EDITOR;
+        workspaceId = orgId;
+        label = `${orgName} — Editor`;
       } else {
-        role = 'regular_user';
+        role = UserRole.REGULAR_USER;
         workspaceId = workspaces[0].id;
         label = `${orgName} — User`;
       }
@@ -643,7 +655,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       contexts.push({ label, value: JSON.stringify({ role, workspaceId }), role, organizationName: orgName });
     });
 
-    contexts.sort((a, b) => (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3) || a.organizationName.localeCompare(b.organizationName));
+    contexts.sort((a, b) => (roleOrder[a.role] ?? 4) - (roleOrder[b.role] ?? 4) || a.organizationName.localeCompare(b.organizationName));
 
     return [{ groupName: 'Select Organization', contexts }];
   }, [user, userForContextSelection, contextSelectionMode]);

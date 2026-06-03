@@ -119,14 +119,24 @@ export const formatUserForFrontend = async (
             }
         }
     }
+    // For org_editor: fetch org names so the frontend can display them in context selection
+    let orgEditorOrgs: { id: string; name: string }[] = [];
+    if (dbRoles.orgEditor.length > 0) {
+        const orgSnaps = await Promise.all(dbRoles.orgEditor.map((oid: string) => organizationsCollection.doc(oid).get()));
+        orgEditorOrgs = orgSnaps
+            .filter(s => s.exists)
+            .map(s => ({ id: s.id, name: s.data()?.name || s.id }));
+    }
+
     // De-duplicate the final list
     allRelevantOrgIds = [...new Set(allRelevantOrgIds)];
 
-    const userForFrontend: any = { 
+    const userForFrontend: any = {
         ...rest,
         role: context?.role || deriveHighestRole(memberships),
         hasPassword: !!passwordHash,
         dbRoles,
+        ...(orgEditorOrgs.length > 0 ? { orgEditorOrgs } : {}),
     };
     
     let userOrgs: (Pick<DBWorkspace, 'id' | 'name' | 'orgId' | 'isPersonal' | 'isTemplates'> & { organizationName?: string })[] = [];

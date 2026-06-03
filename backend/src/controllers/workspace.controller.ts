@@ -41,10 +41,10 @@ export const getAllWorkspaces = async (req: Request, res: Response) => {
             orgs = chunks.sort((a, b) => a.name.localeCompare(b.name));
         } else {
             let query: admin.firestore.Query = workspacesCollection;
-            if (user.role === UserRole.ORGANIZATION_ADMIN) {
+            if (user.role === UserRole.ORGANIZATION_ADMIN || user.role === UserRole.ORG_EDITOR) {
                 query = query.where('orgId', '==', user.orgId).where('status', '!=', 'archived');
                 const snapshot = await query.orderBy('status').orderBy('name').get();
-                orgs = querySnapshotToArray<DBWorkspace>(snapshot);
+                orgs = querySnapshotToArray<DBWorkspace>(snapshot).filter(w => !w.isPersonal && !w.isTemplates);
             } else if (user.role === UserRole.WORKSPACE_ADMIN && user.selectedWorkspaceId) {
                 // Can't combine documentId equality with inequality — fetch by doc ref directly
                 const wsDoc = await workspacesCollection.doc(user.selectedWorkspaceId).get();
