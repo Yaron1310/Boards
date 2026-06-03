@@ -564,29 +564,54 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
             let preApprovedCount = 0;
 
             if (!userSnap.empty) {
-                // User exists — create one membership per workspace they don't already have
                 const existingUser = snapshotToData<DBUser>(userSnap.docs[0])!;
-                for (const wsDoc of validWsDocs) {
-                    const wsId = wsDoc.id;
-                    const memberSnap = await membershipsCollection
+                if (inviteAll) {
+                    // All-workhubs: create one org_editor membership if not already present
+                    const existingSnap = await membershipsCollection
                         .where('userId', '==', existingUser.id)
-                        .where('entityId', '==', wsId)
+                        .where('orgId', '==', orgId)
+                        .where('role', '==', UserRole.ORG_EDITOR)
                         .limit(1).get();
-                    if (memberSnap.empty) {
+                    if (existingSnap.empty) {
                         const newMemberRef = membershipsCollection.doc();
                         batch.set(newMemberRef, {
                             id: newMemberRef.id,
                             userId: existingUser.id,
                             userName: existingUser.name,
                             userEmail: existingUser.email,
-                            entityId: wsId,
-                            entityType: 'workspace',
-                            role: UserRole.REGULAR_USER,
+                            entityId: orgId,
+                            entityType: 'organization',
+                            role: UserRole.ORG_EDITOR,
                             permissions: safePermissions,
                             orgId,
                             createdAt: admin.firestore.FieldValue.serverTimestamp(),
                         });
                         addedToExisting++;
+                    }
+                } else {
+                    // Specific workspaces — one membership per workspace
+                    for (const wsDoc of validWsDocs) {
+                        const wsId = wsDoc.id;
+                        const memberSnap = await membershipsCollection
+                            .where('userId', '==', existingUser.id)
+                            .where('entityId', '==', wsId)
+                            .limit(1).get();
+                        if (memberSnap.empty) {
+                            const newMemberRef = membershipsCollection.doc();
+                            batch.set(newMemberRef, {
+                                id: newMemberRef.id,
+                                userId: existingUser.id,
+                                userName: existingUser.name,
+                                userEmail: existingUser.email,
+                                entityId: wsId,
+                                entityType: 'workspace',
+                                role: UserRole.REGULAR_USER,
+                                permissions: safePermissions,
+                                orgId,
+                                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            });
+                            addedToExisting++;
+                        }
                     }
                 }
             } else if (inviteAll) {
