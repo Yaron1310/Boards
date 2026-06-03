@@ -62,18 +62,20 @@ const clearAuthCookies = (res: import('express').Response) => {
 // Derives the user's highest possible role from their memberships.
 export const deriveHighestRole = (memberships: DBMembership[]): UserRole => {
     let highestRole = UserRole.REGULAR_USER;
-    let hasRegular = false, hasOrgAdmin = false, hasOrganizationAdmin = false, hasSystemAdmin = false;
+    let hasRegular = false, hasOrgEditor = false, hasOrgAdmin = false, hasOrganizationAdmin = false, hasSystemAdmin = false;
 
     for (const membership of memberships) {
         if (membership.role === UserRole.SYSTEM_ADMIN) hasSystemAdmin = true;
         if (membership.role === UserRole.ORGANIZATION_ADMIN) hasOrganizationAdmin = true;
         if (membership.role === UserRole.WORKSPACE_ADMIN) hasOrgAdmin = true;
+        if (membership.role === UserRole.ORG_EDITOR) hasOrgEditor = true;
         if (membership.role === UserRole.REGULAR_USER) hasRegular = true;
     }
 
     if (hasSystemAdmin) highestRole = UserRole.SYSTEM_ADMIN;
     else if (hasOrganizationAdmin) highestRole = UserRole.ORGANIZATION_ADMIN;
     else if (hasOrgAdmin) highestRole = UserRole.WORKSPACE_ADMIN;
+    else if (hasOrgEditor) highestRole = UserRole.ORG_EDITOR;
     else if (hasRegular) highestRole = UserRole.REGULAR_USER;
     
     return highestRole;
@@ -92,6 +94,7 @@ export const formatUserForFrontend = async (
         systemAdmin: memberships.some(m => m.role === UserRole.SYSTEM_ADMIN),
         organizationAdmin: [...new Set(memberships.filter(m => m.role === UserRole.ORGANIZATION_ADMIN).map(m => m.entityId))],
         workspaceAdmin: [...new Set(memberships.filter(m => m.role === UserRole.WORKSPACE_ADMIN).map(m => m.entityId))],
+        orgEditor: [...new Set(memberships.filter(m => m.role === UserRole.ORG_EDITOR).map(m => m.orgId).filter(Boolean))],
     };
     
     const workspaceIdsFromMemberships = [...new Set(memberships.filter(m => m.entityType === 'workspace').map(m => m.entityId))];
@@ -200,17 +203,47 @@ export const formatUserForFrontend = async (
 };
 
 export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceId: string, memberships: DBMembership[], sessionRole?: UserRole) => {
+    const effectiveRole = sessionRole || deriveHighestRole(memberships);
+    if (!effectiveRole) {
+        throw new Error(`Could not determine a valid role for user ${user.id}.`);
+    }
+
+    // org_editor: selectedWorkspaceId is actually the orgId — look up the org directly
+    if (effectiveRole === UserRole.ORG_EDITOR) {
+        const orgEditorMembership = memberships.find(m => m.role === UserRole.ORG_EDITOR);
+        const orgId = orgEditorMembership?.orgId || selectedWorkspaceId;
+        const workspacePermissions: 'edit' | 'read_only' = orgEditorMembership?.permissions ?? 'edit';
+        const tokenPayload: JwtUserPayload = {
+            id: user.id,
+            role: effectiveRole,
+            selectedWorkspaceId: orgId,
+            orgId,
+            workspacePermissions,
+        };
+        const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '7d' });
+        const orgDoc = await organizationsCollection.doc(orgId).get();
+        const orgName = orgDoc.exists ? (orgDoc.data()?.name || 'Organization') : 'Organization';
+        const [userForFrontend, firebaseToken] = await Promise.all([
+            formatUserForFrontend(user, { role: effectiveRole }),
+            admin.auth().createCustomToken(user.id, { orgId, role: effectiveRole }).catch((err) => {
+                logger.warn('createCustomToken failed — real-time sync unavailable until IAM is fixed', err.message);
+                return null;
+            }),
+        ]);
+        return {
+            accessToken,
+            firebaseToken,
+            user: userForFrontend,
+            selectedWorkspace: { id: orgId, name: orgName, orgId, workspacePermissions },
+        };
+    }
+
     const orgDoc = await workspacesCollection.doc(selectedWorkspaceId).get();
     if (!orgDoc.exists) {
         throw new Error(`Workspace ${selectedWorkspaceId} not found for user ${user.id}`);
     }
     const selectedWorkspace = snapshotToData<DBWorkspace>(orgDoc)!;
     const orgId = selectedWorkspace.orgId;
-    
-    const effectiveRole = sessionRole || deriveHighestRole(memberships);
-    if (!effectiveRole) {
-        throw new Error(`Could not determine a valid role for user ${user.id}.`);
-    }
 
     const selectedMembership = memberships.find(m => m.entityId === selectedWorkspaceId);
     const workspacePermissions: 'edit' | 'read_only' = selectedMembership?.permissions ?? 'edit';
@@ -341,13 +374,26 @@ const calculateAvailableContexts = async (user: any): Promise<{ role: UserRole, 
             }
         });
 
+        // Org editors have one context per org (entityId is the orgId on their membership)
+        const orgEditorOrgIds = [...new Set(
+            (user.dbRoles?.orgEditor ?? []) as string[]
+        )];
+        orgEditorOrgIds.forEach((oid: string) => {
+            const contextKey = `${UserRole.ORG_EDITOR}|${oid}`;
+            if (!addedContexts.has(contextKey)) {
+                contexts.push({ role: UserRole.ORG_EDITOR, workspaceId: oid });
+                addedContexts.add(contextKey);
+            }
+        });
+
         user.workspaces.forEach((org: any) => {
             if (org.name === 'Default Workspace') return;
 
             const isOrganizationAdminForThisOrg = organizationAdmin.includes(org.orgId);
             const isOrgManagerForThisOrg = workspaceAdmin.includes(org.id);
+            const isOrgEditorForThisOrg = orgEditorOrgIds.includes(org.orgId);
 
-            if (!isOrganizationAdminForThisOrg && !isOrgManagerForThisOrg) {
+            if (!isOrganizationAdminForThisOrg && !isOrgManagerForThisOrg && !isOrgEditorForThisOrg) {
                 const contextKey = `${UserRole.REGULAR_USER}|${org.id}`;
                 if (!addedContexts.has(contextKey)) {
                     contexts.push({ role: UserRole.REGULAR_USER, workspaceId: org.id });
@@ -434,21 +480,24 @@ export const register = async (req: Request, res: Response) => {
         for (const preapprovedDoc of allPreapprovedDocs) {
             const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedDoc)!;
 
-            // Resolve the list of workspace IDs to create memberships for.
-            // allWorkspaces:true means "all non-personal workhubs in the org".
-            let workspaceIdsToJoin: string[] = [];
             if (preapprovedData.allWorkspaces && preapprovedData.orgId) {
+                // Org-editor: one membership scoped to the org, not a specific workspace
                 if (!orgId) orgId = preapprovedData.orgId;
-                const wsSnap = await workspacesCollection.where('orgId', '==', preapprovedData.orgId).get();
-                workspaceIdsToJoin = wsSnap.docs
-                    .filter(d => !d.data().isPersonal && !d.data().isTemplates && d.data().status !== 'archived')
-                    .map(d => d.id);
+                const newMembershipRef = membershipsCollection.doc();
+                batch.set(newMembershipRef, {
+                    id: newMembershipRef.id,
+                    userId: newUser.id,
+                    userName: newUser.name,
+                    userEmail: newUser.email,
+                    entityId: preapprovedData.orgId,
+                    entityType: 'organization',
+                    role: UserRole.ORG_EDITOR,
+                    orgId: preapprovedData.orgId,
+                    permissions: preapprovedData.permissions ?? 'edit',
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
             } else if (preapprovedData.workspaceId) {
-                workspaceIdsToJoin = [preapprovedData.workspaceId];
-            }
-
-            for (const workspaceId of workspaceIdsToJoin) {
-                const orgDoc = await workspacesCollection.doc(workspaceId).get();
+                const orgDoc = await workspacesCollection.doc(preapprovedData.workspaceId).get();
                 const wsOrgId = orgDoc.exists ? (orgDoc.data()?.orgId || '') : '';
                 if (!orgId) orgId = wsOrgId;
                 const newMembershipRef = membershipsCollection.doc();
@@ -457,23 +506,22 @@ export const register = async (req: Request, res: Response) => {
                     userId: newUser.id,
                     userName: newUser.name,
                     userEmail: newUser.email,
-                    entityId: workspaceId,
+                    entityId: preapprovedData.workspaceId,
                     entityType: 'workspace',
                     role: UserRole.REGULAR_USER,
                     orgId: wsOrgId,
                     ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
                     ...(preapprovedData.boardOnlyAccess ? { boardOnlyAccess: true } : {}),
                     ...(preapprovedData.boardIds ? { boardIds: preapprovedData.boardIds } : {}),
-                    createdAt: admin.firestore.FieldValue.serverTimestamp()
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 });
-                // Create board member records for board-specific invitations
                 if (preapprovedData.boardIds?.length && wsOrgId) {
                     const boardRole = preapprovedData.permissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
                     for (const boardId of preapprovedData.boardIds) {
                         batch.set(boardMembersCollection(wsOrgId, boardId).doc(newUser.id), {
                             userId: newUser.id,
                             boardId,
-                            workspaceId,
+                            workspaceId: preapprovedData.workspaceId,
                             role: boardRole,
                             addedBy: preapprovedData.addedBy ?? 'system',
                             createdAt: admin.firestore.FieldValue.serverTimestamp(),

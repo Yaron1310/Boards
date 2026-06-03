@@ -17,9 +17,10 @@ import { boardsCollection, groupsCollection } from '../db/collections.js';
 
 const ROLE_LEVEL: Record<UserRole, number> = {
   [UserRole.REGULAR_USER]: 0,
-  [UserRole.WORKSPACE_ADMIN]: 1,
-  [UserRole.ORGANIZATION_ADMIN]: 2,
-  [UserRole.SYSTEM_ADMIN]: 3,
+  [UserRole.ORG_EDITOR]: 1,
+  [UserRole.WORKSPACE_ADMIN]: 2,
+  [UserRole.ORGANIZATION_ADMIN]: 3,
+  [UserRole.SYSTEM_ADMIN]: 4,
 };
 
 function isAtLeast(userRole: UserRole, minRole: UserRole): boolean {
@@ -60,6 +61,7 @@ export function effectiveBoardRole(
 ): BoardRole | 'full_access' | null {
   if (user.role === UserRole.SYSTEM_ADMIN) return 'full_access';
   if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) return 'full_access';
+  if (user.role === UserRole.ORG_EDITOR) return BoardRole.EDITOR;
   if (
     user.role === UserRole.WORKSPACE_ADMIN &&
     user.selectedWorkspaceId === board.workspaceId
@@ -185,6 +187,7 @@ export function canAccessGroup(
     case 'archive':
     case 'delete':
       if (isOrgAdmin) return true;
+      if (user.role === UserRole.ORG_EDITOR) return true;
       if (user.role === UserRole.REGULAR_USER && user.workspacePermissions !== 'read_only') {
         // Workspace-level edit access: verify user is in the board's workspace.
         // boardWorkspaceId is optional for backwards compatibility; omitting it is permissive.
@@ -253,6 +256,8 @@ export function canAccessItem(
   let effective: BoardRole | 'full_access' | null = null;
   if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) {
     effective = 'full_access';
+  } else if (user.role === UserRole.ORG_EDITOR) {
+    effective = BoardRole.EDITOR;
   } else if (user.role === UserRole.WORKSPACE_ADMIN && isInWorkspace) {
     effective = 'full_access';
   } else if (user.role === UserRole.REGULAR_USER && (isInWorkspace || isBoardOnlyAccess)) {

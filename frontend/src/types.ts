@@ -1,5 +1,6 @@
 export enum UserRole {
   REGULAR_USER = 'regular_user',
+  ORG_EDITOR = 'org_editor',
   WORKSPACE_ADMIN = 'workspace_admin',
   ORGANIZATION_ADMIN = 'org_admin',
   SYSTEM_ADMIN = 'system_admin',

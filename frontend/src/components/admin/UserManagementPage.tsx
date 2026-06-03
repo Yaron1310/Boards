@@ -187,6 +187,7 @@ const UserManagementPage: React.FC = () => {
         switch (u.role) {
             case UserRole.ORGANIZATION_ADMIN: return 'Org Admin';
             case UserRole.WORKSPACE_ADMIN: return 'Workhub Admin';
+            case UserRole.ORG_EDITOR: return 'Org Editor';
             case UserRole.SYSTEM_ADMIN: return 'System Admin';
             default: return 'Member';
         }
@@ -381,6 +382,7 @@ const UserManagementPage: React.FC = () => {
                             >
                                 <option value="">{t('admin.allRoles')}</option>
                                 <option value={UserRole.REGULAR_USER}>Board member</option>
+                                <option value={UserRole.ORG_EDITOR}>Org Editor</option>
                                 <option value={UserRole.WORKSPACE_ADMIN}>Workhub Admin</option>
                                 <option value={UserRole.ORGANIZATION_ADMIN}>Org Admin</option>
                                 <option value="pending">Pending</option>
