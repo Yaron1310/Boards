@@ -969,7 +969,7 @@ const MainLayout: React.FC = () => {
   const logoCircle = organizationSettings?.logoCircle ?? true;
 
   const navItems: NavItem[] = [
-    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiTrello className={iconClassName} style={{ transform: 'rotate(180deg)' }} />, roles: [UserRole.ORGANIZATION_ADMIN], show: true },
+    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiTrello className={iconClassName} style={{ transform: 'rotate(180deg)' }} />, roles: [UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
     { name: t('layout.workspaces'), path: '/WorkHubs', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
   ];
 

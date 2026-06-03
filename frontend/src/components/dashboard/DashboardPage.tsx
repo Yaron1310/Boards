@@ -158,13 +158,20 @@ const DashboardPage: React.FC = () => {
   }, [customDashboardsList, customDashboardsLoading]);
 
   // Ordered list of dashboards (respects manual drag-and-drop order)
+  // Non-admins only see dashboards with visibility = 'all'
+  const visibleDashboards = useMemo(() => {
+    return isOrgAdmin
+      ? customDashboardsList
+      : customDashboardsList.filter((d) => d.visibility === 'all');
+  }, [customDashboardsList, isOrgAdmin]);
+
   const orderedDashboards = useMemo(() => {
-    if (dashboardOrder.length === 0) return customDashboardsList;
-    const byId = new Map(customDashboardsList.map((d) => [d.id, d]));
+    if (dashboardOrder.length === 0) return visibleDashboards;
+    const byId = new Map(visibleDashboards.map((d) => [d.id, d]));
     const ordered = dashboardOrder.map((id) => byId.get(id)).filter(Boolean) as CustomDashboard[];
-    const newItems = customDashboardsList.filter((d) => !dashboardOrder.includes(d.id));
+    const newItems = visibleDashboards.filter((d) => !dashboardOrder.includes(d.id));
     return [...ordered, ...newItems];
-  }, [customDashboardsList, dashboardOrder]);
+  }, [visibleDashboards, dashboardOrder]);
 
   const getBoardNamesForDashboard = (d: CustomDashboard): string[] => {
     let ids: string[];
@@ -346,23 +353,33 @@ const DashboardPage: React.FC = () => {
       {/* Scrollable content */}
       <main className="px-6 pb-6 flex flex-col gap-6" aria-label="Dashboard">
         <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
-          {/* Summary stats — full width */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <WidgetCard
-              title="Summary"
-              subtitle="Total, completed, and overdue counts"
-              isLoading={isLoading}
-              isEmpty={summaryIsEmpty}
-              className="md:col-span-2"
-            >
-              {summary && (
-                <SummaryStatsWidget
-                  summary={summary.summary}
-                  overdueCount={summary.overdue.count}
-                />
-              )}
-            </WidgetCard>
-          </div>
+          {/* Summary stats — org admins only */}
+          {isOrgAdmin && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <WidgetCard
+                title="Summary"
+                subtitle="Total, completed, and overdue counts"
+                isLoading={isLoading}
+                isEmpty={summaryIsEmpty}
+                className="md:col-span-2"
+              >
+                {summary && (
+                  <SummaryStatsWidget
+                    summary={summary.summary}
+                    overdueCount={summary.overdue.count}
+                  />
+                )}
+              </WidgetCard>
+            </div>
+          )}
+
+          {/* No dashboards message for non-admins with nothing visible */}
+          {!isOrgAdmin && !customDashboardsLoading && orderedDashboards.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 text-gray-400">
+              <FiTrello size={40} className="mb-4 opacity-30" style={{ transform: 'rotate(180deg)' }} aria-hidden="true" />
+              <p className="text-lg font-medium">You have no available dashboards</p>
+            </div>
+          )}
 
           {/* Custom dashboards with drag-and-drop */}
           {orderedDashboards.length > 0 && (
