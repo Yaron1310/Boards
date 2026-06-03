@@ -431,9 +431,18 @@ export const getAllUsers = async (req: Request, res: Response) => {
         const membershipEmailMap = new Map(
             pageData.filter(m => m.userEmail).map(m => [m.userId, m.userEmail!])
         );
+        // Build ordered list, then deduplicate by user id so that orphaned memberships
+        // with different userId values that resolve to the same user doc don't produce
+        // duplicate rows. The users collection is the source of truth — one row per user.
+        const seenFinalIds = new Set<string>();
         const orderedUsers = userIdsForPage.map(id => {
             return userMap.get(id) ?? emailToUser.get(membershipEmailMap.get(id) ?? '');
-        }).filter(Boolean);
+        }).filter((u): u is NonNullable<typeof u> => {
+            if (!u) return false;
+            if (seenFinalIds.has(u.id)) return false;
+            seenFinalIds.add(u.id);
+            return true;
+        });
 
         const nextCursor = hasMore && orderedUsers.length > 0 ? orderedUsers[orderedUsers.length - 1]!.id : null;
 

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
-import type { User } from '../../types';
+import type { User, PreApprovedUser } from '../../types';
 import { UserRole } from '../../types';
 import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiEdit, FiTrash2 } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
@@ -38,7 +38,8 @@ const UserManagementPage: React.FC = () => {
   const {
     workspaces,
     preApprovedUsers,
-    tutorialSettings
+    tutorialSettings,
+    revokePreApprovedUser,
   } = useData();
   const navigate = useNavigate();
 
@@ -81,6 +82,18 @@ const UserManagementPage: React.FC = () => {
   const allUsers = useMemo(() => {
     return infiniteData?.pages.flatMap((page: any) => page?.data ?? []) ?? [];
   }, [infiniteData]);
+
+  // Filter preApprovedUsers by search term and workspaceId, then exclude emails already in allUsers
+  const filteredPendingUsers = useMemo(() => {
+    if (filterRole && filterRole !== 'pending') return [];
+    const activeUserEmails = new Set(allUsers.map((u: User) => u.email?.toLowerCase()));
+    return preApprovedUsers.filter(p => {
+      if (filterOrg && p.workspaceId !== filterOrg) return false;
+      if (debouncedSearch && !p.email.toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
+      if (activeUserEmails.has(p.email.toLowerCase())) return false;
+      return true;
+    });
+  }, [preApprovedUsers, allUsers, filterOrg, debouncedSearch, filterRole]);
 
   useEffect(() => {
     if (feedback) {
@@ -155,6 +168,52 @@ const UserManagementPage: React.FC = () => {
     }));
 
     exportToCSV(dataForExport, "Logyx_Users_Export.csv");
+  };
+
+  const PendingUserRow = ({ pending: p }: { pending: PreApprovedUser }) => {
+    const workspaceName = workspaces.find(w => w.id === p.workspaceId)?.name;
+    return (
+      <tr className="hover:bg-gray-50 transition-colors border-b border-gray-200" aria-label={`Pending user ${p.email}`}>
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-3">
+            <img
+              className="h-10 w-10 rounded-full object-cover shrink-0 opacity-40"
+              src="/default_user.webp"
+              alt="Pending user"
+            />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-gray-500 whitespace-nowrap italic">{p.email}</div>
+              <div className="text-xs text-gray-400">Pending invitation</div>
+            </div>
+          </div>
+        </td>
+        <td className="px-6 py-4 text-sm text-gray-500">{p.email}</td>
+        <td className="px-6 py-4 text-sm text-gray-500">{workspaceName || '—'}</td>
+        <td className="px-4 py-4 text-center">
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            Pending
+          </span>
+        </td>
+        {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+          <td className="px-3 py-4 text-center">
+            <span className="text-xs text-gray-400">—</span>
+          </td>
+        )}
+        {authUser.role === UserRole.ORGANIZATION_ADMIN && (
+          <td className="px-3 py-4 text-center">
+            <button
+              type="button"
+              onClick={() => revokePreApprovedUser(p.id)}
+              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+              aria-label={`Revoke invitation for ${p.email}`}
+              title="Revoke invitation"
+            >
+              <FiTrash2 size={15} aria-hidden="true" />
+            </button>
+          </td>
+        )}
+      </tr>
+    );
   };
 
   const UserRow = ({ user: u }: { user: User }) => {
@@ -368,6 +427,7 @@ const UserManagementPage: React.FC = () => {
                                 <option value={UserRole.REGULAR_USER}>Board member</option>
                                 <option value={UserRole.WORKSPACE_ADMIN}>Workhub Admin</option>
                                 <option value={UserRole.ORGANIZATION_ADMIN}>Org Admin</option>
+                                <option value="pending">Pending</option>
                             </select>
                             <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                 <FiChevronDown className="h-5 w-5 text-gray-400" />
@@ -386,7 +446,7 @@ const UserManagementPage: React.FC = () => {
                     <div className="flex items-center justify-center py-16 text-red-500" role="alert">
                         <FiAlertTriangle className="mr-2" /> {t('admin.errorLoadingUsers')}
                     </div>
-                ) : allUsers.length === 0 ? (
+                ) : allUsers.length === 0 && filteredPendingUsers.length === 0 ? (
                     <div className="text-center py-10 text-gray-500">
                         <FiUsers size={48} className="mx-auto mb-4 opacity-50" aria-hidden="true" />
                         <p className="text-lg">{t('admin.noUsersFound')}</p>
@@ -408,10 +468,13 @@ const UserManagementPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {allUsers.map((u: any) => (
+                            {filterRole !== 'pending' && allUsers.map((u: any) => (
                                 <UserRow key={u.id} user={u} />
                             ))}
-                            {hasNextPage && (
+                            {filteredPendingUsers.map((p: PreApprovedUser) => (
+                                <PendingUserRow key={p.id} pending={p} />
+                            ))}
+                            {hasNextPage && filterRole !== 'pending' && (
                                 <tr>
                                     <td colSpan={authUser.role === UserRole.ORGANIZATION_ADMIN ? 6 : 4} className="text-center py-4">
                                         <button
