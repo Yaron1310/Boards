@@ -471,7 +471,7 @@ const BoardViewPage: React.FC = () => {
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);
   const { data: groups = [], isLoading: groupsLoading } = useGroups(boardId ?? '', !!boardId);
   const { data: columns = [] } = useColumns(boardId ?? '');
-  const { data: allUsersForExport = [] } = useUsersQuery({ limit: 200 });
+  const { data: allUsersForExport = [] } = useUsersQuery({ limit: 200 }, selectedWorkspace?.workspacePermissions !== 'read_only');
 
   const { mutateAsync: updateBoard, isPending: isSaving } = useUpdateBoard();
   const { mutateAsync: reorderGroups } = useReorderGroups();
