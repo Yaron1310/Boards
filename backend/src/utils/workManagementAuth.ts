@@ -263,7 +263,7 @@ export function canAccessItem(
 
   switch (op) {
     case 'read':
-      return boardRoleAtLeast(effective, BoardRole.VIEWER) || isAssignee;
+      return true;
 
     case 'create':
       return boardRoleAtLeast(effective, BoardRole.EDITOR);
