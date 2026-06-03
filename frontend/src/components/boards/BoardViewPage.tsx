@@ -172,6 +172,7 @@ interface BoardContentProps {
   columnWidths: Record<string, number>;
   onWidthChange: (columnId: string, width: number) => void;
   workingDays?: number[];
+  isBoardReadOnly: boolean;
 }
 
 type SortState = { columnId: string; direction: 'asc' | 'desc' };
@@ -236,9 +237,10 @@ const BoardContent: React.FC<BoardContentProps> = ({
   columnWidths,
   onWidthChange,
   workingDays,
+  isBoardReadOnly,
 }) => {
   const { data: columns = [] } = useColumns(boardId);
-  const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
+  const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, !isBoardReadOnly);
   const [sort, setSort] = React.useState<SortState | null>(null);
 
   const sortedItemsByGroup = React.useMemo<Record<string, Item[]>>(() => {
@@ -1012,6 +1014,7 @@ const BoardViewPage: React.FC = () => {
             columnWidths={columnWidths}
             onWidthChange={handleWidthChange}
             workingDays={orgSettings?.workingDays}
+            isBoardReadOnly={isBoardReadOnly}
           />
         </DependencyProvider>
         </FormulaEditProvider>
