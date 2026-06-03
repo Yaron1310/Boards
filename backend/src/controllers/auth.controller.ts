@@ -240,6 +240,7 @@ export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceI
             id: selectedWorkspace.id,
             name: selectedWorkspace.name,
             orgId: selectedWorkspace.orgId,
+            workspacePermissions,
         },
     };
 };

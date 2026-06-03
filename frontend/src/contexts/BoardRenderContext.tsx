@@ -11,6 +11,7 @@ interface BoardRenderContextValue {
   columns: Column[];
   boardView: BoardView;
   columnWidths: ColumnWidthMap;
+  isBoardReadOnly: boolean;
 }
 
 const BoardRenderContext = createContext<BoardRenderContextValue | null>(null);
@@ -20,10 +21,11 @@ export const BoardRenderProvider: React.FC<{
   columns: Column[];
   boardView?: BoardView;
   columnWidths?: ColumnWidthMap;
+  isBoardReadOnly?: boolean;
   children: React.ReactNode;
-}> = ({ visibleItems, columns, boardView = 'table', columnWidths = {}, children }) => {
+}> = ({ visibleItems, columns, boardView = 'table', columnWidths = {}, isBoardReadOnly = false, children }) => {
   return (
-    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView, columnWidths }}>
+    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView, columnWidths, isBoardReadOnly }}>
       {children}
     </BoardRenderContext.Provider>
   );

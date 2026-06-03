@@ -9,9 +9,10 @@ interface CellWrapperProps {
   children: (isEditing: boolean, stopEdit: () => void) => React.ReactNode;
 }
 
-const CellWrapper: React.FC<CellWrapperProps> = ({ column, isReadOnly = false, children }) => {
+const CellWrapper: React.FC<CellWrapperProps> = ({ column, isReadOnly: propReadOnly = false, children }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const { boardView, columnWidths } = useBoardRender();
+  const { boardView, columnWidths, isBoardReadOnly } = useBoardRender();
+  const isReadOnly = propReadOnly || isBoardReadOnly;
   const colWidth = columnWidths[column.id] ?? column.width ?? calculateColumnWidth(column.name, column.type);
 
   const startEdit = (e: React.MouseEvent | React.KeyboardEvent) => {

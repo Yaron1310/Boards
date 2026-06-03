@@ -14,6 +14,7 @@ export interface WorkHub {
   isPersonal?: boolean;
   isTemplates?: boolean;
   status?: 'active' | 'archived';
+  workspacePermissions?: 'edit' | 'read_only';
 }
 
 export interface OrganizationSettings {

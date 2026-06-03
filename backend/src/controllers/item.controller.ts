@@ -362,9 +362,26 @@ export const getItems = async (req: Request, res: Response) => {
     );
 
     const snapshot = await paginatedQuery.get();
-    const allItems = querySnapshotToArray<DBItem>(snapshot).filter((item) =>
-      canAccessItem(user, item, 'read'),
-    );
+    const rawItems = querySnapshotToArray<DBItem>(snapshot);
+    const allItems = rawItems.filter((item) => canAccessItem(user, item, 'read'));
+
+    // Debug: log when items are filtered out so we can diagnose access issues
+    if (rawItems.length !== allItems.length) {
+      logger.warn('[getItems] canAccessItem filtered items', {
+        userId: user.id,
+        userRole: user.role,
+        selectedWorkspaceId: user.selectedWorkspaceId,
+        workspacePermissions: user.workspacePermissions,
+        boardIds: user.boardIds,
+        orgId: user.orgId,
+        boardId: boardId ?? null,
+        rawCount: rawItems.length,
+        passedCount: allItems.length,
+        filteredOutWorkspaceIds: [...new Set(
+          rawItems.filter(i => !allItems.includes(i)).map(i => i.workspaceId ?? '(missing)')
+        )],
+      });
+    }
 
     const result = buildPaginatedResult(allItems, limit);
     if (totalCount !== undefined) result.total = totalCount;

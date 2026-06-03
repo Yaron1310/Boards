@@ -364,7 +364,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                   <p>No groups yet. Add a group to start organising items.</p>
                 </div>
               ) : (
-                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths}>
+                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly}>
                   <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
                     {localGroups.map((group) => (
                       <GroupSection
@@ -520,6 +520,8 @@ const BoardViewPage: React.FC = () => {
     user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN;
+
+  const isBoardReadOnly = selectedWorkspace?.workspacePermissions === 'read_only';
 
   // Called by each GroupSection when it fetches a new page; keeps localItemsByGroup in sync for DnD/export
   const handlePageItemsChange = useCallback((groupId: string, items: Item[]) => {
@@ -965,17 +967,19 @@ const BoardViewPage: React.FC = () => {
                 Archived
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => void handleExport()}
-              disabled={isExporting}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Export board to Excel file"
-            >
-              <FiUpload size={13} aria-hidden="true" />
-              {isExporting ? 'Exporting…' : 'Export'}
-            </button>
-            <UndoButton />
+            {!isBoardReadOnly && (
+              <button
+                type="button"
+                onClick={() => void handleExport()}
+                disabled={isExporting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Export board to Excel file"
+              >
+                <FiUpload size={13} aria-hidden="true" />
+                {isExporting ? 'Exporting…' : 'Export'}
+              </button>
+            )}
+            {!isBoardReadOnly && <UndoButton />}
           </div>
         </div>
 
@@ -1016,7 +1020,7 @@ const BoardViewPage: React.FC = () => {
       {detailItem && (
         <FormulaEditProvider>
           <DependencyProvider items={allItems}>
-            <BoardRenderProvider visibleItems={allItems} columns={columns}>
+            <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly}>
               <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
             </BoardRenderProvider>
           </DependencyProvider>
