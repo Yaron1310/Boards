@@ -142,7 +142,7 @@ const UserManagementPage: React.FC = () => {
   }
 
   const handleRemoveUser = async () => {
-    const orgId = selectedWorkspace?.orgId;
+    const orgId = selectedWorkspace?.orgId ?? authUser?.orgId;
     if (!removeTarget || !orgId) return;
     setIsRemoving(true);
     try {
