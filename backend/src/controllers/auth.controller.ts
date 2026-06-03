@@ -433,8 +433,21 @@ export const register = async (req: Request, res: Response) => {
         let orgId = '';
         for (const preapprovedDoc of allPreapprovedDocs) {
             const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedDoc)!;
-            const workspaceId = preapprovedData.workspaceId;
-            if (workspaceId) {
+
+            // Resolve the list of workspace IDs to create memberships for.
+            // allWorkspaces:true means "all non-personal workhubs in the org".
+            let workspaceIdsToJoin: string[] = [];
+            if (preapprovedData.allWorkspaces && preapprovedData.orgId) {
+                if (!orgId) orgId = preapprovedData.orgId;
+                const wsSnap = await workspacesCollection.where('orgId', '==', preapprovedData.orgId).get();
+                workspaceIdsToJoin = wsSnap.docs
+                    .filter(d => !d.data().isPersonal && !d.data().isTemplates && d.data().status !== 'archived')
+                    .map(d => d.id);
+            } else if (preapprovedData.workspaceId) {
+                workspaceIdsToJoin = [preapprovedData.workspaceId];
+            }
+
+            for (const workspaceId of workspaceIdsToJoin) {
                 const orgDoc = await workspacesCollection.doc(workspaceId).get();
                 const wsOrgId = orgDoc.exists ? (orgDoc.data()?.orgId || '') : '';
                 if (!orgId) orgId = wsOrgId;

@@ -525,11 +525,10 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
             return res.status(403).json({ message: 'Forbidden.' });
         }
 
+        const inviteAll = workspaceIds === 'all';
         let targetWorkspaceIds: string[];
-        if (workspaceIds === 'all') {
-            const wsSnap = await workspacesCollection
-                .where('orgId', '==', orgId)
-                .get();
+        if (inviteAll) {
+            const wsSnap = await workspacesCollection.where('orgId', '==', orgId).get();
             targetWorkspaceIds = wsSnap.docs
                 .filter(d => !d.data().isPersonal && !d.data().isTemplates)
                 .map(d => d.id);
@@ -564,10 +563,11 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
             let addedToExisting = 0;
             let preApprovedCount = 0;
 
-            for (const wsDoc of validWsDocs) {
-                const wsId = wsDoc.id;
-                if (!userSnap.empty) {
-                    const existingUser = snapshotToData<DBUser>(userSnap.docs[0])!;
+            if (!userSnap.empty) {
+                // User exists — create one membership per workspace they don't already have
+                const existingUser = snapshotToData<DBUser>(userSnap.docs[0])!;
+                for (const wsDoc of validWsDocs) {
+                    const wsId = wsDoc.id;
                     const memberSnap = await membershipsCollection
                         .where('userId', '==', existingUser.id)
                         .where('entityId', '==', wsId)
@@ -588,10 +588,26 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
                         });
                         addedToExisting++;
                     }
-                } else {
+                }
+            } else if (inviteAll) {
+                // Not yet registered + all-workhubs: one preapproved doc representing org-wide access
+                const docId = Buffer.from(`${sanitizedEmail}_${orgId}_all`).toString('base64');
+                batch.set(preapprovedUsersCollection.doc(docId), {
+                    email: sanitizedEmail,
+                    workspaceId: orgId,
+                    orgId,
+                    allWorkspaces: true,
+                    addedBy: requestingUser.id,
+                    permissions: safePermissions,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                preApprovedCount++;
+            } else {
+                // Not yet registered + specific workspaces: one doc per workspace
+                for (const wsDoc of validWsDocs) {
+                    const wsId = wsDoc.id;
                     const docId = Buffer.from(`${sanitizedEmail}_${wsId}`).toString('base64');
-                    const docRef = preapprovedUsersCollection.doc(docId);
-                    batch.set(docRef, {
+                    batch.set(preapprovedUsersCollection.doc(docId), {
                         email: sanitizedEmail,
                         workspaceId: wsId,
                         orgId,

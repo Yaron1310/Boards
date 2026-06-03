@@ -114,6 +114,7 @@ export interface DBPreapprovedUser {
   permissions?: 'edit' | 'read_only';
   boardOnlyAccess?: boolean;
   boardIds?: string[];
+  allWorkspaces?: boolean;
   createdAt: admin.firestore.Timestamp | Date | any;
 }
 
