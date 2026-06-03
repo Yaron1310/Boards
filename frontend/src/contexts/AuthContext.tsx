@@ -1,6 +1,7 @@
 
 import React, { createContext, useState, useEffect, useRef, ReactNode, useCallback, useMemo } from 'react';
-import type { User, Workspace, UserRole } from '../types';
+import type { User, Workspace } from '../types';
+import { UserRole } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import * as apiService from '../services/geminiService';
 import { Capacitor } from '@capacitor/core';
