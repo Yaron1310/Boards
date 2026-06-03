@@ -648,6 +648,8 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
 
             if (userSnap.empty && preApprovedCount > 0) {
                 await sendUserInvitationEmail(sanitizedEmail, orgName, orgName, registrationLink).catch(() => {});
+            } else if (!userSnap.empty && addedToExisting > 0) {
+                await sendUserInvitationEmail(sanitizedEmail, orgName, orgName, `${env.FRONTEND_URL}/login`).catch(() => {});
             }
 
             totalAdded += addedToExisting;
