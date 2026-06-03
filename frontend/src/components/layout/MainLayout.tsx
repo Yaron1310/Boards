@@ -974,7 +974,7 @@ const MainLayout: React.FC = () => {
   ];
 
   const adminNavItems: AdminNavItem[] = [
-     { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
+     { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN] },
      { name: 'Templates', path: '/admin/templates', icon: <FiBookmark className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
   ];
 

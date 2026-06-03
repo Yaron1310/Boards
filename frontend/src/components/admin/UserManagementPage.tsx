@@ -7,7 +7,6 @@ import { useData } from '../../hooks/useData';
 import type { User, PreApprovedUser } from '../../types';
 import { UserRole } from '../../types';
 import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiEdit, FiTrash2 } from 'react-icons/fi';
-import PreApproveUsersModal from './PreApproveUsersModal';
 import InviteUsersOrgModal from './InviteUsersOrgModal';
 import TutorialSection from '../common/TutorialSection';
 import OrganizationAdminsModal from './AcademyAdminsModal';
@@ -48,7 +47,6 @@ const UserManagementPage: React.FC = () => {
   const [filterOrg, setFilterOrg] = useState<string>('');
   const [filterRole, setFilterRole] = useState<string>('');
 
-  const [showPreApproveModal, setShowPreApproveModal] = useState(false);
   const [showOrganizationAdminsModal, setShowOrganizationAdminsModal] = useState(false);
   const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
   const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string; isOrgAdmin: boolean } | null>(null);
@@ -104,39 +102,7 @@ const UserManagementPage: React.FC = () => {
     }
   }, [feedback]);
 
-  const orgForPreApproval = useMemo(() => {
-    if (authUser?.role === UserRole.WORKSPACE_ADMIN) {
-        return selectedWorkspace;
-    }
-    return null;
-  }, [authUser, selectedWorkspace]);
-
-  const handleOpenPreApproveModal = () => {
-    if (orgForPreApproval) setShowPreApproveModal(true);
-  };
-
-  const { currentRegularUsersCount, pendingInvitesCount } = useMemo(() => {
-    if (authUser?.role !== UserRole.WORKSPACE_ADMIN || !selectedWorkspace || !allUsers || !preApprovedUsers) {
-        return { currentRegularUsersCount: 0, pendingInvitesCount: 0 };
-    }
-
-    const regularUsers = allUsers.filter((u: User) => {
-        if (u.dbRoles?.workspaceAdmin?.includes(selectedWorkspace.id)) return false;
-        if (u.dbRoles?.organizationAdmin?.includes(selectedWorkspace.orgId)) return false;
-        if (u.dbRoles?.systemAdmin) return false;
-        return true;
-    });
-
-    const pendingCount = preApprovedUsers.filter(p => p.workspaceId === selectedWorkspace.id).length;
-
-    return {
-        currentRegularUsersCount: regularUsers.length,
-        pendingInvitesCount: pendingCount
-    };
-  }, [authUser, selectedWorkspace, allUsers, preApprovedUsers]);
-
-
-  if (!authUser || (authUser.role !== UserRole.ORGANIZATION_ADMIN && authUser.role !== UserRole.WORKSPACE_ADMIN && authUser.role !== UserRole.SYSTEM_ADMIN)) {
+  if (!authUser || (authUser.role !== UserRole.ORGANIZATION_ADMIN && authUser.role !== UserRole.SYSTEM_ADMIN)) {
     navigate('/chat');
     return null;
   }
@@ -307,16 +273,6 @@ const UserManagementPage: React.FC = () => {
                     <FiUsers className="mr-3 text-blue-500"/>{t('admin.userManagement')}
                 </h1>
                 <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-                    {authUser.role === UserRole.WORKSPACE_ADMIN && (
-                        <button
-                        onClick={handleOpenPreApproveModal}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
-                        aria-label="Pre-approve new users for your workspace"
-                        title="Pre-approve new users for your workspace"
-                        >
-                        <FiUserPlus className="mr-2" /> {t('admin.preApproveUsers')}
-                        </button>
-                    )}
                     {authUser.role === UserRole.ORGANIZATION_ADMIN && (
                         <button
                         onClick={() => setShowInviteUsersModal(true)}
@@ -494,17 +450,6 @@ const UserManagementPage: React.FC = () => {
             </div>
         </div>
       </div>
-
-      {showPreApproveModal && orgForPreApproval && (
-        <PreApproveUsersModal
-            isOpen={showPreApproveModal}
-            onClose={() => setShowPreApproveModal(false)}
-            workspace={orgForPreApproval}
-            maxUsers={null}
-            currentRegularUsersCount={currentRegularUsersCount}
-            pendingInvitesCount={pendingInvitesCount}
-        />
-      )}
 
       {showOrganizationAdminsModal && (
         <OrganizationAdminsModal
