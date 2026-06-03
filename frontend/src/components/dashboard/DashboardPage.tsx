@@ -158,20 +158,13 @@ const DashboardPage: React.FC = () => {
   }, [customDashboardsList, customDashboardsLoading]);
 
   // Ordered list of dashboards (respects manual drag-and-drop order)
-  // Non-admins only see dashboards with visibility = 'all'
-  const visibleDashboards = useMemo(() => {
-    return isOrgAdmin
-      ? customDashboardsList
-      : customDashboardsList.filter((d) => d.visibility === 'all');
-  }, [customDashboardsList, isOrgAdmin]);
-
   const orderedDashboards = useMemo(() => {
-    if (dashboardOrder.length === 0) return visibleDashboards;
-    const byId = new Map(visibleDashboards.map((d) => [d.id, d]));
+    if (dashboardOrder.length === 0) return customDashboardsList;
+    const byId = new Map(customDashboardsList.map((d) => [d.id, d]));
     const ordered = dashboardOrder.map((id) => byId.get(id)).filter(Boolean) as CustomDashboard[];
-    const newItems = visibleDashboards.filter((d) => !dashboardOrder.includes(d.id));
+    const newItems = customDashboardsList.filter((d) => !dashboardOrder.includes(d.id));
     return [...ordered, ...newItems];
-  }, [visibleDashboards, dashboardOrder]);
+  }, [customDashboardsList, dashboardOrder]);
 
   const getBoardNamesForDashboard = (d: CustomDashboard): string[] => {
     let ids: string[];
