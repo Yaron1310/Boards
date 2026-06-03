@@ -42,13 +42,19 @@ export const getAllWorkspaces = async (req: Request, res: Response) => {
         } else {
             let query: admin.firestore.Query = workspacesCollection;
             if (user.role === UserRole.ORGANIZATION_ADMIN) {
-                query = query.where('orgId', '==', user.orgId);
-            } else if (user.role === UserRole.WORKSPACE_ADMIN) {
-                query = query.where(admin.firestore.FieldPath.documentId(), '==', user.selectedWorkspaceId);
+                query = query.where('orgId', '==', user.orgId).where('status', '!=', 'archived');
+                const snapshot = await query.orderBy('status').orderBy('name').get();
+                orgs = querySnapshotToArray<DBWorkspace>(snapshot);
+            } else if (user.role === UserRole.WORKSPACE_ADMIN && user.selectedWorkspaceId) {
+                // Can't combine documentId equality with inequality — fetch by doc ref directly
+                const wsDoc = await workspacesCollection.doc(user.selectedWorkspaceId).get();
+                const ws = snapshotToData<DBWorkspace>(wsDoc);
+                orgs = ws && ws.status !== 'archived' ? [ws] : [];
+            } else {
+                query = query.where('status', '!=', 'archived');
+                const snapshot = await query.orderBy('status').orderBy('name').get();
+                orgs = querySnapshotToArray<DBWorkspace>(snapshot);
             }
-            query = query.where('status', '!=', 'archived');
-            const snapshot = await query.orderBy('name').get();
-            orgs = querySnapshotToArray<DBWorkspace>(snapshot);
         }
 
         res.json(orgs);
