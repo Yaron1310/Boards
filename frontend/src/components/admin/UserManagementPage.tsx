@@ -156,7 +156,9 @@ const UserManagementPage: React.FC = () => {
       console.log('[removeUser] calling API:', orgId, removeTarget.id);
       const result = await removeUserFromOrg(orgId, removeTarget.id);
       console.log('[removeUser] API success:', result);
-      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+      console.log('[removeUser] users in cache BEFORE invalidate:', queryClient.getQueryData([...queryKeys.users.all, 'infinite', { search: debouncedSearch, workspaceId: filterOrg, role: filterRole }]));
+      await queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+      console.log('[removeUser] users in cache AFTER invalidate:', queryClient.getQueryData([...queryKeys.users.all, 'infinite', { search: debouncedSearch, workspaceId: filterOrg, role: filterRole }]));
       setFeedback({ type: 'success', text: `${removeTarget.name} has been removed from the organization.` });
     } catch (err: any) {
       console.error('[removeUser] API error:', err);
