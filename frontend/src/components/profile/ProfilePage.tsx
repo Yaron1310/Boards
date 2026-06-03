@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { UserRole } from '../../types';
-import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiUserMinus, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiGlobe } from 'react-icons/fi';
+import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiGlobe } from 'react-icons/fi';
 import i18n, { SUPPORTED_LANGUAGES } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -27,7 +27,6 @@ const ProfilePage: React.FC = () => {
   const {
     users,
     deleteUser,
-    removeUserFromWorkspace,
     dataError: dataCtxError,
     clearDataError: clearDataCtxError,
     isLoading: dataCtxLoading,
@@ -70,7 +69,6 @@ const ProfilePage: React.FC = () => {
   }, [profileUpdateMessage]);
   
   const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
-  const [showRemoveUserConfirmModal, setShowRemoveUserConfirmModal] = useState(false);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [deletionType, setDeletionType] = useState<'soft' | 'hard' | null>(null);
 
@@ -367,33 +365,6 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleConfirmRemoveUserFromOrg = async () => {
-    if (!profileUser || !authUser) return;
-
-    let orgToRemoveId: string | undefined;
-    if (authUser.role === UserRole.WORKSPACE_ADMIN) {
-        orgToRemoveId = authUser.selectedWorkspace?.id;
-    } else if (authUser.role === UserRole.ORGANIZATION_ADMIN && profileUser.workspaceId) {
-        orgToRemoveId = profileUser.workspaceId;
-    }
-
-    if (!orgToRemoveId) {
-        setProfileUpdateMessage({ type: 'error', text: "Could not determine which WorkHub to remove the user from." });
-        return;
-    }
-
-    setIsProcessingAction(true);
-    const success = await removeUserFromWorkspace(orgToRemoveId, profileUser.id);
-    setIsProcessingAction(false);
-    setShowRemoveUserConfirmModal(false);
-
-    if (success) {
-        setProfileUpdateMessage({type: 'success', text: `User ${profileUser.name} removed from workspace.`});
-    } else {
-         if (!dataCtxError) setProfileUpdateMessage({type: 'error', text: 'Failed to remove user from workspace.'});
-    }
-  };
-
   const handleLogoutClick = () => {
     logout();
     navigate('/login', { replace: true });
@@ -411,11 +382,6 @@ const ProfilePage: React.FC = () => {
     return <div className="p-6 text-center text-gray-600">User not found or you do not have permission to view this profile.</div>;
   }
   
-  const showAdminActions = !isOwnProfile && (
-    (authUser?.role === UserRole.WORKSPACE_ADMIN && profileUser.role === UserRole.REGULAR_USER && profileUser.workspaces.some(org => org.id === authUser.selectedWorkspace?.id)) ||
-    ((authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN) && profileUser.role !== UserRole.ORGANIZATION_ADMIN && profileUser.role !== UserRole.SYSTEM_ADMIN)
-  );
-
   const displayProfileImageUrl = (isOwnProfile && isEditingImage && imagePreviewUrl)
     ? imagePreviewUrl
     : (isOwnProfile ? (authUser?.profileImageUrl || `/default_user.webp`) : (profileUser.profileImageUrl || `/default_user.webp`));
@@ -631,22 +597,6 @@ const ProfilePage: React.FC = () => {
             </div>
         )}
 
-        {showAdminActions && (
-            <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">{t('profile.administrativeActions')}</h3>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-y-2 gap-x-4 flex-wrap">
-                    <button
-                        onClick={() => { clearMessages(); setShowRemoveUserConfirmModal(true); }}
-                        disabled={isProcessingAction || authLoading || dataCtxLoading}
-                        className="text-sm text-orange-600 hover:text-orange-800 py-1 px-2 rounded-md hover:bg-orange-50 flex items-center transition-colors disabled:opacity-50"
-                    >
-                        <FiUserMinus className="mr-2" />
-                        {t('profile.removeFromWorkspace')}
-                    </button>
-                    {/* Future admin actions can be added here */}
-                </div>
-            </div>
-        )}
       </div>
 
       {isOwnProfile && isLanguageSettingsOpen && ReactDOM.createPortal(
@@ -819,41 +769,6 @@ const ProfilePage: React.FC = () => {
         document.getElementById('modal-root')!
       )}
 
-      {showRemoveUserConfirmModal && profileUser && ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg w-full">
-            <div className="flex items-start mb-4">
-                <FiAlertTriangle className="text-orange-500 h-8 w-8 mr-3 flex-shrink-0 mt-1"/>
-                <div>
-                    <h3 className="text-xl font-semibold text-gray-800">{t('profile.confirmUserRemoval')}</h3>
-                </div>
-            </div>
-            
-            <p className="text-gray-600 mb-6">
-                {t('profile.confirmRemoveUser', { name: profileUser.name })}
-            </p>
-
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowRemoveUserConfirmModal(false)}
-                disabled={isProcessingAction}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleConfirmRemoveUserFromOrg}
-                disabled={isProcessingAction}
-                className="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 transition-colors flex items-center disabled:opacity-50"
-              >
-                {isProcessingAction && <FiLoader className="animate-spin mr-2" />}
-                {isProcessingAction ? t('profile.removing') : t('profile.confirmRemoval')}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.getElementById('modal-root')!
-      )}
       
     </div>
   );
