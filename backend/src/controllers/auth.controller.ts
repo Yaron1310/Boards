@@ -16,10 +16,11 @@ import {
     preapprovedUsersCollection,
     organizationsCollection,
     membershipsCollection,
+    boardMembersCollection,
 } from '../db/collections.js';
 import { snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
 import { env } from '../config/env.js';
-import { DBUser, DBWorkspace, JwtUserPayload, DBPreapprovedUser, JwtVerificationPayload, JwtMultiOrgPayload, UserRole, DBOrganization, JwtPasswordResetPayload, DBMembership } from '../types/index.js';
+import { DBUser, DBWorkspace, JwtUserPayload, DBPreapprovedUser, JwtVerificationPayload, JwtMultiOrgPayload, UserRole, DBOrganization, JwtPasswordResetPayload, DBMembership, BoardRole } from '../types/index.js';
 import { sendAccountVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail } from '../services/email.service.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { validatePasswordComplexity } from '../utils/password.js';
@@ -451,6 +452,23 @@ export const register = async (req: Request, res: Response) => {
                     ...(preapprovedData.boardIds ? { boardIds: preapprovedData.boardIds } : {}),
                     createdAt: admin.firestore.FieldValue.serverTimestamp()
                 });
+                // Create board member records for board-specific invitations
+                if (preapprovedData.boardIds?.length && wsOrgId) {
+                    const boardRole = preapprovedData.permissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
+                    for (const boardId of preapprovedData.boardIds) {
+                        batch.set(boardMembersCollection(wsOrgId, boardId).doc(newUser.id), {
+                            userId: newUser.id,
+                            boardId,
+                            workspaceId,
+                            role: boardRole,
+                            addedBy: preapprovedData.addedBy ?? 'system',
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            userName: newUser.name ?? null,
+                            userEmail: newUser.email ?? null,
+                            userProfileImageUrl: newUser.profileImageUrl ?? null,
+                        });
+                    }
+                }
             }
             // Delete pre-approval record immediately — no longer needed
             batch.delete(preapprovedDoc.ref);
