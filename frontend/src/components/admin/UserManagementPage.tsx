@@ -143,25 +143,13 @@ const UserManagementPage: React.FC = () => {
 
   const handleRemoveUser = async () => {
     const orgId = selectedWorkspace?.orgId ?? authUser?.orgId;
-    console.log('[removeUser] removeTarget:', removeTarget);
-    console.log('[removeUser] selectedWorkspace:', selectedWorkspace);
-    console.log('[removeUser] authUser.orgId:', authUser?.orgId);
-    console.log('[removeUser] resolved orgId:', orgId);
-    if (!removeTarget || !orgId) {
-      console.warn('[removeUser] bailing out — missing removeTarget or orgId');
-      return;
-    }
+    if (!removeTarget || !orgId) return;
     setIsRemoving(true);
     try {
-      console.log('[removeUser] calling API:', orgId, removeTarget.id);
-      const result = await removeUserFromOrg(orgId, removeTarget.id);
-      console.log('[removeUser] API success:', result);
-      console.log('[removeUser] users in cache BEFORE invalidate:', queryClient.getQueryData([...queryKeys.users.all, 'infinite', { search: debouncedSearch, workspaceId: filterOrg, role: filterRole }]));
-      await queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
-      console.log('[removeUser] users in cache AFTER invalidate:', queryClient.getQueryData([...queryKeys.users.all, 'infinite', { search: debouncedSearch, workspaceId: filterOrg, role: filterRole }]));
+      await removeUserFromOrg(orgId, removeTarget.id);
+      queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       setFeedback({ type: 'success', text: `${removeTarget.name} has been removed from the organization.` });
     } catch (err: any) {
-      console.error('[removeUser] API error:', err);
       setFeedback({ type: 'error', text: err.message || 'Failed to remove user.' });
     } finally {
       setIsRemoving(false);

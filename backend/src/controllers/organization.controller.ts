@@ -646,12 +646,21 @@ export const removeUserFromOrg = async (req: Request, res: Response) => {
 
         const userDoc = await usersCollection.doc(userId).get();
         if (!userDoc.exists) return res.status(404).json({ message: "User not found." });
+        const userEmail = (userDoc.data() as DBUser).email;
 
-        // Remove ALL memberships for this user within the org
-        const membershipsSnap = await membershipsCollection.where('userId', '==', userId).where('orgId', '==', orgId).get();
+        // Remove ALL memberships for this user within the org — by userId and also by
+        // userEmail to catch orphaned memberships with stale userId values.
+        const [byIdSnap, byEmailSnap] = await Promise.all([
+            membershipsCollection.where('userId', '==', userId).where('orgId', '==', orgId).get(),
+            userEmail
+                ? membershipsCollection.where('userEmail', '==', userEmail).where('orgId', '==', orgId).get()
+                : Promise.resolve(null),
+        ]);
 
         const batch = db.batch();
-        membershipsSnap.forEach(doc => batch.delete(doc.ref));
+        const deletedDocIds = new Set<string>();
+        byIdSnap.forEach(doc => { batch.delete(doc.ref); deletedDocIds.add(doc.id); });
+        byEmailSnap?.forEach(doc => { if (!deletedDocIds.has(doc.id)) batch.delete(doc.ref); });
 
         // Stamp forceLogoutAt so the user's current JWT is invalidated on next request
         batch.update(usersCollection.doc(userId), {
