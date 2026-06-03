@@ -331,7 +331,7 @@ const WorkspaceManagementPage: React.FC = () => {
         setNewOrgName('');
         setIsSaving(false);
         setIsAddModalOpen(false);
-        setFeedbackMessage({ type: 'success', text: `Workspace "${newOrg.name}" added successfully.` });
+        setFeedbackMessage({ type: 'success', text: `Workhub "${newOrg.name}" added successfully.` });
       } else if (!dataError) { 
         setIsSaving(false);
         setModalError('Failed to add workspace.');
@@ -373,7 +373,7 @@ const WorkspaceManagementPage: React.FC = () => {
       });
       setIsSaving(false);
       if (success) {
-        setFeedbackMessage({ type: 'success', text: `Workspace "${editOrgData.name}" updated.` });
+        setFeedbackMessage({ type: 'success', text: `Workhub "${editOrgData.name}" updated.` });
         setOrgToEdit(null);
       } else if (!dataError) {
         setModalError('Failed to update workspace.');
@@ -698,7 +698,7 @@ const WorkspaceManagementPage: React.FC = () => {
       <ArchiveRestoreModal
         isOpen={isArchiveModalOpen}
         onClose={() => setIsArchiveModalOpen(false)}
-        title="Archived Workspaces"
+        title="Archived Workhubs"
         items={archivedWorkspaces}
         onRestore={restoreWorkspace}
         fetchItems={fetchArchivedWorkspaces}
