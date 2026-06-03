@@ -211,6 +211,7 @@
     "deleteAccountNote": "פעולה זו היא קבועה ולא ניתן לבטלה.",
     "administrativeActions": "פעולות ניהול",
     "removeFromOrganization": "הסר מהארגון",
+    "removeFromWorkspace": "הסר מה-Workhub",
     "subscriptionDetails": "פרטי המנוי",
     "displayLanguage": "שפת תצוגה",
     "saveChatHistory": "שמור היסטוריית צ'אט",
