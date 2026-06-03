@@ -311,7 +311,7 @@ const App: React.FC = () => {
             <Route
               path="/admin/templates"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.ORG_EDITOR, UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <TemplatesPage />
                 </ProtectedRoute>
               }

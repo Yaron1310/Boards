@@ -171,7 +171,6 @@ const BoardListPage: React.FC = () => {
 
   const canManageBoards =
     user?.role === UserRole.WORKSPACE_ADMIN ||
-    user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN;
 
