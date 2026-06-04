@@ -49,7 +49,7 @@ const UserManagementPage: React.FC = () => {
 
   const [showOrganizationAdminsModal, setShowOrganizationAdminsModal] = useState(false);
   const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
-  const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string; isOrgAdmin: boolean } | null>(null);
+  const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string; isOrgAdmin: boolean; isOrgEditor: boolean } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
 
@@ -234,7 +234,7 @@ const UserManagementPage: React.FC = () => {
                 <td className="px-3 py-4 text-center">
                     <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setPermissionsUser({ id: u.id, name: u.name, isOrgAdmin: u.role === UserRole.ORGANIZATION_ADMIN }); }}
+                        onClick={(e) => { e.stopPropagation(); setPermissionsUser({ id: u.id, name: u.name, isOrgAdmin: u.role === UserRole.ORGANIZATION_ADMIN, isOrgEditor: u.role === UserRole.ORG_EDITOR }); }}
                         className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                         aria-label={`Manage board permissions for ${u.name}`}
                         title="Manage board permissions"
@@ -472,6 +472,7 @@ const UserManagementPage: React.FC = () => {
           userId={permissionsUser.id}
           userName={permissionsUser.name}
           isOrgAdmin={permissionsUser.isOrgAdmin}
+          isOrgEditor={permissionsUser.isOrgEditor}
           canAssignAdmin={authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN}
           onClose={() => setPermissionsUser(null)}
         />

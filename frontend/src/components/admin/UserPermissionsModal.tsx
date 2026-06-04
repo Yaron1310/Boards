@@ -10,6 +10,7 @@ interface Props {
   userId: string;
   userName: string;
   isOrgAdmin?: boolean;
+  isOrgEditor?: boolean;
   canAssignAdmin?: boolean;
   onClose: () => void;
 }
@@ -30,7 +31,7 @@ const BOARD_ROLE_OPTIONS: Array<{ value: BoardRole; label: string }> = [
   { value: BoardRole.EDITOR, label: 'Edit' },
 ];
 
-const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, canAssignAdmin, onClose }) => {
+const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, isOrgEditor, canAssignAdmin, onClose }) => {
   const { data, isLoading, isError } = useUserBoardPermissions(userId);
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
 
@@ -181,7 +182,19 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
             </div>
           )}
 
-          {!isOrgAdmin && feedback && (
+          {isOrgEditor && (
+            <div className="flex flex-col items-center justify-center py-10 text-center gap-3">
+              <div className="p-3 bg-green-50 rounded-full">
+                <FiShield size={28} className="text-green-500" aria-hidden="true" />
+              </div>
+              <p className="text-sm font-semibold text-gray-700">Org Editor — Full Permissions</p>
+              <p className="text-xs text-gray-400 max-w-xs">
+                Organization editors have unrestricted access to all boards and workspaces in this organization. They can only edit boards, but can't create/delete/archive boards or workhubs.
+              </p>
+            </div>
+          )}
+
+          {!isOrgAdmin && !isOrgEditor && feedback && (
             <div
               role={feedback.type === 'error' ? 'alert' : 'status'}
               className={`mb-4 p-3 rounded-md flex items-center text-sm ${feedback.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}
@@ -193,23 +206,23 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
             </div>
           )}
 
-          {!isOrgAdmin && isLoading && (
+          {!isOrgAdmin && !isOrgEditor && isLoading && (
             <div className="flex items-center justify-center py-12" role="status">
               <FiLoader className="animate-spin text-indigo-400" size={24} aria-hidden="true" />
             </div>
           )}
 
-          {!isOrgAdmin && isError && (
+          {!isOrgAdmin && !isOrgEditor && isError && (
             <div className="text-center py-8 text-red-500 text-sm" role="alert">
               Failed to load board permissions.
             </div>
           )}
 
-          {!isOrgAdmin && data && data.workspaces.length === 0 && (
+          {!isOrgAdmin && !isOrgEditor && data && data.workspaces.length === 0 && (
             <p className="text-center py-8 text-gray-400 text-sm">No workhubs or boards found.</p>
           )}
 
-          {!isOrgAdmin && data && data.workspaces.map((ws) => {
+          {!isOrgAdmin && !isOrgEditor && data && data.workspaces.map((ws) => {
             const state = getWorkspaceState(ws);
             const isExpanded = expandedWorkspaces.has(ws.id);
             const wsPerm = wsPermissions.get(ws.id) ?? 'edit';
@@ -308,12 +321,12 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
 
         {/* Footer */}
         <div className="px-6 py-4 border-t bg-gray-50 rounded-b-xl flex justify-between items-center">
-          {!isOrgAdmin && (
+          {!isOrgAdmin && !isOrgEditor && (
             <p className="text-xs text-gray-400">
               {checkedWorkspaces.size} workhub{checkedWorkspaces.size !== 1 ? 's' : ''}, {checkedBoards.size} board{checkedBoards.size !== 1 ? 's' : ''} selected
             </p>
           )}
-          <div className={`flex gap-2 ${isOrgAdmin ? 'ml-auto' : ''}`}>
+          <div className={`flex gap-2 ${isOrgAdmin || isOrgEditor ? 'ml-auto' : ''}`}>
             <button
               onClick={onClose}
               className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
@@ -321,7 +334,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, c
             >
               Close
             </button>
-            {!isOrgAdmin && (
+            {!isOrgAdmin && !isOrgEditor && (
               <button
                 onClick={() => void handleSave()}
                 disabled={isSaving || isLoading}
