@@ -4,8 +4,9 @@ import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiEdit2 } fr
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
-import { useArchiveItem, useRestoreItem, useDeleteItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
+import { useArchiveItem, useRestoreItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
+import { useUndo } from '../../contexts/UndoContext';
 import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
@@ -28,7 +29,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
 
   const { mutateAsync: archiveItem, isPending: isArchiving } = useArchiveItem();
   const { mutateAsync: restoreItem, isPending: isRestoring } = useRestoreItem();
-  const { mutateAsync: deleteItem, isPending: isDeleting } = useDeleteItem();
+  const { push: pushUndo } = useUndo();
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -103,7 +104,13 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
 
   const handleDeleteConfirm = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    await deleteItem(item.id);
+    const itemId = item.id;
+    const itemName = item.name;
+    await archiveItem(itemId);
+    pushUndo({
+      label: `Deleted item "${itemName}"`,
+      undo: () => { void restoreItem(itemId); },
+    });
   };
 
   const handleDeleteCancel = (e: React.MouseEvent) => {
@@ -188,11 +195,11 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
                   <button
                     type="button"
                     onClick={handleDeleteConfirm}
-                    disabled={isDeleting}
+                    disabled={isArchiving}
                     className="px-1.5 py-0.5 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
                     aria-label="Confirm delete"
                   >
-                    {isDeleting ? '…' : 'Del'}
+                    {isArchiving ? '…' : 'Del'}
                   </button>
                   <button
                     type="button"

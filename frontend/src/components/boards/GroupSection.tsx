@@ -7,7 +7,7 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useCreateItem, useGroupItems } from '../../hooks/queries/useItemQueries';
-import { useUpdateGroup, useDeleteGroup, useArchiveGroup } from '../../hooks/queries/useGroupQueries';
+import { useUpdateGroup, useArchiveGroup, useRestoreGroup } from '../../hooks/queries/useGroupQueries';
 import { useUndo } from '../../contexts/UndoContext';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
@@ -50,8 +50,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const isCollapsed = group.isCollapsed ?? false;
 
   const { mutateAsync: updateGroup, isPending: isUpdating } = useUpdateGroup();
-  const { mutateAsync: deleteGroup, isPending: isDeleting } = useDeleteGroup();
   const { mutateAsync: archiveGroup, isPending: isArchiving } = useArchiveGroup();
+  const { mutateAsync: restoreGroup } = useRestoreGroup();
   const { mutateAsync: createItem, isPending: isCreatingItem } = useCreateItem();
   const { push: pushUndo } = useUndo();
 
@@ -209,7 +209,13 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const handleDelete = async () => {
     setMenuOpen(false);
     setConfirmDelete(false);
-    await deleteGroup({ boardId, groupId: group.id });
+    const groupId = group.id;
+    const groupName = group.name;
+    await archiveGroup({ boardId, groupId });
+    pushUndo({
+      label: `Deleted group "${groupName}"`,
+      undo: () => { void restoreGroup({ boardId, groupId }); },
+    });
   };
 
   const handleArchive = async () => {
@@ -438,11 +444,11 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                       <button
                         type="button"
                         onClick={() => void handleDelete()}
-                        disabled={isDeleting}
+                        disabled={isArchiving}
                         className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60"
                         aria-label="Confirm delete group"
                       >
-                        {isDeleting ? '…' : 'Delete'}
+                        {isArchiving ? '…' : 'Delete'}
                       </button>
                       <button
                         type="button"
