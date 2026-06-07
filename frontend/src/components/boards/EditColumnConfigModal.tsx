@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { FiX, FiSettings, FiPlus, FiTrash2 } from 'react-icons/fi';
+import ColorPickerPopover, { PRESET_COLORS } from './ColorPickerPopover';
 import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
 import type {
@@ -20,10 +21,6 @@ interface EditColumnConfigModalProps {
   onClose: () => void;
 }
 
-const STATUS_PALETTE = [
-  '#6B7280', '#10B981', '#F59E0B', '#EF4444',
-  '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
-];
 
 const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, column, onClose }) => {
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -60,9 +57,22 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
   );
   const [dropdownMultiple, setDropdownMultiple] = useState(dropdownSettings.multiple ?? false);
 
+  const [openColorPickerIdx, setOpenColorPickerIdx] = useState<number | null>(null);
+  const colorPickerRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  useEffect(() => {
+    if (openColorPickerIdx === null) return;
+    const handler = (e: MouseEvent) => {
+      const ref = colorPickerRefs.current[openColorPickerIdx];
+      if (ref && !ref.contains(e.target as Node)) setOpenColorPickerIdx(null);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [openColorPickerIdx]);
+
   const addStatusOption = () => {
     const id = `opt_${Date.now()}`;
-    const color = STATUS_PALETTE[statusOptions.length % STATUS_PALETTE.length];
+    const color = PRESET_COLORS[statusOptions.length % PRESET_COLORS.length];
     setStatusOptions((prev) => [...prev, { id, label: 'New Option', color }]);
   };
 
@@ -238,13 +248,26 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status Options</p>
                 {statusOptions.map((opt, idx) => (
                   <div key={opt.id} className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={opt.color}
-                      onChange={(e) => updateStatusOption(idx, 'color', e.target.value)}
-                      className="w-7 h-7 rounded border border-gray-300 cursor-pointer p-0.5 flex-shrink-0"
-                      aria-label={`Color for option ${opt.label}`}
-                    />
+                    <div
+                      className="relative flex-shrink-0"
+                      ref={(el) => { colorPickerRefs.current[idx] = el; }}
+                    >
+                      <button
+                        type="button"
+                        aria-label={`Color for option ${opt.label}`}
+                        onClick={() => setOpenColorPickerIdx(openColorPickerIdx === idx ? null : idx)}
+                        className="w-7 h-7 rounded border border-gray-300 cursor-pointer hover:border-gray-500 transition-colors"
+                        style={{ backgroundColor: opt.color }}
+                      />
+                      {openColorPickerIdx === idx && (
+                        <div className="absolute left-0 top-full mt-1 z-[60] bg-white border border-gray-200 rounded shadow-lg w-[168px]">
+                          <ColorPickerPopover
+                            value={opt.color}
+                            onChange={(c) => { updateStatusOption(idx, 'color', c); setOpenColorPickerIdx(null); }}
+                          />
+                        </div>
+                      )}
+                    </div>
                     <input
                       type="text"
                       value={opt.label}

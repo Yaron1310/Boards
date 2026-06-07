@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 // Force refresh
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
@@ -6,13 +6,9 @@ import { useUpdateColumn } from '../../../hooks/queries/useColumnQueries';
 import type { Item, Column, StatusColumnSettings, StatusOption } from '../../../types';
 import CellWrapper from './CellWrapper';
 import { FiPlus, FiCheck, FiX, FiTrash2 } from 'react-icons/fi';
+import ColorPickerPopover, { PRESET_COLORS } from '../ColorPickerPopover';
 
 interface Props { item: Item; column: Column }
-
-const STATUS_PALETTE = [
-  '#6B7280', '#10B981', '#F59E0B', '#EF4444',
-  '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
-];
 
 function getContrastText(hex: string): string {
   const color = hex.startsWith('#') ? hex.slice(1) : hex;
@@ -37,7 +33,20 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
 
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newColor, setNewColor] = useState(STATUS_PALETTE[0]);
+  const [newColor, setNewColor] = useState(PRESET_COLORS[0]);
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!colorPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setColorPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colorPickerOpen]);
 
   const currentOption = settings?.options?.find((o) => o.id === value);
 
@@ -150,12 +159,20 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
                   {isAdding ? (
                     <div className="px-3 py-2 space-y-2" onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-2">
-                        <input
-                          type="color"
-                          value={newColor}
-                          onChange={(e) => setNewColor(e.target.value)}
-                          className="w-8 h-8 rounded border border-gray-200 p-0.5 cursor-pointer"
-                        />
+                        <div className="relative flex-shrink-0" ref={colorPickerRef}>
+                          <button
+                            type="button"
+                            aria-label="Pick color"
+                            onClick={() => setColorPickerOpen((o) => !o)}
+                            className="w-8 h-8 rounded border border-gray-200 cursor-pointer hover:border-gray-400 transition-colors"
+                            style={{ backgroundColor: newColor }}
+                          />
+                          {colorPickerOpen && (
+                            <div className="absolute left-0 top-full mt-1 z-[60] bg-white border border-gray-200 rounded shadow-lg w-[168px]">
+                              <ColorPickerPopover value={newColor} onChange={(c) => { setNewColor(c); setColorPickerOpen(false); }} />
+                            </div>
+                          )}
+                        </div>
                         <input
                           type="text"
                           value={newName}
