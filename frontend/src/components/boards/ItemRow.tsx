@@ -7,7 +7,8 @@ import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useArchiveItem, useRestoreItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useUndo } from '../../contexts/UndoContext';
-import { UserRole } from '../../types';
+import { useBoardMembers } from '../../hooks/queries/useBoardMemberQueries';
+import { UserRole, BoardRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
 import { DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
@@ -30,6 +31,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
   const { mutateAsync: archiveItem, isPending: isArchiving } = useArchiveItem();
   const { mutateAsync: restoreItem, isPending: isRestoring } = useRestoreItem();
   const { push: pushUndo } = useUndo();
+  const { data: boardMembers = [] } = useBoardMembers(item.boardId);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
@@ -79,11 +81,15 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
     transition,
   };
 
+  const myBoardRole = boardMembers.find((m) => m.userId === user?.id)?.role;
+  const isBoardEditor = myBoardRole === BoardRole.EDITOR || myBoardRole === BoardRole.ADMIN;
+
   const canManage =
     user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
+    isBoardEditor ||
     item.createdBy === user?.id ||
     (item.assignees ?? []).includes(user?.id ?? '');
 

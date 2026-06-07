@@ -254,7 +254,8 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, i
                     <span className="text-sm font-semibold text-gray-700 truncate">{ws.name}</span>
                     <span className="text-xs text-gray-400 flex-shrink-0">({ws.boards.length} boards)</span>
                   </label>
-                  {/* Workspace-level permission toggle */}
+                  {/* Workspace-level permission toggle — only show when workspace is checked */}
+                  {checkedWorkspaces.has(ws.id) && (
                   <div className="flex items-center rounded-md border border-gray-200 overflow-hidden flex-shrink-0" role="group" aria-label={`Permission level for ${ws.name}`}>
                     {wsPermOptions.map(opt => (
                       <button
@@ -269,6 +270,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, i
                       </button>
                     ))}
                   </div>
+                  )}
                 </div>
 
                 {/* Board rows */}

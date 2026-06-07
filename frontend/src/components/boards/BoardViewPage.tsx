@@ -20,7 +20,8 @@ import { usePageSize } from '../../hooks/usePageSize';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useBoardSnapshot } from '../../hooks/useBoardSnapshot';
-import { UserRole, ColumnType } from '../../types';
+import { useBoardMembers } from '../../hooks/queries/useBoardMemberQueries';
+import { UserRole, BoardRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
 import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiList, FiRotateCcw, FiChevronDown } from 'react-icons/fi';
@@ -518,10 +519,15 @@ const BoardViewPage: React.FC = () => {
   // Track the dragged item's original group (set on onDragStart)
   const activeItemOriginalGroupRef = useRef<string | null>(null);
 
+  const { data: boardMembers = [] } = useBoardMembers(boardId ?? '', !!boardId);
+  const myBoardRole = boardMembers.find((m) => m.userId === user?.id)?.role;
+  const isBoardEditor = myBoardRole === BoardRole.EDITOR || myBoardRole === BoardRole.ADMIN;
+
   const canManage =
     user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
-    user?.role === UserRole.SYSTEM_ADMIN;
+    user?.role === UserRole.SYSTEM_ADMIN ||
+    isBoardEditor;
 
   const isBoardReadOnly = selectedWorkspace?.workspacePermissions === 'read_only';
 
