@@ -169,7 +169,7 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
                           />
                           {colorPickerOpen && (
                             <div className="absolute left-0 top-full mt-1 z-[60] bg-white border border-gray-200 rounded shadow-lg w-[168px]">
-                              <ColorPickerPopover value={newColor} onChange={(c) => { setNewColor(c); setColorPickerOpen(false); }} />
+                              <ColorPickerPopover value={newColor} onChange={(c) => { setNewColor(c); setColorPickerOpen(false); }} usedColors={settings?.options?.map((o) => o.color)} />
                             </div>
                           )}
                         </div>

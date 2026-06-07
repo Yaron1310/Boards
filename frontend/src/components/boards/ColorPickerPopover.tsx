@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef } from 'react';
 
 export const PRESET_COLORS = [
   '#EF4444', // red
@@ -13,37 +13,17 @@ export const PRESET_COLORS = [
   '#000000', // black
 ];
 
-const CUSTOM_COLORS_KEY = 'status-custom-colors';
-const MAX_CUSTOM = 5;
-
-function loadCustomColors(): string[] {
-  try {
-    const stored = localStorage.getItem(CUSTOM_COLORS_KEY);
-    return stored ? (JSON.parse(stored) as string[]) : [];
-  } catch {
-    return [];
-  }
-}
-
 interface ColorPickerPopoverProps {
   value: string;
   onChange: (color: string) => void;
+  /** Colors already used in this column's labels — shown as a third row if any fall outside PRESET_COLORS */
+  usedColors?: string[];
 }
 
-const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({ value, onChange }) => {
+const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({ value, onChange, usedColors = [] }) => {
   const customInputRef = useRef<HTMLInputElement>(null);
-  const [customColors, setCustomColors] = useState<string[]>(loadCustomColors);
 
-  const handleCustomChange = (color: string) => {
-    onChange(color);
-    if (!PRESET_COLORS.includes(color)) {
-      setCustomColors((prev) => {
-        const next = [color, ...prev.filter((c) => c !== color)].slice(0, MAX_CUSTOM);
-        localStorage.setItem(CUSTOM_COLORS_KEY, JSON.stringify(next));
-        return next;
-      });
-    }
-  };
+  const customColors = [...new Set(usedColors.filter((c) => !PRESET_COLORS.includes(c)))];
 
   return (
     <div className="p-2 space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -64,14 +44,14 @@ const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({ value, onChange
         ))}
       </div>
 
-      {/* Custom colors — third row, shown only when at least one exists */}
+      {/* Custom colors from existing labels — third row, shown only when at least one exists */}
       {customColors.length > 0 && (
         <div className="grid grid-cols-5 gap-1.5 pt-1 border-t border-gray-100">
           {customColors.map((color) => (
             <button
               key={color}
               type="button"
-              aria-label={`Select custom color ${color}`}
+              aria-label={`Select color ${color}`}
               onClick={() => onChange(color)}
               className="w-7 h-7 rounded-full border-2 transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
               style={{
@@ -100,7 +80,7 @@ const ColorPickerPopover: React.FC<ColorPickerPopoverProps> = ({ value, onChange
           ref={customInputRef}
           type="color"
           value={value}
-          onChange={(e) => handleCustomChange(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           className="sr-only"
           aria-label="Custom color input"
           tabIndex={-1}

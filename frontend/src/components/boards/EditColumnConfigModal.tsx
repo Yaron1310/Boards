@@ -264,6 +264,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
                           <ColorPickerPopover
                             value={opt.color}
                             onChange={(c) => { updateStatusOption(idx, 'color', c); setOpenColorPickerIdx(null); }}
+                            usedColors={statusOptions.map((o) => o.color)}
                           />
                         </div>
                       )}
