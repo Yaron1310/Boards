@@ -171,20 +171,35 @@ const BoardSelect: React.FC<{
   value: string;
   onChange: (id: string) => void;
   boards: BoardItem[];
-}> = ({ id, value, onChange, boards }) => (
-  <select
-    id={id}
-    value={value}
-    onChange={e => onChange(e.target.value)}
-    className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-    aria-required="true"
-  >
-    <option value="">Select board…</option>
-    {boards.filter(b => !b.isArchived).map(b => (
-      <option key={b.id} value={b.id}>{b.name}</option>
-    ))}
-  </select>
-);
+  lockedName?: string;
+}> = ({ id, value, onChange, boards, lockedName }) => {
+  if (lockedName) {
+    return (
+      <div
+        id={id}
+        className="text-sm border border-gray-200 rounded-md px-2 py-1.5 bg-gray-50 text-gray-700 flex items-center gap-1.5"
+        aria-label={`Board: ${lockedName} (locked)`}
+      >
+        <FiLock size={11} className="text-gray-400 flex-shrink-0" aria-hidden="true" />
+        {lockedName}
+      </div>
+    );
+  }
+  return (
+    <select
+      id={id}
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className="text-sm border border-gray-300 rounded-md px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+      aria-required="true"
+    >
+      <option value="">Select board…</option>
+      {boards.filter(b => !b.isArchived).map(b => (
+        <option key={b.id} value={b.id}>{b.name}</option>
+      ))}
+    </select>
+  );
+};
 
 const GroupSelect: React.FC<{
   id: string;
@@ -266,8 +281,8 @@ const DateFormatSelect: React.FC<{
 
 interface MetricEntryDraft extends MetricEntry { _key: string }
 
-function emptyMetricEntry(): MetricEntryDraft {
-  return { _key: makeKey(), boardId: '', aggregation: 'COUNT', label: '' };
+function emptyMetricEntry(boardId = ''): MetricEntryDraft {
+  return { _key: makeKey(), boardId, aggregation: 'COUNT', label: '' };
 }
 
 const MetricRowEditor: React.FC<{
@@ -276,12 +291,15 @@ const MetricRowEditor: React.FC<{
   onChange: (r: MetricEntryDraft) => void;
   onRemove: () => void;
   canRemove: boolean;
-}> = ({ row, index, onChange, onRemove, canRemove }) => {
+  lockedBoardId?: string;
+  lockedBoardName?: string;
+}> = ({ row, index, onChange, onRemove, canRemove, lockedBoardId, lockedBoardName }) => {
   const { data: boards = [] } = useBoards(undefined, false);
   const prefix = `metric-row-${row._key}`;
   const needsColumn = row.aggregation !== 'COUNT';
 
   const handleBoardChange = (boardId: string) => {
+    if (lockedBoardId) return;
     onChange({ ...row, boardId, groupId: undefined, columnId: undefined });
   };
   const handleAggChange = (aggregation: MetricAggregation) => {
@@ -297,7 +315,7 @@ const MetricRowEditor: React.FC<{
       <div className="grid grid-cols-[1fr_1fr_1fr] gap-2">
         <div className="flex flex-col gap-1">
           <SelectLabel htmlFor={`${prefix}-board`} label="Board" required />
-          <BoardSelect id={`${prefix}-board`} value={row.boardId} onChange={handleBoardChange} boards={boards} />
+          <BoardSelect id={`${prefix}-board`} value={row.boardId} onChange={handleBoardChange} boards={boards} lockedName={lockedBoardId ? lockedBoardName : undefined} />
         </div>
         <div className="flex flex-col gap-1">
           <SelectLabel htmlFor={`${prefix}-group`} label="Group (optional)" />
@@ -365,13 +383,15 @@ const MetricForm: React.FC<{
   state: MetricFormState;
   onChange: (s: MetricFormState) => void;
   showTimeAxis: boolean;
-}> = ({ state, onChange, showTimeAxis }) => {
+  lockedBoardId?: string;
+  lockedBoardName?: string;
+}> = ({ state, onChange, showTimeAxis, lockedBoardId, lockedBoardName }) => {
   const updateMetric = (i: number, row: MetricEntryDraft) =>
     onChange({ ...state, metrics: state.metrics.map((m, idx) => idx === i ? row : m) });
   const removeMetric = (i: number) =>
     onChange({ ...state, metrics: state.metrics.filter((_, idx) => idx !== i) });
   const addMetric = () =>
-    onChange({ ...state, metrics: [...state.metrics, emptyMetricEntry()] });
+    onChange({ ...state, metrics: [...state.metrics, emptyMetricEntry(lockedBoardId)] });
 
   const firstBoardId = state.metrics[0]?.boardId ?? '';
 
@@ -385,6 +405,8 @@ const MetricForm: React.FC<{
           onChange={r => updateMetric(i, r)}
           onRemove={() => removeMetric(i)}
           canRemove={state.metrics.length > 1}
+          lockedBoardId={lockedBoardId}
+          lockedBoardName={lockedBoardName}
         />
       ))}
       <button
@@ -449,13 +471,17 @@ const CATEGORY_AGG_OPTIONS: { fn: MetricAggregation; label: string; desc: string
 const CategoryForm: React.FC<{
   state: CategoryFormState;
   onChange: (s: CategoryFormState) => void;
-}> = ({ state, onChange }) => {
+  lockedBoardId?: string;
+  lockedBoardName?: string;
+}> = ({ state, onChange, lockedBoardId, lockedBoardName }) => {
   const { data: boards = [] } = useBoards(undefined, false);
   const isItemNameGroup = state.groupByColumnId === ITEM_NAME_COLUMN_ID;
   const needsValueCol = !isItemNameGroup && state.yAxisAggregation !== 'COUNT';
   const showValueCol = isItemNameGroup || needsValueCol;
-  const handleBoardChange = (boardId: string) =>
+  const handleBoardChange = (boardId: string) => {
+    if (lockedBoardId) return;
     onChange({ ...state, boardId, groupId: '', groupByColumnId: '', yAxisAggregation: 'COUNT', yAxisColumnId: '', timeAxisColumnId: '' });
+  };
   const handleGroupByChange = (v: string) => {
     const switchingToItemName = v === ITEM_NAME_COLUMN_ID;
     const switchingFromItemName = state.groupByColumnId === ITEM_NAME_COLUMN_ID && v !== ITEM_NAME_COLUMN_ID;
@@ -472,7 +498,7 @@ const CategoryForm: React.FC<{
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-1">
           <SelectLabel htmlFor="cat-board" label="Board" required />
-          <BoardSelect id="cat-board" value={state.boardId} onChange={handleBoardChange} boards={boards} />
+          <BoardSelect id="cat-board" value={state.boardId} onChange={handleBoardChange} boards={boards} lockedName={lockedBoardId ? lockedBoardName : undefined} />
         </div>
         <div className="flex flex-col gap-1">
           <SelectLabel htmlFor="cat-group" label="Group (optional)" />
@@ -594,11 +620,11 @@ interface TimeSeriesFormState {
   series: LineSeriesDraft[];
 }
 
-function emptySeriesDraft(index: number, prev?: LineSeriesDraft): LineSeriesDraft {
+function emptySeriesDraft(index: number, prev?: LineSeriesDraft, lockedBoardId?: string): LineSeriesDraft {
   return {
     _key: makeKey(),
     label: `Series ${index + 1}`,
-    boardId: prev?.boardId ?? '',
+    boardId: lockedBoardId ?? prev?.boardId ?? '',
     groupId: prev?.groupId ?? '',
     xAxisColumnId: prev?.xAxisColumnId ?? '',
     xAxisGrouping: prev?.xAxisGrouping ?? 'day',
@@ -618,7 +644,9 @@ const LineSeriesRowEditor: React.FC<{
   onRemove: () => void;
   canRemove: boolean;
   showLabel: boolean;
-}> = ({ series, index, colorDot, onChange, onRemove, canRemove, showLabel }) => {
+  lockedBoardId?: string;
+  lockedBoardName?: string;
+}> = ({ series, index, colorDot, onChange, onRemove, canRemove, showLabel, lockedBoardId, lockedBoardName }) => {
   const { data: boards = [] } = useBoards(undefined, false);
   const needsYColumn = series.yAxisAggregation !== 'COUNT';
   const prefix = `ts-series-${series._key}`;
@@ -667,8 +695,9 @@ const LineSeriesRowEditor: React.FC<{
           <BoardSelect
             id={`${prefix}-board`}
             value={series.boardId}
-            onChange={boardId => onChange({ ...series, boardId, groupId: '', xAxisColumnId: '', yAxisColumnId: '' })}
+            onChange={boardId => { if (!lockedBoardId) onChange({ ...series, boardId, groupId: '', xAxisColumnId: '', yAxisColumnId: '' }); }}
             boards={boards}
+            lockedName={lockedBoardId ? lockedBoardName : undefined}
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -741,7 +770,9 @@ const LineSeriesRowEditor: React.FC<{
 const TimeSeriesForm: React.FC<{
   state: TimeSeriesFormState;
   onChange: (s: TimeSeriesFormState) => void;
-}> = ({ state, onChange }) => {
+  lockedBoardId?: string;
+  lockedBoardName?: string;
+}> = ({ state, onChange, lockedBoardId, lockedBoardName }) => {
   const isMulti = state.series.length > 1;
 
   const updateSeries = (i: number, s: LineSeriesDraft) =>
@@ -751,7 +782,7 @@ const TimeSeriesForm: React.FC<{
   const addSeries = () => {
     if (state.series.length >= 4) return;
     const prev = state.series[state.series.length - 1];
-    onChange({ series: [...state.series, emptySeriesDraft(state.series.length, prev)] });
+    onChange({ series: [...state.series, emptySeriesDraft(state.series.length, lockedBoardId ? { ...prev, boardId: lockedBoardId } : prev)] });
   };
 
   return (
@@ -766,6 +797,8 @@ const TimeSeriesForm: React.FC<{
           onRemove={() => removeSeries(i)}
           canRemove={state.series.length > 1}
           showLabel={isMulti}
+          lockedBoardId={lockedBoardId}
+          lockedBoardName={lockedBoardName}
         />
       ))}
       {state.series.length < 4 && (
@@ -789,7 +822,7 @@ const TimeSeriesForm: React.FC<{
 // Helpers to extract form state from an existing CustomDashboard
 // ---------------------------------------------------------------------------
 
-function initMetricState(existing?: CustomDashboard): MetricFormState {
+function initMetricState(existing?: CustomDashboard, lockedBoardId?: string): MetricFormState {
   if (existing?.config.type === 'metric') {
     return {
       metrics: existing.config.metrics.map(m => ({ ...m, _key: makeKey() })),
@@ -797,10 +830,10 @@ function initMetricState(existing?: CustomDashboard): MetricFormState {
       dateFormat: existing.config.dateFormat ?? 'auto',
     };
   }
-  return { metrics: [emptyMetricEntry()], timeAxisColumnId: '', dateFormat: 'auto' };
+  return { metrics: [emptyMetricEntry(lockedBoardId)], timeAxisColumnId: '', dateFormat: 'auto' };
 }
 
-function initCategoryState(existing?: CustomDashboard): CategoryFormState {
+function initCategoryState(existing?: CustomDashboard, lockedBoardId?: string): CategoryFormState {
   if (existing?.config.type === 'category') {
     return {
       boardId: existing.config.boardId,
@@ -812,10 +845,10 @@ function initCategoryState(existing?: CustomDashboard): CategoryFormState {
       dateFormat: existing.config.dateFormat ?? 'auto',
     };
   }
-  return { boardId: '', groupId: '', groupByColumnId: '', yAxisAggregation: 'COUNT', yAxisColumnId: '', timeAxisColumnId: '', dateFormat: 'auto' };
+  return { boardId: lockedBoardId ?? '', groupId: '', groupByColumnId: '', yAxisAggregation: 'COUNT', yAxisColumnId: '', timeAxisColumnId: '', dateFormat: 'auto' };
 }
 
-function initTimeSeriesState(existing?: CustomDashboard): TimeSeriesFormState {
+function initTimeSeriesState(existing?: CustomDashboard, lockedBoardId?: string): TimeSeriesFormState {
   if (existing?.config.type === 'timeseries') {
     const config = existing.config;
     if (config.series && config.series.length > 0) {
@@ -848,7 +881,7 @@ function initTimeSeriesState(existing?: CustomDashboard): TimeSeriesFormState {
     };
   }
   return {
-    series: [emptySeriesDraft(0)],
+    series: [emptySeriesDraft(0, undefined, lockedBoardId)],
   };
 }
 
@@ -859,9 +892,11 @@ function initTimeSeriesState(existing?: CustomDashboard): TimeSeriesFormState {
 interface Props {
   onClose: () => void;
   existing?: CustomDashboard;
+  lockedBoardId?: string;
+  lockedBoardName?: string;
 }
 
-const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
+const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing, lockedBoardId, lockedBoardName }) => {
   const headingId = useId();
   const isEditing = !!existing;
 
@@ -870,9 +905,9 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
   const [visibility, setVisibility] = useState<DashboardVisibility>(existing?.visibility ?? 'admins_only');
   const [error, setError] = useState<string | null>(null);
 
-  const [metricState, setMetricState] = useState<MetricFormState>(() => initMetricState(existing));
-  const [categoryState, setCategoryState] = useState<CategoryFormState>(() => initCategoryState(existing));
-  const [tsState, setTsState] = useState<TimeSeriesFormState>(() => initTimeSeriesState(existing));
+  const [metricState, setMetricState] = useState<MetricFormState>(() => initMetricState(existing, lockedBoardId));
+  const [categoryState, setCategoryState] = useState<CategoryFormState>(() => initCategoryState(existing, lockedBoardId));
+  const [tsState, setTsState] = useState<TimeSeriesFormState>(() => initTimeSeriesState(existing, lockedBoardId));
 
   const createMutation = useCreateCustomDashboard();
   const updateMutation = useUpdateCustomDashboard();
@@ -1075,13 +1110,13 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing }) => {
               {mode === 'metric' ? 'Metrics' : mode === 'category' ? 'Data source' : 'Data source'}
             </h3>
             {mode === 'metric' && (
-              <MetricForm state={metricState} onChange={setMetricState} showTimeAxis />
+              <MetricForm state={metricState} onChange={setMetricState} showTimeAxis lockedBoardId={lockedBoardId} lockedBoardName={lockedBoardName} />
             )}
             {mode === 'category' && (
-              <CategoryForm state={categoryState} onChange={setCategoryState} />
+              <CategoryForm state={categoryState} onChange={setCategoryState} lockedBoardId={lockedBoardId} lockedBoardName={lockedBoardName} />
             )}
             {mode === 'timeseries' && (
-              <TimeSeriesForm state={tsState} onChange={setTsState} />
+              <TimeSeriesForm state={tsState} onChange={setTsState} lockedBoardId={lockedBoardId} lockedBoardName={lockedBoardName} />
             )}
           </div>
 

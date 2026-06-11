@@ -29,6 +29,7 @@ import { UndoProvider, useUndo } from '../../contexts/UndoContext';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader, { ITEM_COL_ID } from './ColumnHeader';
 import GanttView from './GanttView';
+import BoardDashboardView from './BoardDashboardView';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
@@ -497,7 +498,7 @@ const BoardViewPage: React.FC = () => {
   const [boardView, setBoardView] = useState<BoardView>(() => {
     const key = `boardView:${user?.id ?? 'anon'}:${boardId ?? ''}`;
     const saved = localStorage.getItem(key);
-    return (saved === 'table' || saved === 'rows' || saved === 'gantt') ? saved : 'table';
+    return (saved === 'table' || saved === 'rows' || saved === 'gantt' || saved === 'dashboard') ? saved : 'table';
   });
   const setAndPersistBoardView = (view: BoardView) => {
     const key = `boardView:${user?.id ?? 'anon'}:${boardId ?? ''}`;
@@ -952,6 +953,20 @@ const BoardViewPage: React.FC = () => {
                   </svg>
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setAndPersistBoardView('dashboard')}
+                className={`flex items-center justify-center px-2.5 py-1.5 border-l border-gray-300 transition-colors ${boardView === 'dashboard' ? 'bg-indigo-50 text-indigo-600' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'}`}
+                aria-label="Dashboard view"
+                aria-pressed={boardView === 'dashboard'}
+                title="Dashboard"
+              >
+                {/* Pie chart icon */}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2a10 10 0 1 0 10 10H12V2z" />
+                  <path d="M14 2.25A10 10 0 0 1 22 10h-8V2.25z" opacity="0.5" />
+                </svg>
+              </button>
             </div>
 
             {canManage && (
@@ -992,39 +1007,47 @@ const BoardViewPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Board content area with horizontal scrolling */}
-        <FormulaEditProvider>
-        <DependencyProvider items={allItems}>
-          <BoardContent
+        {/* Board content area */}
+        {boardView === 'dashboard' ? (
+          <BoardDashboardView
             boardId={boardId ?? ''}
-            board={board}
-            canManage={canManage}
-            groupsLoading={groupsLoading}
-            localGroups={localGroups}
-            localItemsByGroup={localItemsByGroup}
-            showAddGroup={showAddGroup}
-            setShowAddGroup={setShowAddGroup}
-            activeDrag={activeDrag}
-            sensors={sensors}
-            handleDragStart={handleDragStart}
-            handleDragOver={handleDragOver}
-            handleDragEnd={handleDragEnd}
-            setDetailItem={setDetailItem}
-            setShowAddColumn={setShowAddColumn}
-            allItems={allItems}
-            searchText={searchText}
-            activeFilters={activeFilters}
-            boardView={boardView}
-            onGanttItemUpdate={handleGanttItemUpdate}
-            pageSize={pageSize}
-            onPageItemsChange={handlePageItemsChange}
-            columnWidths={columnWidths}
-            onWidthChange={handleWidthChange}
-            workingDays={orgSettings?.workingDays}
-            isBoardReadOnly={isBoardReadOnly}
+            boardName={board.name}
+            isAdmin={canManage}
           />
-        </DependencyProvider>
-        </FormulaEditProvider>
+        ) : (
+          <FormulaEditProvider>
+          <DependencyProvider items={allItems}>
+            <BoardContent
+              boardId={boardId ?? ''}
+              board={board}
+              canManage={canManage}
+              groupsLoading={groupsLoading}
+              localGroups={localGroups}
+              localItemsByGroup={localItemsByGroup}
+              showAddGroup={showAddGroup}
+              setShowAddGroup={setShowAddGroup}
+              activeDrag={activeDrag}
+              sensors={sensors}
+              handleDragStart={handleDragStart}
+              handleDragOver={handleDragOver}
+              handleDragEnd={handleDragEnd}
+              setDetailItem={setDetailItem}
+              setShowAddColumn={setShowAddColumn}
+              allItems={allItems}
+              searchText={searchText}
+              activeFilters={activeFilters}
+              boardView={boardView}
+              onGanttItemUpdate={handleGanttItemUpdate}
+              pageSize={pageSize}
+              onPageItemsChange={handlePageItemsChange}
+              columnWidths={columnWidths}
+              onWidthChange={handleWidthChange}
+              workingDays={orgSettings?.workingDays}
+              isBoardReadOnly={isBoardReadOnly}
+            />
+          </DependencyProvider>
+          </FormulaEditProvider>
+        )}
       </div>
 
       {detailItem && (
