@@ -4,7 +4,7 @@ import {
   FiX, FiColumns, FiPlus, FiTrash2,
   FiType, FiHash, FiCalendar, FiClock,
   FiFlag, FiUser, FiChevronDown, FiCheckSquare, FiTag,
-  FiMail, FiPhone, FiMapPin, FiZap,
+  FiMail, FiPhone, FiMapPin, FiZap, FiLink,
 } from 'react-icons/fi';
 import { useCreateColumn, useColumns, useReorderColumns } from '../../hooks/queries/useColumnQueries';
 import { useQueryClient } from '@tanstack/react-query';
@@ -34,6 +34,7 @@ const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   [ColumnType.EMAIL]: 'Email',
   [ColumnType.PHONE]: 'Phone',
   [ColumnType.LOCATION]: 'Location',
+  [ColumnType.LINK]: 'Link',
   [ColumnType.TIME_RANGE]: 'Time Range',
   [ColumnType.SIMPLE_FORMULA]: 'Formula',
 };
@@ -64,6 +65,7 @@ const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
   [ColumnType.PHONE]: <FiPhone size={16} aria-hidden="true" />,
   [ColumnType.TAGS]: <FiTag size={16} aria-hidden="true" />,
   [ColumnType.LOCATION]: <FiMapPin size={16} aria-hidden="true" />,
+  [ColumnType.LINK]: <FiLink size={16} aria-hidden="true" />,
   [ColumnType.SIMPLE_FORMULA]: <FiZap size={16} aria-hidden="true" />,
 };
 
@@ -159,7 +161,7 @@ const COLUMN_TYPE_GROUPS: { label: string; types: ColumnType[] }[] = [
   { label: 'Inputs', types: [ColumnType.TEXT, ColumnType.NUMBER] },
   { label: 'Time', types: [ColumnType.DATE, ColumnType.TIME, ColumnType.TIME_RANGE] },
   { label: 'Selection', types: [ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.CHECKBOX, ColumnType.TAGS] },
-  { label: 'Information', types: [ColumnType.EMAIL, ColumnType.PHONE, ColumnType.PERSON, ColumnType.LOCATION] },
+  { label: 'Information', types: [ColumnType.EMAIL, ColumnType.PHONE, ColumnType.PERSON, ColumnType.LOCATION, ColumnType.LINK] },
   { label: 'Calculation', types: [ColumnType.SIMPLE_FORMULA] },
 ];
 

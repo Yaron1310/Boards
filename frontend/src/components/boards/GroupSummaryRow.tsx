@@ -76,6 +76,7 @@ const COUNT_ONLY_TYPES = new Set([
   ColumnType.LOCATION,
   ColumnType.PHONE,
   ColumnType.DATE,
+  ColumnType.LINK,
 ]);
 
 const CALC_LABEL: Record<CalcMode, string> = {

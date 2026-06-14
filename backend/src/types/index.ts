@@ -191,6 +191,7 @@ export enum ColumnType {
   EMAIL = 'email',
   PHONE = 'phone',
   LOCATION = 'location',
+  LINK = 'link',
   TIME_RANGE = 'time_range',
   SIMPLE_FORMULA = 'simple_formula',
 }
