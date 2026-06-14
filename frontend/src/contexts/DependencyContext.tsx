@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import type { Item, TimeRangeDependency } from '../types';
+import type { Item, TimeRangeDependency, TimeRangeValue } from '../types';
 import { useUpdateItem } from '../hooks/queries/useItemQueries';
 
 // ---------------------------------------------------------------------------
@@ -194,6 +194,11 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
         offsetDays = Math.round(diffMs / 86_400_000);
       }
 
+      // Snapshot the target's current dates so "revert to original" can restore
+      // them even after the cell is edited while the dependency is active.
+      const originalValue =
+        (tgtItem0?.values[target.columnId] as TimeRangeValue | null | undefined) ?? null;
+
       const newDep: TimeRangeDependency = {
         id: crypto.randomUUID(),
         sourceItemId: source.itemId,
@@ -201,6 +206,7 @@ export const DependencyProvider: React.FC<Props> = ({ children, items }) => {
         targetItemId: target.itemId,
         targetColumnId: target.columnId,
         offsetDays,
+        originalValue,
       };
 
       if (hasCycle(allDeps, newDep)) {

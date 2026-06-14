@@ -293,6 +293,12 @@ export interface TimeRangeDependency {
   targetItemId: string;
   targetColumnId: string;
   offsetDays: number;
+  /**
+   * Snapshot of the target's time-range value captured when this dependency
+   * was created. "Revert to original dates" restores this so a manual edit
+   * made while the dependency was active does not survive removal/re-creation.
+   */
+  originalValue?: TimeRangeValue | null;
 }
 
 export interface DependencyRule {

@@ -524,9 +524,9 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
 
   const commitValues = (s: string, e: string, stopEdit: () => void) => {
     const prevValue = rawValue;
+    const prevDependencies = item.dependencies;
     const nextStart = s ? new Date(s).toISOString() : null;
     const nextEnd = e ? new Date(e).toISOString() : null;
-    pushUndo({ label: `Changed date range on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: prevValue ?? null } } }) });
     const durationDays =
       nextStart && nextEnd
         ? inclusiveDays(new Date(nextStart), new Date(nextEnd))
@@ -548,6 +548,19 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
         return { ...dep, offsetDays: newOffset };
       });
     }
+
+    // Undo must restore the offsetDays we rewrote above too — otherwise the
+    // formula keeps producing the edited start after the value is reverted.
+    pushUndo({
+      label: `Changed date range on "${item.name}"`,
+      undo: () => mutate({
+        id: item.id,
+        patch: {
+          values: { [column.id]: prevValue ?? null },
+          ...(updatedDependencies ? { dependencies: prevDependencies ?? [] } : {}),
+        },
+      }),
+    });
 
     mutate({
       id: item.id,
@@ -663,9 +676,26 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
 
   const handleRevertDates = () => {
     if (!removeConfirm) return;
-    // Reverting just drops the links; each target then shows its untouched raw
-    // (original) dates again.
-    removeDepsWithUndo(removeConfirm.depsToRemove, 'Removed dependency, reverted dates');
+    // Reverting drops the links AND restores each target's pre-dependency dates
+    // from the snapshot taken when the link was created. Editing a dependent
+    // cell overwrites its stored value, so the snapshot — not the current raw
+    // value — is the true original to revert to.
+    const removeIds = new Set(removeConfirm.depsToRemove.map((d) => d.id));
+    const byItem = new Map<string, ItemPatch>();
+
+    for (const dep of removeConfirm.depsToRemove) {
+      const holder = allItems.find((i) => i.id === dep.targetItemId);
+      const entry = byItem.get(dep.targetItemId) ?? {};
+      // Only override the value when a snapshot exists (deps created before this
+      // feature, or created without one, fall back to just dropping the link).
+      if (dep.originalValue !== undefined) {
+        entry.values = { ...(entry.values ?? {}), [dep.targetColumnId]: dep.originalValue };
+      }
+      entry.dependencies = (entry.dependencies ?? holder?.dependencies ?? []).filter((d) => !removeIds.has(d.id));
+      byItem.set(dep.targetItemId, entry);
+    }
+
+    applyItemPatches([...byItem].map(([id, patch]) => ({ id, patch })), 'Removed dependency, reverted dates');
     closeMenu();
   };
 

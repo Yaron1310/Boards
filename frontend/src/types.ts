@@ -279,6 +279,12 @@ export interface TimeRangeDependency {
   targetColumnId: string;
   /** Days gap between source.end and target.start (default 0) */
   offsetDays: number;
+  /**
+   * Snapshot of the target's time-range value taken when this dependency was
+   * created. "Revert to original dates" restores this, so a manual edit made
+   * while the dependency was active does not survive removal/re-creation.
+   */
+  originalValue?: TimeRangeValue | null;
 }
 
 /** Board-level rule: "in every row, targetColumnId depends on sourceColumnId" */

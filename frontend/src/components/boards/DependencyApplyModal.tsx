@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import type { Group, Item, TimeRangeDependency } from '../../types';
+import type { Group, Item, TimeRangeDependency, TimeRangeValue } from '../../types';
 import { useUpdateItem } from '../../hooks/queries/useItemQueries';
 
 interface Props {
@@ -128,6 +128,8 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, groups, onClose,
         targetItemId: targetIt.id,
         targetColumnId: newDep.targetColumnId,
         offsetDays: newDep.offsetDays,
+        // Snapshot this row's current dates so a later "revert to original" restores them.
+        originalValue: (targetIt.values[newDep.targetColumnId] as TimeRangeValue | null | undefined) ?? null,
       };
 
       updateItem({ id: targetIt.id, patch: { dependencies: [...existingDeps, dep] } });
