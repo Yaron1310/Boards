@@ -11,6 +11,7 @@ import {
     systemSettingsCollection,
     membershipsCollection,
     boardsCollection,
+    itemsCollection,
 } from './collections.js';
 import { DBOrganization, DBWorkspace, DBUser, UserRole, DBOrganizationSettings, DBMembership } from '../types/index.js';
 
@@ -151,6 +152,91 @@ export const seedDefaultData = async () => {
 
   // --- One-time migration: archive boards in archived workspaces ---
   await archiveBoardsInArchivedWorkspaces();
+
+  // --- One-time migration: recompute time-range durations as inclusive days ---
+  await recomputeTimeRangeDurationsInclusive();
+};
+
+const MS_PER_DAY = 86_400_000;
+
+// Inclusive day count, matching the frontend: a single day (start === end) is
+// 1 day, start → start+1 day is 2, etc.
+const inclusiveDays = (startMs: number, endMs: number): number =>
+  Math.max(1, Math.round((endMs - startMs) / MS_PER_DAY) + 1);
+
+/**
+ * Recomputes the stored `durationDays` on every time-range cell so it uses
+ * inclusive day counting. Earlier values were computed as the exclusive span
+ * (round(end - start)), which was off by one for multi-day ranges and could be
+ * missing entirely for single-day items. The group-summary row sums this stored
+ * field, so stale values produced wrong totals.
+ *
+ * Time-range cells are detected structurally: a value object carrying both
+ * `start` and `end` — the only column type with that shape.
+ */
+const recomputeTimeRangeDurationsInclusive = async () => {
+  const markerRef = db.collection('migrations').doc('recompute_timerange_durations_inclusive');
+  const marker = await markerRef.get();
+  if (marker.exists) return; // Already ran
+
+  const allOrgsSnap = await organizationsCollection.get();
+  let totalUpdated = 0;
+
+  for (const orgDoc of allOrgsSnap.docs) {
+    const itemsSnap = await itemsCollection(orgDoc.id).get();
+    if (itemsSnap.empty) continue;
+
+    let batch = db.batch();
+    let batchWrites = 0;
+
+    for (const itemDoc of itemsSnap.docs) {
+      const values = itemDoc.data().values as Record<string, unknown> | undefined;
+      if (!values || typeof values !== 'object') continue;
+
+      for (const [columnId, raw] of Object.entries(values)) {
+        // Only time-range cells: plain object with both start and end.
+        if (
+          typeof raw !== 'object' ||
+          raw === null ||
+          Array.isArray(raw) ||
+          !('start' in raw) ||
+          !('end' in raw)
+        ) {
+          continue;
+        }
+
+        const v = raw as { start?: unknown; end?: unknown; durationDays?: unknown };
+        if (!v.start || !v.end) continue; // need both endpoints to compute a span
+
+        const startMs = new Date(v.start as string).getTime();
+        const endMs = new Date(v.end as string).getTime();
+        if (isNaN(startMs) || isNaN(endMs) || endMs < startMs) continue;
+
+        const newDuration = inclusiveDays(startMs, endMs);
+        if (v.durationDays === newDuration) continue; // already correct
+
+        batch.update(
+          itemDoc.ref,
+          new admin.firestore.FieldPath('values', columnId, 'durationDays'),
+          newDuration,
+        );
+        batchWrites++;
+        totalUpdated++;
+
+        // Firestore caps a batch at 500 writes; commit early and start a new one.
+        if (batchWrites >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          batchWrites = 0;
+        }
+      }
+    }
+
+    if (batchWrites > 0) await batch.commit();
+  }
+
+  await markerRef.set({ completedAt: new Date(), cellsUpdated: totalUpdated });
+  logger.info(`Migration complete: recomputed durationDays on ${totalUpdated} time-range cell(s).`);
 };
 
 const ensureTemplatesWorkspaceForAllOrgs = async () => {
