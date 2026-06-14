@@ -2,6 +2,8 @@ import ExcelJS from 'exceljs';
 import { ColumnType } from '../types';
 import type { StatusOption } from '../types';
 import * as wm from '../services/workManagementService';
+import { getUsers } from '../services/geminiService';
+import type { User } from '../types';
 
 export interface ImportResult {
   boardId: string;
@@ -146,12 +148,28 @@ function labelToOptionId(label: string): string {
   return slug || `opt_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+// Fetches all users for a workspace and returns a case-insensitive name → id map.
+async function buildUserNameMap(workspaceId: string): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  let cursor: string | null = null;
+  do {
+    const page = await getUsers({ workspaceId, limit: 200, ...(cursor ? { cursor } : {}) });
+    for (const u of page.data as User[]) {
+      if (u.name) map.set(u.name.toLowerCase().trim(), u.id);
+    }
+    cursor = page.cursor;
+  } while (cursor);
+  return map;
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export async function importBoardFromXlsx(
   file: File,
   workspaceId: string,
 ): Promise<ImportResult> {
+  const userNameMap = await buildUserNameMap(workspaceId);
+
   const buffer = await file.arrayBuffer();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
@@ -358,7 +376,11 @@ export async function importBoardFromXlsx(
           }
           if (optionId) values[id] = optionId;
         } else if (spec.type === ColumnType.PERSON) {
-          // Cannot resolve user names to IDs from xlsx — skip
+          const text = cellToText(rawValues[spec.rawIndices[0]]).trim();
+          if (text) {
+            const ids = text.split(',').map((n) => userNameMap.get(n.toLowerCase().trim())).filter((id): id is string => !!id);
+            if (ids.length) values[id] = ids;
+          }
         } else {
           const text = cellToText(rawValues[spec.rawIndices[0]]).trim();
           if (text) values[id] = text;
