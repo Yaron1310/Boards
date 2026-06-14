@@ -479,7 +479,6 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
     setHoveredCell,
     getDepsFrom,
     getDepsTo,
-    removeDependency,
     registerCellRect,
     items: allItems,
   } = useDependency();
@@ -565,6 +564,43 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
   // Removal helpers
   // ---------------------------------------------------------------------------
 
+  // Applies one patch per item and records a single undo step that restores the
+  // prior value of exactly the fields we touched. Issuing ONE mutation per item
+  // (rather than separate values + dependencies mutations) is essential: two
+  // mutations on the same item race in React Query's onSuccess, where the later
+  // server response — which still reflects the field the other mutation changed —
+  // clobbers the first. That race is what dropped kept dates / resurrected links.
+  type ItemPatch = { values?: Record<string, unknown>; dependencies?: TimeRangeDependency[] };
+  const applyItemPatches = (patches: { id: string; patch: ItemPatch }[], label: string) => {
+    if (patches.length === 0) return;
+    const priors = patches.map(({ id, patch }) => {
+      const it = allItems.find((i) => i.id === id);
+      const prior: ItemPatch = {};
+      if (patch.values !== undefined && it) {
+        const restored: Record<string, unknown> = {};
+        for (const colId of Object.keys(patch.values)) restored[colId] = it.values[colId] ?? null;
+        prior.values = restored;
+      }
+      if (patch.dependencies !== undefined) prior.dependencies = it?.dependencies ?? [];
+      return { id, patch: prior };
+    });
+    pushUndo({ label, undo: () => priors.forEach((p) => mutate({ id: p.id, patch: p.patch })) });
+    patches.forEach(({ id, patch }) => mutate({ id, patch }));
+  };
+
+  // Removes a set of dependencies, grouping by the item that holds each one so a
+  // single atomic patch is issued per item, with undo support.
+  const removeDepsWithUndo = (deps: TimeRangeDependency[], label: string) => {
+    const removeIds = new Set(deps.map((d) => d.id));
+    const byItem = new Map<string, TimeRangeDependency[]>();
+    for (const dep of deps) {
+      const holder = allItems.find((i) => i.id === dep.targetItemId);
+      const current = byItem.get(dep.targetItemId) ?? holder?.dependencies ?? [];
+      byItem.set(dep.targetItemId, current.filter((d) => !removeIds.has(d.id)));
+    }
+    applyItemPatches([...byItem].map(([id, dependencies]) => ({ id, patch: { dependencies } })), label);
+  };
+
   const triggerRemoveIn = (dep: TimeRangeDependency) => {
     if (isComputed && displayStart) {
       setRemoveConfirm({
@@ -579,7 +615,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
         }],
       });
     } else {
-      removeDependency(dep);
+      removeDepsWithUndo([dep], 'Removed dependency');
       closeMenu();
     }
   };
@@ -592,25 +628,47 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
     if (computedTargets.length > 0) {
       setRemoveConfirm({ depsToRemove: deps, computedTargets });
     } else {
-      deps.forEach((d) => removeDependency(d));
+      removeDepsWithUndo(deps, 'Removed dependencies');
       closeMenu();
     }
   };
 
   const handleKeepDates = () => {
     if (!removeConfirm) return;
+    const removeIds = new Set(removeConfirm.depsToRemove.map((d) => d.id));
+    const byItem = new Map<string, ItemPatch>();
+
+    // Persist each target's computed dates so they survive link removal.
     for (const t of removeConfirm.computedTargets) {
-      mutate({ id: t.targetItemId, patch: { values: { [t.targetColumnId]: { start: t.start, end: t.end, durationDays: t.durationDays } } } });
+      const entry = byItem.get(t.targetItemId) ?? {};
+      entry.values = {
+        ...(entry.values ?? {}),
+        [t.targetColumnId]: { start: t.start, end: t.end, durationDays: t.durationDays },
+      };
+      byItem.set(t.targetItemId, entry);
     }
-    removeConfirm.depsToRemove.forEach((d) => removeDependency(d));
+
+    // Drop the removed links from whichever item holds each one — combined into
+    // the same per-item patch as the kept values above.
+    for (const dep of removeConfirm.depsToRemove) {
+      const holder = allItems.find((i) => i.id === dep.targetItemId);
+      const entry = byItem.get(dep.targetItemId) ?? {};
+      entry.dependencies = (entry.dependencies ?? holder?.dependencies ?? []).filter((d) => !removeIds.has(d.id));
+      byItem.set(dep.targetItemId, entry);
+    }
+
+    applyItemPatches([...byItem].map(([id, patch]) => ({ id, patch })), 'Removed dependency, kept dates');
     closeMenu();
   };
 
   const handleRevertDates = () => {
     if (!removeConfirm) return;
-    removeConfirm.depsToRemove.forEach((d) => removeDependency(d));
+    // Reverting just drops the links; each target then shows its untouched raw
+    // (original) dates again.
+    removeDepsWithUndo(removeConfirm.depsToRemove, 'Removed dependency, reverted dates');
     closeMenu();
   };
+
 
   // ---------------------------------------------------------------------------
   // Draw-mode handlers
