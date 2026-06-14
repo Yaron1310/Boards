@@ -313,7 +313,8 @@ export async function importBoardFromXlsx(
             const startMs = startIso ? new Date(startIso).getTime() : NaN;
             const endMs = endIso ? new Date(endIso).getTime() : NaN;
             const durMs = endMs - startMs;
-            const durationDays = !isNaN(durMs) && durMs > 0 ? Math.round(durMs / 86_400_000) : undefined;
+            // Inclusive day count: same-day span is 1 day, start → start+1 day is 2, etc.
+            const durationDays = !isNaN(durMs) && durMs >= 0 ? Math.round(durMs / 86_400_000) + 1 : undefined;
             values[id] = { start: startIso, end: endIso, ...(durationDays !== undefined ? { durationDays } : {}) };
           }
         } else if (statusInfo) {

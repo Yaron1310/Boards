@@ -55,14 +55,21 @@ const toDate = (val: string | Date | null | undefined): Date | null => {
 const isoFromParts = (y: number, m: number, d: number) =>
   `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
 
+const MS_PER_DAY = 86_400_000;
+
+// Inclusive day count: a single day (start === end) spans 1 day, start → start+1
+// day spans 2 days, and so on. This matches the Gantt view's day math.
+const inclusiveDays = (start: Date, end: Date): number =>
+  Math.max(1, Math.round((end.getTime() - start.getTime()) / MS_PER_DAY) + 1);
+
 const pluralDays = (n: number) => `${n} day${n !== 1 ? 's' : ''}`;
 
 const getDurationText = (start: Date | null, end: Date | null): string => {
   if (!start || !end) return '';
-  const total = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000));
+  const total = inclusiveDays(start, end);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const left = Math.round((end.getTime() - today.getTime()) / 86_400_000);
+  const left = Math.round((end.getTime() - today.getTime()) / MS_PER_DAY);
   return left > 0 ? `${pluralDays(total)} (${pluralDays(left)} left)` : pluralDays(total);
 };
 
@@ -331,8 +338,11 @@ const resolveChainedEffective = (
     const newStart = new Date(srcEnd);
     newStart.setDate(newStart.getDate() + dep.offsetDays);
 
+    // Preserve the task's span. A one-day item has rawEnd === rawStart (durMs 0),
+    // so gate on whether an end exists — not on durMs > 0 — or one-day items
+    // would lose their end date when the source moves.
     const durMs = rawEnd ? Math.max(0, rawEnd.getTime() - rawStart.getTime()) : 0;
-    const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+    const newEnd = rawEnd ? new Date(newStart.getTime() + durMs) : null;
 
     return { start: newStart, end: newEnd };
   }
@@ -359,7 +369,7 @@ const resolveEffectiveDates = (
     newStart.setDate(newStart.getDate() + dep.offsetDays);
 
     const durMs = rawEnd ? Math.max(0, rawEnd.getTime() - rawStart.getTime()) : 0;
-    const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+    const newEnd = rawEnd ? new Date(newStart.getTime() + durMs) : null;
 
     return { start: newStart, end: newEnd, isComputed: true };
   }
@@ -392,7 +402,7 @@ const computeTargetEffective = (dep: TimeRangeDependency, allItems: Item[]): Com
   const rawStart = toDate(tgtVal?.start);
   const rawEnd = toDate(tgtVal?.end);
   const durMs = rawStart && rawEnd ? Math.max(0, rawEnd.getTime() - rawStart.getTime()) : 0;
-  const newEnd = durMs > 0 ? new Date(newStart.getTime() + durMs) : null;
+  const newEnd = rawEnd ? new Date(newStart.getTime() + durMs) : null;
 
   return {
     dep,
@@ -400,7 +410,7 @@ const computeTargetEffective = (dep: TimeRangeDependency, allItems: Item[]): Com
     targetColumnId: dep.targetColumnId,
     start: newStart.toISOString(),
     end: newEnd?.toISOString() ?? null,
-    durationDays: durMs > 0 ? Math.round(durMs / 86_400_000) : (tgtVal?.durationDays ?? 1),
+    durationDays: newEnd ? inclusiveDays(newStart, newEnd) : (tgtVal?.durationDays ?? 1),
   };
 };
 
@@ -520,7 +530,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
     pushUndo({ label: `Changed date range on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: prevValue ?? null } } }) });
     const durationDays =
       nextStart && nextEnd
-        ? Math.max(1, Math.round((new Date(nextEnd).getTime() - new Date(nextStart).getTime()) / 86_400_000))
+        ? inclusiveDays(new Date(nextStart), new Date(nextEnd))
         : (rawValue?.durationDays ?? 1);
 
     // When this cell is formula-driven, update each incoming dep's offsetDays so
@@ -557,7 +567,6 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
 
   const triggerRemoveIn = (dep: TimeRangeDependency) => {
     if (isComputed && displayStart) {
-      const durMs = displayEnd ? Math.max(0, displayEnd.getTime() - displayStart.getTime()) : 0;
       setRemoveConfirm({
         depsToRemove: [dep],
         computedTargets: [{
@@ -566,7 +575,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
           targetColumnId: column.id,
           start: displayStart.toISOString(),
           end: displayEnd?.toISOString() ?? null,
-          durationDays: durMs > 0 ? Math.round(durMs / 86_400_000) : (rawValue?.durationDays ?? 1),
+          durationDays: displayEnd ? inclusiveDays(displayStart, displayEnd) : (rawValue?.durationDays ?? 1),
         }],
       });
     } else {
