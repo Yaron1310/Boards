@@ -448,6 +448,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
         <DependencyApplyModal
           newDep={pendingApplyDep}
           items={allItems}
+          groups={localGroups}
           onClose={clearPendingApplyDep}
           onCancel={() => {
             removeDependency(pendingApplyDep);

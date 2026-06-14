@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import type { Item, TimeRangeDependency } from '../../types';
+import type { Group, Item, TimeRangeDependency } from '../../types';
 import { useUpdateItem } from '../../hooks/queries/useItemQueries';
 
 interface Props {
@@ -7,6 +7,8 @@ interface Props {
   newDep: TimeRangeDependency;
   /** All items on the board, used to find candidate rows */
   items: Item[];
+  /** All groups on the board, used to derive cross-group visual ordering */
+  groups: Group[];
   onClose: () => void;
   /** Called when the user explicitly cancels — removes the newly created dep */
   onCancel: () => void;
@@ -14,7 +16,7 @@ interface Props {
   onApply: (depIds: string[]) => void;
 }
 
-const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCancel, onApply }) => {
+const DependencyApplyModal: React.FC<Props> = ({ newDep, items, groups, onClose, onCancel, onApply }) => {
   const { mutate: updateItem } = useUpdateItem();
 
   // Esc cancels and revokes the newly created dependency
@@ -26,15 +28,14 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
 
   const targetItem = items.find((i) => i.id === newDep.targetItemId);
 
-  // Derive group visual order: a group's position = the minimum item.order among its members.
-  // Groups with a lower min order appear higher on the board.
-  const groupMinOrder: Record<string, number> = {};
-  for (const i of items) {
-    if (groupMinOrder[i.groupId] === undefined || i.order < groupMinOrder[i.groupId]) {
-      groupMinOrder[i.groupId] = i.order;
-    }
+  // Group visual order comes from the authoritative Group.order field.
+  // Item.order is scoped per-group (each group restarts at 0), so it cannot be
+  // used to compare positions across groups — only Group.order can.
+  const groupOrder: Record<string, number> = {};
+  for (const g of groups) {
+    groupOrder[g.id] = g.order;
   }
-  const targetGroupOrder = targetItem ? (groupMinOrder[targetItem.groupId] ?? 0) : 0;
+  const targetGroupOrder = targetItem ? (groupOrder[targetItem.groupId] ?? 0) : 0;
 
   // b. Items below in this group (after target by order, same group)
   const candidatesBelow = targetItem
@@ -68,7 +69,7 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
           i.id !== newDep.sourceItemId &&
           (
             (i.groupId === targetItem.groupId && i.order > targetItem.order) ||
-            (i.groupId !== targetItem.groupId && (groupMinOrder[i.groupId] ?? 0) > targetGroupOrder)
+            (i.groupId !== targetItem.groupId && (groupOrder[i.groupId] ?? 0) > targetGroupOrder)
           ),
       )
     : [];
@@ -84,8 +85,8 @@ const DependencyApplyModal: React.FC<Props> = ({ newDep, items, onClose, onCance
     // Sort targets by visual order (group position, then item order within group)
     // so the chain flows top-to-bottom as rendered on the board.
     const sortedTargets = [...targets].sort((a, b) => {
-      const aGroupOrder = groupMinOrder[a.groupId] ?? 0;
-      const bGroupOrder = groupMinOrder[b.groupId] ?? 0;
+      const aGroupOrder = groupOrder[a.groupId] ?? 0;
+      const bGroupOrder = groupOrder[b.groupId] ?? 0;
       if (aGroupOrder !== bGroupOrder) return aGroupOrder - bGroupOrder;
       return a.order - b.order;
     });
