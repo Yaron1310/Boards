@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { UserRole } from '../../types';
-import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiUserMinus, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiGlobe } from 'react-icons/fi';
+import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiUserMinus, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiGlobe, FiBell, FiInfo } from 'react-icons/fi';
 import i18n, { SUPPORTED_LANGUAGES } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -58,6 +58,11 @@ const ProfilePage: React.FC = () => {
   const [isLanguageSettingsOpen, setIsLanguageSettingsOpen] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>(() => authUser?.preferredLanguage || i18n.language.split('-')[0] || 'en');
   const [isLanguageSaving, setIsLanguageSaving] = useState(false);
+
+  // Notification preference state
+  type NotifPref = 'all' | 'mentions_only' | 'none';
+  const [notifPref, setNotifPref] = useState<NotifPref>(() => (authUser?.notificationPreference as NotifPref) ?? 'all');
+  const [isNotifSaving, setIsNotifSaving] = useState(false);
 
   const [profileUpdateMessage, setProfileUpdateMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   useEffect(() => {
@@ -114,6 +119,7 @@ const ProfilePage: React.FC = () => {
           if (authUser.preferredLanguage) {
               setSelectedLanguage(authUser.preferredLanguage);
           }
+          setNotifPref((authUser.notificationPreference as NotifPref) ?? 'all');
       }
     } else if (!authLoading && !dataCtxLoading) {
       // Handle cases where the user isn't found or isn't logged in.
@@ -403,6 +409,17 @@ const ProfilePage: React.FC = () => {
     navigate(-1);
   };
 
+  const handleSaveNotifPref = async (pref: NotifPref) => {
+    setNotifPref(pref);
+    setIsNotifSaving(true);
+    try {
+      await updateUserDetails({ notificationPreference: pref });
+    } catch {
+      // error handled by AuthContext
+    }
+    setIsNotifSaving(false);
+  };
+
 
   if (!profileUser && (authLoading || dataCtxLoading)) {
     return <div className="p-6 text-center text-gray-600 flex justify-center items-center h-full"><FiLoader className="animate-spin h-8 w-8 text-blue-500"/></div>;
@@ -646,6 +663,67 @@ const ProfilePage: React.FC = () => {
                     {/* Future admin actions can be added here */}
                 </div>
             </div>
+        )}
+
+        {isOwnProfile && (
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-800 mb-1 flex items-center gap-2">
+              <FiBell size={18} aria-hidden="true" />
+              Email Notifications
+            </h3>
+            <p className="text-sm text-gray-500 mb-4">Control when you receive email notifications from the app.</p>
+            <div className="space-y-3">
+              {([
+                {
+                  value: 'all' as const,
+                  label: 'All notifications',
+                  description: 'Receive emails when you are @mentioned in a chat message AND when a message is posted to an item you are assigned to via a Person column.',
+                },
+                {
+                  value: 'mentions_only' as const,
+                  label: '@Mention notifications only',
+                  description: 'Receive emails only when someone explicitly @mentions you in a chat message. You will NOT receive emails for items you are assigned to unless you are also @mentioned.',
+                },
+                {
+                  value: 'none' as const,
+                  label: 'No notifications',
+                  description: 'Turn off all email notifications from the app. You will not receive any chat notification emails.',
+                },
+              ] as { value: NotifPref; label: string; description: string }[]).map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                    notifPref === opt.value
+                      ? 'border-indigo-500 bg-indigo-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="notif-pref"
+                    value={opt.value}
+                    checked={notifPref === opt.value}
+                    onChange={() => void handleSaveNotifPref(opt.value)}
+                    disabled={isNotifSaving}
+                    className="mt-0.5 accent-indigo-600 flex-shrink-0"
+                    aria-label={opt.label}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{opt.label}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 flex items-start gap-1">
+                      <FiInfo size={11} className="mt-0.5 flex-shrink-0 text-gray-400" aria-hidden="true" />
+                      {opt.description}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {isNotifSaving && (
+              <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1">
+                <FiLoader size={11} className="animate-spin" aria-hidden="true" /> Saving…
+              </p>
+            )}
+          </div>
         )}
       </div>
 

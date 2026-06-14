@@ -24,7 +24,7 @@ export interface AuthSessionContextType {
   logout: () => void;
   updateAuthUser: (updatedUser: User) => void;
   refreshAuthUser: () => Promise<void>;
-  updateUserDetails: (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string }) => Promise<boolean>;
+  updateUserDetails: (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string; notificationPreference?: 'all' | 'mentions_only' | 'none' }) => Promise<boolean>;
   updateUserPassword: (passwords: { currentPassword?: string; newPassword: string }) => Promise<boolean>;
   updateUserProfileImage: (imageData: string | Blob) => Promise<boolean>;
   setAuthenticatedUserFromGoogle: (token: string) => Promise<boolean>;
@@ -322,7 +322,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [user, refreshAuthUser]);
 
-  const updateUserDetails = useCallback(async (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string }): Promise<boolean> => {
+  const updateUserDetails = useCallback(async (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string; notificationPreference?: 'all' | 'mentions_only' | 'none' }): Promise<boolean> => {
     try {
       const updatedUser = await apiService.updateMyUserDetails(details);
       updateAuthUser(updatedUser);

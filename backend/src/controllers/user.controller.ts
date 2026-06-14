@@ -544,7 +544,7 @@ const ALLOWED_LANGUAGE_CODES = ['en', 'es', 'he'];
 export const updateMyUserDetails = async (req: Request, res: Response) => {
     const userPayload = req.user as JwtUserPayload;
     const userId = userPayload.id;
-    const { name, email, preferredLanguage, preferences } = req.body;
+    const { name, email, preferredLanguage, preferences, notificationPreference } = req.body;
     try {
         const userRef = usersCollection.doc(userId);
         const updates: any = {};
@@ -565,6 +565,12 @@ export const updateMyUserDetails = async (req: Request, res: Response) => {
         }
         if (preferences !== undefined && typeof preferences === 'object') {
             updates.preferences = preferences;
+        }
+        if (notificationPreference !== undefined) {
+            const validPrefs = ['all', 'mentions_only', 'none'];
+            if (validPrefs.includes(notificationPreference)) {
+                updates.notificationPreference = notificationPreference;
+            }
         }
 
         await userRef.update(updates);

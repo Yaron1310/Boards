@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle } from 'react-icons/fi';
-import { useInviteUserToBoard } from '../../hooks/queries/useBoardMemberQueries';
+import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle, FiUsers } from 'react-icons/fi';
+import { useInviteUserToBoard, useBoardParticipants } from '../../hooks/queries/useBoardMemberQueries';
 
 interface Props {
   boardId: string;
@@ -14,6 +14,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { mutateAsync: inviteUser, isPending } = useInviteUserToBoard(boardId);
+  const { data: participants = [], isLoading: participantsLoading } = useBoardParticipants(boardId);
 
   const handleSubmit = async () => {
     const trimmed = email.trim();
@@ -43,7 +44,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
       aria-modal="true"
       aria-label="Invite user to board"
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div>
@@ -61,7 +62,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
         </div>
 
         {/* Body */}
-        <div className="px-5 py-4 space-y-4">
+        <div className="px-5 py-4 space-y-4 overflow-y-auto">
           {feedback && (
             <div
               role={feedback.type === 'error' ? 'alert' : 'status'}
@@ -75,51 +76,95 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
             </div>
           )}
 
-          {/* Email */}
+          {/* Current board members */}
           <div>
-            <label htmlFor="board-invite-email" className="block text-xs font-medium text-gray-700 mb-1">
-              Email address
-            </label>
-            <input
-              id="board-invite-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="user@example.com"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              aria-label="Email address to invite"
-              autoFocus
-              disabled={isPending}
-            />
+            <div className="flex items-center gap-1.5 mb-2">
+              <FiUsers size={13} className="text-gray-500" aria-hidden="true" />
+              <span className="text-xs font-medium text-gray-700">
+                Board members ({participantsLoading ? '…' : participants.length})
+              </span>
+            </div>
+            {participantsLoading ? (
+              <div className="flex items-center gap-2 py-2 text-xs text-gray-400">
+                <FiLoader size={12} className="animate-spin" aria-hidden="true" /> Loading members…
+              </div>
+            ) : participants.length === 0 ? (
+              <p className="text-xs text-gray-400 py-1">No members yet.</p>
+            ) : (
+              <ul className="space-y-1.5 max-h-40 overflow-y-auto" aria-label="Current board members">
+                {participants.map((p) => (
+                  <li key={p.id} className="flex items-center gap-2">
+                    {p.profileImageUrl ? (
+                      <img
+                        src={p.profileImageUrl}
+                        alt={p.name}
+                        className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div
+                        className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0"
+                        aria-hidden="true"
+                      >
+                        {p.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-gray-800 truncate">{p.name}</p>
+                      <p className="text-[10px] text-gray-400 truncate">{p.email}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
-          {/* Permissions */}
-          <fieldset>
-            <legend className="text-xs font-medium text-gray-700 mb-2">Permissions</legend>
-            <div className="flex gap-3">
-              {(['edit', 'read_only'] as const).map((p) => (
-                <label
-                  key={p}
-                  className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}
-                >
-                  <input
-                    type="radio"
-                    name="board-invite-perm"
-                    value={p}
-                    checked={permissions === p}
-                    onChange={() => setPermissions(p)}
-                    className="accent-indigo-600"
-                    aria-label={p === 'edit' ? 'Edit' : 'Read only'}
-                  />
-                  <span className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
-                    {p === 'edit' ? <FiEdit2 size={12} aria-hidden="true" /> : <FiLock size={12} aria-hidden="true" />}
-                    {p === 'edit' ? 'Edit' : 'Read only'}
-                  </span>
-                </label>
-              ))}
+          <div className="border-t border-gray-100 pt-4">
+            {/* Email */}
+            <div className="mb-3">
+              <label htmlFor="board-invite-email" className="block text-xs font-medium text-gray-700 mb-1">
+                Invite by email address
+              </label>
+              <input
+                id="board-invite-email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="user@example.com"
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Email address to invite"
+                autoFocus
+                disabled={isPending}
+              />
             </div>
-          </fieldset>
+
+            {/* Permissions */}
+            <fieldset>
+              <legend className="text-xs font-medium text-gray-700 mb-2">Permissions</legend>
+              <div className="flex gap-3">
+                {(['edit', 'read_only'] as const).map((p) => (
+                  <label
+                    key={p}
+                    className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 hover:border-gray-300'}`}
+                  >
+                    <input
+                      type="radio"
+                      name="board-invite-perm"
+                      value={p}
+                      checked={permissions === p}
+                      onChange={() => setPermissions(p)}
+                      className="accent-indigo-600"
+                      aria-label={p === 'edit' ? 'Edit' : 'Read only'}
+                    />
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-gray-800">
+                      {p === 'edit' ? <FiEdit2 size={12} aria-hidden="true" /> : <FiLock size={12} aria-hidden="true" />}
+                      {p === 'edit' ? 'Edit' : 'Read only'}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          </div>
         </div>
 
         {/* Footer */}

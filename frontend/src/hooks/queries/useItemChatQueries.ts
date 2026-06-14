@@ -14,8 +14,8 @@ export const useChatMessages = (itemId: string, enabled = true) =>
 export const usePostChatMessage = (itemId: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ text, files }: { text: string; files?: File[] }) =>
-      wm.postChatMessage(itemId, text, files),
+    mutationFn: ({ text, files, mentionedUserIds }: { text: string; files?: File[]; mentionedUserIds?: string[] }) =>
+      wm.postChatMessage(itemId, text, files, mentionedUserIds),
     onSuccess: (newMsg: ChatMessage) => {
       qc.setQueryData<ChatMessage[]>(queryKeys.chat.messages(itemId), (old) =>
         old ? [...old, newMsg] : [newMsg],

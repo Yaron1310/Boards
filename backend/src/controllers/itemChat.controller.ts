@@ -2,9 +2,10 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, storage, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
-import { itemsCollection, itemChatMessagesCollection, boardMembersCollection, usersCollection } from '../db/collections.js';
-import { JwtUserPayload, DBItem, DBUser, DBBoardMember, DBChatMessage, DBChatAttachment } from '../types/index.js';
+import { itemsCollection, itemChatMessagesCollection, boardMembersCollection, usersCollection, columnsCollection } from '../db/collections.js';
+import { JwtUserPayload, DBItem, DBUser, DBBoardMember, DBChatMessage, DBChatAttachment, DBColumn, ColumnType } from '../types/index.js';
 import { assertItemAccess } from '../utils/workManagementAuth.js';
+import { sendChatMentionEmail } from '../services/email.service.js';
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
@@ -128,6 +129,9 @@ export const postChatMessage = async (req: Request, res: Response) => {
   const rawAttachments: DBChatAttachment[] = Array.isArray(req.body.attachments)
     ? req.body.attachments
     : [];
+  const mentionedUserIds: string[] = Array.isArray(req.body.mentionedUserIds)
+    ? req.body.mentionedUserIds.filter((v: unknown) => typeof v === 'string')
+    : [];
 
   if (!text && rawAttachments.length === 0) {
     return res.status(400).json({ message: 'Message must contain text or at least one attachment.' });
@@ -175,12 +179,85 @@ export const postChatMessage = async (req: Request, res: Response) => {
 
     const created = snapshotToData<DBChatMessage>(await messageRef.get())!;
     res.status(201).json(created);
+
+    // Fire-and-forget email notifications
+    void sendChatNotifications(
+      user.id,
+      user.orgId,
+      item,
+      text || '[attachment]',
+      authorData?.name ?? user.id,
+      mentionedUserIds,
+    );
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error(`Error posting chat message for item ${req.params.itemId ?? req.params.id}:`, err);
     res.status(500).json({ message: 'Failed to post chat message.' });
   }
 };
+
+async function sendChatNotifications(
+  senderId: string,
+  orgId: string,
+  item: DBItem,
+  messageText: string,
+  senderName: string,
+  mentionedUserIds: string[],
+): Promise<void> {
+  try {
+    // Find users assigned via person-type columns
+    const columnsSnap = await columnsCollection(orgId, item.boardId)
+      .where('type', '==', ColumnType.PERSON)
+      .get();
+
+    const assignedUserIds = new Set<string>();
+    for (const colDoc of columnsSnap.docs) {
+      const col = colDoc.data() as DBColumn;
+      const val = item.values[col.id];
+      if (Array.isArray(val)) {
+        val.forEach((uid) => typeof uid === 'string' && assignedUserIds.add(uid));
+      } else if (typeof val === 'string' && val) {
+        assignedUserIds.add(val);
+      }
+    }
+
+    const mentionedSet = new Set(mentionedUserIds.filter((uid) => uid !== senderId));
+    // Assigned users that were NOT already @mentioned (to avoid duplicate emails)
+    const assignedOnlyIds = [...assignedUserIds].filter(
+      (uid) => uid !== senderId && !mentionedSet.has(uid),
+    );
+
+    const allRecipientIds = [...mentionedSet, ...assignedOnlyIds];
+    if (allRecipientIds.length === 0) return;
+
+    const userDocs = await Promise.all(allRecipientIds.map((uid) => usersCollection.doc(uid).get()));
+
+    await Promise.all(
+      userDocs.map(async (userDoc) => {
+        if (!userDoc.exists) return;
+        const userData = userDoc.data() as DBUser;
+        if (!userData.email) return;
+
+        const pref = userData.notificationPreference ?? 'all';
+        const isMentioned = mentionedSet.has(userDoc.id);
+
+        if (pref === 'none') return;
+        if (pref === 'mentions_only' && !isMentioned) return;
+
+        await sendChatMentionEmail(
+          userData.email,
+          userData.name ?? '',
+          senderName,
+          item.name,
+          messageText,
+          isMentioned ? 'mention' : 'assigned',
+        );
+      }),
+    );
+  } catch (err) {
+    logger.error('Error sending chat notifications:', err);
+  }
+}
 
 // ---------------------------------------------------------------------------
 // DELETE /items/:itemId/chat/:messageId

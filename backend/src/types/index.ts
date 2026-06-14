@@ -83,6 +83,7 @@ export interface DBUser {
   preferences?: {
     darkContrast?: boolean;
   };
+  notificationPreference?: 'all' | 'mentions_only' | 'none';
   forceLogoutAt?: admin.firestore.Timestamp | Date | null;
 }
 

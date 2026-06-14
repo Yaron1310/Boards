@@ -95,6 +95,7 @@ export interface User {
   preferences?: {
     darkContrast?: boolean;
   };
+  notificationPreference?: 'all' | 'mentions_only' | 'none';
   tokenUsage?: {
     used: number;
     limit: number | null;

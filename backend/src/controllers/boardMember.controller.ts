@@ -254,6 +254,70 @@ export const removeMember = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
+// GET /boards/:boardId/participants
+// Returns all users who have implicit or explicit access to the board:
+// explicit board members + workspace admins + org admins.
+// ---------------------------------------------------------------------------
+export const listParticipants = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { boardId } = req.params;
+
+  try {
+    const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
+    if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
+    const board = snapshotToData<DBBoard>(boardDoc)!;
+
+    const [membersSnap, workspaceMembershipsSnap, orgAdminMembershipsSnap] = await Promise.all([
+      boardMembersCollection(user.orgId, boardId).get(),
+      membershipsCollection
+        .where('orgId', '==', user.orgId)
+        .where('entityId', '==', board.workspaceId)
+        .get(),
+      membershipsCollection
+        .where('orgId', '==', user.orgId)
+        .where('role', '==', UserRole.ORGANIZATION_ADMIN)
+        .get(),
+    ]);
+
+    const participantMap = new Map<string, { id: string; name: string; email: string; profileImageUrl?: string }>();
+
+    for (const doc of membersSnap.docs) {
+      const m = doc.data() as DBBoardMember;
+      if (m.userId) {
+        participantMap.set(m.userId, {
+          id: m.userId,
+          name: m.userName ?? '',
+          email: m.userEmail ?? '',
+          profileImageUrl: m.userProfileImageUrl ?? undefined,
+        });
+      }
+    }
+
+    const adminMembershipDocs = [...workspaceMembershipsSnap.docs, ...orgAdminMembershipsSnap.docs];
+    for (const doc of adminMembershipDocs) {
+      const m = doc.data() as DBMembership;
+      if (
+        !participantMap.has(m.userId) &&
+        [UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN].includes(m.role as UserRole)
+      ) {
+        participantMap.set(m.userId, {
+          id: m.userId,
+          name: m.userName ?? '',
+          email: m.userEmail ?? '',
+          profileImageUrl: m.userProfileImageUrl ?? undefined,
+        });
+      }
+    }
+
+    res.json(Array.from(participantMap.values()));
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error listing participants for board ${req.params.boardId}:`, err);
+    res.status(500).json({ message: 'Failed to list board participants.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
 // POST /boards/:boardId/invite  (invite by email — board-level invitation)
 // ---------------------------------------------------------------------------
 export const inviteByEmail = async (req: Request, res: Response) => {

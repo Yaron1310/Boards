@@ -458,6 +458,41 @@ export const retryEmailServiceInitialization = () => {
 
 // ---------------------------------------------------------------------------
 
+export const sendChatMentionEmail = async (
+    toEmail: string,
+    toName: string,
+    senderName: string,
+    itemName: string,
+    messageText: string,
+    reason: 'mention' | 'assigned'
+): Promise<void> => {
+    await ensureTransporter();
+    if (!isEmailServiceAvailable()) return;
+
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromEmail = process.env.SMTP_USER!;
+    const subject = reason === 'mention'
+        ? `${senderName} mentioned you in "${itemName}"`
+        : `New message in "${itemName}" — you are assigned`;
+    const intro = reason === 'mention'
+        ? `<strong>${senderName}</strong> mentioned you in <strong>${itemName}</strong>:`
+        : `There is a new chat message in an item assigned to you — <strong>${itemName}</strong>:`;
+    const html = `<p>Hello ${toName},</p>
+<p>${intro}</p>
+<blockquote style="border-left:3px solid #6366f1;padding:8px 16px;margin:12px 0;background:#f5f3ff;border-radius:4px;color:#374151;white-space:pre-wrap;">
+  ${messageText.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>')}
+</blockquote>
+<p>Thanks,<br/>The Logyx Team</p>`;
+
+    try {
+        await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to: toEmail, subject, html });
+    } catch (error) {
+        logger.error(`Failed to send chat mention email to ${toEmail}`, error);
+    }
+};
+
+// ---------------------------------------------------------------------------
+
 export const sendUserInvitationEmail = async (
     userEmail: string,
     orgName: string,
