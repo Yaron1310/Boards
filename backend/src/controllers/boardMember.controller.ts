@@ -309,6 +309,22 @@ export const listParticipants = async (req: Request, res: Response) => {
       }
     }
 
+    // Filter out inactive/disabled users by checking their user documents
+    const allIds = Array.from(participantMap.keys());
+    if (allIds.length > 0) {
+      const userDocs = await Promise.all(allIds.map((id) => usersCollection.doc(id).get()));
+      for (const userDoc of userDocs) {
+        if (!userDoc.exists) {
+          participantMap.delete(userDoc.id);
+          continue;
+        }
+        const u = userDoc.data() as DBUser;
+        if (u.status !== 'active') {
+          participantMap.delete(userDoc.id);
+        }
+      }
+    }
+
     res.json(Array.from(participantMap.values()));
   } catch (err: unknown) {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
