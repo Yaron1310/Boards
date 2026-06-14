@@ -129,15 +129,15 @@ const RegistrationPage: React.FC = () => {
         localStorage.setItem('pending_checkout_plan_id', planId);
     }
 
-    // --- Standard Registration Flow (Handles both Organization Pre-approved and Checkout Payment Flow) ---
+    // --- Standard Registration Flow (Handles both WorkHub Pre-approved and Checkout Payment Flow) ---
     // If planId is present (checkout flow), backend register will skip pre-approval.
     // If planId is missing, backend register will enforce pre-approval.
     const recaptchaToken = await executeRecaptcha('register');
     const result = await register({ name, email, password, planId: planId || undefined }, recaptchaToken);
 
     if (result.success) {
-      if (result.message.includes("Password created")) {
-        navigate(`/login?password_created=true&message=${encodeURIComponent(result.message)}`);
+      if (result.message.includes("Password created") || result.requiresVerification === false) {
+        navigate(`/login?ready=true&message=${encodeURIComponent(result.message)}`);
       } else {
         setPendingMessage(result.message);
         setRegistrationState('pending');

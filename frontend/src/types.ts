@@ -1,100 +1,25 @@
 export enum UserRole {
   REGULAR_USER = 'regular_user',
-  ORGANIZATION_ADMIN = 'organization_admin',
-  ACADEMY_ADMIN = 'academy_admin',
+  ORG_EDITOR = 'org_editor',
+  WORKSPACE_ADMIN = 'workspace_admin',
+  ORGANIZATION_ADMIN = 'org_admin',
   SYSTEM_ADMIN = 'system_admin',
 }
 
-export interface GrowthAllowanceTier {
-  minUsers: number;
-  maxUsers: number | null;
-  percentage: number;
-  absolute: number;
-}
-
-
-export interface Plan {
-  id: string;
-  academyId: string;
-  name: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-  status?: 'active' | 'archived';
-
-  accessibleCourseIds?: string[];
-  hasAllCoursesAccess?: boolean;
-
-  accessibleChatPersonaIds?: string[];
-  hasAllChatAccess?: boolean;
-
-  accessibleQuestionnaireIds?: string[];
-  hasAllQuestionnairesAccess?: boolean;
-
-  planType?: 'subscription' | 'one-time';
-  isForSingleUser?: boolean;
-  maxUsers?: number;
-  priceMonthly?: number;
-  currency?: string;
-  accessRules?: {
-    revokeChat?: 'never' | 'on_course_completion' | 'after_duration';
-    revokeChatCourseId?: string | null;
-    revokeChatAfterDays?: number | null;
-    revokeChatAfterCompletionDays?: number | null;
-    postAccessBehavior?: 'revoke_all' | 'content_only';
-  };
-}
-
-export interface Organization {
+export interface WorkHub {
   id: string;
   name: string;
-  academyId: string;
-  academyName?: string; 
-  planId?: string;
-  planName?: string;
-  planType?: 'subscription' | 'one-time';
-  paymentMethod?: 'direct' | 'gymind'; // DEPRECATED
-  subscriptionProvider?: 'woocommerce' | 'gymind' | 'manual';
-  subscriptionStatus?: 'active' | 'cancelled' | 'past_due' | 'trialing' | 'incomplete';
-  cancelAtPeriodEnd?: boolean;
-  subscriptionEndDate?: string | Date | any;
-  hasChatAccess?: boolean;
-  hasMindPatternsAccess?: boolean;
+  orgId: string;
+  color?: string;
+  organizationName?: string;
   isPersonal?: boolean;
+  isTemplates?: boolean;
   status?: 'active' | 'archived';
+  workspacePermissions?: 'edit' | 'read_only';
 }
 
-// ... rest of the file remains unchanged ...
-export interface Academy {
+export interface OrganizationSettings {
   id: string;
-  name: string;
-}
-
-export interface ExtractionSetting {
-  key: string;
-  label: string;
-  enabled: boolean;
-}
-
-export interface AIInsightSetting {
-  key: string;
-  label: string;
-  enabled: boolean;
-}
-
-export interface PublicPlanConfig {
-  planId: string;
-  displayName: string;
-  billingCycle: string;
-  description: string;
-  bullets: string[];
-  buttonText: string;
-  tagText?: string;
-  tagColor?: string;
-  tagTextColor?: string; // New field
-}
-
-export interface AcademySettings {
-  id: string; 
   sidebarColor: string;
   enableSidebarGradient?: boolean;
   sidebarHueRotation?: number;
@@ -113,27 +38,13 @@ export interface AcademySettings {
       instagram?: string;
   };
   apiKey?: string;
-  subscriptionCancellationWebhookUrl?: string;
   displayNameColor?: string;
   sidebarLinkColor?: string;
-  publicPlansPage?: {
-    enabled: boolean;
-    enableGradient?: boolean; 
-    gradientHueRotation?: number; // New
-    gradientHeight?: number;      // New
-    gradientMaskOpacity?: number; // New
-    pageHeader: string;
-    headerFontWeight?: string; 
-    cardBackgroundColor?: string; // Global setting
-    cardBorderColor?: string;     // Global setting
-    cardFontColor?: string;       // Global setting
-    buttonBackgroundColor?: string; // Global setting
-    buttonTextColor?: string;       // Global setting
-    customized?: boolean;           // True once admin has explicitly saved these settings
-    selectedPlans: PublicPlanConfig[];
-  };
+  logoCircle?: boolean;
   bridgeEnabled?: boolean;
   bridgeSecretKey?: string;
+  /** Array of day-of-week indices that are working days (0=Sun, 1=Mon, …, 6=Sat). Defaults to Mon–Fri [1,2,3,4,5]. */
+  workingDays?: number[];
 }
 
 export interface EmailTemplate {
@@ -148,19 +59,10 @@ export interface EmailTemplate {
 }
 
 export interface SystemSettings {
-  id?: string; 
+  id?: string;
   oneTimeTokensPerLesson: number;
   oneTimeGeneralTokens: number;
   subscriptionMonthlyLimit: number;
-  growthAllowanceTiers?: GrowthAllowanceTier[];
-  geminiProModelName?: string;
-  geminiFlashModelName?: string;
-  costPer1000TokensPro?: number;
-  rawCostPer1000TokensPro?: number;
-  profitMarginPer1000TokensPro?: number;
-  costPer1000TokensFlash?: number;
-  rawCostPer1000TokensFlash?: number;
-  profitMarginPer1000TokensFlash?: number;
   globalSystemPrompt?: string;
 }
 
@@ -170,64 +72,36 @@ export interface TutorialLink {
 }
 
 export interface TutorialSettings {
-  aiMentor?: TutorialLink;
-  courses?: TutorialLink;
-  questionnaires?: TutorialLink;
-  plansBilling?: TutorialLink;
-  wpPlugin?: TutorialLink;
   theme?: TutorialLink;
-  organizations?: TutorialLink;
+  workspaces?: TutorialLink;
   users?: TutorialLink;
 }
-
-export interface ChatPersona {
-  id: string;
-  academyId: string;
-  name: string;
-  description: string;
-  personaPreamble?: string;
-  systemPrompt: string;
-  extractionSettings: ExtractionSetting[];
-  aiInsightPrompt: string;
-  aiInsightSettings: AIInsightSetting[];
-  createdAt: Date;
-  updatedAt: Date;
-  status?: 'active' | 'archived';
-  includePersonalization?: boolean;
-  isInitialMessageEnabled?: boolean;
-  initialMessage?: string;
-  summaryInstructions?: string;
-}
-
 
 export interface User {
   id: string;
   email: string;
   name: string;
-  role: UserRole; 
+  role: UserRole;
   dbRoles?: {
     systemAdmin?: boolean;
-    academyAdmin?: string[];
     organizationAdmin?: string[];
+    workspaceAdmin?: string[];
   };
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
-  organizations: Pick<Organization, 'id' | 'name' | 'academyId' | 'academyName' | 'isPersonal'>[]; 
-  profileImageUrl?: string; 
-  hasSeenChatPrivacyNotice?: boolean;
-  conversationSavingEnabled?: boolean;
+  workspaces: Pick<Workspace, 'id' | 'name' | 'orgId' | 'organizationName' | 'isPersonal'>[];
+  profileImageUrl?: string;
   preferredLanguage?: string;
   hasPassword?: boolean;
+  preferences?: {
+    darkContrast?: boolean;
+  };
   tokenUsage?: {
     used: number;
     limit: number | null;
   };
-  organizationId?: string; 
-  organizationName?: string; 
-  organizationHasMindPatternsAccess?: boolean;
-  completedQuestionnairesCount?: number;
-  conversationCount?: number;
-  completedCourseCount?: number;
-  allAcademies?: Academy[]; 
+  workspaceId?: string;
+  workspaceName?: string;
+  allAcademies?: Workspace[];
 }
 
 
@@ -245,288 +119,24 @@ export interface Message {
   sender: 'user' | 'ai';
   text: string;
   timestamp: Date;
-  isError?: boolean; 
+  isError?: boolean;
 }
 
 export type ExtractedFactors = { [key: string]: string };
 
-export interface Conversation {
-  id: string;
-  userId: string;
-  personaId: string;
-  personaName: string;
-  date: Date;
-  messages?: Message[];
-  messageCount: number;
-  lastMessageAt?: Date;
-  extractedFactors?: ExtractedFactors;
-  isPrivate?: boolean;
-  isInsightArchivedByUser?: boolean;
-}
-
-export interface ChatSession {
-  chatId: string; 
-  messages: Message[];
-}
-
-export interface TriggerPhrase {
-  id: string;
-  academyId: string;
-  language: string; 
-  phrase: string;   
-}
-
 export interface PreApprovedUser {
   id: string;
   email: string;
-  organizationId: string;
+  workspaceId: string;
   addedBy: string;
   createdAt: Date;
 }
 
 export interface TokenUsageData {
-  [id: string]: { 
+  [id: string]: {
     used: number;
     limit: number | null;
   };
-}
-
-export interface AcademyBillingCycle {
-    id: string;
-    academyId: string;
-    billingCycleStart: Date;
-    billingCycleEnd: Date;
-    baselineUserCount: number;
-    growthAllowance: number;
-    topUpUserCount: number;
-    calculatedTokenLimit: number;
-    currentTokenUsage: number;
-    notification70Sent: boolean;
-    notification85Sent: boolean;
-    notification95Sent: boolean;
-    createdAt: Date;
-}
-
-export interface PersonalInsight {
-  id: string;
-  userId: string;
-  key: string;
-  label: string;
-  value: string | number | boolean;
-  source: string;
-  updatedAt: Date;
-  isArchived?: boolean;
-}
-
-
-export type QuestionnaireType = 'categorical' | 'custom';
-export type QuestionType = 'multiple_choice' | 'open_text';
-
-export interface Questionnaire {
-  id: string;
-  academyId: string;
-  name: string;
-  description: string;
-  type: QuestionnaireType;
-  passingScore?: number;
-  createdAt: Date;
-  updatedAt: Date;
-  status?: 'active' | 'archived';
-  shuffleQuestions?: boolean;
-  resultSettings: {
-    showGraph: boolean;
-    numberOfTopCategories: number;
-    includeTies?: boolean;
-    saveToInsights?: boolean;
-  };
-  categories?: Category[];
-  categoryCount?: number;
-}
-
-export interface Category {
-  id: string;
-  questionnaireId: string;
-  name: string;
-  description: string;
-  videoUrl: string;
-  order: number;
-  showNameInQuiz?: boolean;
-  questions?: Question[];
-}
-
-export interface Question {
-  id: string;
-  categoryId: string;
-  text: string;
-  type: QuestionType;
-  order: number;
-  answers: Answer[];
-  correctAnswerId?: string; 
-  customScore?: number; 
-  correctAnswerText?: string; 
-}
-
-export interface Answer {
-  id: string;
-  text: string;
-  score: number; 
-}
-
-export interface UserQuestionnaireResult {
-  id: string;
-  userId: string;
-  questionnaireId: string;
-  questionnaireName: string;
-  completedAt: Date;
-  source?: 'standalone' | 'assignment';
-  categoryScores: { categoryId: string; categoryName: string; score: number }[];
-  topCategories: Array<{
-    categoryId: string;
-    name: string;
-    score: number;
-    description: string;
-    videoUrl: string;
-  }>;
-  score?: number;
-  passed?: boolean;
-  isArchivedByUser?: boolean;
-  responses?: Array<{
-    questionId: string;
-    questionText: string;
-    answerId?: string;
-    answerText?: string;
-    correctAnswerText?: string;
-    isCorrect?: boolean;
-    pointsEarned?: number;
-    feedback?: string;
-  }>;
-  createdAt?: Date;
-}
-
-
-export interface CourseAnswer {
-  id: string;
-  text: string;
-}
-
-export interface CourseQuestion {
-  id: string;
-  order: number;
-  text: string;
-  answers: CourseAnswer[];
-  correctAnswerId: string;
-}
-
-export interface Course {
-  id: string;
-  academyId: string;
-  name: string;
-  description: string;
-  createdAt: Date;
-  updatedAt: Date;
-  status?: 'active' | 'archived';
-  lessons?: Lesson[];
-  lessonCount?: number;
-  accessMode?: 'full' | 'read_only';
-  coverImage?: string;
-  totalDuration?: number;
-  promoVideoUrl?: string;
-}
-
-export interface InsightField {
-  htmlElementId: string;
-  key: string;
-  label: string;
-}
-
-export interface LessonAssignment {
-  type: 'chat' | 'questionnaire' | 'custom_code';
-  id: string;
-  name: string;
-  isMandatory: boolean;
-  customHtml?: string;
-  customCss?: string;
-  customJs?: string;
-  insightFields?: InsightField[];
-  endButtonId?: string;
-  autoOpenEnabled?: boolean;
-  autoOpenTimestamp?: number;
-  isInsightsPrivate?: boolean;
-}
-
-export interface Lesson {
-  id: string;
-  courseId: string;
-  name: string;
-  description: string;
-  videoUrl: string;
-  transcript: string;
-  powerpointUrl?: string;
-  order: number;
-  createdAt: Date;
-  updatedAt: Date;
-  questions?: CourseQuestion[];
-  assignments?: LessonAssignment[];
-  isBridgeVideo?: boolean;
-  bridgeVideoUrl?: string;
-  videoDuration?: number;
-}
-
-export interface UserCourseProgress {
-  id: string; 
-  userId: string;
-  courseId: string;
-  organizationId?: string;
-  academyId: string;
-  status: 'not-started' | 'in-progress' | 'completed';
-  completedLessons: string[]; 
-  startedAt: Date;
-  completedAt?: Date;
-  updatedAt: Date;
-}
-
-// --- MARKETING / NEWSLETTERS ---
-
-export interface NewsletterEdition {
-  id: string;
-  campaignId: string;
-  academyId: string;
-  subject: string;
-  htmlContent: string;
-  title: string;
-  subtitle: string;
-  mainText: string;
-  showLogoInHeader?: boolean;
-  status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-  scheduledFor?: Date | string;
-  sentAt?: Date | string;
-  totalRecipients: number;
-  successCount: number;
-  failCount: number;
-  order?: number;
-  createdBy: string;
-  createdAt?: Date | string;
-  updatedAt?: Date | string;
-}
-
-export interface NewsletterCampaign {
-  id: string;
-  academyId: string;
-  name: string;
-  campaignType?: 'scheduled' | 'trigger';
-  triggerType?: 'registration' | 'course_enrollment' | 'course_completion';
-  triggerCourseId?: string;
-  recipientGroup: 'all_users' | 'organization' | 'course_enrolled' | 'course_completed';
-  recipientFilter?: string;
-  frequency: 'one_time' | 'weekly' | 'biweekly' | 'monthly';
-  scheduledDay?: number;
-  scheduledTime?: string;
-  timezone?: string;
-  status: 'active' | 'paused' | 'archived';
-  autoCreateNextDraft: boolean;
-  createdBy: string;
-  createdAt?: Date;
-  updatedAt?: Date;
 }
 
 // --- Pagination ---
@@ -541,15 +151,438 @@ export interface PaginatedResponse<T> {
 export type SystemPrompts = {
     chatSystemPrompt: string;
 };
-export type ThemeSettings = Pick<AcademySettings, 'sidebarColor' | 'appName' | 'logoUrl'>;
+export type ThemeSettings = Pick<OrganizationSettings, 'sidebarColor' | 'appName' | 'logoUrl'>;
 
-// New Interface for Payment Payouts
-export interface AcademyPayoutData {
-    academyId: string;
-    academyName: string;
-    activeGymindOrgs: number;
-    totalRevenue: number; // Org Payments
-    totalTokenCost: number; // Gymind Cost
-    netPayout: number; // Revenue - Cost
-    currency: string;
+// =============================================================================
+// PHASE 4 — WORK MANAGEMENT DATA MODEL
+// =============================================================================
+
+export enum ColumnType {
+  TEXT = 'text',
+  NUMBER = 'number',
+  DATE = 'date',
+  STATUS = 'status',
+  PERSON = 'person',
+  DROPDOWN = 'dropdown',
+  CHECKBOX = 'checkbox',
+  TAGS = 'tags',
+  TIME = 'time',
+  EMAIL = 'email',
+  PHONE = 'phone',
+  LOCATION = 'location',
+  TIME_RANGE = 'time_range',
+  SIMPLE_FORMULA = 'simple_formula',
+}
+
+// --- Column settings per type ---
+
+export interface TextColumnSettings {
+  maxLength?: number;
+  multiline?: boolean;
+}
+
+export interface NumberColumnSettings {
+  precision?: number;
+  unit?: string;
+  summary?: 'sum' | 'avg' | 'min' | 'max' | 'count';
+}
+
+export interface DateColumnSettings {
+  includeTime?: boolean;
+}
+
+export interface StatusOption {
+  id: string;
+  label: string;
+  color: string;
+}
+
+export interface StatusColumnSettings {
+  options: StatusOption[];
+  defaultStatusId?: string;
+}
+
+export interface PersonColumnSettings {
+  multiple: boolean;
+}
+
+export interface DropdownOption {
+  id: string;
+  label: string;
+}
+
+export interface DropdownColumnSettings {
+  options: DropdownOption[];
+  multiple: boolean;
+}
+
+export interface TagsColumnSettings {
+  allowCustom: boolean;
+}
+
+export interface SimpleFormulaColumnSettings {
+  defaultFormula: string; // e.g. "{Price} * {Qty}" — evaluated client-side
+}
+
+export type ColumnSettings =
+  | TextColumnSettings
+  | NumberColumnSettings
+  | DateColumnSettings
+  | StatusColumnSettings
+  | PersonColumnSettings
+  | DropdownColumnSettings
+  | TagsColumnSettings
+  | SimpleFormulaColumnSettings
+  | Record<string, never>;
+
+// --- Column definition ---
+
+export interface Column {
+  id: string;
+  boardId: string;
+  name: string;
+  type: ColumnType;
+  settings: ColumnSettings;
+  summaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
+  width?: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+// --- Column value types (stored inside Item.values) ---
+
+export interface LocationValue {
+  address: string;
+}
+
+export interface TimeRangeValue {
+  start: Date | string;
+  end: Date | string;
+  /** Stored duration in days — preserved so dependency shifts don't alter task length */
+  durationDays?: number;
+}
+
+// --- Cell Dependencies ---
+
+export interface TimeRangeDependency {
+  /** Unique ID for this dependency link */
+  id: string;
+  /** Item that must finish first (the source / predecessor) */
+  sourceItemId: string;
+  sourceColumnId: string;
+  /** Item that starts after (the dependent / successor) */
+  targetItemId: string;
+  targetColumnId: string;
+  /** Days gap between source.end and target.start (default 0) */
+  offsetDays: number;
+  /**
+   * Snapshot of the target's time-range value taken when this dependency was
+   * created. "Revert to original dates" restores this, so a manual edit made
+   * while the dependency was active does not survive removal/re-creation.
+   */
+  originalValue?: TimeRangeValue | null;
+}
+
+/** Board-level rule: "in every row, targetColumnId depends on sourceColumnId" */
+export interface DependencyRule {
+  id: string;
+  sourceColumnId: string;
+  targetColumnId: string;
+  offsetDays: number;
+}
+
+export type ColumnValueMap = Record<string, unknown>;
+
+// --- Board ---
+
+export interface Board {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description?: string;
+  order: number;
+  createdBy: string;
+  isArchived?: boolean;
+  isTemplate?: boolean;
+  /** Column-level dependency rules that apply to every item on this board */
+  dependencyRules?: DependencyRule[];
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+// --- Group ---
+
+export interface Group {
+  id: string;
+  workspaceId: string;
+  boardId: string;
+  name: string;
+  color?: string;
+  order: number;
+  isCollapsed?: boolean;
+  isArchived?: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+export interface WebhookFieldMapping {
+  position: number;
+  columnId: string;
+}
+
+export type WebhookNameMode = 'field' | 'timestamp' | 'sequence' | 'sequence-timestamp';
+
+export interface Webhook {
+  id: string;
+  orgId: string;
+  workspaceId: string;
+  boardId: string;
+  groupId: string;
+  insertPosition: 'top' | 'bottom';
+  allowedOrigins: string[];
+  status: 'active' | 'revoked';
+  createdBy: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  lastUsedAt?: Date | string;
+  useCount: number;
+  fieldMap: WebhookFieldMapping[];
+  nameMode: WebhookNameMode;
+  nameFieldPosition: number | null;
+  secret?: string;
+}
+
+// --- Item (flat, stored at WorkHub level) ---
+
+export interface Item {
+  id: string;
+  workspaceId: string;
+  boardId: string;
+  groupId: string;
+  name: string;
+  order: number;
+  createdBy: string;
+  isArchived?: boolean;
+  // Indexed top-level fields (mirrored from values for querying/filtering)
+  status?: string;
+  assignees?: string[];
+  dueDate?: Date | string;
+  // Cell dependency links — stored on the target item (the dependent one)
+  dependencies?: TimeRangeDependency[];
+  // Chat denormalized counters
+  chatMessageCount?: number;
+  chatLastMessageAt?: Date | string;
+  chatSeenBy?: Record<string, number>;
+  // Dynamic column values
+  values: ColumnValueMap;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
+// --- Chat ---
+
+export interface ChatAttachment {
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  itemId: string;
+  authorId: string;
+  authorName: string;
+  authorProfileImageUrl?: string;
+  text: string;
+  attachments?: ChatAttachment[];
+  createdAt: Date | string;
+}
+
+// =============================================================================
+// PHASE 8 — DASHBOARD TYPES
+// =============================================================================
+
+export interface DashboardParams {
+  workspaceId?: string;
+  boardIds?: string[];
+  assigneeId?: string;
+  dueDateFrom?: string;
+  dueDateTo?: string;
+}
+
+export interface StatusDistributionEntry {
+  statusId: string;
+  label: string;
+  color: string;
+  count: number;
+}
+
+export interface WorkloadByPersonEntry {
+  userId: string;
+  name: string;
+  profileImageUrl?: string;
+  count: number;
+}
+
+export interface ItemsByBoardEntry {
+  boardId: string;
+  name: string;
+  count: number;
+}
+
+export interface DashboardSummary {
+  statusDistribution: StatusDistributionEntry[];
+  overdue: { count: number; items: Item[] };
+  workloadByPerson: WorkloadByPersonEntry[];
+  itemsByBoard: ItemsByBoardEntry[];
+  summary: {
+    total: number;
+    completed: number;
+    completionRate: number;
+    archived: number;
+  };
+  truncated: boolean;
+}
+
+// =============================================================================
+// PHASE 8b — CUSTOM DASHBOARDS
+// =============================================================================
+
+export const ITEM_NAME_COLUMN_ID = '__item_name__';
+
+export type ChartType =
+  | 'pie'
+  | 'bar_vertical'
+  | 'bar_horizontal'
+  | 'radar'
+  | 'line'
+  | 'number';
+
+export type MetricAggregation = 'COUNT' | 'SUM' | 'AVERAGE' | 'MIN' | 'MAX';
+export type YAxisAggregation = 'COUNT' | 'SUM' | 'AVERAGE';
+export type TimeAxisGrouping = 'day' | 'week' | 'month';
+export type DashboardVisibility = 'admins_only' | 'all';
+export type DateFormat = 'auto' | 'dmy' | 'mdy';
+
+export interface MetricEntry {
+  boardId: string;
+  groupId?: string;
+  aggregation: MetricAggregation;
+  columnId?: string;
+  label: string;
+}
+
+export interface MetricConfig {
+  type: 'metric';
+  timeAxisColumnId?: string;
+  dateFormat?: DateFormat;
+  metrics: MetricEntry[];
+}
+
+export interface CategoryConfig {
+  type: 'category';
+  boardId: string;
+  groupId?: string;
+  groupByColumnId: string;
+  yAxisAggregation?: MetricAggregation;  // defaults to COUNT if absent
+  yAxisColumnId?: string;                 // required when yAxisAggregation !== COUNT
+  timeAxisColumnId?: string;
+  dateFormat?: DateFormat;
+}
+
+export interface LineSeriesConfig {
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+  dateFormat?: DateFormat;
+  label: string;
+}
+
+export interface TimeSeriesConfig {
+  type: 'timeseries';
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+  dateFormat?: DateFormat;
+  series?: LineSeriesConfig[];
+}
+
+export type CustomDashboardConfig = MetricConfig | CategoryConfig | TimeSeriesConfig;
+
+export interface CustomDashboard {
+  id: string;
+  name: string;
+  chartType: ChartType;
+  config: CustomDashboardConfig;
+  visibility: DashboardVisibility;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  isArchived?: boolean;
+}
+
+export interface CustomDashboardDataPoint {
+  label: string;
+  value: number;
+  [key: string]: number | string;
+}
+
+// =============================================================================
+// PHASE 9 — PERMISSIONS & NOTIFICATIONS
+// =============================================================================
+
+export enum BoardRole {
+  VIEWER = 'viewer',
+  EDITOR = 'editor',
+  ADMIN  = 'admin',
+}
+
+export interface BoardMember {
+  userId: string;
+  boardId: string;
+  workspaceId: string;
+  role: BoardRole;
+  addedBy: string;
+  createdAt: Date | string;
+  userName?: string;
+  userEmail?: string;
+  userProfileImageUrl?: string;
+}
+
+export interface BoardPermissionsWorkspace {
+  id: string;
+  name: string;
+  isMember: boolean;
+  permissions: 'edit' | 'read_only' | 'admin';
+  boards: Array<{
+    id: string;
+    name: string;
+    isMember: boolean;
+    role: BoardRole | null;
+  }>;
+}
+
+export type NotificationType = 'assignment' | 'mention';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  actorName: string;
+  resourceName: string;
+  boardName: string;
+  boardId: string;
+  resourceId: string;
+  read: boolean;
+  createdAt: Date | string;
 }

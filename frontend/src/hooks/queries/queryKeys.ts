@@ -1,57 +1,53 @@
+import type { ListItemsParams, DashboardPaginationParams } from '@/services/workManagementService';
+import type { DashboardParams } from '@/types';
+
 export const queryKeys = {
-  academies: {
-    all: ['academies'] as const,
-  },
-  organizations: {
-    all: ['organizations'] as const,
-    filtered: (filterType?: string) => ['organizations', { filterType }] as const,
-    archived: ['organizations', 'archived'] as const,
-  },
-  plans: {
-    all: ['plans'] as const,
-    archived: ['plans', 'archived'] as const,
+  workspaces: {
+    all: ['workspaces'] as const,
+    filtered: (filterType?: string) => ['workspaces', { filterType }] as const,
+    archived: ['workspaces', 'archived'] as const,
   },
   users: {
     all: ['users'] as const,
     preApproved: ['users', 'preApproved'] as const,
   },
-  conversations: {
-    all: ['conversations'] as const,
-  },
-  personas: {
-    accessible: ['personas', 'accessible'] as const,
-    admin: ['personas', 'admin'] as const,
-    archived: ['personas', 'archived'] as const,
-  },
-  courses: {
-    all: ['courses'] as const,
-    archived: ['courses', 'archived'] as const,
-    detail: (id: string) => ['courses', id] as const,
-  },
-  progress: {
-    my: ['progress', 'my'] as const,
-    organization: ['progress', 'organization'] as const,
-  },
-  questionnaires: {
-    published: ['questionnaires', 'published'] as const,
-    admin: ['questionnaires', 'admin'] as const,
-    archived: ['questionnaires', 'archived'] as const,
-    myResults: ['questionnaires', 'myResults'] as const,
-  },
-  insights: {
-    personal: ['insights', 'personal'] as const,
-  },
   settings: {
-    academy: ['settings', 'academy'] as const,
+    workspace: ['settings', 'workspace'] as const,
     system: ['settings', 'system'] as const,
     tutorial: ['settings', 'tutorial'] as const,
   },
-  analytics: {
-    userToken: (month?: number, year?: number) => ['analytics', 'userToken', { month, year }] as const,
-    orgToken: (month?: number, year?: number) => ['analytics', 'orgToken', { month, year }] as const,
-    academyToken: (month?: number, year?: number) => ['analytics', 'academyToken', { month, year }] as const,
+  boards: {
+    all: (workspaceId?: string, includeArchived = false) =>
+      ['boards', { workspaceId, includeArchived }] as const,
+    one: (id: string) => ['boards', id] as const,
   },
-  billing: {
-    currentCycle: ['billing', 'currentCycle'] as const,
+  groups: {
+    all: (boardId: string) => ['groups', boardId] as const,
+    archived: (boardId: string) => ['groups', boardId, 'archived'] as const,
+  },
+  items: {
+    list: (params: ListItemsParams) => ['items', params] as const,
+    one: (id: string) => ['items', id] as const,
+    group: (groupId: string, cursor: string | undefined, limit: number) =>
+      ['items', 'group', groupId, cursor ?? '', limit] as const,
+  },
+  columns: {
+    board: (boardId: string) => ['columns', { boardId }] as const,
+    one: (boardId: string, id: string) => ['columns', { boardId }, id] as const,
+  },
+  dashboard: {
+    summary: (params: DashboardParams) => ['dashboard', 'summary', params] as const,
+    overdue: (params: DashboardParams & DashboardPaginationParams) => ['dashboard', 'overdue', params] as const,
+  },
+  boardMembers: {
+    all: (boardId: string) => ['boardMembers', boardId] as const,
+  },
+  customDashboards: {
+    all: ['customDashboards'] as const,
+    data: (id: string, dateFrom?: string, dateTo?: string) =>
+      ['customDashboards', id, 'data', { dateFrom, dateTo }] as const,
+  },
+  chat: {
+    messages: (itemId: string) => ['chat', itemId, 'messages'] as const,
   },
 };

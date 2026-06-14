@@ -15,42 +15,42 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'email_verification',
         name: 'Email Verification',
         description: 'Sent to new users to verify their email address before they can log in.',
-        subject: 'Verify Your Email for {{academyName}}',
-        variables: ['userName', 'academyName', 'verificationLink'],
+        subject: 'Verify Your Email for {{organizationName}}',
+        variables: ['userName', 'organizationName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
 <p>Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not create an account, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
-        id: 'invite_academy_admin',
-        name: 'Academy Admin Invitation',
-        description: 'Sent when a new Academy Admin is invited to set up their account.',
-        subject: "You've been invited as an Academy Admin for {{academyName}}",
-        variables: ['userName', 'academyName', 'verificationLink'],
+        id: 'invite_organization_admin',
+        name: 'Workspace Admin Invitation',
+        description: 'Sent when a new Workspace Admin is invited to set up their account.',
+        subject: "You've been invited as an Workspace Admin for {{organizationName}}",
+        variables: ['userName', 'organizationName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
-<p>You've been invited to join <strong>{{academyName}}</strong> as an Academy Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
+<p>You've been invited to join <strong>{{organizationName}}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'invite_org_manager',
-        name: 'Organization Manager Invitation',
-        description: 'Sent when a new Organization Manager is invited to set up their account.',
-        subject: "You've been invited as an Organization Manager for {{entityName}}",
+        name: 'Workspace Manager Invitation',
+        description: 'Sent when a new Workspace Manager is invited to set up their account.',
+        subject: "You've been invited as an Workspace Manager for {{entityName}}",
         variables: ['userName', 'entityName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
-<p>You've been invited to join <strong>{{entityName}}</strong> as an Organization Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
+<p>You've been invited to join <strong>{{entityName}}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'approval_request',
         name: 'Approval Request (to Manager)',
-        description: "Sent to an organization manager when a new user registers and awaits approval.",
+        description: "Sent to an workspace manager when a new user registers and awaits approval.",
         subject: 'New User Registration Request: {{newUserName}}',
         variables: ['newUserName', 'newUserEmail', 'approvalLink'],
         html: `<p>Hello,</p>
@@ -58,50 +58,50 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>Please review their request and click the link below to approve their account. This link will expire in 48 hours.</p>
 <p><a href="{{approvalLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Approve User</a></p>
 <p>If you do not recognize this request, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'account_approved',
         name: 'Account Approved',
-        description: 'Sent to a user when an organization manager approves their account.',
+        description: 'Sent to a user when an workspace manager approves their account.',
         subject: 'Your Account Has Been Approved!',
         variables: ['userName', 'loginLink'],
         html: `<p>Hello {{userName}},</p>
-<p>Great news! Your account for Gymind has been approved by your organization's administrator.</p>
+<p>Great news! Your account for Logyx has been approved by your workspace's administrator.</p>
 <p>You can now log in and start using the application.</p>
 <p><a href="{{loginLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p>
 <p>Welcome aboard!</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'password_reset',
         name: 'Password Reset',
         description: "Sent when a user requests a password reset.",
-        subject: 'Reset Your Password for {{academyName}}',
-        variables: ['userName', 'academyName', 'resetLink'],
+        subject: 'Reset Your Password for {{organizationName}}',
+        variables: ['userName', 'organizationName', 'resetLink'],
         html: `<p>Hello {{userName}},</p>
-<p>We received a request to reset your password for <strong>{{academyName}}</strong>. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p>
+<p>We received a request to reset your password for <strong>{{organizationName}}</strong>. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p>
 <p><a href="{{resetLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p>
 <p>If you did not request a password reset, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'usage_alert',
         name: 'Token Usage Alert',
-        description: 'Sent to academy admins when AI token usage reaches a high threshold (75% or 95%).',
-        subject: 'Usage Alert for {{academyName}}',
-        variables: ['academyName', 'usagePercentage', 'warningLevel'],
+        description: 'Sent to workspace admins when AI token usage reaches a high threshold (75% or 95%).',
+        subject: 'Usage Alert for {{organizationName}}',
+        variables: ['organizationName', 'usagePercentage', 'warningLevel'],
         html: `<p>Hello,</p>
-<p>This is a <strong>{{warningLevel}}</strong> notification that your academy, <strong>{{academyName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
+<p>This is a <strong>{{warningLevel}}</strong> notification that your workspace, <strong>{{organizationName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
 <p>If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p>
 <p>To prevent service interruption, you can increase your limit by visiting the Billing Settings page in your admin dashboard.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
     {
         id: 'welcome',
         name: 'Welcome Email',
         description: 'Sent after a user successfully verifies their email or completes a payment-based signup.',
-        subject: 'Welcome to Gymind, {{userName}}!',
+        subject: 'Welcome to Logyx, {{userName}}!',
         variables: ['userName', 'dashboardLink'],
         html: `<!DOCTYPE html>
 <html>
@@ -120,96 +120,18 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 </head>
 <body>
   <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to Gymind</span></div>
+    <div class="header"><span class="welcome-text">Welcome to Logyx</span></div>
     <div class="content">
       <p>Hello {{userName}},</p>
-      <p>We're excited to have you join us! Gymind is a new space to learn, grow, and transform.</p>
-      <p>Your account is now fully active. You can start exploring our AI-powered mentors, courses, and more right away.</p>
+      <p>We're excited to have you join us! Logyx is your new workspace for business management.</p>
+      <p>Your account is now fully active. You can start exploring your boards, items, and dashboards right away.</p>
       <div class="button-container">
         <a href="{{dashboardLink}}" class="button">Go to Dashboard</a>
       </div>
       <p>If you have any questions or need a hand getting started, we're here to help.</p>
-      <p>Best regards,<br/>The Gymind Team</p>
+      <p>Best regards,<br/>The Logyx Team</p>
     </div>
-    <div class="footer">&copy; {{currentYear}} Gymind. All rights reserved.</div>
-  </div>
-</body>
-</html>`,
-    },
-    {
-        id: 'woocommerce_welcome_new',
-        name: 'WooCommerce Welcome (New User)',
-        description: 'Sent to a brand-new user provisioned via WooCommerce — prompts them to complete registration.',
-        subject: 'Welcome to {{academyName}} — Get Started Now',
-        variables: ['userName', 'academyName', 'registrationLink', 'userEmail', 'currentYear'],
-        html: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .welcome-text { font-size: 24px; font-weight: bold; color: #1f2937; }
-    .content { padding: 0 20px; }
-    .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-    .button-container { text-align: center; margin: 30px 0; }
-    .button { background-color: #2563eb; color: #ffffff !important; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to {{academyName}}</span></div>
-    <div class="content">
-      <p>Hello {{userName}},</p>
-      <p>Thank you for your purchase! We're thrilled to have you join <strong>{{academyName}}</strong>.</p>
-      <p>To get started, please register your account using the button below. Use <strong>{{userEmail}}</strong> as your email address when registering.</p>
-      <div class="button-container">
-        <a href="{{registrationLink}}" class="button">Complete Your Registration</a>
-      </div>
-      <p>If you have any questions or need help getting started, we're here for you.</p>
-      <p>Best regards,<br/>The {{academyName}} Team</p>
-    </div>
-    <div class="footer">&copy; {{currentYear}} {{academyName}}. All rights reserved.</div>
-  </div>
-</body>
-</html>`,
-    },
-    {
-        id: 'woocommerce_welcome_existing',
-        name: 'WooCommerce Welcome (Existing User)',
-        description: 'Sent to an existing user provisioned via WooCommerce — prompts them to log in.',
-        subject: 'Welcome to {{academyName}} — Get Started Now',
-        variables: ['userName', 'academyName', 'loginLink', 'currentYear'],
-        html: `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
-    .container { max-width: 600px; margin: 20px auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px; }
-    .header { text-align: center; margin-bottom: 30px; }
-    .welcome-text { font-size: 24px; font-weight: bold; color: #1f2937; }
-    .content { padding: 0 20px; }
-    .footer { text-align: center; margin-top: 30px; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 20px; }
-    .button-container { text-align: center; margin: 30px 0; }
-    .button { background-color: #2563eb; color: #ffffff !important; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to {{academyName}}</span></div>
-    <div class="content">
-      <p>Hello {{userName}},</p>
-      <p>Thank you for your purchase! We're thrilled to have you join <strong>{{academyName}}</strong>.</p>
-      <p>Your account is ready. Click the button below to log in and start exploring.</p>
-      <div class="button-container">
-        <a href="{{loginLink}}" class="button">Log In to Your Account</a>
-      </div>
-      <p>If you have any questions or need help getting started, we're here for you.</p>
-      <p>Best regards,<br/>The {{academyName}} Team</p>
-    </div>
-    <div class="footer">&copy; {{currentYear}} {{academyName}}. All rights reserved.</div>
+    <div class="footer">&copy; {{currentYear}} Logyx. All rights reserved.</div>
   </div>
 </body>
 </html>`,
@@ -217,38 +139,15 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'user_invitation',
         name: 'User Invitation',
-        description: 'Sent to pre-approved users who have been invited to join an organization.',
-        subject: "You've been invited to join {{orgName}} on Gymind",
-        variables: ['orgName', 'academyName', 'registrationLink'],
+        description: 'Sent to pre-approved users who have been invited to join an workspace.',
+        subject: "You've been invited to join {{orgName}} on Logyx",
+        variables: ['orgName', 'organizationName', 'partOfText', 'registrationLink'],
         html: `<p>Hello,</p>
-<p>You've been invited to join <strong>{{orgName}}</strong> (part of <strong>{{academyName}}</strong>) on Gymind.</p>
+<p>You've been invited to join <strong>{{orgName}}</strong>{{partOfText}} on Logyx.</p>
 <p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p>
 <p><a href="{{registrationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Gymind Team</p>`,
-    },
-    {
-        id: 'newsletter_reminder_3day',
-        name: 'Newsletter Reminder (3 Days)',
-        description: "Sent to an academy admin when a scheduled newsletter edition is due in 3 days but its content is still empty.",
-        subject: 'Reminder: Your newsletter "{{campaignName}}" is due in 3 days',
-        variables: ['campaignName', 'academyName'],
-        html: `<p>Hi,</p>
-<p>Your newsletter campaign <strong>{{campaignName}}</strong> has a scheduled edition due in <strong>3 days</strong>, but the content is still empty.</p>
-<p>Please log in and write your newsletter content to ensure it's sent on time.</p>
-<p>Best,<br/>{{academyName}}</p>`,
-    },
-    {
-        id: 'newsletter_reminder_1day',
-        name: 'Newsletter Reminder (1 Day — Urgent)',
-        description: "Sent to an academy admin as an urgent warning when a scheduled newsletter edition is due tomorrow but its content is still empty.",
-        subject: 'Urgent: Your newsletter "{{campaignName}}" is due tomorrow',
-        variables: ['campaignName', 'academyName'],
-        html: `<p>Hi,</p>
-<p><strong>Warning:</strong> Your newsletter campaign <strong>{{campaignName}}</strong> has a scheduled edition due <strong>tomorrow</strong>, but the content is still empty.</p>
-<p>If the content is not added before the scheduled send time, the edition will be skipped automatically.</p>
-<p>Please log in now and add your newsletter content.</p>
-<p>Best,<br/>{{academyName}}</p>`,
+<p>Thanks,<br/>The Logyx Team</p>`,
     },
 ];
 
@@ -262,8 +161,11 @@ const ensureDefaultsExist = async (): Promise<void> => {
     const now = new Date();
     const batch = emailTemplatesCollection.firestore.batch();
     let writes = 0;
+    // Templates that must always be kept in sync with the latest default (bug fixes, new variables).
+    const FORCE_UPDATE_IDS = new Set(['user_invitation']);
+
     for (const tpl of DEFAULT_TEMPLATES) {
-        if (!existingIds.has(tpl.id)) {
+        if (!existingIds.has(tpl.id) || FORCE_UPDATE_IDS.has(tpl.id)) {
             const docRef = emailTemplatesCollection.doc(tpl.id);
             batch.set(docRef, { ...tpl, updatedAt: now });
             writes++;

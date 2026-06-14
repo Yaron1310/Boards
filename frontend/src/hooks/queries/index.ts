@@ -1,12 +1,25 @@
 export { queryKeys } from './queryKeys';
-export { useAcademiesQuery, useAcademySettingsQuery } from './useAcademyQueries';
-export { useOrganizationsQuery, useArchivedOrganizationsQuery } from './useOrganizationQueries';
-export { usePlansQuery, useArchivedPlansQuery } from './usePlanQueries';
+export { useAcademiesQuery, useOrganizationSettingsQuery } from './useAcademyQueries';
+export { useWorkspacesQuery, useArchivedWorkspacesQuery } from './useOrganizationQueries';
 export { useUsersQuery, usePreApprovedUsersQuery } from './useUserQueries';
-export { useConversationsQuery, useAccessiblePersonasQuery, useChatPersonasQuery, useArchivedChatPersonasQuery } from './useChatQueries';
-export { useCoursesQuery, useArchivedCoursesQuery, useMyProgressQuery, useOrgProgressQuery } from './useCourseQueries';
-export { usePublishedQuestionnairesQuery, useQuestionnairesAdminQuery, useArchivedQuestionnairesQuery, useMyQuestionnaireResultsQuery } from './useQuestionnaireQueries';
-export { usePersonalInsightsQuery } from './useInsightQueries';
 export { useSystemSettingsQuery, useTutorialSettingsQuery } from './useSettingsQueries';
-export { useUserTokenUsageQuery, useOrgTokenUsageQuery, useAcademyTokenUsageQuery } from './useAnalyticsQueries';
-export { useBillingCycleQuery } from './useBillingQueries';
+export {
+  useBoards, useBoard,
+  useCreateBoard, useUpdateBoard, useArchiveBoard, useRestoreBoard, useDeleteBoard,
+} from './useBoardQueries';
+export {
+  useGroups,
+  useCreateGroup, useUpdateGroup, useDeleteGroup, useReorderGroups,
+} from './useGroupQueries';
+export {
+  useItems, useItem,
+  useCreateItem, useUpdateItem, useReorderItems,
+  useArchiveItem, useRestoreItem, useDeleteItem,
+} from './useItemQueries';
+export {
+  useColumns, useColumn,
+  useCreateColumn, useUpdateColumn, useReorderColumns, useDeleteColumn,
+} from './useColumnQueries';
+export {
+  useDashboardSummary, useDashboardOverdue,
+} from './useDashboardQueries';

@@ -23,7 +23,7 @@ const GoogleAuthCallbackPage: React.FC = () => {
     // planId might be passed back from backend if it was in the state
     const urlPlanId = searchParams.get('planId'); 
 
-    // Check for new Google user flow (needs organization selection - rare legacy flow)
+    // Check for new Google user flow (needs WorkHub selection - rare legacy flow)
     const userIdToComplete = searchParams.get('user_id');
     const name = searchParams.get('name');
     const email = searchParams.get('email');
@@ -35,10 +35,10 @@ const GoogleAuthCallbackPage: React.FC = () => {
     }
     
     if (userIdToComplete) {
-        // New user needs to select organization
+        // New user needs to select workspace
         const nameParam = name ? `&name=${encodeURIComponent(name)}` : '';
         const emailParam = email ? `&email=${encodeURIComponent(email)}` : '';
-        navigate(`/select-organization?user_id=${userIdToComplete}${nameParam}${emailParam}`, { replace: true });
+        navigate(`/select-workspace?user_id=${userIdToComplete}${nameParam}${emailParam}`, { replace: true });
         return; 
     }
     

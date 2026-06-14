@@ -71,7 +71,7 @@
     "fullNamePlaceholder": "ישראל ישראלי",
     "goBack": "חזור",
     "optional": "אופציונלי",
-    "organization": "ארגון",
+    "WorkHub": "ארגון",
     "password": "סיסמה",
     "refresh": "רענן",
     "remove": "הסר",
@@ -81,7 +81,8 @@
     "role": "תפקיד",
     "saveChanges": "שמור שינויים",
     "unableToLoad": "לא ניתן לטעון",
-    "viewArchived": "הצג ארכיון"
+    "viewArchived": "הצג ארכיון",
+    "workspace": "WorkHub"
   },
   "auth": {
     "signIn": "התחברות",
@@ -194,7 +195,7 @@
     "saveImage": "שמור תמונה",
     "saveDetails": "שמור פרטים",
     "role": "תפקיד",
-    "organizations": "ארגונים",
+    "workspaces": "ארגונים",
     "monthlyTokenUsage": "שימוש חודשי בטוקנים",
     "tokenUsageNote": "זהו השימוש החודשי האישי שלך בטוקנים.",
     "profileActions": "פעולות פרופיל",
@@ -449,7 +450,7 @@
   },
   "layout": {
     "adminDashboard": "לוח בקרה",
-    "academies": "אקדמיות",
+    "workspaces": "WorkHubs",
     "academyPayouts": "תשלומי אקדמיה",
     "tokenLimits": "מגבלות טוקנים",
     "tutorialsSettings": "הגדרות הדרכות",
@@ -459,7 +460,7 @@
     "aiMentor": "מנטור AI",
     "questionnaires": "שאלונים",
     "userManagement": "ניהול משתמשים",
-    "organizations": "ארגונים",
+    "workspaces": "WorkHubs",
     "courseManagement": "ניהול קורסים",
     "aiMentorSettings": "הגדרות מנטור AI",
     "questionnaireSettings": "הגדרות שאלון",
@@ -471,6 +472,7 @@
     "systemAdmin": "מנהל מערכת",
     "termsPrivacy": "תנאים ופרטיות",
     "clickToEdit": "לחץ כדי לערוך",
+    "organizations": "ארגונים",
     "academyHub": "מרכז האקדמיה",
     "management": "אזור ניהול",
     "legalPrivacy": "משפטי ופרטיות"
@@ -480,7 +482,7 @@
     "academyAdminDashboard": "לוח בקרה של מנהל אקדמיה",
     "systemAdminDashboard": "לוח בקרה של מנהל המערכת",
     "managerDashboard": "לוח בקרה של מנהל {{name}}",
-    "organization": "ארגון",
+    "WorkHub": "ארגון",
     "completeAcademyDetails": "אנא השלם את פרטי האקדמיה שלך.",
     "academyMonthlyTokenUsage": "שימוש חודשי בטוקנים של האקדמיה",
     "orgMonthlyTokenUsage": "שימוש חודשי בטוקנים של הארגון",
@@ -615,6 +617,8 @@
       "logoPreviewAlt": "תצוגה מקדימה של הלוגו",
       "uploadLogo": "העלה לוגו",
       "logoUploadHint": "מומלץ: תמונה מרובעת (למשל 200x200px). תומך ב-PNG, JPG, WEBP. מקסימום 10 MB - תמונות נדחסות באופן אוטומטי ונשמרות כ-PNG.",
+      "logoCircle": "הצג לוגו בצורת עיגול",
+      "logoCircleHint": "כאשר לא מסומן, הלוגו יוצג בפרופורציות המקוריות שלו במקום בחיתוך עיגול.",
       "sidebarBackgroundColor": "צבע רקע סרגל צד",
       "enableSidebarGradient": "הפעל שכבת צבע הדרגתי",
       "enableSidebarGradientHint": "הוסף שכבת צבע הדרגתי בתחתית סרגל הצד.",
@@ -986,7 +990,8 @@
       "downloadLinux": "Linux (.zip)",
       "downloadWindows": "Windows (.zip)",
       "downloadBridgeOnly": "Bridge בלבד",
-      "installNote": "חלץ את קובץ ה-zip, הפעל את סקריפט ההתקנה, ואשף ההתקנה יעזור לך בתהליך ההגדרה."
+      "installNote": "חלץ את קובץ ה-zip, הפעל את סקריפט ההתקנה, ואשף ההתקנה יעזור לך בתהליך ההגדרה.",
+      "plan": "תוכנית"
     },
     "plan": {
       "editTitle": "ערוך תוכנית",
@@ -1339,7 +1344,7 @@
   "checkout": {
     "success": "הצלחה!",
     "error": "שגיאה",
-    "academy": "אקדמיה",
+    "WorkHub": "אקדמיה",
     "address": "כתובת",
     "billingInformation": "מידע לחיוב",
     "checkInbox": "בדוק את תיבת הדואר הנכנס שלך",
@@ -1371,7 +1376,7 @@
   },
   "marketing": {
     "unsubscribed": "הסרת רישום",
-    "unsubscribedDesc": "כתובת הדוא״ל שלך, {{email}}, הוסרה מרשימת התפוצה של הניוזלטר של {{academy}}.",
+    "unsubscribedDesc": "כתובת הדוא״ל שלך, {{email}}, הוסרה מרשימת התפוצה של הניוזלטר של {{WorkHub}}.",
     "noMoreUpdates": "לא תקבל יותר עדכונים מקמפיין זה.",
     "detail": {
       "trigger": "טריגר",

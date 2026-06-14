@@ -28,22 +28,30 @@ export const createApp = async (): Promise<Application> => {
     app.set('trust proxy', 1);
 
     // 3. Middlewares
-    const allowedOrigins = [env.FRONTEND_URL, 'https://studio.gymind.app', 'http://localhost:5173'];
+    const allowedOrigins = [env.FRONTEND_URL, 'http://localhost:5173'];
+    logger.info(`CORS allowed origins: ${JSON.stringify(allowedOrigins)}`);
     app.use(cors((req: Request, callback: any) => {
         const origin = req.header('Origin');
-        const path = req.url;
-        
-        // Disable CORS check for payment callback/notify routes (webhooks)
-        const isPaymentPath = path.includes('/payments/callback') || path.includes('/payments/notify');
-
-        if (isPaymentPath || !origin || allowedOrigins.includes(origin)) {
+        const isLocalhost = origin ? /^https?:\/\/localhost(:\d+)?$/.test(origin) : false;
+        if (!origin || isLocalhost || allowedOrigins.includes(origin)) {
             callback(null, { origin: true, credentials: true });
         } else {
             callback(new Error('Not allowed by CORS'));
         }
     }));
     app.use(cookieParser());
-    app.use(express.json({ limit: '10mb' }));
+    app.use(express.json({
+        limit: '10mb',
+        // Only parse requests whose Content-Type looks like JSON or text.
+        // Multipart and binary types (images, PDFs, …) are handled at route level
+        // by express.raw(), so we must not consume the stream here.
+        type: (req) => {
+            const ct = req.headers['content-type'] || '';
+            if (ct.includes('multipart/form-data')) return false;
+            if (ct && !ct.includes('json') && !ct.includes('text') && !ct.includes('urlencoded')) return false;
+            return 'application/json';
+        },
+    }));
     app.use(express.urlencoded({ extended: true, limit: '10mb' }));
     app.use(enforceFieldLength);
     app.use(passport.initialize());
@@ -51,12 +59,13 @@ export const createApp = async (): Promise<Application> => {
     // 4. Configure Passport Strategies
     configurePassport(passport);
 
-    // 5. Seed Default Data (idempotent)
+    // 5. Seed Default Data (idempotent — already ran in onInit, this is a fallback)
     try {
         await seedDefaultData();
         logger.info("Database seeding check completed.");
     } catch (error) {
         logger.error("Database seeding failed:", error);
+        throw error;
     }
 
     // 6. Path Normalization for Firebase Hosting

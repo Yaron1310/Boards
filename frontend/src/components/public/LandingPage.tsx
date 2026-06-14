@@ -16,16 +16,14 @@ const LandingPage: React.FC = () => {
           
           {/* Left Column: Content */}
           <div className="text-center animate-fade-in-up">
-            <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight text-gray-900 leading-tight">
-              {t('landing.headline')}
+            <h1 className="text-5xl md:text-7xl tracking-tight leading-tight" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 900 }}>
+              <span className="text-gray-900">The exact tool</span>
               <br />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-purple-600">
-                {t('landing.headlineHighlight')}
-              </span>
+              <span style={{ color: '#2d6fe8' }}>for the job</span><span style={{ color: '#f5c027', fontSize: '30px', lineHeight: 1 }}>&#9632;</span>
             </h1>
 
             <p className="mt-6 text-lg text-gray-600">
-              {t('landing.createCoursesIntro')}
+              Boards is a smart project management platform - Get things done with custom boards, track every task, control all data with custom dashboards and keep your team moving in one organized workhub.
             </p>
 
             <ul className="mt-6 space-y-3 inline-block text-left mx-auto">
@@ -33,19 +31,19 @@ const LandingPage: React.FC = () => {
                 <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center mr-3">
                   <FiCheck className="w-4 h-4" />
                 </span>
-                {t('landing.feature1')}
+                Custom boards and workflows built for your team
               </li>
               <li className="flex items-center text-lg">
                 <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center mr-3">
                   <FiCheck className="w-4 h-4" />
                 </span>
-                {t('landing.feature2')}
+                Real-time task tracking across every project
               </li>
               <li className="flex items-center text-lg">
                 <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center mr-3">
                   <FiCheck className="w-4 h-4" />
                 </span>
-                {t('landing.feature3')}
+                Smart automations that eliminate repetitive work
               </li>
               <li className="flex items-center text-lg">
                 <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center mr-3">
@@ -55,21 +53,18 @@ const LandingPage: React.FC = () => {
               </li>
             </ul>
 
-            <p className="mt-6 text-sm text-gray-500">
-              {t('landing.builtFor')}
-            </p>
-
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 to="/register"
                 className="w-full sm:w-auto bg-gray-900 text-white font-semibold py-3 px-6 rounded-full inline-flex items-center justify-center gap-2 hover:bg-gray-700 transition-transform transform hover:-translate-y-0.5 shadow-lg"
               >
-                {t('landing.createCourse')} <span className="font-bold text-lg">&raquo;</span>
+                Sign Up <span className="font-bold text-lg">&raquo;</span>
               </Link>
               <span className="text-gray-400 font-medium">{t('common.or')}</span>
               <Link
                 to="/login"
-                className="w-full sm:w-auto bg-blue-600 text-white font-semibold py-3 px-8 rounded-full hover:bg-blue-700 transition-transform transform hover:-translate-y-0.5 shadow-lg"
+                className="w-full sm:w-auto text-white font-semibold py-3 px-8 rounded-full transition-transform transform hover:-translate-y-0.5 shadow-lg"
+                style={{ backgroundColor: '#2d6fe8' }}
               >
                 {t('auth.signIn')}
               </Link>
@@ -82,9 +77,6 @@ const LandingPage: React.FC = () => {
           {/* Right Column: Branding */}
           <div className="flex flex-col items-center justify-center animate-fade-in">
             <img src="/logo_gym.webp" alt={t('common.appLogoAlt')} className="w-80 h-auto" />
-            <p className="mt-2 text-xl text-gray-700 font-medium tracking-widest">
-              {t('landing.tagline')}
-            </p>
           </div>
 
         </div>

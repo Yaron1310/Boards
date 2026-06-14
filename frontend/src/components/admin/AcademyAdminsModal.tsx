@@ -1,33 +1,33 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { FiUserPlus, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle, FiLoader, FiShield } from 'react-icons/fi';
 
-interface AcademyAdminsModalProps {
+interface OrganizationAdminsModalProps {
     isOpen: boolean;
     onClose: () => void;
     onActionSuccess: (message: string) => void;
 }
 
-const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose, onActionSuccess }) => {
+const OrganizationAdminsModal: React.FC<OrganizationAdminsModalProps> = ({ isOpen, onClose, onActionSuccess }) => {
     const { t } = useTranslation();
-    const { user: authUser, selectedOrganization } = useAuth();
-    const { users, addAcademyAdmin, removeAcademyAdmin, dataError, clearDataError } = useData();
+    const { user: authUser, selectedWorkspace } = useAuthSession();
+    const { users, addOrganizationAdmin, removeOrganizationAdmin, dataError, clearDataError } = useData();
 
     const [adminEmail, setAdminEmail] = useState('');
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [adminToRemove, setAdminToRemove] = useState<User | null>(null);
     
-    const academyId = useMemo(() => selectedOrganization?.academyId, [selectedOrganization]);
+    const orgId = useMemo(() => selectedWorkspace?.orgId, [selectedWorkspace]);
 
     const currentAdmins = useMemo(() => {
-        if (!academyId) return [];
-        return users.filter(u => u.dbRoles?.academyAdmin?.includes(academyId));
-    }, [users, academyId]);
+        if (!orgId) return [];
+        return users.filter(u => u.dbRoles?.organizationAdmin?.includes(orgId));
+    }, [users, orgId]);
     
     useEffect(() => {
         if (dataError) {
@@ -55,7 +55,7 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
         }
     }, [feedback]);
 
-    if (!isOpen || !academyId) return null;
+    if (!isOpen || !orgId) return null;
 
     const handleAddAdmin = async () => {
         if (!adminEmail.trim()) {
@@ -64,7 +64,7 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
         }
         setFeedback(null);
         setIsProcessing(true);
-        const result = await addAcademyAdmin(academyId, adminEmail);
+        const result = await addOrganizationAdmin(orgId, adminEmail);
         setIsProcessing(true); // Keep processing true for a moment to avoid flickers
         if (result) {
             setFeedback({ type: 'success', text: result.message });
@@ -78,7 +78,7 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
         if (!adminToRemove) return;
         setFeedback(null);
         setIsProcessing(true);
-        const result = await removeAcademyAdmin(academyId, adminToRemove.id);
+        const result = await removeOrganizationAdmin(orgId, adminToRemove.id);
         setIsProcessing(true); // Keep processing true for a moment
         if(result) {
             setFeedback({ type: 'success', text: result.message });
@@ -95,7 +95,7 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-xl font-semibold text-gray-800 flex items-center">
                             <FiShield className="mr-2 text-purple-600"/>
-                            {t('admin.manageAcademyAdmins')}
+                            {t('admin.manageOrganizationAdmins')}
                         </h3>
                         <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200" disabled={isProcessing}>
                             <FiXCircle size={24}/>
@@ -170,4 +170,4 @@ const AcademyAdminsModal: React.FC<AcademyAdminsModalProps> = ({ isOpen, onClose
     );
 };
 
-export default AcademyAdminsModal;
+export default OrganizationAdminsModal;

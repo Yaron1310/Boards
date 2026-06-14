@@ -1,17 +1,373 @@
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef, Suspense } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import { UserRole, User } from '../../types';
-import { FiMenu, FiX, FiMessageSquare, FiSettings, FiUsers, FiBriefcase, FiZap, FiEdit, FiBookOpen, FiTrello, FiGrid, FiCheck, FiShield, FiChevronsRight, FiLoader, FiCreditCard, FiCpu, FiVideo, FiDollarSign, FiLock, FiPieChart, FiMail } from 'react-icons/fi';
+import { UserRole, User, WorkHub } from '../../types';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
+import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
+import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
+import BoardContextMenu from '../boards/BoardContextMenu';
+import DuplicateOptionsModal from '../boards/DuplicateOptionsModal';
+import type { DuplicateMode } from '../../services/workManagementService';
+import ReactDOM from 'react-dom';
 
-import MarketingIcon from '../common/MarketingIcon';
-import QuestionnaireIcon from '../common/QuestionnaireIcon';
-import AcademyHubIcon from '../common/AcademyHubIcon';
 import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
 import CookieConsent from '../legal/CookieConsent';
+
+const WORKSPACE_COLORS = [
+  { name: 'Pink', value: '#FFB3C1' },
+  { name: 'Blue', value: '#ADD8E6' },
+  { name: 'Green', value: '#90EE90' },
+  { name: 'Yellow', value: '#FFFF99' },
+  { name: 'Purple', value: '#D8BFD8' },
+  { name: 'Orange', value: '#FFCC99' },
+  { name: 'Cyan', value: '#AFEEEE' },
+  { name: 'Rose', value: '#FFB6C1' },
+];
+
+// --- WORKSPACES + BOARDS NAV SECTION ---
+
+interface WorkspaceBoardsGroupProps {
+  workspace: { id: string; name: string };
+  sidebarLinkColor: string;
+  onNavigate: () => void;
+  allWorkspaces: WorkHub[];
+  canManage: boolean;
+}
+
+const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate, allWorkspaces, canManage }) => {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [menuBoardId, setMenuBoardId] = useState<string | null>(null);
+  const [menuTriggerRect, setMenuTriggerRect] = useState<DOMRect | null>(null);
+  const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (renamingBoardId !== null) {
+      const el = renameInputRef.current;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    }
+  }, [renamingBoardId]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [duplicateTargetId, setDuplicateTargetId] = useState<string | null>(null);
+  const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
+  const { data: boards = [] } = useBoards(workspace.id, false, true);
+  const navigate = useNavigate();
+  const { mutateAsync: duplicateBoard } = useDuplicateBoard();
+  const { mutateAsync: saveAsTemplate } = useSaveAsBoardTemplate();
+  const { mutateAsync: updateBoard } = useUpdateBoard();
+  const { mutateAsync: archiveBoard } = useArchiveBoard();
+  const { mutateAsync: deleteBoard } = useDeleteBoard();
+
+  const menuBoard = menuBoardId ? boards.find((b) => b.id === menuBoardId) : null;
+
+  const handleRenameStart = (board: { id: string; name: string }) => {
+    setMenuBoardId(null);
+    setMenuTriggerRect(null);
+    setRenamingBoardId(board.id);
+    setRenameValue(board.name);
+  };
+
+  const handleRenameSubmit = async (id: string) => {
+    const trimmed = renameValue.trim();
+    setRenamingBoardId(null);
+    if (trimmed && trimmed !== boards.find((b) => b.id === id)?.name) {
+      await updateBoard({ id, patch: { name: trimmed } }).catch(() => {});
+    }
+  };
+
+  const handleDuplicate = async (mode: DuplicateMode) => {
+    if (!duplicateTargetId) return;
+    const id = duplicateTargetId;
+    setDuplicateTargetId(null);
+    await duplicateBoard({ id, mode }).catch(() => {});
+  };
+
+  const handleSaveAsTemplate = async (mode: DuplicateMode) => {
+    if (!templateTargetId) return;
+    const id = templateTargetId;
+    setTemplateTargetId(null);
+    await saveAsTemplate({ id, mode }).catch(() => {});
+    navigate('/admin/templates');
+  };
+
+  return (
+    <div className="mb-1">
+      <button
+        type="button"
+        onClick={() => setIsExpanded((v) => !v)}
+        className="flex items-center gap-1 px-4 mb-0.5 text-xs font-semibold uppercase tracking-wider transition-opacity hover:opacity-100 w-full text-left"
+        style={{ color: sidebarLinkColor, opacity: 0.7 }}
+        aria-expanded={isExpanded}
+        aria-label={isExpanded ? 'Collapse boards' : 'Expand boards'}
+      >
+        {isExpanded ? <FiChevronDown size={12} aria-hidden="true" /> : <FiChevronRight size={12} aria-hidden="true" />}
+        <span>Boards</span>
+      </button>
+      {isExpanded && (
+        <ul role="list" aria-label={`${workspace.name} boards`}>
+          {boards.length === 0 && (
+            <li className="px-8 py-1 text-xs" style={{ color: sidebarLinkColor, opacity: 0.45 }}>
+              No boards yet
+            </li>
+          )}
+          {boards.map((board) => (
+            <li key={board.id} role="listitem" className="group/board flex items-center pr-2">
+              {renamingBoardId === board.id ? (
+                <div className="flex-1 min-w-0 flex items-center gap-2 px-8 py-1" style={{ color: sidebarLinkColor }}>
+                  <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
+                  <input
+                    ref={renameInputRef}
+                    type="text"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => { void handleRenameSubmit(board.id); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { void handleRenameSubmit(board.id); }
+                      if (e.key === 'Escape') { setRenamingBoardId(null); }
+                    }}
+                    className="flex-1 min-w-0 text-sm rounded px-1.5 py-0.5 focus:outline-none focus:ring-1"
+                    style={{ color: sidebarLinkColor, backgroundColor: 'rgba(128,128,128,0.15)', border: `1px solid ${sidebarLinkColor}55`, outline: 'none' }}
+                    aria-label={`Rename board ${board.name}`}
+                  />
+                </div>
+              ) : (
+                <NavLink
+                  to={`/boards/${board.id}`}
+                  onClick={onNavigate}
+                  style={() => ({ color: sidebarLinkColor })}
+                  className={({ isActive }) =>
+                    `sidebar-nav-item flex-1 min-w-0 flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 ${
+                      isActive ? 'active font-semibold' : 'hover:text-white'
+                    }`
+                  }
+                  aria-label={`Open board ${board.name}`}
+                >
+                  <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
+                  <span className="truncate">{board.name}</span>
+                </NavLink>
+              )}
+              {canManage && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                    if (menuBoardId === board.id) {
+                      setMenuBoardId(null);
+                      setMenuTriggerRect(null);
+                    } else {
+                      setMenuBoardId(board.id);
+                      setMenuTriggerRect(rect);
+                    }
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(128,128,128,0.2)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = ''; }}
+                  className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 rounded-md transition z-10 relative"
+                  style={{ color: sidebarLinkColor }}
+                  aria-label={`More options for ${board.name}`}
+                  aria-haspopup="true"
+                  aria-expanded={menuBoardId === board.id}
+                >
+                  <FiMoreHorizontal size={13} aria-hidden="true" />
+                </button>
+              )}
+            </li>
+          ))}
+          <li role="listitem">
+            <button
+              type="button"
+              onClick={() => { navigate(`/WorkHubs/${workspace.id}/boards?newBoard=true`); onNavigate(); }}
+              className="flex items-center gap-2 px-8 py-1.5 rounded-lg text-sm transition-colors duration-150 w-full text-left hover:opacity-100"
+              style={{ color: sidebarLinkColor, opacity: 0.6 }}
+              aria-label="Create new board"
+            >
+              <FiPlus size={13} className="flex-shrink-0" aria-hidden="true" />
+              <span>New Board</span>
+            </button>
+          </li>
+        </ul>
+      )}
+      {menuBoard && menuTriggerRect && (
+        <BoardContextMenu
+          boardId={menuBoard.id}
+          boardName={menuBoard.name}
+          triggerRect={menuTriggerRect}
+          workspaces={allWorkspaces.filter((w) => !w.isPersonal && !w.isTemplates)}
+          currentWorkspaceId={workspace.id}
+          canManage={canManage}
+          onClose={() => { setMenuBoardId(null); setMenuTriggerRect(null); }}
+          onOpenNewTab={() => window.open(`/boards/${menuBoard.id}`, '_blank')}
+          onRename={() => handleRenameStart(menuBoard)}
+          onMove={(wsId) => void updateBoard({ id: menuBoard.id, patch: { workspaceId: wsId } })}
+          onDuplicate={() => { setMenuBoardId(null); setMenuTriggerRect(null); setDuplicateTargetId(menuBoard.id); }}
+          onSaveAsTemplate={() => { setMenuBoardId(null); setMenuTriggerRect(null); setTemplateTargetId(menuBoard.id); }}
+          onArchive={() => void archiveBoard(menuBoard.id)}
+          onDelete={() => { setMenuBoardId(null); setMenuTriggerRect(null); setConfirmDeleteId(menuBoard.id); }}
+        />
+      )}
+
+      {confirmDeleteId && ReactDOM.createPortal(
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm delete board"
+        >
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-base font-semibold text-gray-800 mb-2">Delete board?</h3>
+            <p className="text-sm text-gray-500 mb-5">This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                aria-label="Cancel delete"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { const id = confirmDeleteId; setConfirmDeleteId(null); void deleteBoard(id); }}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors"
+                aria-label="Confirm delete board"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.getElementById('modal-root')!,
+      )}
+
+      {duplicateTargetId && (
+        <DuplicateOptionsModal
+          title="Duplicate board"
+          confirmLabel="Duplicate"
+          onConfirm={(mode) => { void handleDuplicate(mode); }}
+          onClose={() => setDuplicateTargetId(null)}
+        />
+      )}
+
+      {templateTargetId && (
+        <DuplicateOptionsModal
+          title="Save as template"
+          confirmLabel="Save"
+          onConfirm={(mode) => { void handleSaveAsTemplate(mode); }}
+          onClose={() => setTemplateTargetId(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+interface WorkspacesNavSectionProps {
+  sidebarLinkColor: string;
+  onNavigate: () => void;
+  canManage: boolean;
+}
+
+const WORKHUB_STORAGE_KEY = 'logyx_selected_workhub_id';
+
+const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate, canManage }) => {
+  const { data: allWorkspaces = [] } = useWorkspacesQuery();
+  const workspaces = allWorkspaces.filter((w) => !w.isPersonal && !w.isTemplates);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState(() => localStorage.getItem(WORKHUB_STORAGE_KEY) ?? '');
+
+  useEffect(() => {
+    if (workspaces.length === 0) return;
+    const savedId = localStorage.getItem(WORKHUB_STORAGE_KEY);
+    const isValidSavedId = savedId && workspaces.some((w) => w.id === savedId);
+    if (!selectedId || !workspaces.some((w) => w.id === selectedId)) {
+      const next = isValidSavedId ? savedId! : workspaces[0].id;
+      setSelectedId(next);
+      localStorage.setItem(WORKHUB_STORAGE_KEY, next);
+    }
+  }, [workspaces, selectedId]);
+
+  useEffect(() => {
+    if (!isDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isDropdownOpen]);
+
+  if (workspaces.length === 0) return null;
+
+  const selectedWorkspace = workspaces.find((w) => w.id === selectedId) ?? null;
+  const selectedName = selectedWorkspace?.name ?? 'Select WorkHub…';
+  const selectedColor = selectedWorkspace?.color ?? '#FFB3C1';
+
+  return (
+    <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
+      {/* WorkHub dropdown */}
+      <div className="px-4 mb-2 relative" ref={dropdownRef}>
+        <button
+          type="button"
+          onClick={() => setIsDropdownOpen((v) => !v)}
+          className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm"
+          style={{ color: sidebarLinkColor, backgroundColor: 'rgba(255,255,255,0.12)', border: `2px solid ${sidebarLinkColor}` }}
+          aria-haspopup="listbox"
+          aria-expanded={isDropdownOpen}
+          aria-label="Select WorkHub"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: selectedColor, border: '1px solid #b6b6b6' }} aria-hidden="true" />
+            <span className="truncate">{selectedName}</span>
+          </div>
+          <FiChevronDown size={14} aria-hidden="true" className="ml-2 flex-shrink-0" style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+        </button>
+
+        {isDropdownOpen && (
+          <ul
+            role="listbox"
+            aria-label="WorkHubs"
+            className="absolute left-4 right-4 z-50 mt-1 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden max-h-52 overflow-y-auto"
+          >
+            {workspaces.map((ws) => {
+              const wsColor = ws.color ?? '#FFB3C1';
+              return (
+                <li
+                  key={ws.id}
+                  role="option"
+                  aria-selected={ws.id === selectedId}
+                  onClick={() => { setSelectedId(ws.id); localStorage.setItem(WORKHUB_STORAGE_KEY, ws.id); setIsDropdownOpen(false); }}
+                  className={`px-3 py-2 text-sm cursor-pointer text-gray-800 hover:bg-indigo-50 flex items-center gap-2 ${ws.id === selectedId ? 'bg-indigo-50 font-semibold' : ''}`}
+                >
+                  <div className="w-4 h-4 rounded-full flex-shrink-0" style={{ backgroundColor: wsColor, border: '1px solid #b6b6b6' }} aria-hidden="true" />
+                  {ws.name}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Boards for selected workspace */}
+      {selectedWorkspace && (
+        <WorkspaceBoardsGroup
+          workspace={selectedWorkspace}
+          sidebarLinkColor={sidebarLinkColor}
+          onNavigate={onNavigate}
+          allWorkspaces={workspaces}
+          canManage={canManage}
+        />
+      )}
+    </div>
+  );
+};
 
 // --- TYPE DEFINITIONS for Sidebar Components ---
 
@@ -46,6 +402,7 @@ interface SidebarContentProps {
   sidebarGradientHeight?: number;
   sidebarGradientMaskOpacity?: number;
   logoUrl: string;
+  logoCircle?: boolean;
   appName: string;
   displayNameColor: string;
   sidebarLinkColor: string;
@@ -54,8 +411,8 @@ interface SidebarContentProps {
   setIsSidebarOpen: (isOpen: boolean) => void;
   userImageSidebar: string;
   user: User | null;
-  selectedOrganizationIsPersonal: boolean;
-  isOrgSubscriptionActive: boolean;
+  selectedWorkspaceIsPersonal: boolean;
+  selectedWorkspaceId: string;
   onOpenLegal: () => void;
   onOpenAccessibility: () => void;
 }
@@ -69,10 +426,7 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
     // isHebrewLanguage is used for icon alignment and RTL close-button positioning
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const systemAdminNavItems = [
-      { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} /> },
-      { name: t('layout.academies'), path: '/admin/academies', icon: <FiShield className={iconClassName} /> },
-      { name: t('layout.academyPayouts'), path: '/admin/payments', icon: <FiDollarSign className={iconClassName} /> },
-      { name: t('layout.tokenLimits'), path: '/admin/token-limits', icon: <FiCpu className={iconClassName} /> },
+      { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiShield className={iconClassName} /> },
       { name: t('layout.tutorialsSettings'), path: '/admin/tutorials', icon: <FiVideo className={iconClassName} /> },
       { name: t('layout.emailTemplates'), path: '/admin/email-templates', icon: <FiMail className={iconClassName} /> },
     ];
@@ -123,7 +477,7 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
             <FiChevronsRight className="ml-2 text-white/60 rtl-flip" />
           </NavLink>
           <div className="flex items-center justify-center text-gray-400 text-xs gap-x-1.5">
-             <span className="font-semibold">Gymind</span>
+             <span className="font-semibold">Logyx</span>
              <span>© {new Date().getFullYear()}</span>
              <span>|</span>
              <button
@@ -162,6 +516,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     sidebarGradientHeight,
     sidebarGradientMaskOpacity,
     logoUrl,
+    logoCircle = true,
     appName,
     displayNameColor,
     sidebarLinkColor,
@@ -170,8 +525,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     setIsSidebarOpen,
     userImageSidebar,
     user,
-    selectedOrganizationIsPersonal,
-    isOrgSubscriptionActive,
+    selectedWorkspaceIsPersonal,
+    selectedWorkspaceId,
     onOpenLegal,
     onOpenAccessibility
 }) => {
@@ -179,10 +534,25 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     const isHebrewLanguage = i18n.language.startsWith('he');
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const sidebarNavigate = useNavigate();
-    const isAcademyAdmin = user?.role === UserRole.ACADEMY_ADMIN;
-    const lockedPaths = !isOrgSubscriptionActive ? new Set(['/chat', '/questionnaires']) : new Set<string>();
-    // We use a semi-transparent white overlay (rgba 255,255,255, 0.15) instead of a solid color
-    // to ensure the gradient behind the link shows through while being "brightened".
+    const isOrganizationAdmin = user?.role === UserRole.ORGANIZATION_ADMIN;
+
+    // Calculate sidebar perceived luminance (0=black, 1=white) to pick a contrasting hover overlay.
+    const sidebarBrightness = (() => {
+        const hex = sidebarColor.replace('#', '');
+        if (hex.length < 6) return 0;
+        const r = parseInt(hex.slice(0, 2), 16) / 255;
+        const g = parseInt(hex.slice(2, 4), 16) / 255;
+        const b = parseInt(hex.slice(4, 6), 16) / 255;
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    })();
+    // Stepped overlay: dark overlay for bright sidebars, light overlay for dark sidebars.
+    const hoverBg =
+        sidebarBrightness >= 0.85 ? 'rgba(0, 0, 0, 0.07)'   // near white
+      : sidebarBrightness >= 0.60 ? 'rgba(0, 0, 0, 0.10)'   // light
+      : sidebarBrightness >= 0.20 ? 'rgba(255, 255, 255, 0.40)' // medium
+      : sidebarBrightness >= 0.03 ? 'rgba(255, 255, 255, 0.20)' // dark
+      :                              'rgba(255, 255, 255, 0.25)'; // near black
+
     const hoverEffectStyle = `
         .sidebar-nav-item {
             position: relative;
@@ -196,7 +566,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: rgba(255, 255, 255, 0.15);
+            background-color: ${hoverBg};
             opacity: 0;
             transition: opacity 0.2s ease-in-out;
             z-index: -1;
@@ -247,24 +617,24 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <FiX size={24} />
             </button>
             <div className="flex flex-row items-center justify-center mb-6">
-              {isAcademyAdmin ? (
+              {isOrganizationAdmin ? (
                 <div
                   className="relative mr-4 group cursor-pointer"
                   onClick={() => {
                     const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                     if (guard?.isDirty) {
-                        guard.onAttempt('/admin/academy-hub?openTheme=true');
+                        guard.onAttempt('/admin/organization-hub?openTheme=true');
                         return;
                     }
                     setIsSidebarOpen(false);
-                    sidebarNavigate('/admin/academy-hub?openTheme=true');
+                    sidebarNavigate('/admin/organization-hub?openTheme=true');
                   }}
                   aria-label={t('layout.clickToEdit')}
                 >
                   <img
                     src={logoUrl}
                     alt={t('common.appLogoAlt')}
-                    className="h-12 w-12 rounded-full object-cover shadow-sm transition-all"
+                    className={`h-12 object-cover transition-all ${logoCircle ? 'w-12 rounded-full' : 'w-auto rounded'}`}
                     onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)}
                   />
                   <span className="absolute bottom-0 right-0 flex items-center justify-center w-5 h-5 rounded-full bg-gray-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" aria-hidden="true">
@@ -272,19 +642,19 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   </span>
                 </div>
               ) : (
-                <img src={logoUrl} alt={t('common.appLogoAlt')} className="h-12 w-auto rounded-full object-cover shadow-sm mr-4" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} />
+                <img src={logoUrl} alt={t('common.appLogoAlt')} className={`h-12 object-cover mr-4 ${logoCircle ? 'w-12 rounded-full' : 'w-auto rounded'}`} onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} />
               )}
-              {isAcademyAdmin ? (
+              {isOrganizationAdmin ? (
                 <div
                   className="relative group cursor-pointer"
                   onClick={() => {
                     const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                     if (guard?.isDirty) {
-                        guard.onAttempt('/admin/academy-hub');
+                        guard.onAttempt('/admin/organization-hub');
                         return;
                     }
                     setIsSidebarOpen(false);
-                    sidebarNavigate('/admin/academy-hub');
+                    sidebarNavigate('/admin/organization-hub');
                   }}
                   aria-label={t('layout.clickToEdit')}
                 >
@@ -308,9 +678,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     
           <div className="flex-1 px-6 overflow-y-auto custom-scrollbar relative z-10 flex flex-col">
             <nav className="space-y-3 flex-grow">
-              {availableNavItems.map(item => {
-                const isLocked = lockedPaths.has(item.path);
-                return (
+              {availableNavItems.map(item => (
                 <NavLink
                   key={item.name}
                   to={item.path}
@@ -323,10 +691,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       }
                       setIsSidebarOpen(false);
                   }}
-                  style={({ isActive }) => ({
-                      color: sidebarLinkColor,
-                      opacity: isLocked ? 0.6 : 1,
-                  })}
+                  style={() => ({ color: sidebarLinkColor })}
                   className={({ isActive }) =>
                       `sidebar-nav-item flex items-center px-4 py-3 rounded-lg text-base transition-colors duration-150 ${
                       isActive
@@ -335,17 +700,17 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       }`
                   }
                 >
-                  {item.icon} {item.name} {isLocked && <FiLock className="ml-auto flex-shrink-0" size={14} />}
+                  {item.icon} {item.name}
                 </NavLink>
-              );})}
+              ))}
               <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
                 <NavLink
-                  to='/admin/academy-hub'
+                  to='/admin/organization-hub'
                   onClick={(e) => {
                       const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
                       if (guard?.isDirty) {
                           e.preventDefault();
-                          guard.onAttempt('/admin/academy-hub');
+                          guard.onAttempt('/admin/organization-hub');
                           return;
                       }
                       setIsSidebarOpen(false);
@@ -357,9 +722,16 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                       `sidebar-nav-item flex items-center px-4 py-3 rounded-lg text-base transition-colors duration-150 ${isActive ? 'active font-semibold' : 'hover:text-white'}`
                   }
                 >
-                  <AcademyHubIcon className={iconClassName} /> {t('layout.academyHub')}
+                  <FiBriefcase className={iconClassName} /> {t('layout.organizationHub')}
                 </NavLink>
               </div>
+
+              <WorkspacesNavSection
+                sidebarLinkColor={sidebarLinkColor}
+                onNavigate={() => setIsSidebarOpen(false)}
+                canManage={user?.role === UserRole.WORKSPACE_ADMIN || user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN}
+              />
+
               {availableAdminNavItems.length > 0 && (
                   <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
                        <h2 className="px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: sidebarLinkColor, opacity: 0.7 }}>{t('layout.management')}</h2>
@@ -414,7 +786,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                  <FiChevronsRight className="ml-2 rtl-flip" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }} />
             </NavLink>
             <div className="flex items-center justify-center opacity-80 text-xs gap-x-1.5" style={{ color: sidebarLinkColor }}>
-                <span className="font-semibold">Gymind</span>
+                <span className="font-semibold">Logyx</span>
                 <span>© {new Date().getFullYear()}</span>
                 <span>|</span>
                 <button
@@ -460,8 +832,8 @@ const ContentLoader: React.FC = () => (
 
 const MainLayout: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { user, logout, selectedOrganization, loading: authLoading, isOrgSubscriptionActive } = useAuth();
-  const { academySettings } = useData();
+  const { user, logout, selectedWorkspace, loading: authLoading } = useAuth();
+  const { organizationSettings, isLoading: dataLoading } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -514,13 +886,10 @@ const MainLayout: React.FC = () => {
     previousPathnameRef.current = location.pathname;
   }, [location.pathname]);
   
-  const isThemeMissing = user && user.role !== UserRole.SYSTEM_ADMIN && !academySettings;
-  const isThemeMismatched = user && user.role !== UserRole.SYSTEM_ADMIN && selectedOrganization && academySettings && academySettings.id !== selectedOrganization.academyId;
+  const isThemeMissing = user && user.role !== UserRole.SYSTEM_ADMIN && !organizationSettings;
+  const isThemeMismatched = user && user.role !== UserRole.SYSTEM_ADMIN && selectedWorkspace && organizationSettings && organizationSettings.id !== selectedWorkspace.orgId;
 
-  // isThemeMissing (academySettings not yet loaded) is intentionally excluded here.
-  // The layout renders fine with default theme fallbacks while academySettings loads
-  // in the background — blocking the entire UI causes blank content after tab restore.
-  if (authLoading || isThemeMismatched) {
+  if (authLoading || isThemeMismatched || (isThemeMissing && dataLoading)) {
     return (
       <div className="flex justify-center items-center h-screen w-screen bg-gray-100">
         <FiLoader className="animate-spin h-12 w-12 text-blue-500" />
@@ -528,12 +897,16 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  if (!user || !selectedOrganization) {
+  if (!user || !selectedWorkspace) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
   const userImageSidebar = user?.profileImageUrl || `/default_user.webp`;
   const userImageHeader = user?.profileImageUrl || `/default_user.webp`;
+
+  const isHebrewLanguage = i18n.language.startsWith('he');
+  const isRTL = isHebrewLanguage;
+  const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
 
   // --- SYSTEM ADMIN LAYOUT ---
   if (user.role === UserRole.SYSTEM_ADMIN) {
@@ -579,55 +952,36 @@ const MainLayout: React.FC = () => {
     );
   }
 
-  // --- REGULAR, ORG_ADMIN, ACADEMY_ADMIN LAYOUT ---
-  const canAccessMindPatterns = selectedOrganization?.hasMindPatternsAccess !== false;
-  const hasChatFeatureAccess = selectedOrganization?.hasChatAccess !== false;
-  const showBilling = user.role === UserRole.ORGANIZATION_ADMIN && selectedOrganization?.subscriptionProvider === 'gymind';
+  // --- REGULAR, ORG_ADMIN, ORGANIZATION_ADMIN LAYOUT ---
 
-  const appName = academySettings?.appName || 'Gymind';
+  const appName = organizationSettings?.appName || 'Boards';
   // Use /default_user.webp as fallback if logoUrl is missing or is the old hardcoded default
-  const logoUrl = (!academySettings?.logoUrl || academySettings.logoUrl === '/logo_gym.webp') ? '/default_user.webp' : academySettings.logoUrl;
+  const logoUrl = (!organizationSettings?.logoUrl || organizationSettings.logoUrl === '/logo_gym.webp') ? '/default_user.webp' : organizationSettings.logoUrl;
   // dark-contrast applies CSS invert(1) hue-rotate(180deg) to the whole page.
   // To get a dark sidebar with bright text after inversion, we must set the opposite: light bg, dark text.
-  const sidebarColor = isDarkContrast ? '#f5f5f5' : (academySettings?.sidebarColor || '#004e89');
-  const enableSidebarGradient = isDarkContrast ? false : (academySettings?.enableSidebarGradient ?? true);
-  const sidebarHueRotation = academySettings?.sidebarHueRotation ?? 270;
-  const sidebarGradientHeight = academySettings?.sidebarGradientHeight ?? 85;
-  const sidebarGradientMaskOpacity = academySettings?.sidebarGradientMaskOpacity ?? 40;
-  const displayNameColor = isDarkContrast ? '#000000' : (academySettings?.displayNameColor || '#ffffff');
-  const sidebarLinkColor = isDarkContrast ? '#111111' : (academySettings?.sidebarLinkColor || '#e5e7eb');
-  
-  // When org subscription is inactive, still show AI nav items (so user can see the banner) but mark them
-  const showChatNav = hasChatFeatureAccess || !isOrgSubscriptionActive;
-  const showQuestionnairesNav = canAccessMindPatterns || !isOrgSubscriptionActive;
-
-  // Add margin-top for Hebrew language to align icons properly
-  const isHebrewLanguage = i18n.language.startsWith('he');
-  const isRTL = isHebrewLanguage;
-  const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
+  const sidebarColor = isDarkContrast ? '#f5f5f5' : (organizationSettings?.sidebarColor || '#004e89');
+  const enableSidebarGradient = isDarkContrast ? false : (organizationSettings?.enableSidebarGradient ?? true);
+  const sidebarHueRotation = organizationSettings?.sidebarHueRotation ?? 270;
+  const sidebarGradientHeight = organizationSettings?.sidebarGradientHeight ?? 85;
+  const sidebarGradientMaskOpacity = organizationSettings?.sidebarGradientMaskOpacity ?? 40;
+  const displayNameColor = isDarkContrast ? '#000000' : (organizationSettings?.displayNameColor || '#ffffff');
+  const sidebarLinkColor = isDarkContrast ? '#111111' : (organizationSettings?.sidebarLinkColor || '#e5e7eb');
+  const logoCircle = organizationSettings?.logoCircle ?? true;
 
   const navItems: NavItem[] = [
-    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
-    { name: t('layout.courses'), path: '/courses', icon: <FiBookOpen className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: true },
-    { name: t('layout.aiMentor'), path: '/chat', icon: <FiMessageSquare className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: showChatNav },
-    { name: t('layout.questionnaires'), path: '/questionnaires', icon: <QuestionnaireIcon className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORGANIZATION_ADMIN, UserRole.ACADEMY_ADMIN], show: showQuestionnairesNav },
+    { name: t('layout.dashboard'), path: '/dashboard', icon: <FiTrello className={iconClassName} style={{ transform: 'rotate(180deg)' }} />, roles: [UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
+    { name: t('layout.workspaces'), path: '/WorkHubs', icon: <FiGrid className={iconClassName} />, roles: [UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN], show: true },
   ];
 
   const adminNavItems: AdminNavItem[] = [
-     { name: t('layout.adminDashboard'), path: '/admin', icon: <FiPieChart className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN] },
-     { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN] },
-     { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiBriefcase className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.courseManagement'), path: '/admin/courses', icon: <FiBookOpen className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.aiMentorSettings'), path: '/admin/chat-settings', icon: <FiMessageSquare className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.questionnaireSettings'), path: '/admin/questionnaire-settings', icon: <QuestionnaireIcon className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.clientPlansAndBilling'), path: '/admin/billing-settings', icon: <FiCreditCard className={iconClassName} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.marketing'), path: '/admin/marketing', icon: <MarketingIcon className={`${iconClassName} text-white`} />, roles: [UserRole.ACADEMY_ADMIN] },
-     { name: t('layout.organizationBilling'), path: '/organization/billing', icon: <FiCreditCard className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN], show: showBilling },
+     { name: t('layout.userManagement'), path: '/admin/users', icon: <FiUsers className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN] },
+     { name: 'Templates', path: '/admin/templates', icon: <FiBookmark className={iconClassName} />, roles: [UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN] },
   ];
 
   const availableNavItems = navItems.filter(item => item.roles.includes(user.role) && item.show);
   const availableAdminNavItems = adminNavItems.filter(item => item.roles.includes(user.role) && (item.show !== false));
 
+  const selectedWorkspaceId = selectedWorkspace?.id ?? '';
 
   return (
     <div className="flex h-dynamic-screen bg-gray-100">
@@ -643,6 +997,7 @@ const MainLayout: React.FC = () => {
             sidebarGradientHeight={sidebarGradientHeight}
             sidebarGradientMaskOpacity={sidebarGradientMaskOpacity}
             logoUrl={logoUrl}
+            logoCircle={logoCircle}
             appName={appName}
             displayNameColor={displayNameColor}
             sidebarLinkColor={sidebarLinkColor}
@@ -651,8 +1006,9 @@ const MainLayout: React.FC = () => {
             setIsSidebarOpen={setIsSidebarOpen}
             userImageSidebar={userImageSidebar}
             user={user}
-            selectedOrganizationIsPersonal={selectedOrganization.isPersonal || false}
-            isOrgSubscriptionActive={isOrgSubscriptionActive}
+            selectedWorkspaceIsPersonal={selectedWorkspace.isPersonal || false}
+            selectedWorkspaceId={selectedWorkspaceId}
+
             onOpenLegal={() => setShowLegalModal(true)}
             onOpenAccessibility={() => setShowAccessibilityModal(true)}
           />
@@ -668,6 +1024,7 @@ const MainLayout: React.FC = () => {
                 sidebarGradientHeight={sidebarGradientHeight}
                 sidebarGradientMaskOpacity={sidebarGradientMaskOpacity}
                 logoUrl={logoUrl}
+                logoCircle={logoCircle}
                 appName={appName}
                 displayNameColor={displayNameColor}
                 sidebarLinkColor={sidebarLinkColor}
@@ -676,8 +1033,9 @@ const MainLayout: React.FC = () => {
                 setIsSidebarOpen={setIsSidebarOpen}
                 userImageSidebar={userImageSidebar}
                 user={user}
-                selectedOrganizationIsPersonal={selectedOrganization.isPersonal || false}
-                isOrgSubscriptionActive={isOrgSubscriptionActive}
+                selectedWorkspaceIsPersonal={selectedWorkspace.isPersonal || false}
+                selectedWorkspaceId={selectedWorkspaceId}
+    
                 onOpenLegal={() => setShowLegalModal(true)}
                 onOpenAccessibility={() => setShowAccessibilityModal(true)}
             />

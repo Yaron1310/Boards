@@ -10,7 +10,7 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles }) => {
-  const { user, loading, selectedOrganization } = useAuth();
+  const { user, loading, selectedWorkspace } = useAuth();
   const location = useLocation();
 
   debugLog(`%c[ProtectedRoute] Check for path: ${location.pathname}`, 'color: #8A2BE2; font-weight: bold;');
@@ -23,7 +23,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRoles 
     return <div className="flex justify-center items-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div></div>;
   }
 
-  if (!user || !selectedOrganization) {
+  if (!user || !selectedWorkspace) {
     debugLog('%c[ProtectedRoute] No user or selected org. Redirecting to /login.', 'color: red;');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }

@@ -1,6 +1,61 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // True when the caller holds a Firebase custom token issued for this org.
+    // The orgId claim is set by the backend in generateFullLoginResponse via
+    // admin.auth().createCustomToken(uid, { orgId, role }).
+    function isOrgMember(orgId) {
+      return request.auth != null && request.auth.token.orgId == orgId;
+    }
+
+    match /organizations/{orgId} {
+      // Items — clients subscribe via onSnapshot for real-time board updates
+      match /items/{itemId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if false;
+
+        match /chatMessages/{messageId} {
+          allow read: if isOrgMember(orgId);
+          allow write: if false;
+        }
+      }
+
+      // Boards and their subcollections
+      match /boards/{boardId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if false;
+
+        match /groups/{groupId} {
+          allow read: if isOrgMember(orgId);
+          allow write: if false;
+        }
+
+        match /columns/{columnId} {
+          allow read: if isOrgMember(orgId);
+          allow write: if false;
+        }
+
+        match /members/{userId} {
+          allow read: if isOrgMember(orgId);
+          allow write: if false;
+        }
+      }
+
+      // Board version documents — used by useOrgSnapshot to detect any board mutation
+      match /boardVersions/{boardId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if false;
+      }
+
+      // Notifications
+      match /notifications/{notificationId} {
+        allow read: if isOrgMember(orgId) && request.auth.uid == resource.data.userId;
+        allow write: if false;
+      }
+    }
+
+    // Deny everything else
     match /{document=**} {
       allow read, write: if false;
     }

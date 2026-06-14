@@ -1,36 +1,22 @@
 import type { Request, Response, NextFunction } from 'express';
 
-const DEFAULT_MAX_LENGTH = 500;
+const DEFAULT_MAX_LENGTH = 1000;
 
 /**
  * Fields that are legitimately large and are exempt from the default 500-char limit.
  * Key: field name, Value: max allowed length (use Infinity for no practical limit beyond bodyParser).
  */
 const LARGE_FIELD_LIMITS: Record<string, number> = {
-    transcript:           50_000,   // Lesson transcripts (~30 min video at 500MB file limit)
-    customHtml:           200_000,  // Custom code assignments — structural HTML
-    customCss:            200_000,  // Custom code assignments — CSS part
-    customJs:             200_000,  // Custom code assignments — JS part
-    currentHtml:          200_000,  // Current HTML sent to AI wizard for refinement
-    currentCss:           200_000,  // Current CSS sent to AI wizard for refinement
-    currentJs:            200_000,  // Current JS sent to AI wizard for refinement
     html:                 200_000,  // Email template HTML (system admin email templates)
     htmlContent:          200_000,  // Marketing email HTML
     mediaData:            Infinity, // Base64-encoded media uploads (guard is Express 10MB body limit)
-    coverImage:           Infinity, // Base64-encoded course cover image (guard is Express 10MB body limit)
-    customInstructions:   2_000,    // Custom AI image generation instructions from admin (pre-populated with name+description)
-    systemPrompt:         50_000,   // Chat persona AI system prompts
-    aiInsightPrompt:      50_000,   // Chat persona AI insight generation prompts
-    personaPreamble:      50_000,   // Chat persona preamble definitions
-    globalSystemPrompt:   50_000,   // System-wide AI instruction (system settings)
+    imageBase64:          Infinity, // Base64-encoded profile image
+    logoBase64:           Infinity, // Base64-encoded organization logo
+    logoUrl:              Infinity, // Can be a long Firebase Storage URL
     message:              5_000,    // Individual chat messages
-    userMessage:          5_000,    // AI chat messages
     mainText:             10_000,   // Marketing email main body text
-    description:          2_000,    // Questionnaire/course descriptions and instructions
-    summaryInstructions:  2_000,    // Chat persona summary instructions
-    initialMessage:       2_000,    // Chat persona initial welcome message
-    correctAnswerText:    2_000,    // Questionnaire correct answer explanations
-    text:                 2_000,    // Questionnaire question/answer text
+    description:          2_000,    // Item/board descriptions and instructions
+    text:                 2_000,    // General text field
     recaptchaToken:       Infinity, // Google reCAPTCHA Enterprise tokens — variable-length JWTs, validated by Google's API not by us
 };
 
@@ -76,7 +62,7 @@ function findViolation(
  * in req.body. Fields listed in LARGE_FIELD_LIMITS are exempt from the default limit.
  */
 export const enforceFieldLength = (req: Request, res: Response, next: NextFunction): void => {
-    if (!req.body || typeof req.body !== 'object') {
+    if (!req.body || typeof req.body !== 'object' || Buffer.isBuffer(req.body)) {
         next();
         return;
     }

@@ -2,7 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
 import { FiAlertTriangle, FiTrash2, FiLoader } from 'react-icons/fi';
-import { ModalWrapper } from '../course/billing/Shared';
+import { ModalWrapper } from './ModalWrapper';
 
 interface ConfirmationModalProps {
   isOpen: boolean;

@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
 import { FiXCircle } from 'react-icons/fi';
 import AccessibilityContent from './AccessibilityContent';
+import { useAuthSession } from '../../hooks/useAuthSession';
+import * as apiService from '../../services/geminiService';
 
 interface AccessibilityModalProps {
   isOpen: boolean;
@@ -11,10 +13,12 @@ interface AccessibilityModalProps {
 
 const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, onClose }) => {
   const { t } = useTranslation();
-  const [isDarkContrast, setIsDarkContrast] = useState<boolean>(() => {
-    return localStorage.getItem('gymind-dark-contrast') === 'true';
-  });
+  const { user } = useAuthSession();
+  const [isDarkContrast, setIsDarkContrast] = useState<boolean>(
+    () => user?.preferences?.darkContrast ?? false,
+  );
 
+  // Sync DOM class and persist to backend on change
   useEffect(() => {
     const html = document.documentElement;
     if (isDarkContrast) {
@@ -22,8 +26,23 @@ const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, onClose
     } else {
       html.classList.remove('dark-contrast');
     }
-    localStorage.setItem('gymind-dark-contrast', String(isDarkContrast));
   }, [isDarkContrast]);
+
+  // Re-initialise when user data arrives (e.g. after login)
+  useEffect(() => {
+    if (user?.preferences?.darkContrast !== undefined) {
+      setIsDarkContrast(user.preferences.darkContrast);
+    }
+  }, [user?.preferences?.darkContrast]);
+
+  const handleToggle = useCallback(() => {
+    setIsDarkContrast((prev) => {
+      const next = !prev;
+      // Fire-and-forget: persist preference to backend
+      void apiService.updateMyUserDetails({ preferences: { darkContrast: next } });
+      return next;
+    });
+  }, []);
 
   if (!isOpen) return null;
 
@@ -53,7 +72,7 @@ const AccessibilityModal: React.FC<AccessibilityModalProps> = ({ isOpen, onClose
           <div className="flex items-center gap-1">
             {/* Dark contrast toggle button */}
             <button
-              onClick={() => setIsDarkContrast(prev => !prev)}
+              onClick={handleToggle}
               className={`p-2 rounded-full transition-colors ${isDarkContrast ? 'bg-gray-800 text-white hover:bg-gray-700' : 'hover:bg-gray-200 text-gray-600'}`}
               aria-label={t('legal.toggleDarkContrast')}
               aria-pressed={isDarkContrast}

@@ -5,7 +5,7 @@
 // automatically forwarded to the backend function by Firebase Hosting.
 
 // const DEVELOPMENT_BACKEND_URL = 'http://localhost:8080'; // For local dev with `firebase emulators:start`
-const DEVELOPMENT_BACKEND_URL = 'https://api-72zxe6vfjq-uc.a.run.app'; // Live Production Backend
+const DEVELOPMENT_BACKEND_URL = 'https://api-two25mmunq-uc.a.run.app'; // Live Production Backend
 
 // `process.env.NODE_ENV` is a standard variable injected by many bundlers, including Vite.
 // Vite replaces this with 'production' or 'development' at build time.
@@ -22,16 +22,12 @@ console.log(
     `(Production Mode: ${isProduction})`
 );
 
-export const GEMINI_CHAT_MODEL_KEY = 'GEMINI_CHAT_MODEL';
-export const GEMINI_EXTRACTION_MODEL_KEY = 'GEMINI_EXTRACTION_MODEL';
-export const AI_SYSTEM_PROMPT_CHAT_KEY = 'AI_SYSTEM_PROMPT_CHAT';
-
-export const APP_NAME = 'Gymind';
+export const APP_NAME = 'Logyx';
 
 
-// Default organizations can still be defined here if needed for frontend fallbacks or initial setup,
+// Default WorkHubs can still be defined here if needed for frontend fallbacks or initial setup,
 // but primary source should be the backend.
-export const DEFAULT_ORGANIZATIONS = [
+export const DEFAULT_WORKSPACES = [
   { id: 'org1', name: 'Mindful Solutions Inc.' },
   { id: 'org2', name: 'Wellness Hub Co.' },
   { id: 'org3', name: 'Serene Paths LLC' },

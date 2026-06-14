@@ -13,7 +13,7 @@
       "collectionGroup": "chatPersonas",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" },
         { "fieldPath": "status", "order": "DESCENDING" }
       ]
@@ -22,7 +22,7 @@
       "collectionGroup": "conversations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "isPrivate", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
       ]
@@ -31,7 +31,7 @@
       "collectionGroup": "conversations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "isPrivate", "order": "ASCENDING" },
         { "fieldPath": "personaId", "order": "ASCENDING" },
         { "fieldPath": "date", "order": "DESCENDING" }
@@ -57,7 +57,7 @@
       "collectionGroup": "courses",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" },
         { "fieldPath": "status", "order": "DESCENDING" }
       ]
@@ -66,7 +66,7 @@
       "collectionGroup": "memberships",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "userName", "order": "ASCENDING" }
       ]
     },
@@ -74,7 +74,7 @@
       "collectionGroup": "newsletterCampaigns",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
@@ -82,7 +82,7 @@
       "collectionGroup": "newsletterEditions",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "campaignId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
@@ -117,7 +117,7 @@
       "collectionGroup": "newsletterIssues",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "campaignId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
@@ -132,24 +132,24 @@
       ]
     },
     {
-      "collectionGroup": "organizations",
+      "collectionGroup": "workspaces",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "name", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "organizations",
+      "collectionGroup": "workspaces",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "name", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "organizations",
+      "collectionGroup": "workspaces",
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "name", "order": "ASCENDING" },
@@ -178,7 +178,7 @@
       "collectionGroup": "plans",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "name", "order": "ASCENDING" }
       ]
     },
@@ -186,7 +186,7 @@
       "collectionGroup": "plans",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "name", "order": "ASCENDING" }
       ]
@@ -195,7 +195,7 @@
       "collectionGroup": "plans",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "updatedAt", "order": "DESCENDING" }
       ]
@@ -204,7 +204,7 @@
       "collectionGroup": "preapprovedUsers",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "email", "order": "ASCENDING" }
       ]
     },
@@ -212,7 +212,7 @@
       "collectionGroup": "questionnaires",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" },
         { "fieldPath": "status", "order": "DESCENDING" }
       ]
@@ -237,7 +237,7 @@
       "collectionGroup": "tokenUsage",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "academyId", "order": "ASCENDING" },
+        { "fieldPath": "orgId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
     },

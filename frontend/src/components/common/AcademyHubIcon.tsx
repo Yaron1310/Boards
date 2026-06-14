@@ -1,12 +1,12 @@
 import React from 'react';
 
-interface AcademyHubIconProps {
+interface OrganizationHubIconProps {
   className?: string;
   height?: string | number;
   width?: string | number;
 }
 
-const AcademyHubIcon: React.FC<AcademyHubIconProps> = ({ className, height = "1em", width = "1em" }) => (
+const OrganizationHubIcon: React.FC<OrganizationHubIconProps> = ({ className, height = "1em", width = "1em" }) => (
   <svg
     stroke="currentColor"
     fill="none"
@@ -25,4 +25,4 @@ const AcademyHubIcon: React.FC<AcademyHubIconProps> = ({ className, height = "1e
   </svg>
 );
 
-export default AcademyHubIcon;
+export default OrganizationHubIcon;

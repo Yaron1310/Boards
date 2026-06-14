@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
 import { FiArchive, FiRefreshCw, FiLoader } from 'react-icons/fi';
-import { ModalWrapper } from '../course/billing/Shared';
+import { ModalWrapper } from './ModalWrapper';
 
 interface ArchiveItem {
   id: string;

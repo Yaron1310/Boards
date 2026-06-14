@@ -2,28 +2,15 @@ import React, { useState, useEffect, useMemo, ChangeEvent } from 'react';
 import ReactDOM from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
-import type { Organization, Course, User, Plan } from '../../types';
+import type { Workspace, User } from '../../types';
 import { UserRole } from '../../types';
-import { FiPlusCircle, FiEdit, FiArchive, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiBriefcase, FiAlertCircle as FiErrorCircle, FiKey, FiCpu, FiLoader, FiUsers, FiUserPlus, FiList, FiInfo, FiCreditCard, FiShare } from 'react-icons/fi';
+import { FiPlusCircle, FiEdit, FiArchive, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiBriefcase, FiAlertCircle as FiErrorCircle, FiKey, FiCpu, FiLoader, FiUsers, FiUserPlus, FiList, FiInfo, FiCreditCard } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
 import TutorialSection from '../common/TutorialSection';
 import ConfirmationModal from './shared/ConfirmationModal';
 import ArchiveRestoreModal from './shared/ArchiveRestoreModal';
-const exportToCSV = (rows: Record<string, unknown>[], filename: string) => {
-    if (!rows.length) return;
-    const escape = (v: unknown) => {
-        const s = String(v ?? '');
-        return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const headers = Object.keys(rows[0]);
-    const csv = [headers.map(escape).join(','), ...rows.map(r => headers.map(h => escape(r[h])).join(','))].join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    const a = document.createElement('a');
-    a.href = url; a.download = filename; a.click();
-    URL.revokeObjectURL(url);
-};
 
 const TokenUsageBar: React.FC<{ used: number; limit: number | null }> = ({ used, limit }) => {
     const formatTokens = (tokens: number) => {
@@ -53,23 +40,20 @@ const TokenUsageBar: React.FC<{ used: number; limit: number | null }> = ({ used,
     );
 };
 
-type OrgWithComputedData = Organization & {
+type OrgWithComputedData = WorkHub & {
     userCount: number;
     tokensUsed: number;
     tokenLimit: number | null;
 };
 
 // --- MODAL COMPONENT ---
-const AddOrganizationModal = ({
+const AddWorkspaceModal = ({
     isOpen,
     onClose,
     onSave,
     isSaving,
-    plans,
     name,
     setName,
-    planId,
-    setPlanId,
     error
 }: any) => {
     const { t } = useTranslation();
@@ -79,7 +63,7 @@ const AddOrganizationModal = ({
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md flex flex-col">
                 <div className="p-6 border-b flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-gray-800">{t('admin.addNewOrganization')}</h2>
+                    <h2 className="text-xl font-bold text-gray-800">{t('admin.addNewWorkspace')}</h2>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200"><FiXCircle size={24}/></button>
                 </div>
                 <div className="p-6 overflow-y-auto">
@@ -87,7 +71,7 @@ const AddOrganizationModal = ({
                         {error && <div className="p-3 rounded-md text-sm bg-red-100 text-red-700"><FiErrorCircle className="inline mr-2"/>{error}</div>}
                         <p className="text-xs text-gray-500">{t('checkout.requiredFieldsNote')}</p>
                         <div>
-                            <label htmlFor="modalNewOrgName" className="block text-sm font-medium text-gray-700">{t('admin.organizationName')} <span aria-hidden="true">*</span></label>
+                            <label htmlFor="modalNewOrgName" className="block text-sm font-medium text-gray-700">{t('admin.workspaceName')} <span aria-hidden="true">*</span></label>
                             <input
                                 type="text"
                                 id="modalNewOrgName"
@@ -96,29 +80,15 @@ const AddOrganizationModal = ({
                                 className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500"
                                 required
                                 aria-required="true"
-                                placeholder={t('admin.enterOrganizationName')}
+                                placeholder={t('admin.enterWorkspaceName')}
                             />
-                        </div>
-                        <div>
-                            <label htmlFor="modalNewOrgPlan" className="block text-sm font-medium text-gray-700">{t('admin.plan')}</label>
-                            <select
-                                id="modalNewOrgPlan"
-                                value={planId}
-                                onChange={(e) => setPlanId(e.target.value)}
-                                className="mt-1 w-full p-2 border border-gray-300 rounded-md bg-white shadow-sm focus:ring-2 focus:ring-blue-500"
-                            >
-                                <option value="">{t('admin.noPlanAssigned')}</option>
-                                {plans.map((plan: Plan) => (
-                                    <option key={plan.id} value={plan.id}>{plan.name}</option>
-                                ))}
-                            </select>
                         </div>
                     </form>
                 </div>
                 <div className="flex justify-end space-x-3 p-6 border-t bg-gray-50 rounded-b-lg">
                     <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300" disabled={isSaving}>{t('common.cancel')}</button>
                     <button type="submit" form="add-org-form" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center" disabled={isSaving || !name.trim()}>
-                        {isSaving ? <FiLoader className="animate-spin mr-2"/> : <FiPlusCircle className="mr-2"/>} {t('admin.addOrganization')}
+                        {isSaving ? <FiLoader className="animate-spin mr-2"/> : <FiPlusCircle className="mr-2"/>} {t('admin.addWorkspace')}
                     </button>
                 </div>
             </div>
@@ -127,7 +97,7 @@ const AddOrganizationModal = ({
     );
 };
 
-const OrganizationModal = ({ org, editData, plans, onClose, onSave, isSaving, error, setEditData, onManageAdmins, onPreApprove, onArchive }: any) => {
+const WorkspaceModal = ({ org, editData, onClose, onSave, isSaving, error, setEditData, onManageAdmins, onPreApprove, onArchive }: any) => {
     const { t } = useTranslation();
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
@@ -138,7 +108,7 @@ const OrganizationModal = ({ org, editData, plans, onClose, onSave, isSaving, er
         <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                 <div className="p-6 border-b flex justify-between items-center">
-                    <h2 className="text-xl font-bold text-gray-800">{t('admin.editOrganization', { name: org.name })}</h2>
+                    <h2 className="text-xl font-bold text-gray-800">{t('admin.editWorkspace', { name: org.name })}</h2>
                     <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200"><FiXCircle size={24}/></button>
                 </div>
                 <div className="p-6 flex-grow overflow-y-auto custom-scrollbar">
@@ -146,31 +116,8 @@ const OrganizationModal = ({ org, editData, plans, onClose, onSave, isSaving, er
                         {error && <div className="p-3 rounded-md text-sm bg-red-100 text-red-700"><FiErrorCircle className="inline mr-2"/>{error}</div>}
                         <p className="text-xs text-gray-500">{t('checkout.requiredFieldsNote')}</p>
                         <div>
-                            <label htmlFor="name" className="block text-sm font-medium text-gray-700">{t('admin.organizationName')} <span aria-hidden="true">*</span></label>
+                            <label htmlFor="name" className="block text-sm font-medium text-gray-700">{t('admin.workspaceName')} <span aria-hidden="true">*</span></label>
                             <input type="text" name="name" id="name" value={editData.name} onChange={handleInputChange} className="mt-1 w-full p-2 border border-gray-300 rounded-md" required aria-required="true"/>
-                        </div>
-                        <div>
-                            <label htmlFor="planId" className="block text-sm font-medium text-gray-700">{t('admin.plan')}</label>
-                            <select name="planId" id="planId" value={editData.planId || ''} onChange={handleInputChange} className="mt-1 w-full p-2 border border-gray-300 rounded-md bg-white">
-                                <option value="">{t('admin.noPlanAssigned')}</option>
-                                {plans.map((plan: Plan) => (
-                                    <option key={plan.id} value={plan.id}>{plan.name}</option>
-                                ))}
-                            </select>
-                        </div>
-                        
-                        <div className="p-4 bg-gray-50 border border-gray-200 rounded-md">
-                            <label htmlFor="subscriptionProvider" className="block text-sm font-medium text-gray-700 mb-2">{t('billing.paymentMethod')}</label>
-                            <select name="subscriptionProvider" id="subscriptionProvider" value={editData.subscriptionProvider || 'manual'} onChange={handleInputChange} className="w-full p-2 border border-gray-300 rounded-md bg-white">
-                                <option value="manual">{t('admin.manualDirect')}</option>
-                                <option value="gymind">{t('admin.gymindPayment')}</option>
-                                <option value="woocommerce">{t('admin.wordpressPlugin')}</option>
-                            </select>
-                            {editData.subscriptionProvider === 'gymind' && (
-                                <p className="text-xs text-blue-600 mt-2">
-                                    {t('admin.gymindPaymentDesc')}
-                                </p>
-                            )}
                         </div>
 
                     </form>
@@ -179,7 +126,7 @@ const OrganizationModal = ({ org, editData, plans, onClose, onSave, isSaving, er
                         <div className="mt-3 flex flex-wrap gap-3">
                              <button type="button" onClick={onPreApprove} className="text-sm text-cyan-600 hover:text-cyan-800 py-2 px-3 rounded-md hover:bg-cyan-50 flex items-center transition-colors disabled:opacity-50 border border-cyan-200"><FiUserPlus className="mr-2"/> {t('admin.preApproveUsers')}</button>
                              <button type="button" onClick={onManageAdmins} className="text-sm text-green-600 hover:text-green-800 py-2 px-3 rounded-md hover:bg-green-50 flex items-center transition-colors disabled:opacity-50 border border-green-200"><FiUsers className="mr-2"/> {t('admin.manageAdmins')}</button>
-                             <button type="button" onClick={onArchive} className="text-sm text-red-600 hover:text-red-800 py-2 px-3 rounded-md hover:bg-red-50 flex items-center transition-colors disabled:opacity-50 border border-red-200"><FiArchive className="mr-2"/> {t('admin.archiveOrganization')}</button>
+                             <button type="button" onClick={onArchive} className="text-sm text-red-600 hover:text-red-800 py-2 px-3 rounded-md hover:bg-red-50 flex items-center transition-colors disabled:opacity-50 border border-red-200"><FiArchive className="mr-2"/> {t('admin.archiveWorkspace')}</button>
                         </div>
                     </div>
                 </div>
@@ -196,42 +143,37 @@ const OrganizationModal = ({ org, editData, plans, onClose, onSave, isSaving, er
 };
 
 
-const OrganizationManagementPage: React.FC = () => {
+const WorkspaceManagementPage: React.FC = () => {
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const { 
-    organizations,
-    archivedOrganizations,
-    fetchOrganizations,
-    fetchArchivedOrganizations,
-    restoreOrganization,
-    plans,
-    fetchPlans,
+  const { user } = useAuthSession();
+  const {
+    workspaces,
+    archivedWorkspaces,
+    fetchWorkspaces,
+    fetchArchivedWorkspaces,
+    restoreWorkspace,
     users,
-    addOrganization, 
-    updateOrganization, 
-    deleteOrganization,
-    confirmArchiveOrganization,
-    addOrganizationManager,
-    removeOrganizationManager,
+    addWorkspace,
+    updateWorkspace,
+    deleteWorkspace,
+    confirmArchiveWorkspace,
+    addWorkspaceManager,
+    removeWorkspaceManager,
     orgTokenUsage,
     fetchOrgTokenUsage,
     isAnalyticsLoading,
-    dataError, 
-    clearDataError, 
+    dataError,
+    clearDataError,
     isLoading: isDataLoading,
     tutorialSettings
   } = useData();
   const navigate = useNavigate();
 
   const [newOrgName, setNewOrgName] = useState('');
-  const [newOrgPlanId, setNewOrgPlanId] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  
-  const activePlans = useMemo(() => plans.filter((p: Plan) => p.status !== 'archived'), [plans]);
 
   const [orgToEdit, setOrgToEdit] = useState<OrgWithComputedData | null>(null);
-  const [editOrgData, setEditOrgData] = useState<{ name: string; planId: string, subscriptionProvider: string }>({ name: '', planId: '', subscriptionProvider: 'manual' });
+  const [editOrgData, setEditOrgData] = useState<{ name: string }>({ name: '' });
   const [isSaving, setIsSaving] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   useEffect(() => {
@@ -256,16 +198,15 @@ const OrganizationManagementPage: React.FC = () => {
   }, [feedbackMessage]);
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterPlan, setFilterPlan] = useState('');
   const [filterStatus, setFilterStatus] = useState('all'); // 'all', 'on', 'off'
   const [filterYear, setFilterYear] = useState<string>('');
   const [filterMonth, setFilterMonth] = useState<string>('');
   const [viewType, setViewType] = useState<'all' | 'corporate' | 'individual'>('all');
   
-  const [preApproveModalOrg, setPreApproveModalOrg] = useState<Organization | null>(null);
+  const [preApproveModalOrg, setPreApproveModalOrg] = useState<Workspace | null>(null);
 
   // States for org manager modal
-  const [showAdminModal, setShowAdminModal] = useState<Organization | null>(null);
+  const [showAdminModal, setShowAdminModal] = useState<Workspace | null>(null);
   const [adminEmail, setAdminEmail] = useState('');
   const [currentAdmins, setCurrentAdmins] = useState<User[]>([]);
   const [adminToRemove, setAdminToRemove] = useState<User | null>(null);
@@ -276,12 +217,6 @@ const OrganizationManagementPage: React.FC = () => {
       return Array.from({length: 5}, (_, i) => currentYear - i);
   }, []);
 
-  useEffect(() => {
-    if (user?.role === UserRole.ACADEMY_ADMIN || user?.role === UserRole.SYSTEM_ADMIN) {
-      fetchPlans();
-    }
-  }, [user, fetchPlans]);
-  
   useEffect(() => {
     const yearNum = filterYear ? parseInt(filterYear, 10) : undefined;
     const monthNum = filterMonth ? parseInt(filterMonth, 10) : undefined;
@@ -298,12 +233,12 @@ const OrganizationManagementPage: React.FC = () => {
   }, [dataError]);
 
   useEffect(() => {
-      fetchOrganizations();
-  }, [fetchOrganizations]);
+      fetchWorkspaces();
+  }, [fetchWorkspaces]);
 
   useEffect(() => {
     if (showAdminModal) {
-        const admins = users.filter(u => u.dbRoles?.organizationAdmin?.includes(showAdminModal.id));
+        const admins = users.filter(u => u.dbRoles?.workspaceAdmin?.includes(showAdminModal.id));
         setCurrentAdmins(admins);
     } else {
         setCurrentAdmins([]);
@@ -312,22 +247,16 @@ const OrganizationManagementPage: React.FC = () => {
 
 
    const orgsWithComputedData: OrgWithComputedData[] = useMemo(() => {
-    if (!organizations || !users) return [];
+    if (!workspaces || !users) return [];
 
     // Hide system-generated fallback orgs (isPersonal: true) from the management table
-    let filteredOrgs = organizations.filter(org => !org.isPersonal);
+    let filteredOrgs = workspaces.filter(org => !org.isPersonal);
 
-    // Filter by view type using plan.maxUsers as the source of truth
+    // Filter by view type
     if (viewType === 'individual') {
-        filteredOrgs = filteredOrgs.filter(org => {
-            const plan = plans.find(p => p.id === org.planId);
-            return plan ? plan.maxUsers === 1 : false;
-        });
+        filteredOrgs = filteredOrgs.filter(org => (org as any).isPersonal === true);
     } else if (viewType === 'corporate') {
-        filteredOrgs = filteredOrgs.filter(org => {
-            const plan = plans.find(p => p.id === org.planId);
-            return !plan || plan.maxUsers !== 1;
-        });
+        filteredOrgs = filteredOrgs.filter(org => !(org as any).isPersonal);
     }
 
     // Filter by search term
@@ -335,11 +264,6 @@ const OrganizationManagementPage: React.FC = () => {
         filteredOrgs = filteredOrgs.filter(org =>
             org.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
-    }
-
-    // Filter by plan
-    if (filterPlan) {
-        filteredOrgs = filteredOrgs.filter(org => org.planId === filterPlan);
     }
 
     // Filter by status
@@ -351,9 +275,9 @@ const OrganizationManagementPage: React.FC = () => {
     }
 
     return filteredOrgs.map(org => {
-        const orgUsers = users.filter(u => u.organizations.some(userOrg => userOrg.id === org.id));
+        const orgUsers = users.filter(u => u.workspaces.some(userOrg => userOrg.id === org.id));
         const usageData = orgTokenUsage?.[org.id];
-        
+
         return {
             ...org,
             userCount: orgUsers.length,
@@ -361,37 +285,33 @@ const OrganizationManagementPage: React.FC = () => {
             tokenLimit: usageData?.limit ?? null
         };
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [organizations, users, orgTokenUsage, plans, searchTerm, filterPlan, filterStatus, viewType]);
+  }, [workspaces, users, orgTokenUsage, searchTerm, filterStatus, viewType]);
 
   const dynamicTitle = useMemo(() => {
     const filters: string[] = [];
-    
+
     if (searchTerm) {
         filters.push(`Name includes "${searchTerm}"`);
-    }
-    if (filterPlan) {
-        const planName = plans.find(p => p.id === filterPlan)?.name;
-        if (planName) filters.push(`Plan: "${planName}"`);
     }
     if (filterStatus !== 'all') {
         filters.push(`Payment Status: ${filterStatus === 'on' ? 'On' : 'Off'}`);
     }
 
     const count = `(${orgsWithComputedData.length})`;
-    
+
     if (filters.length > 0) {
         return `${filters.join(', ')} ${count}`;
     }
-    
+
     switch(viewType) {
         case 'corporate':
             return `Corporate Clients ${count}`;
         case 'individual':
             return `Individual Subscribers ${count}`;
         default:
-            return `All Organizations ${count}`;
+            return `All WorkHubs ${count}`;
     }
-  }, [searchTerm, filterPlan, filterStatus, viewType, plans, orgsWithComputedData.length]);
+  }, [searchTerm, filterStatus, viewType, orgsWithComputedData.length]);
 
 
   const clearFeedback = () => {
@@ -400,34 +320,33 @@ const OrganizationManagementPage: React.FC = () => {
     if (dataError) clearDataError();
   };
 
-  const handleAddOrganization = async () => {
+  const handleAddWorkspace = async () => {
     clearFeedback();
     if (newOrgName.trim()) {
       setIsSaving(true);
       // New orgs default to manual, admin can change it in edit
-      const newOrg = await addOrganization(newOrgName.trim(), user!.academyId, newOrgPlanId);
+      const newOrg = await addWorkspace(newOrgName.trim(), user!.orgId);
       setIsSaving(true); // Keep spinner until modal closes or error shows
       if (newOrg) {
         setNewOrgName('');
-        setNewOrgPlanId('');
         setIsSaving(false);
         setIsAddModalOpen(false);
-        setFeedbackMessage({ type: 'success', text: `Organization "${newOrg.name}" added successfully.` });
+        setFeedbackMessage({ type: 'success', text: `Workspace "${newOrg.name}" added successfully.` });
       } else if (!dataError) { 
         setIsSaving(false);
-        setModalError('Failed to add organization.');
+        setModalError('Failed to add workspace.');
       } else {
         setIsSaving(false);
       }
     } else {
-      setModalError('Organization Name is required.');
+      setModalError('WorkHub Name is required.');
     }
   };
   
   const handleRowClick = (org: OrgWithComputedData) => {
     if (org.isPersonal) {
         // Find the single user associated with this personal org
-        const userInOrg = users.find(u => u.organizations.some(userOrg => userOrg.id === org.id));
+        const userInOrg = users.find(u => u.workspaces.some(userOrg => userOrg.id === org.id));
         if (userInOrg) {
             navigate(`/admin/users/${userInOrg.id}`);
         } else {
@@ -440,7 +359,7 @@ const OrganizationManagementPage: React.FC = () => {
 
   const handleOpenEditModal = (org: OrgWithComputedData) => {
     clearFeedback();
-    setEditOrgData({ name: org.name, planId: org.planId || '', subscriptionProvider: org.subscriptionProvider || 'manual' });
+    setEditOrgData({ name: org.name });
     setOrgToEdit(org);
   };
   
@@ -448,43 +367,46 @@ const OrganizationManagementPage: React.FC = () => {
     clearFeedback();
     if (orgToEdit && editOrgData.name.trim()) {
       setIsSaving(true);
-      const success = await updateOrganization(orgToEdit.id, { 
-          name: editOrgData.name.trim(), 
-          planId: editOrgData.planId,
-          subscriptionProvider: editOrgData.subscriptionProvider,
+      const success = await updateWorkspace(orgToEdit.id, {
+          name: editOrgData.name.trim(),
           isPersonal: orgToEdit.isPersonal // Maintain the flag
       });
       setIsSaving(false);
       if (success) {
-        setFeedbackMessage({ type: 'success', text: `Organization "${editOrgData.name}" updated.` });
+        setFeedbackMessage({ type: 'success', text: `Workspace "${editOrgData.name}" updated.` });
         setOrgToEdit(null);
       } else if (!dataError) {
-        setModalError('Failed to update organization.');
+        setModalError('Failed to update workspace.');
       }
     }
   };
 
-  const handleAttemptArchive = async (org: OrgWithComputedData) => {
+  const handleAttemptArchive = (org: OrgWithComputedData) => {
     clearFeedback();
-    setIsSaving(true);
-    const result = await deleteOrganization(org.id);
-    setIsSaving(false);
-    if (result.isConflict) {
-        setArchiveConfirmData({ resource: org, dependencies: result.dependencies.users || [] });
-    } else if (dataError) {
-        setFeedbackMessage({ type: 'error', text: dataError });
-    } else {
-        setArchiveConfirmData({ resource: org });
-    }
+    // Show confirmation first; dependency check happens on confirm
+    setArchiveConfirmData({ resource: org });
   };
 
   const handleConfirmArchive = async () => {
     if (!archiveConfirmData) return;
+    clearFeedback();
     setIsSaving(true);
-    const success = await confirmArchiveOrganization(archiveConfirmData.resource.id);
-    if (success) {
-        setFeedbackMessage({ type: 'success', text: 'Organization archived successfully.' });
+    const result = await deleteWorkspace(archiveConfirmData.resource.id);
+    setIsSaving(false);
+    if (result.isConflict) {
+        // Show dependency warning; user must confirm again
+        setArchiveConfirmData({ resource: archiveConfirmData.resource, dependencies: result.dependencies?.users || [] });
+        return;
     }
+    // No conflict — archive succeeded (errors surface via the dataError useEffect)
+    setArchiveConfirmData(null);
+  };
+
+  const handleConfirmArchiveWithDeps = async () => {
+    if (!archiveConfirmData) return;
+    clearFeedback();
+    setIsSaving(true);
+    await confirmArchiveWorkspace(archiveConfirmData.resource.id);
     setIsSaving(false);
     setArchiveConfirmData(null);
   };
@@ -497,7 +419,7 @@ const OrganizationManagementPage: React.FC = () => {
         }
         clearFeedback();
         setIsSaving(true);
-        const result = await addOrganizationManager(showAdminModal.id, adminEmail);
+        const result = await addWorkspaceManager(showAdminModal.id, adminEmail);
         setIsSaving(false);
         if (result) {
             setFeedbackMessage({ type: 'success', text: result.message });
@@ -512,7 +434,7 @@ const OrganizationManagementPage: React.FC = () => {
         if (!adminToRemove || !showAdminModal) return;
         clearFeedback();
         setIsSaving(true);
-        const result = await removeOrganizationManager(showAdminModal.id, adminToRemove.id);
+        const result = await removeWorkspaceManager(showAdminModal.id, adminToRemove.id);
         setIsSaving(false);
         if (result) {
             setFeedbackMessage({ type: 'success', text: result.message });
@@ -522,22 +444,7 @@ const OrganizationManagementPage: React.FC = () => {
         setAdminToRemove(null);
     };
 
-    const handleExportToExcel = () => {
-        const dataForExport = orgsWithComputedData.map(org => ({
-            'Name': org.name,
-            'Plan': org.planName || 'N/A',
-            'Billing via': org.subscriptionProvider?.replace('woocommerce', 'WordPress') || 'Manual',
-            'Payment Status': ['active', 'trialing'].includes(org.subscriptionStatus || '') ? 'On' : 'Off',
-            'Users': org.userCount,
-            'Tokens Used': org.tokensUsed,
-            'Token Limit': org.tokenLimit === null ? 'Unlimited' : org.tokenLimit,
-            'Type': org.isPersonal ? 'Individual Subscriber' : 'Corporate Client',
-        }));
-
-        exportToCSV(dataForExport, "Gymind_Organizations_Export.csv");
-    };
-
-  if (user?.role !== UserRole.ACADEMY_ADMIN && user?.role !== UserRole.SYSTEM_ADMIN) {
+  if (user?.role !== UserRole.ORGANIZATION_ADMIN && user?.role !== UserRole.SYSTEM_ADMIN) {
     return <div className="p-6 text-red-600">{t('admin.accessDenied')}</div>;
   }
 
@@ -548,28 +455,21 @@ const OrganizationManagementPage: React.FC = () => {
         <div className="max-w-6xl mx-auto">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-2">
                 <h1 className="text-3xl font-bold text-gray-800 flex items-center">
-                    <FiBriefcase className="mr-3 text-blue-500"/> {t('admin.manageOrganizations')}
+                    <FiBriefcase className="mr-3 text-blue-500"/> {t('admin.manageWorkspaces')}
                 </h1>
                 <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                   <button onClick={() => setIsArchiveModalOpen(true)} className="bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors text-sm w-full sm:w-auto">
                       <FiArchive className="mr-2" /> {t('common.viewArchived')}
                   </button>
                   <button
-                    onClick={handleExportToExcel}
-                    className="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
-                    title={t('admin.exportOrganizationList')}
-                  >
-                    <FiShare className="mr-2" /> {t('common.export')}
-                  </button>
-                  <button
                     onClick={() => setIsAddModalOpen(true)}
                     className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
                   >
-                    <FiPlusCircle className="mr-2" /> {t('admin.addOrganization')}
+                    <FiPlusCircle className="mr-2" /> {t('admin.addWorkspace')}
                   </button>
                 </div>
             </div>
-            <TutorialSection videoUrl={tutorialSettings?.organizations?.videoUrl} />
+            <TutorialSection videoUrl={tutorialSettings?.workspaces?.videoUrl} />
         </div>
       </div>
 
@@ -589,7 +489,7 @@ const OrganizationManagementPage: React.FC = () => {
                     <div className="flex items-center gap-6">
                         <h2 className="text-xl font-semibold text-gray-700">{t('common.filters')}</h2>
                         <button
-                            onClick={() => { setSearchTerm(''); setFilterPlan(''); setFilterStatus('all'); setFilterYear(''); setFilterMonth(''); setViewType('all'); }}
+                            onClick={() => { setSearchTerm(''); setFilterStatus('all'); setFilterYear(''); setFilterMonth(''); setViewType('all'); }}
                             className="text-sm text-blue-600 border border-blue-600 hover:bg-blue-50 font-medium px-3 py-1 rounded-md transition-colors"
                             aria-label={t('common.resetFilters')}
                         >
@@ -602,20 +502,13 @@ const OrganizationManagementPage: React.FC = () => {
                         <button onClick={() => setViewType('individual')} className={`w-1/3 sm:w-auto px-3 py-1 text-sm font-medium rounded-md ${viewType === 'individual' ? 'bg-white shadow' : 'text-gray-600'}`}>{t('admin.individualSubscribers')}</button>
                     </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label htmlFor="org-search" className="block text-sm font-medium text-gray-700">{t('admin.searchByName')}</label>
                         <input
                             id="org-search" type="text" placeholder={t('admin.enterName')} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
                             className="mt-1 w-full p-2 border border-gray-300 rounded-md"
                         />
-                    </div>
-                    <div>
-                        <label htmlFor="plan-filter" className="block text-sm font-medium text-gray-700">{t('admin.filterByPlan')}</label>
-                        <select id="plan-filter" value={filterPlan} onChange={(e) => setFilterPlan(e.target.value)} className="mt-1 w-full p-2 border border-gray-300 rounded-md bg-white">
-                            <option value="">{t('admin.allPlans')}</option>
-                            {activePlans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}
-                        </select>
                     </div>
                     <div>
                         <label htmlFor="status-filter" className="block text-sm font-medium text-gray-700">{t('admin.paymentStatus')}</label>
@@ -649,15 +542,15 @@ const OrganizationManagementPage: React.FC = () => {
 
             <div className="bg-white shadow-md rounded-lg overflow-x-auto custom-scrollbar">
             {orgsWithComputedData.length === 0 && !isDataLoading ? (
-                <p className="p-6 text-gray-500 text-center">{t('admin.noOrganizationsFound')}</p>
+                <p className="p-6 text-gray-500 text-center">{t('admin.noWorkspacesFound')}</p>
             ) : (
                 <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        {viewType === 'all' ? t('common.name') : viewType === 'corporate' ? t('admin.organizationName') : t('admin.subscriberName')}
+                        {viewType === 'all' ? t('common.name') : viewType === 'corporate' ? t('admin.workspaceName') : t('admin.subscriberName')}
                     </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.plan')}</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.organizationManagement.plan')}</th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.billingVia')}</th>
                     <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                         {t('admin.paymentStatus')}
@@ -702,10 +595,9 @@ const OrganizationManagementPage: React.FC = () => {
       </div>
       
       {orgToEdit && (
-        <OrganizationModal
+        <WorkspaceModal
           org={orgToEdit}
           editData={editOrgData}
-          plans={activePlans}
           onClose={() => setOrgToEdit(null)}
           onSave={handleSaveEdit}
           isSaving={isSaving}
@@ -720,7 +612,7 @@ const OrganizationManagementPage: React.FC = () => {
       <PreApproveUsersModal 
         isOpen={!!preApproveModalOrg} 
         onClose={() => setPreApproveModalOrg(null)} 
-        organization={preApproveModalOrg}
+        workspace={preApproveModalOrg}
       />
 
       {showAdminModal && ReactDOM.createPortal(
@@ -790,38 +682,39 @@ const OrganizationManagementPage: React.FC = () => {
       <ConfirmationModal
         isOpen={!!archiveConfirmData}
         onClose={() => setArchiveConfirmData(null)}
-        onConfirm={handleConfirmArchive}
+        onConfirm={archiveConfirmData?.dependencies && archiveConfirmData.dependencies.length > 0
+          ? handleConfirmArchiveWithDeps
+          : handleConfirmArchive}
         isLoading={isSaving}
-        title="Confirm Organization Archive"
+        title="Confirm WorkHub Archive"
         message={<>Are you sure you want to archive "<strong>{archiveConfirmData?.resource.name}</strong>"?</>}
         confirmText="Confirm Archive"
         dependencies={archiveConfirmData?.dependencies}
-        dependencyWarning={archiveConfirmData?.dependencies && archiveConfirmData.dependencies.length > 0 ? `This will unassign ${archiveConfirmData.dependencies.length} user(s). Their accounts will NOT be deleted.` : "This action cannot be undone."}
+        dependencyWarning={archiveConfirmData?.dependencies && archiveConfirmData.dependencies.length > 0
+          ? `This will unassign ${archiveConfirmData.dependencies.length} user(s). Their accounts will NOT be deleted.`
+          : undefined}
       />
 
       <ArchiveRestoreModal
         isOpen={isArchiveModalOpen}
         onClose={() => setIsArchiveModalOpen(false)}
-        title="Archived Organizations"
-        items={archivedOrganizations}
-        onRestore={restoreOrganization}
-        fetchItems={fetchArchivedOrganizations}
+        title="Archived Workspaces"
+        items={archivedWorkspaces}
+        onRestore={restoreWorkspace}
+        fetchItems={fetchArchivedWorkspaces}
       />
 
-      <AddOrganizationModal
+      <AddWorkspaceModal
         isOpen={isAddModalOpen}
         onClose={() => { setIsAddModalOpen(false); setModalError(null); }}
-        onSave={handleAddOrganization}
+        onSave={handleAddWorkspace}
         isSaving={isSaving}
-        plans={activePlans}
         name={newOrgName}
         setName={setNewOrgName}
-        planId={newOrgPlanId}
-        setPlanId={setNewOrgPlanId}
         error={modalError}
       />
     </div>
   );
 };
 
-export default OrganizationManagementPage;
+export default WorkspaceManagementPage;

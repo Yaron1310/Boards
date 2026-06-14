@@ -3,165 +3,31 @@ import admin from 'firebase-admin';
 
 // --- HIERARCHY & TENANCY ---
 
-export interface DBAcademy {
+export interface DBOrganization {
   id: string;
   name: string;
-  planId?: string;
   createdAt: admin.firestore.Timestamp | Date | any;
-  subscriptionStatus?: 'active' | 'past_due' | 'cancelled' | 'incomplete';
 }
 
-export interface GrowthAllowanceTier {
-  minUsers: number;
-  maxUsers: number | null; // null for the last tier (e.g., 10001+)
-  percentage: number; // e.g., 0.1 for 10%
-  absolute: number;
-}
-
-export interface DBPlan {
+export interface DBWorkspace {
   id: string;
-  academyId: string;
   name: string;
+  orgId: string;
+  color?: string;
   createdAt: admin.firestore.Timestamp | Date | any;
-  updatedAt: admin.firestore.Timestamp | Date | any;
-  status?: 'active' | 'archived';
-  
-  accessibleCourseIds?: string[];
-  hasAllCoursesAccess?: boolean;
-  
-  accessibleChatPersonaIds?: string[];
-  hasAllChatAccess?: boolean;
-  
-  accessibleQuestionnaireIds?: string[];
-  hasAllQuestionnairesAccess?: boolean;
-
-  planType?: 'subscription' | 'one-time';
-  isForSingleUser?: boolean;
-  maxUsers?: number; 
-  priceMonthly?: number; // New
-  currency?: string;     // New
-  accessRules?: {
-    revokeChat?: 'never' | 'on_course_completion' | 'after_duration';
-    revokeChatCourseId?: string | null;
-    revokeChatAfterDays?: number | null;
-    revokeChatAfterCompletionDays?: number | null;
-    postAccessBehavior?: 'revoke_all' | 'content_only'; // Defines what happens when access ends
-  };
-}
-
-
-export interface DBOrganization { 
-  id: string; 
-  name: string; 
-  academyId: string; // Link to the parent academy
-  createdAt: admin.firestore.Timestamp | Date | any; 
   updatedAt?: admin.firestore.Timestamp | Date | any;
-  planId?: string; // Link to a plan
-  paymentMethod?: 'direct' | 'gymind'; // DEPRECATED in favor of subscriptionProvider
-  subscriptionProvider?: 'woocommerce' | 'gymind' | 'manual'; // The source of truth
-  subscriptionStatus?: 'active' | 'cancelled' | 'past_due' | 'trialing' | 'incomplete';
-  cancelAtPeriodEnd?: boolean; // New flag for pending cancellation
-  subscriptionEndDate?: admin.firestore.Timestamp | Date | any; // End date of current billing period
-  isPersonal?: boolean; // New flag for single-user workspaces
+  isPersonal?: boolean;
+  isTemplates?: boolean;
   status?: 'active' | 'archived';
 }
 
-export interface DBAcademyBillingCycle {
-    id: string; // e.g., "academyId_2024-08"
-    academyId: string;
-    billingCycleStart: admin.firestore.Timestamp | Date;
-    billingCycleEnd: admin.firestore.Timestamp | Date;
-    baselineUserCount: number;
-    growthAllowance: number;
-    topUpUserCount: number;
-    calculatedTokenLimit: number;
-    currentTokenUsage: number;
-    notification70Sent: boolean;
-    notification85Sent: boolean;
-    notification95Sent: boolean;
-    createdAt: admin.firestore.Timestamp | Date | any;
-}
-
-export interface DBTransaction {
-    id: string;
-    academyId: string;
-    billingCycleId: string;
-    amount: number;
-    currency: string;
-    description: string;
-    type: 'top-up';
-    createdAt: admin.firestore.Timestamp | Date;
-}
-
-export interface DBPendingCheckout {
-    id: string;
-    name: string;
-    email: string;
-    password?: string;
-    company: string;
-    address: string;
-    city: string;
-    zip: string;
-    country: string;
-    planId: string;
-    academyId: string;
-}
-
-export interface DBPaymentInitiationSession {
-    id: string;
-    userId?: string; 
-    organizationId?: string; // New field to support upgrades
-    planId: string;
-    academyId: string;
-    isForSingleUser: boolean;
-    name: string;
-    email: string;
-    passwordHash?: string;
-    company: string;
-    address: string;
-    city: string;
-    zip: string;
-    country: string;
-    createdAt: admin.firestore.Timestamp | Date | any;
-    // Status tracking for idempotency
-    status?: 'pending' | 'completed';
-    createdUserId?: string;
-    createdOrgId?: string;
-}
-
-
-// ... rest of the file remains unchanged ...
-export interface ExtractionSetting {
-  key: string; 
-  label: string;
-  enabled: boolean;
-}
-
-export interface AIInsightSetting {
-  key: string; 
-  label: string;
-  enabled: boolean;
-}
-
-export interface PublicPlanConfig {
-  planId: string;
-  displayName: string;
-  billingCycle: string;
-  description: string;
-  bullets: string[];
-  buttonText: string;
-  tagText?: string;
-  tagColor?: string;
-  tagTextColor?: string; // New field
-}
-
-export interface DBAcademySettings {
-  id: string; 
+export interface DBOrganizationSettings {
+  id: string;
   sidebarColor: string;
   enableSidebarGradient?: boolean;
   sidebarHueRotation?: number;
-  sidebarGradientHeight?: number; 
-  sidebarGradientMaskOpacity?: number; 
+  sidebarGradientHeight?: number;
+  sidebarGradientMaskOpacity?: number;
   appName: string;
   logoUrl: string;
   description?: string;
@@ -169,502 +35,454 @@ export interface DBAcademySettings {
   contactPhone?: string;
   website?: string;
   socialMedia?: {
-      twitter?: string;
-      linkedin?: string;
-      facebook?: string;
-      instagram?: string;
+    twitter?: string;
+    linkedin?: string;
+    facebook?: string;
+    instagram?: string;
   };
   apiKey?: string;
-  subscriptionCancellationWebhookUrl?: string; 
   updatedAt: admin.firestore.Timestamp | Date | any;
   displayNameColor?: string;
   sidebarLinkColor?: string;
-  publicPlansPage?: {
-    enabled: boolean;
-    enableGradient?: boolean; // New field
-    gradientHueRotation?: number; // Decoupled setting
-    gradientHeight?: number;      // Decoupled setting
-    gradientMaskOpacity?: number; // Decoupled setting
-    pageHeader: string;
-    headerFontWeight?: string; 
-    cardBackgroundColor?: string; // Global setting
-    cardBorderColor?: string;     // Global setting
-    cardFontColor?: string;       // Global setting
-    buttonBackgroundColor?: string; // Global setting
-    buttonTextColor?: string;       // Global setting
-    customized?: boolean;           // True once admin has explicitly saved these settings
-    selectedPlans: PublicPlanConfig[];
-  };
-  bridgeEnabled?: boolean;
-  bridgeSecretKey?: string;
+  logoCircle?: boolean;
 }
 
 export interface DBSystemSettings {
-  id?: string; 
-  oneTimeTokensPerLesson: number;
-  oneTimeGeneralTokens: number;
-  subscriptionMonthlyLimit: number;
-  growthAllowanceTiers?: GrowthAllowanceTier[];
-  geminiProModelName?: string;
-  geminiFlashModelName?: string;
-  costPer1000TokensPro?: number;
-  rawCostPer1000TokensPro?: number;
-  profitMarginPer1000TokensPro?: number;
-  costPer1000TokensFlash?: number;
-  rawCostPer1000TokensFlash?: number;
-  profitMarginPer1000TokensFlash?: number;
-  globalSystemPrompt?: string;
-}
-
-export interface TutorialLink {
-  enabled: boolean;
-  videoUrl: string;
+  id?: string;
 }
 
 export interface DBTutorialSettings {
-  id?: string; 
-  aiMentor?: TutorialLink;
-  courses?: TutorialLink;
-  questionnaires?: TutorialLink;
-  plansBilling?: TutorialLink;
-  wpPlugin?: TutorialLink;
-  theme?: TutorialLink;
-  organizations?: TutorialLink;
-  users?: TutorialLink;
+  id?: string;
 }
-
 
 export enum UserRole {
   REGULAR_USER = 'regular_user',
-  ORGANIZATION_ADMIN = 'organization_admin',
-  ACADEMY_ADMIN = 'academy_admin',
+  ORG_EDITOR = 'org_editor',
+  WORKSPACE_ADMIN = 'workspace_admin',
+  ORGANIZATION_ADMIN = 'org_admin',
   SYSTEM_ADMIN = 'system_admin',
 }
 
 export interface DBUser {
   id: string;
   email: string;
-  name:string;
+  name: string;
   passwordHash?: string;
   profileImageUrl?: string;
   googleId?: string;
   microsoftId?: string;
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
-  emailVerified?: boolean; 
+  emailVerified?: boolean;
   createdAt: admin.firestore.Timestamp | Date | any;
-  hasSeenChatPrivacyNotice?: boolean;
-  conversationSavingEnabled?: boolean;
   preferredLanguage?: string;
   passwordResetId?: string;
   failedLoginAttempts?: number;
   lockoutUntil?: admin.firestore.Timestamp | Date | null | any;
-  registrationType?: 'standard' | 'payment';
-  primaryAcademyId?: string;
-  defaultOrganizationId?: string;
-  // Denormalized counts
-  completedQuestionnairesCount?: number;
-  conversationCount?: number;
-  completedCourseCount?: number;
+  primaryOrganizationId?: string;
+  defaultWorkspaceId?: string;
+  preferences?: {
+    darkContrast?: boolean;
+  };
+  forceLogoutAt?: admin.firestore.Timestamp | Date | null;
 }
 
 export interface DBMembership {
   id: string;
   userId: string;
   entityId: string;
-  entityType: 'organization' | 'academy';
+  entityType: 'workspace' | 'workspace';
   role: UserRole;
-  academyId: string;
+  orgId: string;
+  permissions?: 'edit' | 'read_only';
+  boardOnlyAccess?: boolean;
+  boardIds?: string[];
   createdAt: admin.firestore.Timestamp | Date | any;
-  // Denormalized user fields for list views (kept in sync via profile-update fan-out)
+  // Denormalized user fields for list views
   userName?: string;
   userEmail?: string;
   userProfileImageUrl?: string;
   userStatus?: string;
   userCreatedAt?: admin.firestore.Timestamp | Date | any;
   userHasPassword?: boolean;
-  // Denormalized user counts
-  completedQuestionnairesCount?: number;
-  conversationCount?: number;
-  completedCourseCount?: number;
-}
-
-
-export interface DBUserAccessStatus {
-    id: string; 
-    planId: string;
-    organizationId: string;
-    planType: 'one-time' | 'subscription';
-    tokenLimit?: number; 
-    tokensUsed?: number; 
-    monthlyTokenLimit?: number; 
-    monthlyTokensUsed?: number; 
-    usageResetDate?: admin.firestore.Timestamp | Date | any; 
-    hasAccess: boolean; 
-    updatedAt: admin.firestore.Timestamp | Date | any;
 }
 
 export interface DBPreapprovedUser {
   id: string;
   email: string;
-  organizationId: string;
-  academyId: string;
+  workspaceId: string;
+  orgId: string;
   addedBy: string;
+  permissions?: 'edit' | 'read_only';
+  boardOnlyAccess?: boolean;
+  boardIds?: string[];
+  allWorkspaces?: boolean;
   createdAt: admin.firestore.Timestamp | Date | any;
 }
 
-
-export interface DBMessage {
-  id: string; 
-  sender: 'user' | 'ai'; 
-  text: string; 
-  timestamp: Date; 
-  isError?: boolean
-}
-
-export interface DBConversation {
+export interface DBUserAccessStatus {
   id: string;
-  userId: string;
-  personaId: string;
-  personaName: string;
-  date: Date;
-  messages?: Array<DBMessage>;
-  messageCount: number;
-  lastMessageAt?: Date;
-  extractedFactors?: { [key: string]: string };
-  createdAt: admin.firestore.Timestamp | Date | any;
-  isPrivate?: boolean;
-  academyId?: string;
-  organizationId?: string;
-}
-
-export interface DBTriggerPhrase { 
-  id: string; 
-  language: string; 
-  phrase: string; 
-  academyId: string;
-  createdAt: admin.firestore.Timestamp | Date | any; 
-}
-
-export interface DBChatPersona {
-  id: string;
-  academyId: string;
-  name: string;
-  description: string;
-  personaPreamble?: string;
-  systemPrompt: string;
-  extractionSettings: ExtractionSetting[];
-  aiInsightPrompt: string;
-  aiInsightSettings: AIInsightSetting[];
-  createdAt: admin.firestore.Timestamp | Date | any;
-  updatedAt: admin.firestore.Timestamp | Date | any;
-  status?: 'active' | 'archived';
-  includePersonalization?: boolean;
-  isInitialMessageEnabled?: boolean;
-  initialMessage?: string;
-  summaryInstructions?: string;
-  planIds?: string[];
-}
-
-export interface DBPersonalInsight {
-  id: string;
-  userId: string;
-  key: string;
-  label: string;
-  value: string | number | boolean;
-  source: string;
+  workspaceId: string;
+  hasAccess: boolean;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
 
-
-export type QuestionnaireType = 'categorical' | 'custom';
-export type QuestionType = 'multiple_choice' | 'open_text';
-
-export interface DBQuestionnaire {
-  id: string;
-  academyId: string;
-  name: string;
-  description: string;
-  type?: QuestionnaireType;
-  passingScore?: number;
-  createdAt: admin.firestore.Timestamp | Date | any;
-  updatedAt: admin.firestore.Timestamp | Date | any;
-  status?: 'active' | 'archived';
-  resultSettings: {
-    showGraph: boolean;
-    numberOfTopCategories: number;
-    includeTies?: boolean;
-    saveToInsights?: boolean;
-  };
-  categoryCount?: number;
-}
-
-export interface DBCategory {
-  id: string;
-  questionnaireId: string;
-  name: string;
-  description: string;
-  videoUrl: string;
-  order: number;
-  showNameInQuiz?: boolean;
-}
-
-export interface DBQuestion {
-  id: string;
-  categoryId: string;
-  text: string;
-  type?: QuestionType;
-  order: number;
-  answers: DBAnswer[];
-  correctAnswerId?: string;
-  customScore?: number;
-  correctAnswerText?: string;
-}
-
-export interface DBAnswer {
-  id: string;
-  text: string;
-  score: number;
-}
-
-export interface DBUserQuestionnaireResult {
-  id: string;
-  userId: string;
-  questionnaireId: string;
-  questionnaireName: string;
-  completedAt: Date;
-  source?: 'standalone' | 'assignment';
-  categoryScores: { categoryId: string; categoryName: string; score: number }[];
-  topCategories: Array<{
-    categoryId: string;
-    name: string;
-    score: number;
-    description: string;
-    videoUrl: string;
-  }>;
-  score?: number;
-  passed?: boolean;
-  responses?: Array<{
-    questionId: string;
-    questionText: string;
-    answerId?: string;
-    answerText?: string;
-    correctAnswerText?: string;
-    isCorrect?: boolean;
-    pointsEarned?: number;
-    feedback?: string;
-  }>;
-  createdAt: admin.firestore.Timestamp | Date | any;
-}
-
-export interface DBCourseAnswer {
-  id: string;
-  text: string;
-}
-
-export interface DBCourseQuestion {
-  id: string;
-  order: number;
-  text: string;
-  answers: DBCourseAnswer[];
-  correctAnswerId: string;
-  createdAt: admin.firestore.Timestamp | Date | any;
-  updatedAt: admin.firestore.Timestamp | Date | any;
-}
-
-export interface DBCourse {
-  id: string;
-  academyId: string;
-  name: string;
-  description: string;
-  createdAt: admin.firestore.Timestamp | Date | any;
-  updatedAt: admin.firestore.Timestamp | Date | any;
-  status?: 'active' | 'archived';
-  planIds?: string[];
-  lessonCount?: number;
-  coverImage?: string;
-  totalDuration?: number;
-  promoVideoUrl?: string;
-}
-
-export interface DBInsightField {
-  htmlElementId: string;
-  key: string;
-  label: string;
-}
-
-export interface DBLessonAssignment {
-  type: 'chat' | 'questionnaire' | 'custom_code';
-  id: string; 
-  name: string;
-  isMandatory: boolean;
-  customHtml?: string;
-  customCss?: string;
-  customJs?: string;
-  insightFields?: DBInsightField[];
-  endButtonId?: string;
-  autoOpenEnabled?: boolean;
-  autoOpenTimestamp?: number;
-  isInsightsPrivate?: boolean;
-}
-
-export interface DBLesson {
-  id: string;
-  courseId: string;
-  name: string;
-  description: string;
-  videoUrl: string;
-  transcript: string;
-  powerpointUrl?: string;
-  order: number;
-  createdAt: admin.firestore.Timestamp | Date | any;
-  updatedAt: admin.firestore.Timestamp | Date | any;
-  questions?: DBCourseQuestion[];
-  assignments?: DBLessonAssignment[];
-  isBridgeVideo?: boolean;
-  bridgeVideoUrl?: string;
-  videoDuration?: number;
-}
-
-export interface DBUserCourseProgress {
-  id: string; 
-  userId: string;
-  courseId: string;
-  organizationId?: string; 
-  academyId: string; 
-  status: 'not-started' | 'in-progress' | 'completed';
-  completedLessons: string[]; 
-  startedAt: Date;
-  completedAt?: Date;
-  updatedAt: admin.firestore.Timestamp | Date | any;
-}
-
-export interface DBTokenUsage {
-  id: string;
-  userId: string;
-  organizationId: string | null;
-  academyId: string | null;
-  model: string;
-  apiEndpoint: string;
-  totalTokens: number;
-  createdAt: admin.firestore.Timestamp | Date | any;
-}
-
+// --- JWT PAYLOADS ---
 
 export interface JwtUserPayload {
   id: string;
   role: UserRole;
-  selectedOrganizationId: string;
-  academyId: string;
+  selectedWorkspaceId: string;
+  orgId: string;
+  workspacePermissions?: 'edit' | 'read_only';
+  boardIds?: string[];
 }
 
 export interface JwtMultiOrgPayload {
-    id: string;
-    action: 'select-organization' | 'academy-setup';
+  id: string;
+  action: 'select-workspace' | 'workspace-setup';
 }
 
 export interface JwtApprovalPayload {
-    userId: string;
-    action: 'approve_user';
+  userId: string;
+  action: 'approve_user';
 }
 
 export interface JwtVerificationPayload {
-    userId: string;
-    action: 'verify_email' | 'verify_academy_admin';
-    planId?: string;
-    checkoutSessionId?: string;
+  userId: string;
+  action: 'verify_email' | 'verify_organization_admin';
 }
 
 export interface JwtPasswordResetPayload {
-    userId: string;
-    resetId: string;
-    action: 'reset_password';
+  userId: string;
+  resetId: string;
+  action: 'reset_password';
 }
 
-
-// --- Pagination ---
+// --- PAGINATION ---
 
 export interface PaginatedResponse<T> {
-    data: T[];
-    cursor: string | null;
-    hasMore: boolean;
-    total?: number;
+  data: T[];
+  cursor: string | null;
+  hasMore: boolean;
+  total?: number;
 }
 
 declare global {
   namespace Express {
     interface User extends Partial<DBUser>, Partial<JwtUserPayload>, Partial<JwtMultiOrgPayload> {}
     interface Request {
-      academyId?: string;
+      orgId?: string;
     }
   }
 }
 
-// --- MARKETING / NEWSLETTERS ---
+// --- PHASE 4: WORK MANAGEMENT DATA MODEL ---
 
-export interface DBNewsletterEdition {
-  id: string;
-  campaignId: string;
-  academyId: string;
-  subject: string;
-  htmlContent: string;
-  title: string;
-  subtitle: string;
-  mainText: string;
-  showLogoInHeader?: boolean;
-  status: 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-  scheduledFor?: Date;
-  sentAt?: Date;
-  totalRecipients: number;
-  successCount: number;
-  failCount: number;
-  order?: number;                   // Edition order for trigger-based campaigns
-  reminder3DaySent?: boolean;
-  reminder1DaySent?: boolean;
-  createdBy: string;
-  createdAt: admin.firestore.Timestamp | Date | any;
-  updatedAt: admin.firestore.Timestamp | Date | any;
+export enum ColumnType {
+  TEXT = 'text',
+  NUMBER = 'number',
+  DATE = 'date',
+  STATUS = 'status',
+  PERSON = 'person',
+  DROPDOWN = 'dropdown',
+  CHECKBOX = 'checkbox',
+  TAGS = 'tags',
+  TIME = 'time',
+  EMAIL = 'email',
+  PHONE = 'phone',
+  LOCATION = 'location',
+  TIME_RANGE = 'time_range',
+  SIMPLE_FORMULA = 'simple_formula',
 }
 
-export interface DBNewsletterCampaign {
+// --- Column settings per type ---
+
+export interface TextColumnSettings {
+  maxLength?: number;
+  multiline?: boolean;
+}
+
+export interface NumberColumnSettings {
+  precision?: number;
+  unit?: string;
+  summary?: 'sum' | 'avg' | 'min' | 'max' | 'count';
+}
+
+export interface DateColumnSettings {
+  includeTime?: boolean;
+}
+
+export interface StatusOption {
   id: string;
-  academyId: string;
+  label: string;
+  color: string;
+}
+
+export interface StatusColumnSettings {
+  options: StatusOption[];
+  defaultStatusId?: string;
+}
+
+export interface PersonColumnSettings {
+  multiple: boolean;
+}
+
+export interface DropdownOption {
+  id: string;
+  label: string;
+}
+
+export interface DropdownColumnSettings {
+  options: DropdownOption[];
+  multiple: boolean;
+}
+
+export interface TagsColumnSettings {
+  allowCustom: boolean;
+}
+
+export interface SimpleFormulaColumnSettings {
+  defaultFormula: string; // e.g. "{Price} * {Qty}" — evaluated client-side
+}
+
+export type ColumnSettings =
+  | TextColumnSettings
+  | NumberColumnSettings
+  | DateColumnSettings
+  | StatusColumnSettings
+  | PersonColumnSettings
+  | DropdownColumnSettings
+  | TagsColumnSettings
+  | SimpleFormulaColumnSettings
+  | Record<string, never>; // for types with no settings (checkbox, email, phone, location, time, time_range)
+
+export interface DBColumn {
+  id: string;
+  boardId: string;
   name: string;
-  campaignType?: 'scheduled' | 'trigger';  // Defaults to 'scheduled'
-  triggerType?: 'registration' | 'course_enrollment' | 'course_completion';
-  triggerCourseId?: string;                 // Required when triggerType === 'course_enrollment' or 'course_completion'
-  recipientGroup: 'all_users' | 'organization' | 'course_enrolled' | 'course_completed';
-  recipientFilter?: string;         // orgId or courseId depending on group
-  frequency: 'one_time' | 'weekly' | 'biweekly' | 'monthly';
-  scheduledDay?: number;            // Day of week (0-6) for weekly/biweekly, day of month (1-28) for monthly
-  scheduledTime?: string;           // HH:mm in academy's preferred timezone (e.g. "09:00")
-  timezone?: string;                // e.g. "Asia/Jerusalem", "America/New_York"
-  status: 'active' | 'paused' | 'archived';
-  autoCreateNextDraft: boolean;
-  createdBy: string;
+  type: ColumnType;
+  settings: ColumnSettings;
+  summaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
+  width?: number;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
 
-export interface DBTriggerEnrollment {
+// --- Column value types (stored inside Item.values) ---
+
+export interface LocationValue {
+  address: string;
+}
+
+export interface TimeRangeValue {
+  start: admin.firestore.Timestamp | Date | any;
+  end: admin.firestore.Timestamp | Date | any;
+  durationDays?: number;
+}
+
+// --- Cell Dependencies ---
+
+export interface TimeRangeDependency {
   id: string;
-  campaignId: string;
-  academyId: string;
-  userId: string;
-  userEmail: string;
-  triggerType: 'registration' | 'course_enrollment' | 'course_completion';
-  triggerCourseId?: string;
-  triggerDate: Date;
-  nextEditionOrder: number;         // Starts at 1
-  nextSendAfter: Date;              // Earliest time the next edition can be sent
-  status: 'active' | 'completed' | 'cancelled';
+  sourceItemId: string;
+  sourceColumnId: string;
+  targetItemId: string;
+  targetColumnId: string;
+  offsetDays: number;
+  /**
+   * Snapshot of the target's time-range value captured when this dependency
+   * was created. "Revert to original dates" restores this so a manual edit
+   * made while the dependency was active does not survive removal/re-creation.
+   */
+  originalValue?: TimeRangeValue | null;
+}
+
+export interface DependencyRule {
+  id: string;
+  sourceColumnId: string;
+  targetColumnId: string;
+  offsetDays: number;
+}
+
+// The dynamic map stored in an Item document
+export type ColumnValueMap = Record<string, unknown>;
+
+// --- Board ---
+
+export interface DBBoard {
+  id: string;
+  workspaceId: string;
+  name: string;
+  description?: string;
+  order: number;
+  createdBy: string;
+  isArchived?: boolean;
+  isTemplate?: boolean;
+  dependencyRules?: DependencyRule[];
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
+// --- Group ---
+
+export interface DBGroup {
+  id: string;
+  workspaceId: string;
+  boardId: string;
+  name: string;
+  color?: string;
+  order: number;
+  isCollapsed?: boolean;
+  isArchived?: boolean;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
+// --- Item (flat, stored at workspace level) ---
+
+export interface DBItem {
+  id: string;
+  workspaceId: string;
+  boardId: string;
+  groupId: string;
+  name: string;
+  order: number;
+  createdBy: string;
+  isArchived?: boolean;
+  // Indexed top-level fields (mirrored from values for Firestore querying)
+  status?: string;          // mirrors values[statusColumnId]
+  assignees?: string[];     // mirrors values[personColumnId] — userIds
+  dueDate?: admin.firestore.Timestamp | Date | any; // mirrors values[dateColumnId]
+  dependencies?: TimeRangeDependency[];
+  // Chat denormalized counters (updated on each new chat message)
+  chatMessageCount?: number;
+  chatLastMessageAt?: admin.firestore.Timestamp | Date | any;
+  // Per-user seen counts for unread badge: { [userId]: seenCount }
+  chatSeenBy?: Record<string, number>;
+  // Dynamic column values
+  values: ColumnValueMap;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
+// --- Chat Message ---
+
+export interface DBChatMessage {
+  id: string;
+  itemId: string;
+  authorId: string;
+  authorName: string;
+  authorProfileImageUrl?: string;
+  text: string;
+  attachments?: DBChatAttachment[];
+  createdAt: admin.firestore.Timestamp | Date | any;
+}
+
+export interface DBChatAttachment {
+  url: string;
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+// --- CUSTOM DASHBOARDS ---
+
+export type CustomDashboardChartType =
+  | 'pie'
+  | 'bar_vertical'
+  | 'bar_horizontal'
+  | 'radar'
+  | 'line'
+  | 'number';
+
+export type CustomDashboardVisibility = 'admins_only' | 'all';
+export type MetricAggregation = 'COUNT' | 'SUM' | 'AVERAGE' | 'MIN' | 'MAX';
+export type YAxisAggregation = 'COUNT' | 'SUM' | 'AVERAGE';
+export type TimeAxisGrouping = 'day' | 'week' | 'month';
+export type DateFormat = 'auto' | 'dmy' | 'mdy';
+
+export const ITEM_NAME_COLUMN_ID = '__item_name__';
+
+export interface DBMetricEntry {
+  boardId: string;
+  groupId?: string;
+  aggregation: MetricAggregation;
+  columnId?: string;
+  label: string;
+}
+
+export interface DBMetricConfig {
+  type: 'metric';
+  timeAxisColumnId?: string;
+  dateFormat?: DateFormat;
+  metrics: DBMetricEntry[];
+}
+
+export interface DBCategoryConfig {
+  type: 'category';
+  boardId: string;
+  groupId?: string;
+  groupByColumnId: string;
+  yAxisAggregation?: MetricAggregation;  // defaults to COUNT if absent
+  yAxisColumnId?: string;                 // required when yAxisAggregation !== COUNT
+  timeAxisColumnId?: string;
+  dateFormat?: DateFormat;
+}
+
+export interface DBLineSeriesConfig {
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+  dateFormat?: DateFormat;
+  label: string;
+}
+
+export interface DBTimeSeriesConfig {
+  type: 'timeseries';
+  boardId: string;
+  groupId?: string;
+  xAxisColumnId: string;
+  xAxisGrouping: TimeAxisGrouping;
+  yAxisAggregation: YAxisAggregation;
+  yAxisColumnId?: string;
+  dateFormat?: DateFormat;
+  series?: DBLineSeriesConfig[];
+}
+
+export type DBCustomDashboardConfig =
+  | DBMetricConfig
+  | DBCategoryConfig
+  | DBTimeSeriesConfig;
+
+export interface DBCustomDashboard {
+  id: string;
+  name: string;
+  chartType: CustomDashboardChartType;
+  config: DBCustomDashboardConfig;
+  visibility: CustomDashboardVisibility;
+  createdBy: string;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+  isArchived?: boolean;
 }
 
 // --- AUDIT LOGGING ---
 
 export type AuditAction = 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'ANOMALY';
-export type AuditResourceType = 'user' | 'conversation' | 'personalInsight' | 'organization' | 'course' | 'academy';
+export type AuditResourceType =
+  | 'user'
+  | 'workspace'
+  | 'board'
+  | 'group'
+  | 'item'
+  | 'column';
 
 export interface DBAuditLog {
   id: string;
@@ -673,15 +491,52 @@ export interface DBAuditLog {
   action: AuditAction;
   resourceType: AuditResourceType;
   resourceId: string;
-  organizationId?: string;
-  academyId?: string;
+  workspaceId?: string;
+  orgId?: string;
   changes?: { before: unknown; after: unknown };
   ipAddress?: string;
   userAgent?: string;
   details?: string;
   timestamp: admin.firestore.Timestamp | Date | any;
-  /** Firestore TTL field — documents are auto-deleted 12 months after creation. */
   expiresAt: admin.firestore.Timestamp | Date | any;
+}
+
+// --- PHASE 8: DASHBOARD ---
+
+export interface DashboardStatusDistribution {
+  statusId: string;
+  label: string;
+  color: string;
+  count: number;
+}
+
+export interface DashboardWorkloadPerson {
+  userId: string;
+  name: string;
+  profileImageUrl?: string;
+  count: number;
+}
+
+export interface DashboardBoardCount {
+  boardId: string;
+  name: string;
+  count: number;
+}
+
+export interface DashboardSummaryStats {
+  total: number;
+  completed: number;
+  completionRate: number;
+  archived: number;
+}
+
+export interface DashboardSummaryResponse {
+  statusDistribution: DashboardStatusDistribution[];
+  overdue: { count: number; items: DBItem[] };
+  workloadByPerson: DashboardWorkloadPerson[];
+  itemsByBoard: DashboardBoardCount[];
+  summary: DashboardSummaryStats;
+  truncated: boolean;
 }
 
 export interface DBEmailTemplate {
@@ -693,4 +548,74 @@ export interface DBEmailTemplate {
   variables: string[];
   updatedAt: admin.firestore.Timestamp | Date | any;
   updatedBy?: string;
+}
+
+// --- WEBHOOKS ---
+
+export interface DBWebhook {
+  id: string;
+  orgId: string;
+  workspaceId: string;
+  boardId: string;
+  groupId: string;
+  tokenHash: string;
+  insertPosition: 'top' | 'bottom';
+  allowedOrigins: string[];
+  status: 'active' | 'revoked';
+  createdBy: string;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+  lastUsedAt?: admin.firestore.Timestamp | Date | any;
+  useCount: number;
+  /** Position-based column mapping. position is 1-based (field 1 = first field in body). */
+  fieldMap: Array<{ position: number; columnId: string }>;
+  /**
+   * How the item name is derived:
+   *   'field'              — extract from nameFieldPosition (default)
+   *   'timestamp'          — dd/mm/yyyy hh:mm of the moment the request arrives
+   *   'sequence'           — sequential integer (1, 2, 3…) based on item count in the group
+   *   'sequence-timestamp' — combined: "1.  dd/mm/yyyy hh:mm"
+   */
+  nameMode: 'field' | 'timestamp' | 'sequence' | 'sequence-timestamp';
+  /** Which 1-based field position provides the item name when nameMode === 'field'. */
+  nameFieldPosition: number | null;
+}
+
+// --- PHASE 9: PERMISSIONS & NOTIFICATIONS ---
+
+export enum BoardRole {
+  VIEWER = 'viewer',
+  EDITOR = 'editor',
+  ADMIN  = 'admin',
+}
+
+export interface DBBoardMember {
+  userId: string;
+  boardId: string;
+  workspaceId: string;
+  role: BoardRole;
+  addedBy: string;
+  createdAt: admin.firestore.Timestamp;
+  // Denormalized user info (written on add)
+  userName?: string;
+  userEmail?: string;
+  userProfileImageUrl?: string;
+}
+
+export type NotificationType = 'assignment' | 'mention';
+
+export interface DBNotification {
+  id: string;
+  workspaceId: string;
+  recipientId: string;
+  actorId: string;
+  actorName: string;
+  type: NotificationType;
+  resourceType: 'item';
+  resourceId: string;
+  resourceName: string;
+  boardId: string;
+  boardName: string;
+  read: boolean;
+  createdAt: admin.firestore.Timestamp;
 }

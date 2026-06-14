@@ -1,6 +1,6 @@
-# CLAUDE.md — Gymind Codebase Guide
+# CLAUDE.md — Logyx/Gymind Codebase Guide
 
-Gymind is a multi-tenant AI-driven learning & development SaaS platform. It provides AI-powered chat mentors, digital courses, questionnaires, and personal insights, organized in a hierarchy: **System → Academies → Organizations → Users**.
+Logyx is a multi-tenant, Monday.com-like SaaS platform for internal business management. It provides customizable boards, groups, items, and dashboards, organized in a hierarchy: **System → Organizations (Academies) → Workspaces (Organizations) → Users**.
 
 ---
 
@@ -10,29 +10,28 @@ Gymind is a multi-tenant AI-driven learning & development SaaS platform. It prov
 Gymind/
 ├── backend/                        # Firebase Cloud Functions (Express.js API)
 │   └── src/
-│       ├── controllers/            # Request handlers (19 modules)
-│       ├── routes/                 # Route definitions (18 route files)
-│       ├── middleware/             # Express middleware (auth, apiKey, billing, path)
-│       ├── services/               # Business logic (firestore, gemini, email, analytics)
+│       ├── controllers/            # Request handlers (Boards, Items, Workspaces, Auth)
+│       ├── routes/                 # Route definitions
+│       ├── middleware/             # Express middleware (auth, billing, path, rateLimit)
+│       ├── services/               # Business logic (firestore, email, audit)
 │       ├── db/                     # Firestore database abstraction
 │       ├── config/                 # Environment config & validation
-│       ├── types/                  # TypeScript type definitions
-│       ├── utils/                  # Utility functions
+│       ├── types/                  # TypeScript type definitions (Board, Item, Column)
+│       ├── utils/                  # Utility functions (pagination, sanitizer)
 │       ├── index.ts                # Firebase Functions entry point
 │       └── server.ts               # Express app setup
 ├── frontend/       # React frontend (Vite + Tailwind)
 │   └── src/
-│       ├── components/             # React UI components (see below)
-│       ├── contexts/               # Global state via React Context
+│       ├── components/             # React UI components (Boards, Dashboards, Admin)
+│       ├── contexts/               # Global state via React Context (Auth, Data)
 │       ├── hooks/                  # Custom React hooks
-│       ├── services/               # Frontend service layer (Gemini API)
+│       ├── services/               # Frontend service layer
 │       ├── types.ts                # Shared TypeScript interfaces
 │       ├── App.tsx                 # Root router and route definitions
 │       ├── main.tsx                # App entry point
 │       ├── config.ts               # Runtime configuration
-│       └── constants.ts            # App-wide constants (API URL, languages, models)
+│       └── constants.ts            # App-wide constants (API URL, languages)
 ├── firebase.json                   # Firebase deployment config (hosting + functions)
-├── capacitor.config.ts             # Capacitor mobile config
 └── metadata.json                   # Project metadata
 ```
 
@@ -41,273 +40,104 @@ Gymind/
 ## Technology Stack
 
 ### Frontend
-| Tool | Version | Purpose |
-|------|---------|---------|
-| React | 18.3.1 | UI framework |
-| TypeScript | 5.4.5 | Type safety (strict mode) |
-| Vite | 5.3.1 | Build tool and dev server |
-| React Router DOM | 6.30.1 | Client-side routing |
-| Tailwind CSS | 3.4.17 | Utility-first styling |
-| Capacitor | 7.0.0 | iOS/Android mobile wrapper |
-| ESLint | 8.57.1 | Linting |
+- **React 18.3.1** (Vite + TS)
+- **Tailwind CSS 3.4.17**
+- **React Router DOM 6.30.1**
+- **TanStack Query (React Query)**
+- **Capacitor 7.0.0** (Mobile wrapper)
 
 ### Backend
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Node.js | 20 | Runtime (Firebase Cloud Functions) |
-| Express | 4.19.2 | HTTP framework |
-| TypeScript | 5.x | Type safety (strict mode) |
-| Firebase Firestore | Latest | NoSQL database |
-| @google/genai | 1.10.0 | Gemini AI integration |
-| Passport.js | 0.7.0 | OAuth middleware |
-| jsonwebtoken | 9.0.2 | JWT authentication |
-| bcryptjs | 3.0.2 | Password hashing |
-| nodemailer | 7.0.5 | Email sending |
-| sanitize-html | 2.13.0 | HTML input sanitization |
+- **Node.js 20** (Firebase Cloud Functions)
+- **Express 4.19.2**
+- **Firebase Firestore**
+- **Passport.js** (OAuth: Google/Microsoft)
+- **Nodemailer** (Email)
+- **Sanitize-html** (Input safety)
+
+---
+
+## Core Architecture & Hierarchy
+
+### Multi-Tenant Model (UI vs Code Naming)
+- **Organization** (Firestore: `organizations/{orgId}`) — The primary tenant/client entity. This is what the UI labels "Organization".
+- **Workspace** (Firestore: `workspaces/{workspaceId}`, field `orgId` → parent org) — A department or project grouping within an Organization. This is what the UI labels "Workspace".
+- **User** — Employees belonging to one or more Workspaces.
+
+### JWT Payload
+After login the JWT carries:
+- `orgId` — the **organization** ID (top-level tenant). Used as the first argument to all work-management collection functions.
+- `selectedWorkspaceId` — the **workspace** (department) the user is currently operating in. Used for workspace-scoped filtering.
+
+Personal/default workspaces have `isPersonal: true` in Firestore. Boards must never be created in a personal workspace.
+
+### Data Model (Flat Storage at Org Level)
+All work-management data is stored flat under the organization document, **not** under workspace documents. This enables cross-workspace dashboard queries while keeping tenant isolation.
+
+**Actual Firestore paths:**
+```
+/organizations/{orgId}/boards/{boardId}
+/organizations/{orgId}/boards/{boardId}/groups/{groupId}
+/organizations/{orgId}/boards/{boardId}/columns/{columnId}
+/organizations/{orgId}/boards/{boardId}/members/{userId}
+/organizations/{orgId}/items/{itemId}
+/organizations/{orgId}/boardVersions/{boardId}
+/organizations/{orgId}/notifications/{notificationId}
+```
+
+**Workspace scoping is done via fields**, not path nesting:
+- `boards.workspaceId` — which workspace (department) owns this board.
+- `items.workspaceId` — denormalized from its board for filtering.
+
+**Item Schema:**
+- `workspaceId`: Reference to the Workspace (department).
+- `boardId`: Reference to the parent Board.
+- `groupId`: Reference to the Group.
+- `values`: A dynamic map `Record<string, any>` keyed by `columnId`.
+- `assignees`, `status`, `dueDate`, `isArchived`: Top-level indexed fields for querying.
 
 ---
 
 ## Development Workflows
 
 ### Frontend
-
 ```bash
 cd frontend
-npm install
 npm run dev          # Start dev server on http://localhost:5173
-npm run build        # Production build to dist/
 npm run lint         # Run ESLint (0 warnings allowed)
-npm run preview      # Preview production build
-npm run cap:sync     # Sync Capacitor native projects
-npm run cap:open:android  # Open Android Studio
-npm run cap:open:ios      # Open Xcode
 ```
 
 ### Backend
-
 ```bash
 cd backend
-npm install
-npm run build        # TypeScript compile (cleans dist/ first)
-npm run serve        # Build + start Firebase emulators (functions only)
+npm run build        # TypeScript compile
+npm run serve        # Firebase emulators (functions only)
 npm run dev          # Watch mode + Firebase emulators
-npm run deploy       # Deploy to Firebase (functions only)
-npm run logs         # Stream Firebase function logs
 ```
-
-### Full Deployment
-
-```bash
-firebase deploy      # Deploys both hosting (frontend) and functions (backend)
-```
-The `firebase.json` predeploy hooks automatically build both the frontend and backend before deployment.
-
----
-
-## Environment Configuration
-
-### Backend (`backend/.env`)
-
-Copy from `backend/.env.example` and fill in values:
-
-```env
-# Required
-GEMINI_API_KEY=          # Google Gemini API key
-JWT_SECRET=              # JWT signing secret
-GOOGLE_CLIENT_ID=        # Google OAuth 2.0 client ID
-GOOGLE_CLIENT_SECRET=    # Google OAuth 2.0 client secret
-GOOGLE_CALLBACK_URL=     # OAuth callback URL (e.g. /api/auth/google/callback)
-FRONTEND_URL=            # Frontend URL for CORS and redirects
-
-# Optional — Microsoft OAuth
-MICROSOFT_CLIENT_ID=
-MICROSOFT_CLIENT_SECRET=
-MICROSOFT_CALLBACK_URL=
-
-# Optional — Email (Nodemailer)
-SMTP_HOST=
-SMTP_PORT=
-SMTP_USER=
-SMTP_PASS=
-SMTP_FROM_NAME=
-```
-
-Environment is validated at startup in `backend/src/config/env.ts`. Missing required variables will throw.
-
-### Frontend (`frontend/src/constants.ts`)
-
-The backend URL is configured here. In development it points to a cloud function URL; in production it uses relative paths.
 
 ---
 
 ## Architecture & Key Conventions
 
-### Multi-Tenant Hierarchy
+### Full Round-Trip Rule for Dynamic Fields
+The `values` map on an Item is dynamic. When adding/modifying fields:
+1. Ensure the frontend form state includes the new field.
+2. Verify the backend controller explicitly reads the field from `req.body`.
+3. Verify the backend writes the field to Firestore.
+4. Update the TypeScript types (`DBItem`) to reflect valid value types.
 
-```
-System (global admins)
-  └── Academies (academy admins)
-        └── Organizations (org admins)
-              └── Users
-```
+### Accessibility (ARIA)
+Every interactive element MUST include appropriate ARIA attributes (`aria-label`, `aria-labelledby`, `role`). This is a hard requirement for all UI changes.
 
-Access control is enforced in both:
-- **Middleware**: `auth.middleware.ts` (JWT), `billing.middleware.ts` (subscription checks), `apiKey.middleware.ts`
-- **Controllers**: Manual role checks within handlers
-
-### Frontend Component Structure
-
-```
-components/
-├── admin/          # Admin pages: user mgmt, academy, courses, billing, AI wizard
-├── auth/           # Login, register, OAuth callbacks, protected routes
-├── chat/           # Chat interface and session management
-├── courses/        # Course list, detail, and lesson pages
-├── questionnaire/  # User questionnaire flow
-├── profile/        # User profile, subscription, personal insights
-├── billing/        # Org billing management
-├── public/         # Public-facing pages (landing, plans, checkout)
-├── layout/         # MainLayout wrapper
-├── common/         # Shared reusable components
-└── legal/          # Legal / TOS pages
-```
-
-### State Management
-
-React Context API (no Redux/Zustand):
-- **`AuthContext`** (`contexts/AuthContext.tsx`) — User identity, auth tokens, login/logout
-- **`DataContext`** (`contexts/DataContext.tsx`) — Global app data (users, orgs, courses, etc.)
-- **`ChatSessionContext`** (`contexts/ChatSessionContext.tsx`) — Active chat session state
-
-Access via custom hooks:
-```typescript
-import { useAuth } from '@/hooks/useAuth';
-import { useData } from '@/hooks/useData';
-```
-
-### Path Aliases
-
-Frontend uses `@/` as alias for `./src/`:
-```typescript
-import { SomeComponent } from '@/components/common/SomeComponent';
-```
-
-Configured in both `vite.config.ts` and `tsconfig.json`.
-
-### Backend Request Flow
-
-```
-Request → path.middleware (normalize)
-        → apiKey.middleware (optional)
-        → auth.middleware (JWT verify)
-        → billing.middleware (plan check)
-        → router → controller → service → Firestore
-```
-
-### Full Round-Trip Rule for Persisted Fields
-
-**Whenever a new field is added to a form that saves data, verify the complete chain:**
-
-1. Frontend form state includes the field
-2. Frontend sends the field in the API request
-3. **Backend controller reads the field from `req.body`** ← commonly missed
-4. **Backend writes the field to Firestore** ← commonly missed
-5. Backend TypeScript type (`DBCourse`, `DBLesson`, etc.) includes the field
-
-Firestore has no schema enforcement, so the backend controller is the gatekeeper — it explicitly picks which fields to persist. Anything not explicitly read from `req.body` in the controller is silently dropped, even if the frontend sends it correctly.
-
-### Firestore Data Model (Key Collections)
-
-| Collection | Purpose |
-|------------|---------|
-| `users` | User accounts |
-| `organizations` | Workspaces within an academy |
-| `academies` | Academy/school entities |
-| `academySettings` | Per-academy configuration |
-| `memberships` | User ↔ org/academy relationships |
-| `chatPersonas` | AI mentor persona definitions |
-| `conversations` | User-AI conversation history |
-| `triggerPhrases` | Language-specific AI trigger phrases |
-| `courses` | Digital course content |
-| `lessons` | Individual lessons (related to courses) |
-| `questionnaires` | Assessment questionnaires |
-| `questions` / `answers` | Questionnaire items |
-| `userQuestionnaireResults` | Completed questionnaire records |
-| `userCourseProgress` | Course completion tracking |
-| `personalInsights` | AI-extracted user insights |
-| `tokenUsage` | Gemini token consumption tracking |
-| `plans` | Subscription/access plan definitions |
-| `userAccessStatus` | Per-user plan access state |
-| `transactions` | Financial transactions |
-| `systemSettings` | Global system-wide configuration |
-| `appConfig` | App-level settings |
-
-### AI Integration
-
-The backend uses Google Gemini API via `@google/genai`:
-- **Service**: `backend/src/services/gemini.service.ts`
-- **Default models**: Gemini 2.5 Pro (primary), Gemini 2.5 Flash (fallback) — set in `config/env.ts`
-- **Frontend service**: `frontend/src/services/geminiService.ts` (direct client-side calls for some features)
-
-### Authentication Flow
-
-1. **JWT**: Standard session tokens, signed with `JWT_SECRET`
-2. **Google OAuth 2.0**: Passport strategy, callback at `/api/auth/google/callback`
-3. **Microsoft OAuth**: Optional Passport strategy
-4. **API Keys**: Alternative auth for service-to-service calls
-
-### API Route Conventions
-
-- All API routes are prefixed with `/api/` (configured in `firebase.json` rewrites)
-- Public routes (no auth): `/api/auth/*`, `/api/public/*`, `/api/payments/*`, `/api/provision/*`
-- Protected routes require `Authorization: Bearer <jwt>` header
-
----
-
-## Testing
-
-No test suite is currently implemented. There are no test files or test configuration files in the repository. When adding tests, Vitest is the recommended choice given the Vite-based frontend setup.
-
----
-
-## Deployment
-
-Deployment is fully managed by Firebase CLI:
-
-```bash
-firebase deploy          # Full deploy (hosting + functions)
-firebase deploy --only functions   # Deploy backend only
-firebase deploy --only hosting     # Deploy frontend only
-```
-
-**What happens on `firebase deploy`:**
-1. Builds frontend: `npm --prefix frontend run build`
-2. Builds backend: `npm --prefix backend run build`
-3. Deploys frontend `dist/` to Firebase Hosting
-4. Deploys backend Cloud Functions (Node.js 20 runtime)
-5. Firebase Hosting rewrites `/api/**` to the Cloud Function
-
-**Live URL**: `https://www.gymind.app`
-
----
-
-## Code Style & Conventions
-
-- **TypeScript**: Strict mode enforced in both frontend and backend (`"strict": true`)
-- **Linting**: ESLint with TypeScript support; `--max-warnings 0` means zero warnings allowed
-- **Imports**: Use `@/` path alias in frontend; relative paths in backend
-- **File naming**: PascalCase for React components (`.tsx`), camelCase for everything else (`.ts`)
-- **No test files exist yet**: Don't expect test infrastructure
-- **Input sanitization**: Use `sanitize-html` for any user-provided HTML content in the backend
-- **Accessibility (ARIA)**: Every interactive element added to the frontend MUST include appropriate ARIA attributes — `aria-label` on buttons/inputs that lack visible text labels, `aria-labelledby` where a heading describes a section, `role` where semantic HTML alone is insufficient. This is a hard requirement for every UI change, not optional.
+### Security
+- Users can only read/write items where `orgId` (organization) matches their membership.
+- Column definitions are writable by admins only.
+- Item writes must validate that the `workspaceId` and `boardId` belong to the same `orgId`.
+- Boards cannot be created in personal/default workspaces (`isPersonal: true`).
 
 ---
 
 ## Common Pitfalls
-
-1. **Environment variables** must be set before running the backend — startup will fail if required vars are missing
-2. **Firebase emulators** are required for local backend development (not a plain `node` server)
-3. **Capacitor** requires a production build before syncing to native platforms — don't run `cap sync` on a dev build
-4. **Firestore** has no schema enforcement — be careful about field names and structure; check existing documents before adding new fields
-5. **Token usage** is tracked per user and enforced by `billing.middleware.ts` — AI endpoints may fail if limits are exceeded
-6. **ESLint is strict** — zero warnings allowed; fix all linting issues before committing
+1. **Collection Functions Take `orgId`**: All work-management collection functions (`boardsCollection`, `itemsCollection`, etc.) take the **organization ID** as their first argument — NOT the workspace ID. Passing a workspace ID here is a bug.
+2. **Firestore Schema**: Since Firestore is schemaless, the backend controller is the gatekeeper. Always sanitize and explicitly pick fields from `req.body`.
+3. **Flat Storage Querying**: When querying items for a dashboard, the collection is already scoped to `orgId`. Add a `workspaceId` field filter if you need department-level scope.
+4. **ESLint**: Zero warnings are allowed. The project uses strict linting rules.

@@ -2,14 +2,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../../hooks/useData';
-import type { AcademySettings } from '../../types';
+import type { OrganizationSettings } from '../../types';
 import { FiSave, FiLoader, FiAlertCircle, FiCheckCircle, FiUploadCloud } from 'react-icons/fi';
 
 interface ThemeSettingsPageProps {
     onDirtyChange?: (isDirty: boolean) => void;
 }
 
-const THEME_FIELDS: (keyof AcademySettings)[] = [
+const THEME_FIELDS: (keyof OrganizationSettings)[] = [
     'sidebarColor',
     'enableSidebarGradient',
     'sidebarHueRotation',
@@ -18,6 +18,7 @@ const THEME_FIELDS: (keyof AcademySettings)[] = [
     'displayNameColor',
     'sidebarLinkColor',
     'logoUrl',
+    'logoCircle',
 ];
 
 const LOGO_MAX_RAW_SIZE = 10 * 1024 * 1024; // 10 MB — reject before processing
@@ -66,22 +67,22 @@ const compressLogoToPng = (file: File): Promise<string> => {
 
 const ThemeSettingsPage: React.FC<ThemeSettingsPageProps> = ({ onDirtyChange }) => {
     const { t } = useTranslation();
-    const { academySettings, updateAcademySettings, setAcademySettingsLocal, isLoading, dataError, clearDataError } = useData();
-    const [formData, setFormData] = useState<Partial<AcademySettings> & { logoUpload?: string; }>({});
+    const { organizationSettings, updateOrganizationSettings, setOrganizationSettingsLocal, isLoading, dataError, clearDataError } = useData();
+    const [formData, setFormData] = useState<Partial<OrganizationSettings> & { logoUpload?: string; }>({});
     const [feedback, setFeedback] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-    const [savedSettings, setSavedSettings] = useState<AcademySettings | null>(null);
+    const [savedSettings, setSavedSettings] = useState<OrganizationSettings | null>(null);
     const [isDirty, setIsDirty] = useState(false);
 
-    // Track the saved settings snapshot separately from the live-preview academySettings
+    // Track the saved settings snapshot separately from the live-preview organizationSettings
     useEffect(() => {
-        if (academySettings && !savedSettings) {
-            setSavedSettings(academySettings);
-            setFormData(academySettings);
+        if (organizationSettings && !savedSettings) {
+            setSavedSettings(organizationSettings);
+            setFormData(organizationSettings);
         }
-    }, [academySettings, savedSettings]);
+    }, [organizationSettings, savedSettings]);
 
     // Compute dirty state by comparing current form data against saved settings
-    const computeIsDirty = useCallback((current: Partial<AcademySettings> & { logoUpload?: string }, saved: AcademySettings | null): boolean => {
+    const computeIsDirty = useCallback((current: Partial<OrganizationSettings> & { logoUpload?: string }, saved: OrganizationSettings | null): boolean => {
         if (!saved) return false;
         if (current.logoUpload) return true;
         for (const field of THEME_FIELDS) {
@@ -137,10 +138,10 @@ const ThemeSettingsPage: React.FC<ThemeSettingsPageProps> = ({ onDirtyChange }) 
         setFormData(updatedForm);
 
         // Optimistically update the context for live preview in Sidebar
-        if (academySettings) {
-            setAcademySettingsLocal({
-                ...academySettings,
-                ...(updatedForm as AcademySettings)
+        if (organizationSettings) {
+            setOrganizationSettingsLocal({
+                ...organizationSettings,
+                ...(updatedForm as OrganizationSettings)
             });
         }
     };
@@ -166,9 +167,9 @@ const ThemeSettingsPage: React.FC<ThemeSettingsPageProps> = ({ onDirtyChange }) 
                 const updatedForm = { ...formData, logoUpload: pngDataUrl, logoUrl: pngDataUrl };
                 setFormData(updatedForm);
 
-                if (academySettings) {
-                    setAcademySettingsLocal({
-                        ...academySettings,
+                if (organizationSettings) {
+                    setOrganizationSettingsLocal({
+                        ...organizationSettings,
                         logoUrl: pngDataUrl
                     });
                 }
@@ -182,12 +183,12 @@ const ThemeSettingsPage: React.FC<ThemeSettingsPageProps> = ({ onDirtyChange }) 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setFeedback(null);
-        const updated = await updateAcademySettings(formData);
+        const updated = await updateOrganizationSettings(formData);
         if (updated) {
             setFeedback({ type: 'success', text: t('admin.themeSettings.savedSuccess') });
             setFormData(prev => ({...prev, logoUpload: undefined}));
             // Update saved snapshot so dirty state resets
-            setSavedSettings({ ...academySettings, ...formData, logoUpload: undefined } as AcademySettings);
+            setSavedSettings({ ...organizationSettings, ...formData, logoUpload: undefined } as OrganizationSettings);
         } else {
             setFeedback({ type: 'error', text: dataError || t('admin.themeSettings.saveFailed') });
         }
@@ -242,15 +243,33 @@ const ThemeSettingsPage: React.FC<ThemeSettingsPageProps> = ({ onDirtyChange }) 
 
                             {/* Logo Upload */}
                             <div>
-                                <label htmlFor="logoUpload" className="block text-sm font-medium text-gray-700">{t('admin.themeSettings.academyLogo')}</label>
+                                <label htmlFor="logoUpload" className="block text-sm font-medium text-gray-700">{t('admin.themeSettings.organizationLogo')}</label>
                                 <div className="mt-1 flex items-center space-x-4">
-                                    {formData.logoUrl && <img src={formData.logoUrl} alt={t('admin.themeSettings.logoPreviewAlt')} className="h-12 w-12 rounded-full object-cover bg-gray-100" />}
+                                    {formData.logoUrl && (
+                                        <img
+                                            src={formData.logoUrl}
+                                            alt={t('admin.themeSettings.logoPreviewAlt')}
+                                            className={`h-12 object-cover bg-gray-100 ${(formData.logoCircle ?? true) ? 'w-12 rounded-full' : 'w-auto rounded'}`}
+                                        />
+                                    )}
                                     <label htmlFor="logoUpload" className="cursor-pointer inline-flex items-center px-4 py-2 text-sm bg-white text-gray-700 rounded-md border border-gray-300 hover:bg-gray-50 shadow-sm">
                                         <FiUploadCloud className="mr-2"/> {t('admin.themeSettings.uploadLogo')}
                                     </label>
                                     <input type="file" id="logoUpload" name="logoUpload" accept="image/*" onChange={handleFileChange} className="hidden"/>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-2">{t('admin.themeSettings.logoUploadHint')}</p>
+                                <label htmlFor="logoCircle" className="flex items-center text-sm font-medium text-gray-700 cursor-pointer mt-3">
+                                    <input
+                                        type="checkbox"
+                                        id="logoCircle"
+                                        name="logoCircle"
+                                        checked={formData.logoCircle ?? true}
+                                        onChange={handleInputChange}
+                                        className="h-5 w-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 mr-3"
+                                    />
+                                    {t('admin.themeSettings.logoCircle')}
+                                </label>
+                                <p className="text-xs text-gray-500 mt-1 ml-8">{t('admin.themeSettings.logoCircleHint')}</p>
                             </div>
 
                             {/* Sidebar Color */}

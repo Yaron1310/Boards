@@ -1,0 +1,160 @@
+2026-04-20 00:35:33.047
+
+
+GET
+
+500
+
+350 B
+
+124 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:33.177
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:33.335
+
+
+GET
+
+500
+
+350 B
+
+55 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:33.390
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:34.598
+
+
+GET
+
+500
+
+350 B
+
+44 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:34.643
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:34.791
+
+
+GET
+
+500
+
+350 B
+
+124 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:34.917
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:51.291
+
+
+GET
+
+500
+
+350 B
+
+48 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:51.340
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:51.493
+
+
+GET
+
+500
+
+350 B
+
+48 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:51.542
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:52.775
+
+
+GET
+
+500
+
+350 B
+
+48 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:52.824
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:52.971
+
+
+GET
+
+500
+
+350 B
+
+42 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:53.015
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:55.227
+
+
+GET
+
+500
+
+350 B
+
+46 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:55.274
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]
+2026-04-20 00:35:55.416
+
+
+GET
+
+500
+
+350 B
+
+50 ms
+
+Chrome 147.0.0.0
+https://api-two25mmunq-uc.a.run.app/api/boards
+2026-04-20 00:35:55.467
+
+Error fetching boards: Error: 9 FAILED_PRECONDITION: The query requires an index. You can create it here: https://console.firebase.google.com/v1/r/project/boards-f313e/firestore/databases/boards-f313e/indexes?create_composite=Ck5wcm9qZWN0cy9ib2FyZHMtZjMxM2UvZGF0YWJhc2VzL2JvYXJkcy1mMzEzZS9jb2xsZWN0aW9uR3JvdXBzL2JvYXJkcy9pbmRleGVzL18QARoOCgppc0FyY2hpdmVkEAEaCQoFb3JkZXIQARoMCghfX25hbWVfXxAB     at callErrorFromStatus (/workspace/node_modules/@grpc/grpc-js/build/src/call.js:32:19)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:359:73)     at Object.onReceiveStatus (/workspace/node_modules/@grpc/grpc-js/build/src/client-interceptors.js:327:181)     at /workspace/node_modules/@grpc/grpc-js/build/src/resolving-call.js:135:78     at process.processTicksAndRejections (node:internal/process/task_queues:77:11) for call at     at ServiceClientImpl.makeServerStreamRequest (/workspace/node_modules/@grpc/grpc-js/build/src/client.js:342:32)     at ServiceClientImpl.<anonymous> (/workspace/node_modules/@grpc/grpc-js/build/src/make-client.js:105:19)     at /workspace/node_modules/@google-cloud/firestore/build/src/v1/firestore_client.js:242:33     at /workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:38:28     at /workspace/node_modules/google-gax/build/src/normalCalls/timeout.js:44:16     at Object.request (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:234:40)     at makeRequest (/workspace/node_modules/retry-request/index.js:159:28)     at retryRequest (/workspace/node_modules/retry-request/index.js:119:5)     at StreamProxy.setStream (/workspace/node_modules/google-gax/build/src/streamingCalls/streaming.js:225:37)     at StreamingApiCaller.call (/workspace/node_modules/google-gax/build/src/streamingCalls/streamingApiCaller.js:54:16) Caused by: Error     at QueryUtil._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query-util.js:44:23)     at Query._getResponse (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:784:32)     at Query._get (/workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:777:35)     at /workspace/node_modules/@google-cloud/firestore/build/src/reference/query.js:745:43     at /workspace/node_modules/@google-cloud/firestore/build/src/telemetry/enabled-trace-util.js:110:30     at NoopContextManager.with (/workspace/node_modules/@opentelemetry/api/build/src/context/NoopContextM…[message truncated due to size]

@@ -95,7 +95,7 @@ export const sendTestEmailFromTemplate = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
 
     // Render with sample values so the admin sees real-ish content
@@ -123,8 +123,8 @@ export const sendAccountVerificationEmail = async (
     userEmail: string,
     userName: string,
     verificationLink: string,
-    academyName: string,
-    inviteRole?: 'academy_admin' | 'org_manager',
+    organizationName: string,
+    inviteRole?: 'org_admin' | 'org_manager',
     orgName?: string
 ) => {
     await ensureTransporter();
@@ -133,26 +133,26 @@ export const sendAccountVerificationEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
 
     let templateId: string;
     let vars: Record<string, string>;
 
-    if (inviteRole === 'academy_admin') {
-        templateId = 'invite_academy_admin';
-        vars = { userName, academyName, verificationLink };
+    if (inviteRole === 'org_admin') {
+        templateId = 'invite_organization_admin';
+        vars = { userName, organizationName, verificationLink };
     } else if (inviteRole === 'org_manager') {
         templateId = 'invite_org_manager';
-        vars = { userName, entityName: orgName || academyName, verificationLink };
+        vars = { userName, entityName: orgName || organizationName, verificationLink };
     } else {
         templateId = 'email_verification';
-        vars = { userName, academyName, verificationLink };
+        vars = { userName, organizationName, verificationLink };
     }
 
     const tpl = await fetchTemplate(templateId);
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : buildFallbackVerificationSubject(inviteRole, academyName, orgName);
-    const html = tpl ? renderTemplate(tpl.html, vars) : buildFallbackVerificationHtml(userName, inviteRole, academyName, orgName, verificationLink);
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : buildFallbackVerificationSubject(inviteRole, organizationName, orgName);
+    const html = tpl ? renderTemplate(tpl.html, vars) : buildFallbackVerificationHtml(userName, inviteRole, organizationName, orgName, verificationLink);
 
     try {
         await transporter!.sendMail({
@@ -170,29 +170,29 @@ export const sendAccountVerificationEmail = async (
     }
 };
 
-const buildFallbackVerificationSubject = (inviteRole?: string, academyName?: string, orgName?: string): string => {
-    if (inviteRole === 'academy_admin') return `You've been invited as an Academy Admin for ${academyName}`;
-    if (inviteRole === 'org_manager') return `You've been invited as an Organization Manager for ${orgName || academyName}`;
-    return `Verify Your Email for ${academyName}`;
+const buildFallbackVerificationSubject = (inviteRole?: string, organizationName?: string, orgName?: string): string => {
+    if (inviteRole === 'org_admin') return `You've been invited as an Workspace Admin for ${organizationName}`;
+    if (inviteRole === 'org_manager') return `You've been invited as an Workspace Manager for ${orgName || organizationName}`;
+    return `Verify Your Email for ${organizationName}`;
 };
 
 const buildFallbackVerificationHtml = (
-    userName: string, inviteRole?: string, academyName?: string, orgName?: string, verificationLink?: string
+    userName: string, inviteRole?: string, organizationName?: string, orgName?: string, verificationLink?: string
 ): string => {
     let introLine: string;
     let ignoreNote: string;
-    if (inviteRole === 'academy_admin') {
-        introLine = `You've been invited to join <strong>${academyName}</strong> as an Academy Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+    if (inviteRole === 'org_admin') {
+        introLine = `You've been invited to join <strong>${organizationName}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else if (inviteRole === 'org_manager') {
-        const entityName = orgName || academyName;
-        introLine = `You've been invited to join <strong>${entityName}</strong> as an Organization Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+        const entityName = orgName || organizationName;
+        introLine = `You've been invited to join <strong>${entityName}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else {
         introLine = 'Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.';
         ignoreNote = 'If you did not create an account, you can safely ignore this email.';
     }
-    return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Gymind Team</p>`;
+    return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Logyx Team</p>`;
 };
 
 // ---------------------------------------------------------------------------
@@ -208,7 +208,7 @@ export const sendApprovalRequestEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { newUserName: newUser.name, newUserEmail: newUser.email, approvalLink };
 
@@ -216,7 +216,7 @@ export const sendApprovalRequestEmail = async (
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `New User Registration Request: ${newUser.name}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>A new user, <strong>${newUser.name}</strong> (<em>${newUser.email}</em>), has registered and is awaiting your approval.</p><p>Please review their request and click the link below to approve their account. This link will expire in 48 hours.</p><p><a href="${approvalLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Approve User</a></p><p>If you do not recognize this request, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>A new user, <strong>${newUser.name}</strong> (<em>${newUser.email}</em>), has registered and is awaiting your approval.</p><p>Please review their request and click the link below to approve their account. This link will expire in 48 hours.</p><p><a href="${approvalLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Approve User</a></p><p>If you do not recognize this request, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -243,7 +243,7 @@ export const sendAccountApprovedEmail = async (userEmail: string, userName: stri
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { userName, loginLink };
 
@@ -251,7 +251,7 @@ export const sendAccountApprovedEmail = async (userEmail: string, userName: stri
     const subject = tpl ? renderTemplate(tpl.subject, vars) : 'Your Account Has Been Approved!';
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello ${userName},</p><p>Great news! Your account for Gymind has been approved by your organization's administrator.</p><p>You can now log in and start using the application.</p><p><a href="${loginLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p><p>Welcome aboard!</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello ${userName},</p><p>Great news! Your account for Logyx has been approved by your workspace's administrator.</p><p>You can now log in and start using the application.</p><p><a href="${loginLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p><p>Welcome aboard!</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -275,7 +275,7 @@ export const sendPasswordResetEmail = async (
     userEmail: string,
     userName: string,
     resetLink: string,
-    academyName: string
+    organizationName: string
 ) => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
@@ -283,15 +283,15 @@ export const sendPasswordResetEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
-    const vars = { userName, academyName, resetLink };
+    const vars = { userName, organizationName, resetLink };
 
     const tpl = await fetchTemplate('password_reset');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Reset Your Password for ${academyName}`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Reset Your Password for ${organizationName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello ${userName},</p><p>We received a request to reset your password. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p><p><a href="${resetLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p><p>If you did not request a password reset, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello ${userName},</p><p>We received a request to reset your password. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p><p><a href="${resetLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p><p>If you did not request a password reset, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -313,28 +313,28 @@ export const sendPasswordResetEmail = async (
 
 export const sendUsageNotificationEmail = async (
     adminEmails: string[],
-    academyName: string,
+    organizationName: string,
     usagePercentage: number
 ) => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
-        logger.error(`Could not send usage notification for ${academyName} because email service is not initialized.`);
+        logger.error(`Could not send usage notification for ${organizationName} because email service is not initialized.`);
         return { success: false, error: 'Email service not available' };
     }
     if (adminEmails.length === 0) {
         return { success: false, error: 'No admin emails provided.' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const warningLevel = usagePercentage >= 95 ? 'critical' : 'high';
-    const vars = { academyName, usagePercentage: String(usagePercentage), warningLevel };
+    const vars = { organizationName, usagePercentage: String(usagePercentage), warningLevel };
 
     const tpl = await fetchTemplate('usage_alert');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Usage Alert for ${academyName}`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Usage Alert for ${organizationName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>This is a notification that your academy, <strong>${academyName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>This is a notification that your workspace, <strong>${organizationName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -342,12 +342,12 @@ export const sendUsageNotificationEmail = async (
             to: adminEmails.join(','),
             subject,
             html,
-            text: `Your academy, ${academyName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
+            text: `Your workspace, ${organizationName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
         });
-        logger.info(`Usage notification email sent successfully to admins of ${academyName}`);
+        logger.info(`Usage notification email sent successfully to admins of ${organizationName}`);
         return { success: true };
     } catch (error) {
-        logger.error(`Failed to send usage notification email for ${academyName}`, error);
+        logger.error(`Failed to send usage notification email for ${organizationName}`, error);
         return { success: false, error };
     }
 };
@@ -361,9 +361,9 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://studio.gymind.app';
+    const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
     const logoPath = path.join(process.cwd(), 'src', 'assets', 'email_logo.png');
     const hasLogo = fs.existsSync(logoPath);
 
@@ -374,7 +374,7 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
     };
 
     const tpl = await fetchTemplate('welcome');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to Gymind, ${userName}!`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to Logyx, ${userName}!`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
         : buildFallbackWelcomeHtml(userName, frontendUrl, hasLogo);
@@ -385,7 +385,7 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
             to: userEmail,
             subject,
             html,
-            text: `Welcome to Gymind, ${userName}! Your account is now active. Log in at ${frontendUrl}/login`,
+            text: `Welcome to Logyx, ${userName}! Your account is now active. Log in at ${frontendUrl}/login`,
         };
         if (!tpl && hasLogo) {
             mailOptions.attachments = [{ filename: 'logo.png', path: logoPath, cid: 'logo' }];
@@ -412,14 +412,14 @@ const buildFallbackWelcomeHtml = (userName: string, frontendUrl: string, hasLogo
     .button{background-color:#2563eb;color:#ffffff!important;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block}
     </style></head><body><div class="container">
     <div class="header"><span class="welcome-text">Welcome to</span>
-    ${hasLogo ? '<img src="cid:logo" alt="Gymind Logo" class="logo">' : '<span class="welcome-text" style="color:#2563eb;">Gymind</span>'}</div>
+    ${hasLogo ? '<img src="cid:logo" alt="Logyx Logo" class="logo">' : '<span class="welcome-text" style="color:#2563eb;">Logyx</span>'}</div>
     <div class="content"><p>Hello ${userName},</p>
-    <p>We're excited to have you join us! Gymind is a new space to learn, grow, and transform.</p>
+    <p>We're excited to have you join us! Logyx is a new space to learn, grow, and transform.</p>
     <p>Your account is now fully active. You can start exploring our AI-powered mentors, courses, and more right away.</p>
     <div class="button-container"><a href="${frontendUrl}/login" class="button">Go to Dashboard</a></div>
     <p>If you have any questions or need a hand getting started, we're here to help.</p>
-    <p>Best regards,<br/>The Gymind Team</p></div>
-    <div class="footer">&copy; ${new Date().getFullYear()} Gymind. All rights reserved.</div>
+    <p>Best regards,<br/>The Logyx Team</p></div>
+    <div class="footer">&copy; ${new Date().getFullYear()} Logyx. All rights reserved.</div>
     </div></body></html>`;
 
 // ---------------------------------------------------------------------------
@@ -428,7 +428,7 @@ export const sendNewsletterEmail = async (
     to: string,
     subject: string,
     htmlContent: string,
-    academyName: string
+    organizationName: string
 ): Promise<{ success: boolean; error?: any }> => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
@@ -436,11 +436,11 @@ export const sendNewsletterEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || academyName;
+    const fromName = process.env.SMTP_FROM_NAME || organizationName;
     const fromEmail = process.env.SMTP_USER!;
 
     try {
-        await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to, subject, html: htmlContent, text: `Newsletter from ${academyName}: ${subject}` });
+        await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to, subject, html: htmlContent, text: `Newsletter from ${organizationName}: ${subject}` });
         return { success: true };
     } catch (error) {
         logger.error(`Failed to send newsletter email to ${to}`, error);
@@ -458,99 +458,10 @@ export const retryEmailServiceInitialization = () => {
 
 // ---------------------------------------------------------------------------
 
-export const sendWoocommerceWelcomeEmail = async (
-    userEmail: string,
-    userName: string,
-    academyName: string,
-    isNewUser: boolean
-) => {
-    await ensureTransporter();
-    if (!isEmailServiceAvailable()) {
-        logger.error(`Could not send WooCommerce welcome email to ${userEmail} because email service is not initialized.`);
-        return { success: false, error: 'Email service not available' };
-    }
-
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
-    const fromEmail = process.env.SMTP_USER!;
-    const frontendUrl = process.env.FRONTEND_URL || 'https://studio.gymind.app';
-    const logoPath = path.join(process.cwd(), 'src', 'assets', 'email_logo.png');
-    const hasLogo = fs.existsSync(logoPath);
-
-    const templateId = isNewUser ? 'woocommerce_welcome_new' : 'woocommerce_welcome_existing';
-    const vars: Record<string, string> = {
-        userName,
-        academyName,
-        currentYear: String(new Date().getFullYear()),
-        ...(isNewUser
-            ? { registrationLink: `${frontendUrl}/register`, userEmail }
-            : { loginLink: `${frontendUrl}/login` }),
-    };
-
-    const tpl = await fetchTemplate(templateId);
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to ${academyName} — Get Started Now`;
-    const html = tpl
-        ? renderTemplate(tpl.html, vars)
-        : buildFallbackWoocommerceHtml(userName, academyName, frontendUrl, isNewUser, userEmail, hasLogo);
-
-    try {
-        const mailOptions: nodemailer.SendMailOptions = {
-            from: `"${fromName}" <${fromEmail}>`,
-            to: userEmail,
-            subject,
-            html,
-            text: isNewUser
-                ? `Hello ${userName}, thank you for your purchase! Please register at ${frontendUrl}/register using ${userEmail} as your email address.`
-                : `Hello ${userName}, thank you for your purchase! Log in at ${frontendUrl}/login to get started.`,
-        };
-        if (!tpl && hasLogo) {
-            mailOptions.attachments = [{ filename: 'logo.png', path: logoPath, cid: 'logo' }];
-        }
-        await transporter!.sendMail(mailOptions);
-        logger.info(`WooCommerce welcome email sent successfully to: ${userEmail}`);
-        return { success: true };
-    } catch (error) {
-        logger.error(`Failed to send WooCommerce welcome email to ${userEmail}`, error);
-        return { success: false, error };
-    }
-};
-
-const buildFallbackWoocommerceHtml = (
-    userName: string, academyName: string, frontendUrl: string, isNewUser: boolean, userEmail: string, hasLogo: boolean
-): string => {
-    const actionUrl = isNewUser ? `${frontendUrl}/register` : `${frontendUrl}/login`;
-    const buttonLabel = isNewUser ? 'Complete Your Registration' : 'Log In to Your Account';
-    const actionInstruction = isNewUser
-        ? `To get started, please register your account using the button below. Use <strong>${userEmail}</strong> as your email address when registering.`
-        : 'Your account is ready. Click the button below to log in and start exploring.';
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
-    body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#333;margin:0;padding:0}
-    .container{max-width:600px;margin:20px auto;padding:20px;border:1px solid #e5e7eb;border-radius:8px}
-    .header{display:flex;align-items:center;justify-content:center;margin-bottom:30px;gap:10px}
-    .logo{max-width:120px;height:auto;vertical-align:middle}
-    .welcome-text{font-size:24px;font-weight:bold;color:#1f2937;margin:0}
-    .content{padding:0 20px}
-    .footer{text-align:center;margin-top:30px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:20px}
-    .button-container{text-align:center;margin:30px 0}
-    .button{background-color:#2563eb;color:#ffffff!important;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block}
-    </style></head><body><div class="container">
-    <div class="header"><span class="welcome-text">Welcome to</span>
-    ${hasLogo ? '<img src="cid:logo" alt="Gymind Logo" class="logo">' : `<span class="welcome-text" style="color:#2563eb;">${academyName}</span>`}</div>
-    <div class="content"><p>Hello ${userName},</p>
-    <p>Thank you for your purchase! We're thrilled to have you join <strong>${academyName}</strong>.</p>
-    <p>${actionInstruction}</p>
-    <div class="button-container"><a href="${actionUrl}" class="button">${buttonLabel}</a></div>
-    <p>If you have any questions or need help getting started, we're here for you.</p>
-    <p>Best regards,<br/>The ${academyName} Team</p></div>
-    <div class="footer">&copy; ${new Date().getFullYear()} ${academyName}. All rights reserved.</div>
-    </div></body></html>`;
-};
-
-// ---------------------------------------------------------------------------
-
 export const sendUserInvitationEmail = async (
     userEmail: string,
     orgName: string,
-    academyName: string,
+    organizationName: string,
     registrationLink: string
 ) => {
     await ensureTransporter();
@@ -559,15 +470,18 @@ export const sendUserInvitationEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
-    const vars = { orgName, academyName, registrationLink };
+    const partOfText = orgName !== organizationName
+        ? ` (part of <strong>${organizationName}</strong>)`
+        : '';
+    const vars = { orgName, organizationName, partOfText, registrationLink };
 
     const tpl = await fetchTemplate('user_invitation');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `You've been invited to join ${orgName} on Gymind`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `You've been invited to join ${orgName} on Logyx`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong> (part of <strong>${academyName}</strong>) on Gymind.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Gymind Team</p>`;
+        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong>${partOfText} on Logyx.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -575,7 +489,7 @@ export const sendUserInvitationEmail = async (
             to: userEmail,
             subject,
             html,
-            text: `You've been invited to join ${orgName} on Gymind. Create your account at: ${registrationLink}`,
+            text: `You've been invited to join ${orgName} on Logyx. Create your account at: ${registrationLink}`,
         });
         logger.info(`Invitation email sent successfully to: ${userEmail}`);
         return { success: true };
@@ -585,70 +499,3 @@ export const sendUserInvitationEmail = async (
     }
 };
 
-// ---------------------------------------------------------------------------
-
-export const sendNewsletterReminder3DayEmail = async (
-    adminEmail: string,
-    campaignName: string,
-    academyName: string
-) => {
-    await ensureTransporter();
-    if (!isEmailServiceAvailable()) {
-        logger.error(`Could not send 3-day reminder to ${adminEmail} because email service is not initialized.`);
-        return { success: false, error: 'Email service not available' };
-    }
-
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
-    const fromEmail = process.env.SMTP_USER!;
-    const vars = { campaignName, academyName };
-
-    const tpl = await fetchTemplate('newsletter_reminder_3day');
-    const subject = tpl
-        ? renderTemplate(tpl.subject, vars)
-        : `Reminder: Your newsletter "${campaignName}" is due in 3 days`;
-    const html = tpl
-        ? renderTemplate(tpl.html, vars)
-        : `<p>Hi,</p><p>Your newsletter campaign <strong>${campaignName}</strong> has a scheduled edition due in <strong>3 days</strong>, but the content is still empty.</p><p>Please log in and write your newsletter content to ensure it's sent on time.</p><p>Best,<br>${academyName}</p>`;
-
-    try {
-        await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to: adminEmail, subject, html });
-        logger.info(`3-day newsletter reminder sent to: ${adminEmail}`);
-        return { success: true };
-    } catch (error) {
-        logger.error(`Failed to send 3-day reminder to ${adminEmail}`, error);
-        return { success: false, error };
-    }
-};
-
-export const sendNewsletterReminder1DayEmail = async (
-    adminEmail: string,
-    campaignName: string,
-    academyName: string
-) => {
-    await ensureTransporter();
-    if (!isEmailServiceAvailable()) {
-        logger.error(`Could not send 1-day reminder to ${adminEmail} because email service is not initialized.`);
-        return { success: false, error: 'Email service not available' };
-    }
-
-    const fromName = process.env.SMTP_FROM_NAME || 'Gymind';
-    const fromEmail = process.env.SMTP_USER!;
-    const vars = { campaignName, academyName };
-
-    const tpl = await fetchTemplate('newsletter_reminder_1day');
-    const subject = tpl
-        ? renderTemplate(tpl.subject, vars)
-        : `Urgent: Your newsletter "${campaignName}" is due tomorrow`;
-    const html = tpl
-        ? renderTemplate(tpl.html, vars)
-        : `<p>Hi,</p><p><strong>Warning:</strong> Your newsletter campaign <strong>${campaignName}</strong> has a scheduled edition due <strong>tomorrow</strong>, but the content is still empty.</p><p>If the content is not added before the scheduled send time, the edition will be skipped automatically.</p><p>Please log in now and add your newsletter content.</p><p>Best,<br>${academyName}</p>`;
-
-    try {
-        await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to: adminEmail, subject, html });
-        logger.info(`1-day newsletter reminder sent to: ${adminEmail}`);
-        return { success: true };
-    } catch (error) {
-        logger.error(`Failed to send 1-day reminder to ${adminEmail}`, error);
-        return { success: false, error };
-    }
-};

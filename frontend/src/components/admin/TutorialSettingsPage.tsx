@@ -2,13 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useData } from '../../hooks/useData';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole, TutorialSettings } from '../../types';
 import { FiVideo, FiSave, FiLoader, FiCheckCircle, FiAlertCircle, FiYoutube } from 'react-icons/fi';
 
 const TutorialSettingsPage: React.FC = () => {
     const { t } = useTranslation();
-    const { user } = useAuth();
+    const { user } = useAuthSession();
     const { 
         tutorialSettings, 
         fetchTutorialSettings, 
@@ -53,14 +53,9 @@ const TutorialSettingsPage: React.FC = () => {
     }
 
     const sections = [
-        { key: 'aiMentor', label: t('admin.aiMentorSettings') },
-        { key: 'courses', label: t('admin.courseManagement') },
-        { key: 'questionnaires', label: t('admin.questionnaireSettings') },
-        { key: 'organizations', label: t('admin.organizationManagement') },
+        { key: 'workspaces', label: t('admin.workspaceManagement') },
         { key: 'users', label: t('admin.userManagement') },
         { key: 'theme', label: t('admin.themeSettings') },
-        { key: 'plansBilling', label: t('admin.plansBilling') },
-        { key: 'wpPlugin', label: t('admin.wordpressPluginIntegration') },
     ];
 
     const handleToggle = (key: keyof TutorialSettings) => {
@@ -104,7 +99,7 @@ const TutorialSettingsPage: React.FC = () => {
                 </h1>
                 
                 <p className="text-gray-600 mb-6">
-                    Configure tutorial videos for Academy Admin pages. When enabled, a "Watch a tutorial" link will appear on the corresponding page for Academy Admins.
+                    Configure tutorial videos for WorkHub Admin pages. When enabled, a "Watch a tutorial" link will appear on the corresponding page for WorkHub Admins.
                 </p>
 
                 {feedback && (

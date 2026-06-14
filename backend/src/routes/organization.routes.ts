@@ -1,24 +1,27 @@
 import { Router } from 'express';
-import * as orgController from '../controllers/organization.controller.js';
+import * as organizationController from '../controllers/organization.controller.js';
 import { requireRole } from '../middleware/auth.middleware.js';
+import { authenticateToken, authenticatePartialToken } from '../middleware/auth.middleware.js';
 import { UserRole } from '../types/index.js';
 
+// --- Workspace Self-Setup Routes (mounted at /workspaces) ---
+// These handle the new-organization onboarding flow.
 export const organizationRouter = Router();
 
-// GET for authenticated users (admins/managers)
-organizationRouter.get('/', requireRole([UserRole.ACADEMY_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), orgController.getAllOrganizations);
+organizationRouter.post('/setup', authenticatePartialToken, organizationController.setupOrganization);
+organizationRouter.post('/activate-subscription', authenticatePartialToken, organizationController.activateSubscription);
+organizationRouter.get('/check-name', authenticateToken, organizationController.checkNameUniqueness);
 
-// Admin-only routes
-const adminRoles = [UserRole.ACADEMY_ADMIN, UserRole.SYSTEM_ADMIN];
-const managerAndAdminRoles = [UserRole.ORGANIZATION_ADMIN, ...adminRoles];
 
-organizationRouter.get('/archived', requireRole(adminRoles), orgController.getArchivedOrganizations);
-organizationRouter.post('/', requireRole(adminRoles), orgController.createOrganization);
-organizationRouter.put('/:id', requireRole(adminRoles), orgController.updateOrganization);
-organizationRouter.put('/:id/restore', requireRole(adminRoles), orgController.restoreOrganization);
-organizationRouter.delete('/:id', requireRole(adminRoles), orgController.deleteOrganization);
+// --- Academy (Organization) Management Routes (mounted at /organizations) ---
+// CRUD is System Admin only. Org-admin management allows ORGANIZATION_ADMIN for their own org.
+export const academyRouter = Router();
 
-// Academy Admin routes for managing organization managers
-organizationRouter.post('/:organizationId/admins', requireRole(adminRoles), orgController.addOrganizationManager);
-organizationRouter.delete('/:organizationId/admins/:userId', requireRole(adminRoles), orgController.removeOrganizationManager);
-organizationRouter.delete('/:organizationId/users/:userId', requireRole(managerAndAdminRoles), orgController.removeUserFromOrganization);
+academyRouter.get('/', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.getAllOrganizations);
+academyRouter.post('/', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.createOrganization);
+academyRouter.post('/:orgId/admins', organizationController.addOrganizationAdmin);
+academyRouter.delete('/:orgId/admins/:userId', organizationController.removeOrganizationAdmin);
+academyRouter.delete('/:orgId/users/:userId', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), organizationController.removeUserFromOrg);
+academyRouter.post('/:orgId/invite-users', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), organizationController.inviteUsersToOrg);
+academyRouter.put('/:id', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.updateOrganization);
+academyRouter.delete('/:id', requireRole([UserRole.SYSTEM_ADMIN]), organizationController.deleteOrganization);
