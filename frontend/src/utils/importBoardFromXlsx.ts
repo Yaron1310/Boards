@@ -111,6 +111,11 @@ interface ColumnSpec {
 
 const START_SUFFIX = ' - Start';
 const END_SUFFIX = ' - End';
+const PERSON_HEADERS = new Set(['person', 'people', 'user']);
+
+function isUrlLike(text: string): boolean {
+  return /^https?:\/\//i.test(text) || /^www\./i.test(text);
+}
 
 function buildColumnSpecs(headers: string[]): ColumnSpec[] {
   const specs: ColumnSpec[] = [];
@@ -125,7 +130,11 @@ function buildColumnSpecs(headers: string[]): ColumnSpec[] {
         continue;
       }
     }
-    specs.push({ name: h, type: ColumnType.TEXT, rawIndices: [i] });
+    if (PERSON_HEADERS.has(h.toLowerCase())) {
+      specs.push({ name: h, type: ColumnType.PERSON, rawIndices: [i] });
+    } else {
+      specs.push({ name: h, type: ColumnType.TEXT, rawIndices: [i] });
+    }
     i++;
   }
   return specs;
@@ -186,6 +195,9 @@ export async function importBoardFromXlsx(
   // colHasWhiteText[specIndex] — true if any item cell in this column had white text.
   // White text is the reliable indicator that a column is a STATUS column.
   let colHasWhiteText: boolean[] = [];
+  // colAllValuesUrlLike[specIndex] — true if every non-empty TEXT cell in this column looks like a URL.
+  let colAllValuesUrlLike: boolean[] = [];
+  let colHasAnyValue: boolean[] = [];
 
   while (cursor < rows.length) {
     const groupName = cellToText(rows[cursor]?.[0]).trim();
@@ -202,6 +214,8 @@ export async function importBoardFromXlsx(
       columnSpecs = buildColumnSpecs(headerNames);
       colorMap = columnSpecs.map(() => new Map<string, string>());
       colHasWhiteText = columnSpecs.map(() => false);
+      colAllValuesUrlLike = columnSpecs.map(() => true);
+      colHasAnyValue = columnSpecs.map(() => false);
     }
 
     // Item rows until empty row
@@ -221,7 +235,7 @@ export async function importBoardFromXlsx(
         return getCellStatusArgb(cell);
       });
 
-      // Populate colorMap and colHasWhiteText for each column
+      // Populate colorMap, colHasWhiteText, and URL tracking for each column
       columnSpecs.forEach((spec, si) => {
         const sheetCell = sheetRow.getCell(spec.rawIndices[0] + 2);
         if (cellHasWhiteText(sheetCell)) colHasWhiteText[si] = true;
@@ -229,6 +243,13 @@ export async function importBoardFromXlsx(
         if (argb && !colorMap[si].has(argb)) {
           const label = cellToText(rawCells[spec.rawIndices[0] + 1]).trim();
           colorMap[si].set(argb, label);
+        }
+        if (spec.type === ColumnType.TEXT) {
+          const text = cellToText(rawCells[spec.rawIndices[0] + 1]).trim();
+          if (text) {
+            colHasAnyValue[si] = true;
+            if (!isUrlLike(text)) colAllValuesUrlLike[si] = false;
+          }
         }
       });
 
@@ -266,6 +287,13 @@ export async function importBoardFromXlsx(
     }
 
     return { options, argbToOptionId };
+  });
+
+  // Promote TEXT columns whose every non-empty value looks like a URL to LINK.
+  columnSpecs.forEach((spec, si) => {
+    if (spec.type === ColumnType.TEXT && colHasAnyValue[si] && colAllValuesUrlLike[si]) {
+      columnSpecs[si] = { ...spec, type: ColumnType.LINK };
+    }
   });
 
   // ── Create board ───────────────────────────────────────────────────────────
@@ -329,6 +357,8 @@ export async function importBoardFromXlsx(
             optionId = statusInfo.options.find((o) => o.label === label)?.id;
           }
           if (optionId) values[id] = optionId;
+        } else if (spec.type === ColumnType.PERSON) {
+          // Cannot resolve user names to IDs from xlsx — skip
         } else {
           const text = cellToText(rawValues[spec.rawIndices[0]]).trim();
           if (text) values[id] = text;

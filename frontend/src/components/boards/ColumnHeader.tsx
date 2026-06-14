@@ -22,7 +22,7 @@ import type { Column } from '../../types';
 import {
   FiType, FiHash, FiCalendar, FiFlag, FiUser, FiChevronDown,
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
-  FiZap, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings, FiEdit2,
+  FiZap, FiLink, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings, FiEdit2,
 } from 'react-icons/fi';
 import { calculateColumnWidth, COLUMN_TYPE_MIN_WIDTHS } from '../../utils/columnWidths';
 import AddColumnModal from './AddColumnModal';
@@ -63,6 +63,7 @@ export const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
   [ColumnType.EMAIL]:          <FiMail size={13} aria-hidden="true" />,
   [ColumnType.PHONE]:          <FiPhone size={13} aria-hidden="true" />,
   [ColumnType.LOCATION]:       <FiMapPin size={13} aria-hidden="true" />,
+  [ColumnType.LINK]:           <FiLink size={13} aria-hidden="true" />,
   [ColumnType.TIME_RANGE]: (
     <span className="flex items-center gap-[2px]" aria-hidden="true">
       <svg width="9" height="9" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -92,6 +93,7 @@ const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   [ColumnType.EMAIL]:          'Email',
   [ColumnType.PHONE]:          'Phone',
   [ColumnType.LOCATION]:       'Location',
+  [ColumnType.LINK]:           'Link',
   [ColumnType.TIME_RANGE]:     'Time Range',
   [ColumnType.SIMPLE_FORMULA]: 'Formula',
 };

@@ -170,6 +170,7 @@ export enum ColumnType {
   EMAIL = 'email',
   PHONE = 'phone',
   LOCATION = 'location',
+  LINK = 'link',
   TIME_RANGE = 'time_range',
   SIMPLE_FORMULA = 'simple_formula',
 }
@@ -224,6 +225,8 @@ export interface SimpleFormulaColumnSettings {
   defaultFormula: string; // e.g. "{Price} * {Qty}" — evaluated client-side
 }
 
+export type LinkColumnSettings = Record<string, never>;
+
 export type ColumnSettings =
   | TextColumnSettings
   | NumberColumnSettings
@@ -233,6 +236,7 @@ export type ColumnSettings =
   | DropdownColumnSettings
   | TagsColumnSettings
   | SimpleFormulaColumnSettings
+  | LinkColumnSettings
   | Record<string, never>;
 
 // --- Column definition ---
