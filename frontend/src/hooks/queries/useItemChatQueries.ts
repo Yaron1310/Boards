@@ -17,9 +17,11 @@ export const usePostChatMessage = (itemId: string) => {
     mutationFn: ({ text, files, mentionedUserIds }: { text: string; files?: File[]; mentionedUserIds?: string[] }) =>
       wm.postChatMessage(itemId, text, files, mentionedUserIds),
     onSuccess: (newMsg: ChatMessage) => {
-      qc.setQueryData<ChatMessage[]>(queryKeys.chat.messages(itemId), (old) =>
-        old ? [...old, newMsg] : [newMsg],
-      );
+      qc.setQueryData<ChatMessage[]>(queryKeys.chat.messages(itemId), (old) => {
+        if (!old) return [newMsg];
+        // Deduplicate: snapshot may have already added this message via Firestore listener
+        return old.some((m) => m.id === newMsg.id) ? old : [...old, newMsg];
+      });
       void qc.invalidateQueries({ queryKey: ['items'] });
     },
   });

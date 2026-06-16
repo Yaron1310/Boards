@@ -56,6 +56,28 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+function renderTextWithLinks(text: string, isMine: boolean): React.ReactNode {
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={isMine ? 'underline opacity-80 hover:opacity-100' : 'text-indigo-600 underline hover:text-indigo-800'}
+        aria-label={`Link: ${part}`}
+      >
+        {part}
+      </a>
+    ) : (
+      <React.Fragment key={i}>{part}</React.Fragment>
+    ),
+  );
+}
+
 export function getUnreadCount(userId: string, item: Item): number {
   const total = item.chatMessageCount ?? 0;
   const seen = item.chatSeenBy?.[userId] ?? 0;
@@ -317,18 +339,18 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
                     </div>
 
                     {/* Bubble */}
-                    <div className={`max-w-[75%] ${isMine ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
+                    <div className={`max-w-[75%] min-w-0 ${isMine ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
                       {showAvatar && !isMine && (
                         <span className="text-xs text-gray-500 ml-1">{msg.authorName}</span>
                       )}
                       <div
-                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
                           isMine
                             ? 'bg-indigo-600 text-white rounded-br-sm'
                             : 'bg-white text-gray-800 shadow-sm rounded-bl-sm border border-gray-100'
                         }`}
                       >
-                        {msg.text && <p>{msg.text}</p>}
+                        {msg.text && <p>{renderTextWithLinks(msg.text, isMine)}</p>}
                         {msg.attachments && msg.attachments.length > 0 && (
                           <div className={`mt-1.5 space-y-1 ${msg.text ? 'pt-1.5 border-t border-white/20' : ''}`}>
                             {msg.attachments.map((att, ai) => (

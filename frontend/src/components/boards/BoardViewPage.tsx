@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   DndContext,
@@ -33,6 +34,7 @@ import BoardDashboardView from './BoardDashboardView';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
+import ItemChatModal from './ItemChatModal';
 import AddColumnModal from './AddColumnModal';
 import BoardArchiveModal from './BoardArchiveModal';
 import BoardFilterDropdown, { itemMatchesSearch, itemMatchesFilters } from './BoardFilterDropdown';
@@ -368,7 +370,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                   <p>No groups yet. Add a group to start organising items.</p>
                 </div>
               ) : (
-                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly}>
+                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem}>
                   <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
                     {localGroups.map((group) => (
                       <GroupSection
@@ -494,6 +496,7 @@ const BoardViewPage: React.FC = () => {
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
+  const [chatItem, setChatItem] = useState<Item | null>(null);
   const [searchText, setSearchText] = useState('');
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [boardView, setBoardView] = useState<BoardView>(() => {
@@ -1054,7 +1057,7 @@ const BoardViewPage: React.FC = () => {
       {detailItem && (
         <FormulaEditProvider>
           <DependencyProvider items={allItems}>
-            <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly}>
+            <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem}>
               <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
             </BoardRenderProvider>
           </DependencyProvider>
@@ -1075,6 +1078,11 @@ const BoardViewPage: React.FC = () => {
           workspaceId={board.workspaceId}
           onClose={() => setShowInviteModal(false)}
         />
+      )}
+
+      {chatItem && createPortal(
+        <ItemChatModal item={chatItem} onClose={() => setChatItem(null)} />,
+        document.body,
       )}
     </UndoProvider>
   );
