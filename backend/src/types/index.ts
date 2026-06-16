@@ -382,6 +382,7 @@ export interface DBChatMessage {
   text: string;
   attachments?: DBChatAttachment[];
   createdAt: admin.firestore.Timestamp | Date | any;
+  editedAt?: admin.firestore.Timestamp | Date | any;
 }
 
 export interface DBChatAttachment {

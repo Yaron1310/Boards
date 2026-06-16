@@ -406,6 +406,7 @@ export interface ChatMessage {
   text: string;
   attachments?: ChatAttachment[];
   createdAt: Date | string;
+  editedAt?: Date | string;
 }
 
 // =============================================================================

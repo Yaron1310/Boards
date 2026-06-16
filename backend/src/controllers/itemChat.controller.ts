@@ -302,6 +302,47 @@ export const deleteChatMessage = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
+// PATCH /items/:itemId/chat/:messageId
+// Only the original author may edit their own message.
+// ---------------------------------------------------------------------------
+export const editChatMessage = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const itemId = req.params.itemId ?? req.params.id;
+  const messageId = req.params.messageId;
+  const text = typeof req.body.text === 'string' ? req.body.text.trim() : null;
+
+  if (!text) return res.status(400).json({ message: 'Message text is required.' });
+
+  try {
+    const itemDoc = await itemsCollection(user.orgId).doc(itemId).get();
+    if (!itemDoc.exists) return res.status(404).json({ message: 'Item not found.' });
+
+    const item = snapshotToData<DBItem>(itemDoc)!;
+    const memberDoc = await boardMembersCollection(user.orgId, item.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? (memberDoc.data() as DBBoardMember) : null;
+    assertItemAccess(user, item, 'read', memberData);
+
+    const msgRef = itemChatMessagesCollection(user.orgId, itemId).doc(messageId);
+    const msgDoc = await msgRef.get();
+    if (!msgDoc.exists) return res.status(404).json({ message: 'Message not found.' });
+
+    const msg = snapshotToData<DBChatMessage>(msgDoc)!;
+    if (msg.authorId !== user.id) {
+      return res.status(403).json({ message: 'You can only edit your own messages.' });
+    }
+
+    await msgRef.update({ text, editedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+    const updated = snapshotToData<DBChatMessage>(await msgRef.get())!;
+    res.status(200).json(updated);
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error editing chat message ${messageId} for item ${itemId}:`, err);
+    res.status(500).json({ message: 'Failed to edit message.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
 // POST /items/:itemId/chat/seen
 // Records that the current user has seen all messages up to the item's
 // current chatMessageCount, enabling cross-device unread badge accuracy.

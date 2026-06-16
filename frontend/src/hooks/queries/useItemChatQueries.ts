@@ -27,6 +27,18 @@ export const usePostChatMessage = (itemId: string) => {
   });
 };
 
+export const useUpdateChatMessage = (itemId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, text }: { id: string; text: string }) => wm.updateChatMessage(itemId, id, text),
+    onSuccess: (updatedMsg: ChatMessage) => {
+      qc.setQueryData<ChatMessage[]>(queryKeys.chat.messages(itemId), (old) =>
+        old ? old.map((m) => (m.id === updatedMsg.id ? updatedMsg : m)) : [updatedMsg],
+      );
+    },
+  });
+};
+
 export const useDeleteChatMessage = (itemId: string) => {
   const qc = useQueryClient();
   return useMutation({

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile, FiTrash2, FiAtSign, FiCheck } from 'react-icons/fi';
+import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile, FiTrash2, FiAtSign, FiCheck, FiEdit2 } from 'react-icons/fi';
 import { useQueryClient } from '@tanstack/react-query';
-import { useChatMessages, usePostChatMessage, useDeleteChatMessage } from '../../hooks/queries/useItemChatQueries';
+import { useChatMessages, usePostChatMessage, useUpdateChatMessage, useDeleteChatMessage } from '../../hooks/queries/useItemChatQueries';
 import { useBoardParticipants } from '../../hooks/queries/useBoardMemberQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useChatSnapshot } from '../../hooks/useChatSnapshot';
@@ -96,6 +96,7 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
   useChatSnapshot(item.id, selectedWorkspace?.orgId);
   const { data: messages = [], isLoading } = useChatMessages(item.id);
   const { mutateAsync: postMessage, isPending: isSending } = usePostChatMessage(item.id);
+  const { mutateAsync: updateMessage, isPending: isUpdating } = useUpdateChatMessage(item.id);
   const { mutate: deleteMessage } = useDeleteChatMessage(item.id);
   const { data: allParticipants = [] } = useBoardParticipants(boardId);
 
@@ -105,6 +106,8 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
   const [text, setText] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [editingMsg, setEditingMsg] = useState<ChatMessage | null>(null);
 
   // Mention state — multi-select, dropdown stays open
   const [mentionOpen, setMentionOpen] = useState(false);
@@ -211,8 +214,32 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
   const removeMentionedUser = (id: string) =>
     setMentionedUsers((prev) => prev.filter((u) => u.id !== id));
 
+  const startEdit = useCallback((msg: ChatMessage) => {
+    setEditingMsg(msg);
+    setText(msg.text);
+    setConfirmDeleteId(null);
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    });
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingMsg(null);
+    setText('');
+    textareaRef.current?.focus();
+  }, []);
+
   const handleSend = useCallback(async () => {
-    if ((!text.trim() && pendingFiles.length === 0) || isSending) return;
+    const isSubmitting = isSending || isUpdating;
+    if (editingMsg) {
+      if (!text.trim() || isSubmitting) return;
+      await updateMessage({ id: editingMsg.id, text: text.trim() });
+      setEditingMsg(null);
+      setText('');
+      return;
+    }
+    if ((!text.trim() && pendingFiles.length === 0) || isSubmitting) return;
     const payload = {
       text: text.trim(),
       files: pendingFiles.length > 0 ? pendingFiles : undefined,
@@ -223,12 +250,17 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
     setMentionedUsers([]);
     setMentionOpen(false);
     await postMessage(payload);
-  }, [text, pendingFiles, isSending, postMessage, mentionedUsers]);
+  }, [text, pendingFiles, isSending, isUpdating, postMessage, updateMessage, mentionedUsers, editingMsg]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Escape' && mentionOpen) {
       e.preventDefault();
       closeMentionDropdown();
+      return;
+    }
+    if (e.key === 'Escape' && editingMsg) {
+      e.preventDefault();
+      cancelEdit();
       return;
     }
     if (e.key === 'Enter' && !e.shiftKey && !mentionOpen) {
@@ -360,20 +392,51 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
                         )}
                       </div>
                       <span className={`text-[10px] text-gray-400 mx-1 ${isMine ? 'text-right' : 'text-left'}`}>
-                        {formatTime(msg.createdAt)}
+                        {formatTime(msg.createdAt)}{msg.editedAt && ' · edited'}
                       </span>
                     </div>
 
-                    {/* Delete button — only for own messages, visible on hover */}
+                    {/* Edit + Delete — only for own messages, visible on hover */}
                     {isMine && (
-                      <button
-                        type="button"
-                        onClick={() => deleteMessage(msg.id)}
-                        className="flex-shrink-0 self-center p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover/msg:opacity-100 transition-opacity"
-                        aria-label="Delete message"
-                      >
-                        <FiTrash2 size={14} aria-hidden="true" />
-                      </button>
+                      <div className="flex-shrink-0 flex flex-col gap-0.5 self-center opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(msg)}
+                          className="p-1 text-gray-500 hover:text-indigo-600 rounded transition-colors"
+                          aria-label="Edit message"
+                        >
+                          <FiEdit2 size={13} aria-hidden="true" />
+                        </button>
+                        {confirmDeleteId === msg.id ? (
+                          <div className="flex gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => { deleteMessage(msg.id); setConfirmDeleteId(null); }}
+                              className="p-1 text-red-500 hover:text-red-700 rounded transition-colors"
+                              aria-label="Confirm delete"
+                            >
+                              <FiCheck size={13} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="p-1 text-gray-500 hover:text-gray-700 rounded transition-colors"
+                              aria-label="Cancel delete"
+                            >
+                              <FiX size={13} aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(msg.id)}
+                            className="p-1 text-gray-500 hover:text-red-500 rounded transition-colors"
+                            aria-label="Delete message"
+                          >
+                            <FiTrash2 size={13} aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -519,6 +582,22 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
           </div>
         )}
 
+        {/* Edit mode banner */}
+        {editingMsg && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border-t border-indigo-100 flex-shrink-0">
+            <FiEdit2 size={12} className="text-indigo-500 flex-shrink-0" aria-hidden="true" />
+            <span className="text-xs text-indigo-600 flex-1 truncate">Editing message</span>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="text-indigo-400 hover:text-indigo-600 transition-colors"
+              aria-label="Cancel edit"
+            >
+              <FiX size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         {/* Input area */}
         <div className="flex items-end gap-2 px-3 py-2.5 border-t border-gray-200 bg-white flex-shrink-0">
           <button
@@ -553,9 +632,9 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={isSending || (!text.trim() && pendingFiles.length === 0)}
+            disabled={isSending || isUpdating || (!text.trim() && pendingFiles.length === 0)}
             className="flex-shrink-0 p-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            aria-label="Send message"
+            aria-label={editingMsg ? 'Save edit' : 'Send message'}
           >
             <FiSend size={16} aria-hidden="true" />
           </button>

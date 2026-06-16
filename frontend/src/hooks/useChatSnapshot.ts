@@ -19,6 +19,7 @@ function docToChatMessage(doc: DocumentSnapshot): ChatMessage {
     ...d,
     id: doc.id,
     createdAt: d.createdAt?.toDate?.()?.toISOString() ?? d.createdAt,
+    editedAt: d.editedAt ? (d.editedAt?.toDate?.()?.toISOString() ?? d.editedAt) : undefined,
   } as ChatMessage;
 }
 

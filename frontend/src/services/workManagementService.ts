@@ -375,6 +375,12 @@ export const postChatMessage = async (
   });
 };
 
+export const updateChatMessage = (itemId: string, messageId: string, text: string): Promise<ChatMessage> =>
+  fetchWithAuth(`/api/items/${itemId}/chat/${messageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ text }),
+  });
+
 export const deleteChatMessage = (itemId: string, messageId: string): Promise<void> =>
   fetchWithAuth(`/api/items/${itemId}/chat/${messageId}`, { method: 'DELETE' });
 
