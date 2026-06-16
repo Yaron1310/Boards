@@ -165,6 +165,7 @@ interface BoardContentProps {
   handleDragOver: (e: import('@dnd-kit/core').DragOverEvent) => void;
   handleDragEnd: (e: import('@dnd-kit/core').DragEndEvent) => void;
   setDetailItem: (item: Item | null) => void;
+  openChat: (item: Item) => void;
   setShowAddColumn: (v: boolean) => void;
   allItems: Item[];
   searchText: string;
@@ -230,6 +231,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
   handleDragOver,
   handleDragEnd,
   setDetailItem,
+  openChat,
   setShowAddColumn,
   allItems,
   searchText,
@@ -370,7 +372,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                   <p>No groups yet. Add a group to start organising items.</p>
                 </div>
               ) : (
-                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem}>
+                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat}>
                   <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
                     {localGroups.map((group) => (
                       <GroupSection
@@ -1036,6 +1038,7 @@ const BoardViewPage: React.FC = () => {
               handleDragOver={handleDragOver}
               handleDragEnd={handleDragEnd}
               setDetailItem={setDetailItem}
+              openChat={setChatItem}
               setShowAddColumn={setShowAddColumn}
               allItems={allItems}
               searchText={searchText}
