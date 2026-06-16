@@ -368,11 +368,11 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
           </div>
         )}
 
-        {/* @mention dropdown — multi-select, stays open */}
+        {/* @mention panel — multi-select, stays open, sits above all input bars */}
         {mentionOpen && (
           <div
             ref={mentionDropdownRef}
-            className="absolute bottom-[58px] left-0 right-0 z-20 bg-white border-t border-gray-200 shadow-xl"
+            className="flex-shrink-0 bg-white border-t border-gray-200 shadow-inner z-20"
             role="dialog"
             aria-label="Select members to mention"
           >

@@ -63,6 +63,7 @@ const ProfilePage: React.FC = () => {
   type NotifPref = 'all' | 'mentions_only' | 'none';
   const [notifPref, setNotifPref] = useState<NotifPref>(() => (authUser?.notificationPreference as NotifPref) ?? 'all');
   const [isNotifSaving, setIsNotifSaving] = useState(false);
+  const [showNotifModal, setShowNotifModal] = useState(false);
 
   const [profileUpdateMessage, setProfileUpdateMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   useEffect(() => {
@@ -621,11 +622,17 @@ const ProfilePage: React.FC = () => {
                         <FiRepeat className="mr-2"/> {t('profile.switchRole')}
                     </button>
                     )}
-                    <button 
-                        onClick={() => {setIsChangingPassword(true); clearMessages();}} 
+                    <button
+                        onClick={() => {setIsChangingPassword(true); clearMessages();}}
                         className="text-sm text-orange-600 hover:text-orange-800 py-1 px-2 rounded-md hover:bg-orange-50 flex items-center transition-colors"
                     >
                         <FiKey className="mr-2"/> {authUser?.hasPassword ? t('profile.changePassword') : t('profile.createPassword')}
+                    </button>
+                    <button
+                        onClick={() => setShowNotifModal(true)}
+                        className="text-sm text-green-600 hover:text-green-800 py-1 px-2 rounded-md hover:bg-green-50 flex items-center transition-colors"
+                    >
+                        <FiBell className="mr-2"/> Email Notifications
                     </button>
                     <button
                         onClick={handleLogoutClick}
@@ -665,12 +672,24 @@ const ProfilePage: React.FC = () => {
             </div>
         )}
 
-        {isOwnProfile && (
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-800 mb-1 flex items-center gap-2">
-              <FiBell size={18} aria-hidden="true" />
-              Email Notifications
-            </h3>
+      </div>
+
+      {isOwnProfile && showNotifModal && ReactDOM.createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="notif-settings-title">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center mb-4 border-b pb-3">
+              <h3 id="notif-settings-title" className="text-xl font-semibold text-gray-800 flex items-center">
+                <FiBell className="mr-2 text-green-500" />
+                Email Notifications
+              </h3>
+              <button
+                onClick={() => setShowNotifModal(false)}
+                className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100"
+                aria-label="Close notification settings"
+              >
+                <FiX size={24} />
+              </button>
+            </div>
             <p className="text-sm text-gray-500 mb-4">Control when you receive email notifications from the app.</p>
             <div className="space-y-3">
               {([
@@ -693,9 +712,7 @@ const ProfilePage: React.FC = () => {
                 <label
                   key={opt.value}
                   className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                    notifPref === opt.value
-                      ? 'border-indigo-500 bg-indigo-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                    notifPref === opt.value ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <input
@@ -705,7 +722,7 @@ const ProfilePage: React.FC = () => {
                     checked={notifPref === opt.value}
                     onChange={() => void handleSaveNotifPref(opt.value)}
                     disabled={isNotifSaving}
-                    className="mt-0.5 accent-indigo-600 flex-shrink-0"
+                    className="mt-0.5 accent-green-600 flex-shrink-0"
                     aria-label={opt.label}
                   />
                   <div className="min-w-0">
@@ -719,13 +736,22 @@ const ProfilePage: React.FC = () => {
               ))}
             </div>
             {isNotifSaving && (
-              <p className="text-xs text-indigo-600 mt-2 flex items-center gap-1">
+              <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
                 <FiLoader size={11} className="animate-spin" aria-hidden="true" /> Saving…
               </p>
             )}
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={() => setShowNotifModal(false)}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium transition-colors"
+              >
+                Done
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>,
+        document.getElementById('modal-root')!
+      )}
 
       {isOwnProfile && isLanguageSettingsOpen && ReactDOM.createPortal(
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="language-settings-title">
