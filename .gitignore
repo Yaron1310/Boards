@@ -26,3 +26,6 @@ extract_links.py
 # Capacitor
 android/
 ios/
+
+frontend/package-lock.json
+backend/package-lock.json
