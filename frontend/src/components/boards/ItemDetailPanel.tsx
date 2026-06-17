@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader, FiMessageSquare } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useItem, useUpdateItem, useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
@@ -9,7 +8,8 @@ import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
-import ItemChatModal, { getUnreadCount } from './ItemChatModal';
+import { getUnreadCount } from './ItemChatModal';
+import { useBoardRender } from '../../contexts/BoardRenderContext';
 
 interface ItemDetailPanelProps {
   item: Item;
@@ -18,6 +18,7 @@ interface ItemDetailPanelProps {
 
 const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, onClose }) => {
   const { user } = useAuthSession();
+  const { openChat } = useBoardRender();
   const { data: columns = [] } = useColumns(initialItem.boardId);
   const { data: liveItem } = useItem(initialItem.id);
   const item = liveItem ?? initialItem;
@@ -31,7 +32,6 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(item.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
   const nameInputRef = useRef<HTMLInputElement>(null);
@@ -146,7 +146,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
           </div>
           <button
             type="button"
-            onClick={() => setChatOpen(true)}
+            onClick={() => openChat(item)}
             className="relative flex items-center justify-center p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors flex-shrink-0"
             aria-label={`Open chat for ${item.name}`}
           >
@@ -263,10 +263,6 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
         )}
       </div>
 
-      {chatOpen && createPortal(
-        <ItemChatModal item={item} onClose={() => setChatOpen(false)} />,
-        document.body,
-      )}
     </>
   );
 };

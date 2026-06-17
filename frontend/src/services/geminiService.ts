@@ -260,7 +260,7 @@ export const deletePreApprovedUserFromBackend = async (preApprovedUserId: string
 
 // User's own profile updates
 export const getMyUserDetails = async (): Promise<{ user: User, selectedWorkspace: WorkHub }> => fetchWithAuth('/api/users/me/details');
-export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string; preferences?: { darkContrast?: boolean } }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
+export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string; preferences?: { darkContrast?: boolean }; notificationPreference?: 'all' | 'mentions_only' | 'none' }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
 export const markChatSeen = async (itemId: string): Promise<void> => fetchWithAuth(`/api/items/${itemId}/chat/seen`, { method: 'POST' });
 export const updateMyPassword = async (passwords: { currentPassword?: string; newPassword: string }): Promise<{ message: string }> => fetchWithAuth('/api/users/me/password', { method: 'PUT', body: JSON.stringify(passwords) });
 const blobToBase64 = (blob: Blob): Promise<string> =>

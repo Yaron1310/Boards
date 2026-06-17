@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { UserRole } from '../../types';
-import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiUserMinus, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiGlobe } from 'react-icons/fi';
+import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiUserMinus, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiGlobe, FiBell, FiInfo } from 'react-icons/fi';
 import i18n, { SUPPORTED_LANGUAGES } from '../../i18n';
 import { useTranslation } from 'react-i18next';
 
@@ -58,6 +58,12 @@ const ProfilePage: React.FC = () => {
   const [isLanguageSettingsOpen, setIsLanguageSettingsOpen] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState<string>(() => authUser?.preferredLanguage || i18n.language.split('-')[0] || 'en');
   const [isLanguageSaving, setIsLanguageSaving] = useState(false);
+
+  // Notification preference state
+  type NotifPref = 'all' | 'mentions_only' | 'none';
+  const [notifPref, setNotifPref] = useState<NotifPref>(() => (authUser?.notificationPreference as NotifPref) ?? 'all');
+  const [isNotifSaving, setIsNotifSaving] = useState(false);
+  const [showNotifModal, setShowNotifModal] = useState(false);
 
   const [profileUpdateMessage, setProfileUpdateMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
   useEffect(() => {
@@ -114,6 +120,7 @@ const ProfilePage: React.FC = () => {
           if (authUser.preferredLanguage) {
               setSelectedLanguage(authUser.preferredLanguage);
           }
+          setNotifPref((authUser.notificationPreference as NotifPref) ?? 'all');
       }
     } else if (!authLoading && !dataCtxLoading) {
       // Handle cases where the user isn't found or isn't logged in.
@@ -403,6 +410,17 @@ const ProfilePage: React.FC = () => {
     navigate(-1);
   };
 
+  const handleSaveNotifPref = async (pref: NotifPref) => {
+    setNotifPref(pref);
+    setIsNotifSaving(true);
+    try {
+      await updateUserDetails({ notificationPreference: pref });
+    } catch {
+      // error handled by AuthContext
+    }
+    setIsNotifSaving(false);
+  };
+
 
   if (!profileUser && (authLoading || dataCtxLoading)) {
     return <div className="p-6 text-center text-gray-600 flex justify-center items-center h-full"><FiLoader className="animate-spin h-8 w-8 text-blue-500"/></div>;
@@ -604,11 +622,17 @@ const ProfilePage: React.FC = () => {
                         <FiRepeat className="mr-2"/> {t('profile.switchRole')}
                     </button>
                     )}
-                    <button 
-                        onClick={() => {setIsChangingPassword(true); clearMessages();}} 
+                    <button
+                        onClick={() => {setIsChangingPassword(true); clearMessages();}}
                         className="text-sm text-orange-600 hover:text-orange-800 py-1 px-2 rounded-md hover:bg-orange-50 flex items-center transition-colors"
                     >
                         <FiKey className="mr-2"/> {authUser?.hasPassword ? t('profile.changePassword') : t('profile.createPassword')}
+                    </button>
+                    <button
+                        onClick={() => setShowNotifModal(true)}
+                        className="text-sm text-green-600 hover:text-green-800 py-1 px-2 rounded-md hover:bg-green-50 flex items-center transition-colors"
+                    >
+                        <FiBell className="mr-2"/> Email Notifications
                     </button>
                     <button
                         onClick={handleLogoutClick}
@@ -647,7 +671,87 @@ const ProfilePage: React.FC = () => {
                 </div>
             </div>
         )}
+
       </div>
+
+      {isOwnProfile && showNotifModal && ReactDOM.createPortal(
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="notif-settings-title">
+          <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex justify-between items-center mb-4 border-b pb-3">
+              <h3 id="notif-settings-title" className="text-xl font-semibold text-gray-800 flex items-center">
+                <FiBell className="mr-2 text-green-500" />
+                Email Notifications
+              </h3>
+              <button
+                onClick={() => setShowNotifModal(false)}
+                className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100"
+                aria-label="Close notification settings"
+              >
+                <FiX size={24} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Control when you receive email notifications from the app.</p>
+            <div className="space-y-3">
+              {([
+                {
+                  value: 'all' as const,
+                  label: 'All notifications',
+                  description: 'Receive emails when you are @mentioned in a chat message AND when a message is posted to an item you are assigned to via a Person column.',
+                },
+                {
+                  value: 'mentions_only' as const,
+                  label: '@Mention notifications only',
+                  description: 'Receive emails only when someone explicitly @mentions you in a chat message. You will NOT receive emails for items you are assigned to unless you are also @mentioned.',
+                },
+                {
+                  value: 'none' as const,
+                  label: 'No notifications',
+                  description: 'Turn off all email notifications from the app. You will not receive any chat notification emails.',
+                },
+              ] as { value: NotifPref; label: string; description: string }[]).map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                    notifPref === opt.value ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="notif-pref"
+                    value={opt.value}
+                    checked={notifPref === opt.value}
+                    onChange={() => void handleSaveNotifPref(opt.value)}
+                    disabled={isNotifSaving}
+                    className="mt-0.5 accent-green-600 flex-shrink-0"
+                    aria-label={opt.label}
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-800">{opt.label}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 flex items-start gap-1">
+                      <FiInfo size={11} className="mt-0.5 flex-shrink-0 text-gray-400" aria-hidden="true" />
+                      {opt.description}
+                    </p>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {isNotifSaving && (
+              <p className="text-xs text-green-600 mt-3 flex items-center gap-1">
+                <FiLoader size={11} className="animate-spin" aria-hidden="true" /> Saving…
+              </p>
+            )}
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={() => setShowNotifModal(false)}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.getElementById('modal-root')!
+      )}
 
       {isOwnProfile && isLanguageSettingsOpen && ReactDOM.createPortal(
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="language-settings-title">

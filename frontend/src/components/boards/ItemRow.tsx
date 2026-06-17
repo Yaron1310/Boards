@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
 import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiEdit2 } from 'react-icons/fi';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -14,7 +13,7 @@ import { ColumnCell } from './cells';
 import { DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 import { ITEM_COL_ID } from './ColumnHeader';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
-import ItemChatModal, { getUnreadCount } from './ItemChatModal';
+import { getUnreadCount } from './ItemChatModal';
 
 interface ItemRowProps {
   item: Item;
@@ -25,7 +24,7 @@ interface ItemRowProps {
 const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
-  const { boardView, columnWidths } = useBoardRender();
+  const { boardView, columnWidths, openChat } = useBoardRender();
   const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
   const { mutateAsync: archiveItem, isPending: isArchiving } = useArchiveItem();
@@ -34,7 +33,6 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
   const { data: boardMembers = [] } = useBoardMembers(item.boardId);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(item.name);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -255,7 +253,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
           {/* Chat bubble — always visible */}
           <button
             type="button"
-            onClick={(e) => { e.stopPropagation(); setChatOpen(true); }}
+            onClick={(e) => { e.stopPropagation(); openChat(item); }}
             className="relative flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
             aria-label={`Open chat for ${item.name}`}
           >
@@ -277,11 +275,6 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
         <ColumnCell key={col.id} item={item} column={col} groupColor={groupColor} />
       ))}
 
-      {/* Chat modal — portalled to body to escape DnD transform stacking context */}
-      {chatOpen && createPortal(
-        <ItemChatModal item={item} onClose={() => setChatOpen(false)} />,
-        document.body,
-      )}
     </div>
   );
 };

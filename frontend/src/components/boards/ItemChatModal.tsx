@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiSend, FiPaperclip, FiDownload, FiImage, FiFile, FiTrash2, FiAtSign, FiCheck, FiEdit2 } from 'react-icons/fi';
 import { useQueryClient } from '@tanstack/react-query';
-import { useChatMessages, usePostChatMessage, useDeleteChatMessage } from '../../hooks/queries/useItemChatQueries';
+import { useChatMessages, usePostChatMessage, useUpdateChatMessage, useDeleteChatMessage } from '../../hooks/queries/useItemChatQueries';
+import { useBoardParticipants } from '../../hooks/queries/useBoardMemberQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useChatSnapshot } from '../../hooks/useChatSnapshot';
 import { markChatSeen } from '../../services/geminiService';
 import type { Item, ChatMessage, ChatAttachment } from '../../types';
+import type { BoardParticipant } from '../../services/workManagementService';
 
 // Stable colour palette — one colour per unique authorId
 const AUTHOR_COLORS = [
@@ -54,6 +56,28 @@ function humanSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+function renderTextWithLinks(text: string, isMine: boolean): React.ReactNode {
+  const parts = text.split(URL_REGEX);
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={isMine ? 'underline opacity-80 hover:opacity-100' : 'text-indigo-600 underline hover:text-indigo-800'}
+        aria-label={`Link: ${part}`}
+      >
+        {part}
+      </a>
+    ) : (
+      <React.Fragment key={i}>{part}</React.Fragment>
+    ),
+  );
+}
+
 export function getUnreadCount(userId: string, item: Item): number {
   const total = item.chatMessageCount ?? 0;
   const seen = item.chatSeenBy?.[userId] ?? 0;
@@ -66,25 +90,44 @@ interface ItemChatModalProps {
 }
 
 const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
+  const boardId = item.boardId;
   const { user, selectedWorkspace } = useAuthSession();
   const qc = useQueryClient();
   useChatSnapshot(item.id, selectedWorkspace?.orgId);
   const { data: messages = [], isLoading } = useChatMessages(item.id);
   const { mutateAsync: postMessage, isPending: isSending } = usePostChatMessage(item.id);
+  const { mutateAsync: updateMessage, isPending: isUpdating } = useUpdateChatMessage(item.id);
   const { mutate: deleteMessage } = useDeleteChatMessage(item.id);
+  const { data: allParticipants = [] } = useBoardParticipants(boardId);
+
+  // Active participants only (backend already filters, but guard here too)
+  const participants = allParticipants.filter((p) => p.id !== user?.id);
 
   const [text, setText] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [editingMsg, setEditingMsg] = useState<ChatMessage | null>(null);
+
+  // Mention state — multi-select, dropdown stays open
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionedUsers, setMentionedUsers] = useState<BoardParticipant[]>([]);
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mentionDropdownRef = useRef<HTMLDivElement>(null);
   const initialScrollDone = useRef(false);
 
   // Derive stable list of unique author IDs for colour mapping
   const authorIds = Array.from(new Set(messages.map((m) => m.authorId)));
+
+  // Participants filtered by current mention query
+  const filteredParticipants = participants.filter(
+    (p) => mentionQuery === '' || p.name.toLowerCase().includes(mentionQuery.toLowerCase()),
+  );
 
   // Mark messages as seen; invalidate items cache so the badge clears immediately
   useEffect(() => {
@@ -94,7 +137,7 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
     });
   }, [user, item.id, messages.length, qc]);
 
-  // Defer scroll to next animation frame so the browser has finished layout before we read scrollHeight
+  // Scroll to bottom on new messages
   useEffect(() => {
     if (messages.length === 0) return;
     const container = messagesContainerRef.current;
@@ -110,16 +153,117 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
     return () => cancelAnimationFrame(frame);
   }, [messages.length]);
 
+  // Close mention dropdown when clicking outside
+  useEffect(() => {
+    if (!mentionOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (
+        mentionDropdownRef.current &&
+        !mentionDropdownRef.current.contains(e.target as Node) &&
+        textareaRef.current &&
+        !textareaRef.current.contains(e.target as Node)
+      ) {
+        setMentionOpen(false);
+        setMentionQuery('');
+        // Remove trailing @ from text if nothing was selected yet
+        setText((prev) => prev.replace(/@\w*$/, '').replace(/@$/, ''));
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [mentionOpen]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setText(val);
+
+    const cursor = e.target.selectionStart ?? val.length;
+    const textBefore = val.slice(0, cursor);
+    const match = textBefore.match(/@(\w*)$/);
+    if (match) {
+      setMentionQuery(match[1]);
+      setMentionOpen(true);
+    } else if (mentionOpen) {
+      // user deleted past the @, close dropdown
+      setMentionOpen(false);
+      setMentionQuery('');
+    }
+  };
+
+  const toggleMentionUser = useCallback((participant: BoardParticipant) => {
+    setMentionedUsers((prev) => {
+      const already = prev.some((u) => u.id === participant.id);
+      if (already) return prev.filter((u) => u.id !== participant.id);
+      return [...prev, participant];
+    });
+    // Keep the textarea focused so user can continue typing
+    textareaRef.current?.focus();
+  }, []);
+
+  const closeMentionDropdown = useCallback(() => {
+    // Strip the trailing @query from text when closing
+    setText((prev) => {
+      const match = prev.match(/@\w*$/);
+      return match ? prev.slice(0, prev.length - match[0].length).trimEnd() : prev;
+    });
+    setMentionOpen(false);
+    setMentionQuery('');
+    textareaRef.current?.focus();
+  }, []);
+
+  const removeMentionedUser = (id: string) =>
+    setMentionedUsers((prev) => prev.filter((u) => u.id !== id));
+
+  const startEdit = useCallback((msg: ChatMessage) => {
+    setEditingMsg(msg);
+    setText(msg.text);
+    setConfirmDeleteId(null);
+    requestAnimationFrame(() => {
+      const ta = textareaRef.current;
+      if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    });
+  }, []);
+
+  const cancelEdit = useCallback(() => {
+    setEditingMsg(null);
+    setText('');
+    textareaRef.current?.focus();
+  }, []);
+
   const handleSend = useCallback(async () => {
-    if ((!text.trim() && pendingFiles.length === 0) || isSending) return;
-    const payload = { text: text.trim(), files: pendingFiles.length > 0 ? pendingFiles : undefined };
+    const isSubmitting = isSending || isUpdating;
+    if (editingMsg) {
+      if (!text.trim() || isSubmitting) return;
+      await updateMessage({ id: editingMsg.id, text: text.trim() });
+      setEditingMsg(null);
+      setText('');
+      return;
+    }
+    if ((!text.trim() && pendingFiles.length === 0) || isSubmitting) return;
+    const payload = {
+      text: text.trim(),
+      files: pendingFiles.length > 0 ? pendingFiles : undefined,
+      mentionedUserIds: mentionedUsers.map((u) => u.id),
+    };
     setText('');
     setPendingFiles([]);
+    setMentionedUsers([]);
+    setMentionOpen(false);
     await postMessage(payload);
-  }, [text, pendingFiles, isSending, postMessage]);
+  }, [text, pendingFiles, isSending, isUpdating, postMessage, updateMessage, mentionedUsers, editingMsg]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'Escape' && mentionOpen) {
+      e.preventDefault();
+      closeMentionDropdown();
+      return;
+    }
+    if (e.key === 'Escape' && editingMsg) {
+      e.preventDefault();
+      cancelEdit();
+      return;
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !mentionOpen) {
       e.preventDefault();
       void handleSend();
     }
@@ -227,18 +371,18 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
                     </div>
 
                     {/* Bubble */}
-                    <div className={`max-w-[75%] ${isMine ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
+                    <div className={`max-w-[75%] min-w-0 ${isMine ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
                       {showAvatar && !isMine && (
                         <span className="text-xs text-gray-500 ml-1">{msg.authorName}</span>
                       )}
                       <div
-                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
+                        className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words [overflow-wrap:anywhere] ${
                           isMine
                             ? 'bg-indigo-600 text-white rounded-br-sm'
                             : 'bg-white text-gray-800 shadow-sm rounded-bl-sm border border-gray-100'
                         }`}
                       >
-                        {msg.text && <p>{msg.text}</p>}
+                        {msg.text && <p>{renderTextWithLinks(msg.text, isMine)}</p>}
                         {msg.attachments && msg.attachments.length > 0 && (
                           <div className={`mt-1.5 space-y-1 ${msg.text ? 'pt-1.5 border-t border-white/20' : ''}`}>
                             {msg.attachments.map((att, ai) => (
@@ -248,20 +392,51 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
                         )}
                       </div>
                       <span className={`text-[10px] text-gray-400 mx-1 ${isMine ? 'text-right' : 'text-left'}`}>
-                        {formatTime(msg.createdAt)}
+                        {formatTime(msg.createdAt)}{msg.editedAt && ' · edited'}
                       </span>
                     </div>
 
-                    {/* Delete button — only for own messages, visible on hover */}
+                    {/* Edit + Delete — only for own messages, visible on hover */}
                     {isMine && (
-                      <button
-                        type="button"
-                        onClick={() => deleteMessage(msg.id)}
-                        className="flex-shrink-0 self-center p-1 text-gray-300 hover:text-red-500 opacity-0 group-hover/msg:opacity-100 transition-opacity"
-                        aria-label="Delete message"
-                      >
-                        <FiTrash2 size={14} aria-hidden="true" />
-                      </button>
+                      <div className="flex-shrink-0 flex flex-col gap-0.5 self-center opacity-0 group-hover/msg:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(msg)}
+                          className="p-1 text-gray-500 hover:text-indigo-600 rounded transition-colors"
+                          aria-label="Edit message"
+                        >
+                          <FiEdit2 size={13} aria-hidden="true" />
+                        </button>
+                        {confirmDeleteId === msg.id ? (
+                          <div className="flex gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => { deleteMessage(msg.id); setConfirmDeleteId(null); }}
+                              className="p-1 text-red-500 hover:text-red-700 rounded transition-colors"
+                              aria-label="Confirm delete"
+                            >
+                              <FiCheck size={13} aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteId(null)}
+                              className="p-1 text-gray-500 hover:text-gray-700 rounded transition-colors"
+                              aria-label="Cancel delete"
+                            >
+                              <FiX size={13} aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(msg.id)}
+                            className="p-1 text-gray-500 hover:text-red-500 rounded transition-colors"
+                            aria-label="Delete message"
+                          >
+                            <FiTrash2 size={13} aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 );
@@ -275,6 +450,87 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
         {dragOver && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-indigo-600/20 border-2 border-dashed border-indigo-500 rounded-2xl pointer-events-none">
             <span className="text-indigo-700 font-semibold text-sm">Drop files to attach</span>
+          </div>
+        )}
+
+        {/* @mention panel — multi-select, stays open, sits above all input bars */}
+        {mentionOpen && (
+          <div
+            ref={mentionDropdownRef}
+            className="flex-shrink-0 bg-white border-t border-gray-200 shadow-inner z-20"
+            role="dialog"
+            aria-label="Select members to mention"
+          >
+            <div className="flex items-center justify-between px-3 pt-2 pb-1">
+              <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide">
+                Mention members {mentionedUsers.length > 0 && `(${mentionedUsers.length} selected)`}
+              </span>
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); closeMentionDropdown(); }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-medium px-1"
+                aria-label="Close mention picker"
+              >
+                Done
+              </button>
+            </div>
+
+            {/* Search filter */}
+            {participants.length > 5 && (
+              <div className="px-3 pb-1">
+                <input
+                  type="text"
+                  value={mentionQuery}
+                  onChange={(e) => setMentionQuery(e.target.value)}
+                  placeholder="Filter members…"
+                  className="w-full text-xs px-2 py-1 border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  aria-label="Filter members"
+                />
+              </div>
+            )}
+
+            <ul className="max-h-44 overflow-y-auto" role="listbox" aria-multiselectable="true">
+              {filteredParticipants.length === 0 ? (
+                <li className="px-3 py-3 text-xs text-gray-400 text-center">No members match</li>
+              ) : (
+                filteredParticipants.map((p) => {
+                  const checked = mentionedUsers.some((u) => u.id === p.id);
+                  return (
+                    <li key={p.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={checked}
+                        onMouseDown={(e) => { e.preventDefault(); toggleMentionUser(p); }}
+                        className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${
+                          checked ? 'bg-indigo-50' : 'hover:bg-gray-50'
+                        }`}
+                      >
+                        {/* Checkbox visual */}
+                        <span
+                          className={`w-4 h-4 flex-shrink-0 rounded border flex items-center justify-center transition-colors ${
+                            checked ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'
+                          }`}
+                          aria-hidden="true"
+                        >
+                          {checked && <FiCheck size={10} className="text-white" />}
+                        </span>
+
+                        {p.profileImageUrl ? (
+                          <img src={p.profileImageUrl} alt={p.name} className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0" aria-hidden="true">
+                            {p.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="text-sm text-gray-800 truncate font-medium">{p.name}</span>
+                        <span className="text-xs text-gray-400 truncate ml-auto">{p.email}</span>
+                      </button>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
           </div>
         )}
 
@@ -301,6 +557,47 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
           </div>
         )}
 
+        {/* Mentioned user chips */}
+        {mentionedUsers.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-3 py-1.5 bg-indigo-50 border-t border-indigo-100">
+            <span className="text-[10px] text-indigo-400 self-center font-medium mr-0.5 flex items-center gap-0.5">
+              <FiAtSign size={10} aria-hidden="true" /> Notifying:
+            </span>
+            {mentionedUsers.map((u) => (
+              <span
+                key={u.id}
+                className="flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full border border-indigo-200"
+              >
+                {u.name}
+                <button
+                  type="button"
+                  onClick={() => removeMentionedUser(u.id)}
+                  className="ml-0.5 text-indigo-400 hover:text-indigo-600"
+                  aria-label={`Remove mention of ${u.name}`}
+                >
+                  <FiX size={10} aria-hidden="true" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Edit mode banner */}
+        {editingMsg && (
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border-t border-indigo-100 flex-shrink-0">
+            <FiEdit2 size={12} className="text-indigo-500 flex-shrink-0" aria-hidden="true" />
+            <span className="text-xs text-indigo-600 flex-1 truncate">Editing message</span>
+            <button
+              type="button"
+              onClick={cancelEdit}
+              className="text-indigo-400 hover:text-indigo-600 transition-colors"
+              aria-label="Cancel edit"
+            >
+              <FiX size={14} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+
         {/* Input area */}
         <div className="flex items-end gap-2 px-3 py-2.5 border-t border-gray-200 bg-white flex-shrink-0">
           <button
@@ -324,9 +621,9 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
           <textarea
             ref={textareaRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+            placeholder="Type a message… (@ to mention, Enter to send)"
             rows={1}
             className="flex-1 resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent min-h-[38px] max-h-[100px] overflow-y-auto"
             style={{ lineHeight: '1.4' }}
@@ -335,9 +632,9 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
           <button
             type="button"
             onClick={() => void handleSend()}
-            disabled={isSending || (!text.trim() && pendingFiles.length === 0)}
+            disabled={isSending || isUpdating || (!text.trim() && pendingFiles.length === 0)}
             className="flex-shrink-0 p-2 bg-indigo-600 text-white rounded-full hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            aria-label="Send message"
+            aria-label={editingMsg ? 'Save edit' : 'Send message'}
           >
             <FiSend size={16} aria-hidden="true" />
           </button>

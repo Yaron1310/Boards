@@ -12,6 +12,7 @@ interface BoardRenderContextValue {
   boardView: BoardView;
   columnWidths: ColumnWidthMap;
   isBoardReadOnly: boolean;
+  openChat: (item: Item) => void;
 }
 
 const BoardRenderContext = createContext<BoardRenderContextValue | null>(null);
@@ -22,10 +23,11 @@ export const BoardRenderProvider: React.FC<{
   boardView?: BoardView;
   columnWidths?: ColumnWidthMap;
   isBoardReadOnly?: boolean;
+  openChat?: (item: Item) => void;
   children: React.ReactNode;
-}> = ({ visibleItems, columns, boardView = 'table', columnWidths = {}, isBoardReadOnly = false, children }) => {
+}> = ({ visibleItems, columns, boardView = 'table', columnWidths = {}, isBoardReadOnly = false, openChat = () => {}, children }) => {
   return (
-    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView, columnWidths, isBoardReadOnly }}>
+    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView, columnWidths, isBoardReadOnly, openChat }}>
       {children}
     </BoardRenderContext.Provider>
   );

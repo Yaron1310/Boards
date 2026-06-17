@@ -320,8 +320,18 @@ export const getDashboardOverdue = (
 
 // ─── BOARD MEMBERS ───────────────────────────────────────────────────────────
 
+export interface BoardParticipant {
+  id: string;
+  name: string;
+  email: string;
+  profileImageUrl?: string;
+}
+
 export const getBoardMembers = (boardId: string): Promise<BoardMember[]> =>
   fetchWithAuth(`/api/boards/${boardId}/members`);
+
+export const getBoardParticipants = (boardId: string): Promise<BoardParticipant[]> =>
+  fetchWithAuth(`/api/boards/${boardId}/participants`);
 
 export const addBoardMember = (boardId: string, userId: string, role: BoardRole): Promise<BoardMember> =>
   fetchWithAuth(`/api/boards/${boardId}/members`, { method: 'POST', body: JSON.stringify({ userId, role }) });
@@ -352,6 +362,7 @@ export const postChatMessage = async (
   itemId: string,
   text: string,
   files?: File[],
+  mentionedUserIds?: string[],
 ): Promise<ChatMessage> => {
   const attachments =
     files && files.length > 0
@@ -360,9 +371,15 @@ export const postChatMessage = async (
 
   return fetchWithAuth(`/api/items/${itemId}/chat`, {
     method: 'POST',
-    body: JSON.stringify({ text, attachments }),
+    body: JSON.stringify({ text, attachments, mentionedUserIds: mentionedUserIds ?? [] }),
   });
 };
+
+export const updateChatMessage = (itemId: string, messageId: string, text: string): Promise<ChatMessage> =>
+  fetchWithAuth(`/api/items/${itemId}/chat/${messageId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ text }),
+  });
 
 export const deleteChatMessage = (itemId: string, messageId: string): Promise<void> =>
   fetchWithAuth(`/api/items/${itemId}/chat/${messageId}`, { method: 'DELETE' });

@@ -83,6 +83,7 @@ export interface DBUser {
   preferences?: {
     darkContrast?: boolean;
   };
+  notificationPreference?: 'all' | 'mentions_only' | 'none';
   forceLogoutAt?: admin.firestore.Timestamp | Date | null;
 }
 
@@ -381,6 +382,7 @@ export interface DBChatMessage {
   text: string;
   attachments?: DBChatAttachment[];
   createdAt: admin.firestore.Timestamp | Date | any;
+  editedAt?: admin.firestore.Timestamp | Date | any;
 }
 
 export interface DBChatAttachment {
