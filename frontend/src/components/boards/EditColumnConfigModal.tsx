@@ -1,7 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { FiX, FiSettings, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiX, FiSettings, FiPlus, FiTrash2, FiMenu } from 'react-icons/fi';
 import ColorPickerPopover, { PRESET_COLORS } from './ColorPickerPopover';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
 import type {
@@ -20,6 +35,85 @@ interface EditColumnConfigModalProps {
   column: Column;
   onClose: () => void;
 }
+
+interface SortableStatusOptionProps {
+  opt: StatusOption;
+  idx: number;
+  openColorPickerIdx: number | null;
+  colorPickerRefs: React.MutableRefObject<(HTMLDivElement | null)[]>;
+  onColorPickerToggle: (idx: number) => void;
+  onUpdateOption: (idx: number, field: 'label' | 'color', value: string) => void;
+  onRemoveOption: (idx: number) => void;
+  usedColors: string[];
+}
+
+const SortableStatusOption: React.FC<SortableStatusOptionProps> = ({
+  opt,
+  idx,
+  openColorPickerIdx,
+  colorPickerRefs,
+  onColorPickerToggle,
+  onUpdateOption,
+  onRemoveOption,
+  usedColors,
+}) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: opt.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-2">
+      <button
+        type="button"
+        {...attributes}
+        {...listeners}
+        className="text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing flex-shrink-0 p-0.5"
+        aria-label={`Drag to reorder ${opt.label}`}
+      >
+        <FiMenu size={14} aria-hidden="true" />
+      </button>
+      <div
+        className="relative flex-shrink-0"
+        ref={(el) => { colorPickerRefs.current[idx] = el; }}
+      >
+        <button
+          type="button"
+          aria-label={`Color for option ${opt.label}`}
+          onClick={() => onColorPickerToggle(idx)}
+          className="w-7 h-7 rounded border border-gray-300 cursor-pointer hover:border-gray-500 transition-colors"
+          style={{ backgroundColor: opt.color }}
+        />
+        {openColorPickerIdx === idx && (
+          <div className="absolute left-0 top-full mt-1 z-[60] bg-white border border-gray-200 rounded shadow-lg w-[168px]">
+            <ColorPickerPopover
+              value={opt.color}
+              onChange={(c) => { onUpdateOption(idx, 'color', c); onColorPickerToggle(-1); }}
+              usedColors={usedColors}
+            />
+          </div>
+        )}
+      </div>
+      <input
+        type="text"
+        value={opt.label}
+        onChange={(e) => onUpdateOption(idx, 'label', e.target.value)}
+        className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        aria-label={`Label for option ${idx + 1}`}
+      />
+      <button
+        type="button"
+        onClick={() => onRemoveOption(idx)}
+        className="text-gray-400 hover:text-red-500 transition-colors p-1 flex-shrink-0"
+        aria-label={`Remove option ${opt.label}`}
+      >
+        <FiTrash2 size={13} aria-hidden="true" />
+      </button>
+    </div>
+  );
+};
 
 
 const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, column, onClose }) => {
@@ -59,6 +153,19 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
 
   const [openColorPickerIdx, setOpenColorPickerIdx] = useState<number | null>(null);
   const colorPickerRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const sensors = useSensors(useSensor(PointerSensor));
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setStatusOptions((prev) => {
+        const oldIdx = prev.findIndex((o) => o.id === active.id);
+        const newIdx = prev.findIndex((o) => o.id === over.id);
+        return arrayMove(prev, oldIdx, newIdx);
+      });
+    }
+  };
 
   useEffect(() => {
     if (openColorPickerIdx === null) return;
@@ -155,7 +262,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
             </div>
             <div>
               <h2 id="edit-col-config-title" className="text-base font-semibold text-gray-800">
-                Edit Configuration
+                Settings
               </h2>
               <p className="text-xs text-gray-400">{column.name} · {TITLES[column.type]}</p>
             </div>
@@ -246,46 +353,25 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
             {column.type === ColumnType.STATUS && (
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Status Options</p>
-                {statusOptions.map((opt, idx) => (
-                  <div key={opt.id} className="flex items-center gap-2">
-                    <div
-                      className="relative flex-shrink-0"
-                      ref={(el) => { colorPickerRefs.current[idx] = el; }}
-                    >
-                      <button
-                        type="button"
-                        aria-label={`Color for option ${opt.label}`}
-                        onClick={() => setOpenColorPickerIdx(openColorPickerIdx === idx ? null : idx)}
-                        className="w-7 h-7 rounded border border-gray-300 cursor-pointer hover:border-gray-500 transition-colors"
-                        style={{ backgroundColor: opt.color }}
-                      />
-                      {openColorPickerIdx === idx && (
-                        <div className="absolute left-0 top-full mt-1 z-[60] bg-white border border-gray-200 rounded shadow-lg w-[168px]">
-                          <ColorPickerPopover
-                            value={opt.color}
-                            onChange={(c) => { updateStatusOption(idx, 'color', c); setOpenColorPickerIdx(null); }}
-                            usedColors={statusOptions.map((o) => o.color)}
-                          />
-                        </div>
-                      )}
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={statusOptions.map((o) => o.id)} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {statusOptions.map((opt, idx) => (
+                        <SortableStatusOption
+                          key={opt.id}
+                          opt={opt}
+                          idx={idx}
+                          openColorPickerIdx={openColorPickerIdx}
+                          colorPickerRefs={colorPickerRefs}
+                          onColorPickerToggle={(i) => setOpenColorPickerIdx(openColorPickerIdx === i ? null : i)}
+                          onUpdateOption={updateStatusOption}
+                          onRemoveOption={removeStatusOption}
+                          usedColors={statusOptions.map((o) => o.color)}
+                        />
+                      ))}
                     </div>
-                    <input
-                      type="text"
-                      value={opt.label}
-                      onChange={(e) => updateStatusOption(idx, 'label', e.target.value)}
-                      className="flex-1 px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      aria-label={`Label for option ${idx + 1}`}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeStatusOption(idx)}
-                      className="text-gray-400 hover:text-red-500 transition-colors p-1 flex-shrink-0"
-                      aria-label={`Remove option ${opt.label}`}
-                    >
-                      <FiTrash2 size={13} aria-hidden="true" />
-                    </button>
-                  </div>
-                ))}
+                  </SortableContext>
+                </DndContext>
                 <button
                   type="button"
                   onClick={addStatusOption}

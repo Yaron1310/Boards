@@ -383,7 +383,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
                         aria-label="Edit column configuration"
                       >
                         <FiSettings size={12} aria-hidden="true" />
-                        Edit configuration
+                        Settings
                       </button>
                     )}
                     <button
