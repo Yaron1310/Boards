@@ -570,18 +570,6 @@ const ProfilePage: React.FC = () => {
                     <p className="text-sm text-gray-500">{t('profile.role')}: <span className="font-semibold capitalize">{profileUser.role.replace(/_/g, ' ')}</span></p>
                 </div>
             </div>
-
-            <div className="mt-2">
-                <div className="flex items-center justify-center md:justify-start">
-                    <p className="text-sm text-gray-500">
-                        {t('profile.workspaces')}: <span className="font-semibold">
-                            {profileUser.role === UserRole.SYSTEM_ADMIN
-                                ? 'System-Wide Access'
-                                : profileUser.workspaces.filter(o => !o.isPersonal).map(o => o.name).join(', ') || 'N/A'}
-                        </span>
-                    </p>
-                </div>
-            </div>
           </div>
         )}
       </div>
