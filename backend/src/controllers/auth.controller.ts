@@ -100,9 +100,10 @@ export const formatUserForFrontend = async (
     const workspaceIdsFromMemberships = [...new Set(memberships.filter(m => m.entityType === 'workspace').map(m => m.entityId))];
     let allRelevantOrgIds = [...workspaceIdsFromMemberships];
 
-    // If the user is an workspace admin and has NO workspace memberships, they need a representative org from their workspace to log in.
-    if (dbRoles.organizationAdmin.length > 0 && allRelevantOrgIds.length === 0) {
-        // Fetch orgs for all admin workspaces in one query instead of N+1
+    // If the user is an org admin, always ensure a representative workspace exists for each
+    // admin org — even when they also have other workspace memberships (otherwise multi-org
+    // detection misses the admin orgs and the context selection screen never appears).
+    if (dbRoles.organizationAdmin.length > 0) {
         const adminOrganizationIds = dbRoles.organizationAdmin;
         const repOrgPromises: Promise<admin.firestore.QuerySnapshot>[] = [];
         for (let i = 0; i < adminOrganizationIds.length; i += 30) {
@@ -110,7 +111,6 @@ export const formatUserForFrontend = async (
         }
         const repOrgSnapshots = await Promise.all(repOrgPromises);
         const allRepOrgs = repOrgSnapshots.flatMap(snap => querySnapshotToArray<DBWorkspace>(snap));
-        // Pick one org per workspace
         const seenOrganizations = new Set<string>();
         for (const org of allRepOrgs) {
             if (!seenOrganizations.has(org.orgId)) {
