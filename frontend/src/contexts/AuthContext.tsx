@@ -627,6 +627,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     });
     console.debug('[availableContexts] byOrg keys (orgIds with eligible workspaces):', [...byOrg.keys()]);
 
+    // Org admins must always get a context entry even if all their workspaces for that
+    // org are personal/templates (e.g. newly created org with no real workspaces yet).
+    (assignedOrganizationAdmins as string[]).forEach((orgId: string) => {
+      if (byOrg.has(orgId)) return;
+      const anyWs = userForContexts.workspaces.find((ws: any) => ws.orgId === orgId);
+      if (!anyWs) return;
+      const orgName = anyWs.organizationName || orgId;
+      console.debug(`[availableContexts] org admin org ${orgId} has no eligible workspace — using fallback:`, anyWs);
+      byOrg.set(orgId, { orgName, workspaces: [anyWs] });
+    });
+
     // org_editor: their membership entityId is the orgId — no workspace docs, build context directly
     (assignedOrgEditors as string[]).forEach((orgId: string) => {
       if (byOrg.has(orgId)) return; // already covered via workspace membership
