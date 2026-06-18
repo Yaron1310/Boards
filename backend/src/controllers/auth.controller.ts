@@ -430,6 +430,9 @@ const isMultiOrgUser = (userForFrontend: any): boolean => {
     if (userForFrontend.dbRoles?.systemAdmin) return true;
     const workspaces: any[] = (userForFrontend.workspaces || []).filter((w: any) => !w.isPersonal && !w.isTemplates && w.name !== 'Default Workspace');
     const distinctOrgIds = new Set(workspaces.map((w: any) => w.orgId).filter(Boolean));
+    // Also count orgs from org-admin roles — an org admin for a new org may have no
+    // real workspaces yet (only personal/templates), but still needs context selection.
+    (userForFrontend.dbRoles?.organizationAdmin || []).forEach((orgId: string) => distinctOrgIds.add(orgId));
     return distinctOrgIds.size > 1;
 };
 
