@@ -1079,6 +1079,7 @@ const BoardViewPage: React.FC = () => {
         <BoardInviteModal
           boardId={boardId}
           workspaceId={board.workspaceId}
+          boardName={board.name}
           onClose={() => setShowInviteModal(false)}
         />
       )}

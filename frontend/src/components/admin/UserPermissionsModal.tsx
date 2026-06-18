@@ -12,6 +12,7 @@ interface Props {
   isOrgAdmin?: boolean;
   isOrgEditor?: boolean;
   canAssignAdmin?: boolean;
+  filterBoardId?: string;
   onClose: () => void;
 }
 
@@ -31,7 +32,7 @@ const BOARD_ROLE_OPTIONS: Array<{ value: BoardRole; label: string }> = [
   { value: BoardRole.EDITOR, label: 'Edit' },
 ];
 
-const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, isOrgEditor, canAssignAdmin, onClose }) => {
+const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, isOrgEditor, canAssignAdmin, filterBoardId, onClose }) => {
   const { data, isLoading, isError } = useUserBoardPermissions(userId);
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
 
@@ -194,7 +195,67 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, i
             </div>
           )}
 
-          {!isOrgAdmin && !isOrgEditor && feedback && (
+          {/* Single-board filtered view */}
+          {!isOrgAdmin && !isOrgEditor && filterBoardId && isLoading && (
+            <div className="flex items-center justify-center py-12" role="status">
+              <FiLoader className="animate-spin text-indigo-400" size={24} aria-hidden="true" />
+            </div>
+          )}
+          {!isOrgAdmin && !isOrgEditor && filterBoardId && isError && (
+            <div className="text-center py-8 text-red-500 text-sm" role="alert">Failed to load board permissions.</div>
+          )}
+          {!isOrgAdmin && !isOrgEditor && filterBoardId && data && (() => {
+            const ws = data.workspaces.find(w => w.boards.some(b => b.id === filterBoardId));
+            const board = ws?.boards.find(b => b.id === filterBoardId);
+            if (!board) return <p className="text-center py-8 text-gray-400 text-sm">Board not found.</p>;
+            const isChecked = checkedBoards.has(board.id);
+            const role = boardRoles.get(board.id) ?? BoardRole.EDITOR;
+            return (
+              <div className="space-y-3">
+                {feedback && (
+                  <div
+                    role={feedback.type === 'error' ? 'alert' : 'status'}
+                    className={`mb-2 p-3 rounded-md flex items-center text-sm ${feedback.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}
+                  >
+                    {feedback.type === 'success'
+                      ? <FiCheckCircle className="mr-2 shrink-0" size={14} aria-hidden="true" />
+                      : <FiAlertCircle className="mr-2 shrink-0" size={14} aria-hidden="true" />}
+                    {feedback.text}
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mb-3">Set this user's access level for <span className="font-semibold text-gray-700">{board.name}</span>.</p>
+                <div className="flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-200 bg-gray-50">
+                  <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleBoard(board.id)}
+                      className="accent-indigo-600 w-4 h-4 flex-shrink-0"
+                      aria-label={`Grant access to board ${board.name}`}
+                    />
+                    <span className="text-sm font-medium text-gray-700 truncate">{board.name}</span>
+                  </label>
+                  <div className="flex items-center rounded-md border border-gray-200 overflow-hidden flex-shrink-0" role="group" aria-label={`Role for board ${board.name}`}>
+                    {BOARD_ROLE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={!isChecked}
+                        onClick={() => setBoardRole(board.id, opt.value)}
+                        className={`px-3 py-1 text-xs transition-colors ${role === opt.value && isChecked ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'} disabled:opacity-40`}
+                        aria-pressed={role === opt.value && isChecked}
+                        aria-label={`Set role to ${opt.label} for ${board.name}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {!isOrgAdmin && !isOrgEditor && !filterBoardId && feedback && (
             <div
               role={feedback.type === 'error' ? 'alert' : 'status'}
               className={`mb-4 p-3 rounded-md flex items-center text-sm ${feedback.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}
@@ -206,23 +267,23 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, i
             </div>
           )}
 
-          {!isOrgAdmin && !isOrgEditor && isLoading && (
+          {!isOrgAdmin && !isOrgEditor && !filterBoardId && isLoading && (
             <div className="flex items-center justify-center py-12" role="status">
               <FiLoader className="animate-spin text-indigo-400" size={24} aria-hidden="true" />
             </div>
           )}
 
-          {!isOrgAdmin && !isOrgEditor && isError && (
+          {!isOrgAdmin && !isOrgEditor && !filterBoardId && isError && (
             <div className="text-center py-8 text-red-500 text-sm" role="alert">
               Failed to load board permissions.
             </div>
           )}
 
-          {!isOrgAdmin && !isOrgEditor && data && data.workspaces.length === 0 && (
+          {!isOrgAdmin && !isOrgEditor && !filterBoardId && data && data.workspaces.length === 0 && (
             <p className="text-center py-8 text-gray-400 text-sm">No workhubs or boards found.</p>
           )}
 
-          {!isOrgAdmin && !isOrgEditor && data && data.workspaces.map((ws) => {
+          {!isOrgAdmin && !isOrgEditor && !filterBoardId && data && data.workspaces.map((ws) => {
             const state = getWorkspaceState(ws);
             const isExpanded = expandedWorkspaces.has(ws.id);
             const wsPerm = wsPermissions.get(ws.id) ?? 'edit';

@@ -202,21 +202,21 @@ const UserManagementPage: React.FC = () => {
             aria-label={`User ${u.name}`}
         >
             <td
-                className="px-6 py-4 cursor-pointer"
+                className="px-6 py-4 cursor-pointer max-w-[300px]"
                 onClick={navigateToUser}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigateToUser()}
                 tabIndex={0}
                 title="View profile page"
             >
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 overflow-hidden">
                     <img
                         className="h-10 w-10 rounded-full object-cover shrink-0"
                         src={u.profileImageUrl || `/default_user.webp`}
                         onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)}
                         alt={`${u.name}'s profile picture`}
                     />
-                    <div className="min-w-0">
-                        <div className="text-sm font-medium text-gray-900 whitespace-nowrap">{u.name}</div>
+                    <div className="min-w-0 overflow-hidden">
+                        <div className="text-sm font-medium text-gray-900 truncate">{u.name}</div>
                         <div className="text-xs text-gray-500">{roleLabel}</div>
                     </div>
                 </div>
@@ -412,8 +412,8 @@ const UserManagementPage: React.FC = () => {
                 ) : (
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <th className="px-6 py-3 font-medium">{t('common.name')}</th>
+                            <tr className="bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 z-10">
+                                <th className="px-6 py-3 font-medium max-w-[300px]">{t('common.name')}</th>
                                 <th className="px-6 py-3 font-medium">{t('common.email')}</th>
                                 <th className="px-6 py-3 font-medium">{t('common.workspace')}</th>
                                 <th className="px-4 py-3 font-medium text-center">{t('common.status')}</th>

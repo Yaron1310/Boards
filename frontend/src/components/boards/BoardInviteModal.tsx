@@ -1,10 +1,14 @@
 import React, { useState } from 'react';
-import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle, FiUsers } from 'react-icons/fi';
+import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle, FiUsers, FiShield } from 'react-icons/fi';
 import { useInviteUserToBoard, useBoardParticipants } from '../../hooks/queries/useBoardMemberQueries';
+import { useAuthSession } from '../../hooks/useAuthSession';
+import { UserRole } from '../../types';
+import UserPermissionsModal from '../admin/UserPermissionsModal';
 
 interface Props {
   boardId: string;
   workspaceId: string;
+  boardName?: string;
   onClose: () => void;
 }
 
@@ -12,6 +16,10 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
   const [email, setEmail] = useState('');
   const [permissions, setPermissions] = useState<'edit' | 'read_only'>('edit');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string } | null>(null);
+
+  const { user: authUser } = useAuthSession();
+  const isAdmin = authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN;
 
   const { mutateAsync: inviteUser, isPending } = useInviteUserToBoard(boardId);
   const { data: participants = [], isLoading: participantsLoading } = useBoardParticipants(boardId);
@@ -38,6 +46,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
   };
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       role="dialog"
@@ -108,10 +117,21 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
                         {p.name.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium text-gray-800 truncate">{p.name}</p>
                       <p className="text-[10px] text-gray-400 truncate">{p.email}</p>
                     </div>
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setPermissionsUser({ id: p.id, name: p.name })}
+                        className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors flex-shrink-0"
+                        aria-label={`Manage board permissions for ${p.name}`}
+                        title="Manage board permissions"
+                      >
+                        <FiShield size={13} aria-hidden="true" />
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -192,6 +212,17 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
         </div>
       </div>
     </div>
+
+    {permissionsUser && (
+      <UserPermissionsModal
+        userId={permissionsUser.id}
+        userName={permissionsUser.name}
+        filterBoardId={boardId}
+        canAssignAdmin={isAdmin}
+        onClose={() => setPermissionsUser(null)}
+      />
+    )}
+  </>
   );
 };
 
