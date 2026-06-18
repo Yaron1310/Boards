@@ -18,8 +18,8 @@ export const useCreateGroupWebhook = () => {
   return useMutation({
     mutationFn: ({ boardId, groupId, data }: { boardId: string; groupId: string; data: CreateWebhookData }) =>
       wm.createGroupWebhook(boardId, groupId, data),
-    onSuccess: (_result, { boardId, groupId }) => {
-      void qc.invalidateQueries({ queryKey: webhookKey(boardId, groupId) });
+    onSuccess: (result, { boardId, groupId }) => {
+      qc.setQueryData(webhookKey(boardId, groupId), result);
     },
   });
 };
@@ -29,8 +29,8 @@ export const useUpdateGroupWebhook = () => {
   return useMutation({
     mutationFn: ({ boardId, groupId, data }: { boardId: string; groupId: string; data: UpdateWebhookData }) =>
       wm.updateGroupWebhook(boardId, groupId, data),
-    onSuccess: (_result, { boardId, groupId }) => {
-      void qc.invalidateQueries({ queryKey: webhookKey(boardId, groupId) });
+    onSuccess: (result, { boardId, groupId }) => {
+      qc.setQueryData(webhookKey(boardId, groupId), result);
     },
   });
 };
