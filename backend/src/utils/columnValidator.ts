@@ -157,6 +157,13 @@ export function validateColumnValue(column: DBColumn, value: unknown): Validatio
       return { valid: true };
     }
 
+    case ColumnType.LINK: {
+      if (typeof value !== 'string') {
+        return { valid: false, error: `Column "${column.name}": value must be a URL string.` };
+      }
+      return { valid: true };
+    }
+
     case ColumnType.SIMPLE_FORMULA: {
       // Per-cell formula overrides are stored as strings; the result is computed client-side.
       if (typeof value !== 'string') {
