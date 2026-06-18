@@ -547,11 +547,15 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     })();
     // Stepped overlay: dark overlay for bright sidebars, light overlay for dark sidebars.
     const hoverBg =
-        sidebarBrightness >= 0.85 ? 'rgba(0, 0, 0, 0.07)'   // near white
-      : sidebarBrightness >= 0.60 ? 'rgba(0, 0, 0, 0.10)'   // light
-      : sidebarBrightness >= 0.20 ? 'rgba(255, 255, 255, 0.40)' // medium
-      : sidebarBrightness >= 0.03 ? 'rgba(255, 255, 255, 0.20)' // dark
-      :                              'rgba(255, 255, 255, 0.25)'; // near black
+        sidebarBrightness >= 0.85 ? 'rgba(0, 0, 0, 0.07)'        // near white
+      : sidebarBrightness >= 0.70 ? 'rgba(0, 0, 0, 0.09)'        // very light
+      : sidebarBrightness >= 0.60 ? 'rgba(0, 0, 0, 0.12)'        // light
+      : sidebarBrightness >= 0.45 ? 'rgba(255, 255, 255, 0.35)'  // medium-light
+      : sidebarBrightness >= 0.30 ? 'rgba(255, 255, 255, 0.28)'  // medium
+      : sidebarBrightness >= 0.20 ? 'rgba(255, 255, 255, 0.23)'  // medium-dark  (e.g. purple ~0.223)
+      : sidebarBrightness >= 0.10 ? 'rgba(255, 255, 255, 0.20)'  // dark
+      : sidebarBrightness >= 0.03 ? 'rgba(255, 255, 255, 0.18)'  // very dark
+      :                              'rgba(255, 255, 255, 0.22)'; // near black
 
     const hoverEffectStyle = `
         .sidebar-nav-item {
