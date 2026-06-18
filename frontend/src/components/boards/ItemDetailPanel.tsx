@@ -8,6 +8,7 @@ import { UserRole } from '../../types';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+import { formatItemName } from '../../utils/formatItemName';
 import { getUnreadCount } from './ItemChatModal';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 
@@ -137,7 +138,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
                 onClick={() => canManage && setEditingName(true)}
                 title={canManage ? 'Click to rename' : undefined}
               >
-                {item.name}
+                {formatItemName(item.name)}
                 {item.isArchived && (
                   <span className="ml-2 text-xs font-normal text-gray-400">(archived)</span>
                 )}

@@ -8,6 +8,7 @@ import { useAuthSession } from '../../hooks/useAuthSession';
 import { useUndo } from '../../contexts/UndoContext';
 import { useBoardMembers } from '../../hooks/queries/useBoardMemberQueries';
 import { UserRole, BoardRole } from '../../types';
+import { formatItemName } from '../../utils/formatItemName';
 import type { Item } from '../../types';
 import { ColumnCell } from './cells';
 import { DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
@@ -171,7 +172,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') canManage ? setEditingName(true) : onOpenDetail(item); }}
               aria-label={canManage ? `Edit name of ${item.name}` : `Open details for ${item.name}`}
             >
-              <span className="text-sm font-medium text-gray-800 truncate">{item.name}</span>
+              <span className="text-sm font-medium text-gray-800 truncate">{formatItemName(item.name)}</span>
               {item.isArchived && (
                 <span className="ml-2 text-xs text-gray-400 flex-shrink-0">(archived)</span>
               )}

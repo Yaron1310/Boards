@@ -486,8 +486,7 @@ export const receiveWebhook = async (req: Request, res: Response) => {
     let sanitizedName: string;
 
     const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const tsString = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const tsString = now.toISOString();
 
     if (nameMode === 'timestamp') {
       sanitizedName = tsString;
