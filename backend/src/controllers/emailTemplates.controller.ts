@@ -25,13 +25,25 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     },
     {
         id: 'invite_organization_admin',
-        name: 'Workspace Admin Invitation',
-        description: 'Sent when a new Workspace Admin is invited to set up their account.',
-        subject: "You've been invited as an Workspace Admin for {{organizationName}}",
+        name: 'Organization Admin Invitation',
+        description: 'Sent when a new Organization Admin is invited to set up their account.',
+        subject: "You've been invited as an Organization Admin for {{organizationName}}",
         variables: ['userName', 'organizationName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
-<p>You've been invited to join <strong>{{organizationName}}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
+<p>You've been invited to join <strong>{{organizationName}}</strong> as an Organization Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
+<p>If you did not expect this invitation, you can safely ignore this email.</p>
+<p>Thanks,<br/>The Logyx Team</p>`,
+    },
+    {
+        id: 'notify_organization_admin',
+        name: 'Organization Admin Access Notification',
+        description: 'Sent when an existing user is promoted to Organization Admin.',
+        subject: "You've been invited as an Organization Admin for {{organizationName}}",
+        variables: ['userName', 'organizationName', 'loginLink'],
+        html: `<p>Hello {{userName}},</p>
+<p>You've been added to <strong>{{organizationName}}</strong> as an Organization Admin. You can now log in and manage this organization.</p>
+<p><a href="{{loginLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Login to Boards</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
 <p>Thanks,<br/>The Logyx Team</p>`,
     },
@@ -162,7 +174,7 @@ const ensureDefaultsExist = async (): Promise<void> => {
     const batch = emailTemplatesCollection.firestore.batch();
     let writes = 0;
     // Templates that must always be kept in sync with the latest default (bug fixes, new variables).
-    const FORCE_UPDATE_IDS = new Set(['user_invitation']);
+    const FORCE_UPDATE_IDS = new Set(['user_invitation', 'invite_organization_admin', 'notify_organization_admin']);
 
     for (const tpl of DEFAULT_TEMPLATES) {
         if (!existingIds.has(tpl.id) || FORCE_UPDATE_IDS.has(tpl.id)) {

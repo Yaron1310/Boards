@@ -184,7 +184,7 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
             if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already an admin for this workspace.` });
             const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
             const loginLink = `${env.FRONTEND_URL}/login`;
-            void sendAccountVerificationEmail(user.email, user.name, loginLink, organizationName, 'org_admin');
+            void sendAccountVerificationEmail(user.email, user.name, loginLink, organizationName, 'org_admin_notify');
             return res.status(200).json({ message: `Successfully promoted existing user ${email} to Workspace Admin and created a Personal Workspace.` });
         } else {
             const newUserRef = usersCollection.doc();

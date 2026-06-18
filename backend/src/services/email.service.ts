@@ -124,7 +124,7 @@ export const sendAccountVerificationEmail = async (
     userName: string,
     verificationLink: string,
     organizationName: string,
-    inviteRole?: 'org_admin' | 'org_manager',
+    inviteRole?: 'org_admin' | 'org_admin_notify' | 'org_manager',
     orgName?: string
 ) => {
     await ensureTransporter();
@@ -139,7 +139,10 @@ export const sendAccountVerificationEmail = async (
     let templateId: string;
     let vars: Record<string, string>;
 
-    if (inviteRole === 'org_admin') {
+    if (inviteRole === 'org_admin_notify') {
+        templateId = 'notify_organization_admin';
+        vars = { userName, organizationName, loginLink: verificationLink };
+    } else if (inviteRole === 'org_admin') {
         templateId = 'invite_organization_admin';
         vars = { userName, organizationName, verificationLink };
     } else if (inviteRole === 'org_manager') {
@@ -171,7 +174,7 @@ export const sendAccountVerificationEmail = async (
 };
 
 const buildFallbackVerificationSubject = (inviteRole?: string, organizationName?: string, orgName?: string): string => {
-    if (inviteRole === 'org_admin') return `You've been invited as an Workspace Admin for ${organizationName}`;
+    if (inviteRole === 'org_admin' || inviteRole === 'org_admin_notify') return `You've been invited as an Organization Admin for ${organizationName}`;
     if (inviteRole === 'org_manager') return `You've been invited as an Workspace Manager for ${orgName || organizationName}`;
     return `Verify Your Email for ${organizationName}`;
 };
@@ -181,8 +184,12 @@ const buildFallbackVerificationHtml = (
 ): string => {
     let introLine: string;
     let ignoreNote: string;
-    if (inviteRole === 'org_admin') {
-        introLine = `You've been invited to join <strong>${organizationName}</strong> as an Workspace Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+    if (inviteRole === 'org_admin_notify') {
+        introLine = `You've been added to <strong>${organizationName}</strong> as an Organization Admin. You can now log in and manage this organization.`;
+        ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
+        return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Login to Boards</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Logyx Team</p>`;
+    } else if (inviteRole === 'org_admin') {
+        introLine = `You've been invited to join <strong>${organizationName}</strong> as an Organization Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
     } else if (inviteRole === 'org_manager') {
         const entityName = orgName || organizationName;
