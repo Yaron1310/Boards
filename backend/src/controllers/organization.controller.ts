@@ -182,6 +182,9 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
             const { isHigherAdmin, alreadyAdmin } = await addAdminRole(user.id, user.email, user.name);
             if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System Admin and cannot be assigned to a specific workspace.' });
             if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already an admin for this workspace.` });
+            const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
+            const loginLink = `${env.FRONTEND_URL}/login`;
+            void sendAccountVerificationEmail(user.email, user.name, loginLink, organizationName, 'org_admin');
             return res.status(200).json({ message: `Successfully promoted existing user ${email} to Workspace Admin and created a Personal Workspace.` });
         } else {
             const newUserRef = usersCollection.doc();
