@@ -282,8 +282,10 @@ export const updateMyProfileImage = async (imageData: string | Blob): Promise<Us
 // --- WorkHub Settings / Theme ---
 export const getThemeSettingsFromBackend = async (): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/theme');
 export const updateThemeSettingsOnBackend = async (settings: Partial<OrganizationSettings> & { logoUpload?: Blob | string; }): Promise<OrganizationSettings> => {
-    if (settings.logoUpload instanceof Blob) {
-        const logoBase64 = await blobToBase64(settings.logoUpload);
+    if (settings.logoUpload) {
+        const logoBase64 = settings.logoUpload instanceof Blob
+            ? await blobToBase64(settings.logoUpload)
+            : settings.logoUpload;
         const { logoUpload: _removed, ...rest } = settings;
         return fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify({ ...rest, logoBase64 }) });
     }
