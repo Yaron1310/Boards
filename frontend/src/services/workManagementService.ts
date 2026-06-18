@@ -325,6 +325,7 @@ export interface BoardParticipant {
   name: string;
   email: string;
   profileImageUrl?: string;
+  role?: string;
 }
 
 export const getBoardMembers = (boardId: string): Promise<BoardMember[]> =>

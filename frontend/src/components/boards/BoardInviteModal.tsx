@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle, FiUsers, FiShield } from 'react-icons/fi';
-import { useInviteUserToBoard, useBoardParticipants } from '../../hooks/queries/useBoardMemberQueries';
+import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle, FiUsers, FiShield, FiTrash2 } from 'react-icons/fi';
+import { useInviteUserToBoard, useBoardParticipants, useRemoveBoardMember } from '../../hooks/queries/useBoardMemberQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole } from '../../types';
 import UserPermissionsModal from '../admin/UserPermissionsModal';
+import type { BoardParticipant } from '../../services/workManagementService';
 
 interface Props {
   boardId: string;
@@ -12,17 +13,22 @@ interface Props {
   onClose: () => void;
 }
 
+const ADMIN_ROLES = new Set([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.WORKSPACE_ADMIN]);
+
 const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
   const [email, setEmail] = useState('');
   const [permissions, setPermissions] = useState<'edit' | 'read_only'>('edit');
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string } | null>(null);
+  const [permissionsUser, setPermissionsUser] = useState<BoardParticipant | null>(null);
+  const [adminBlockUser, setAdminBlockUser] = useState<BoardParticipant | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
 
   const { user: authUser } = useAuthSession();
   const isAdmin = authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN;
 
   const { mutateAsync: inviteUser, isPending } = useInviteUserToBoard(boardId);
   const { data: participants = [], isLoading: participantsLoading } = useBoardParticipants(boardId);
+  const { mutateAsync: removeMember } = useRemoveBoardMember(boardId);
 
   const handleSubmit = async () => {
     const trimmed = email.trim();
@@ -38,6 +44,25 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to invite user.';
       setFeedback({ type: 'error', text: msg });
+    }
+  };
+
+  const handleRemove = async (p: BoardParticipant) => {
+    setRemovingId(p.id);
+    try {
+      await removeMember(p.id);
+    } catch {
+      setFeedback({ type: 'error', text: `Failed to remove ${p.name}.` });
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
+  const handlePermissionsClick = (p: BoardParticipant) => {
+    if (p.role && ADMIN_ROLES.has(p.role as UserRole)) {
+      setAdminBlockUser(p);
+    } else {
+      setPermissionsUser(p);
     }
   };
 
@@ -102,7 +127,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
             ) : (
               <ul className="space-y-1.5 max-h-40 overflow-y-auto" aria-label="Current board members">
                 {participants.map((p) => (
-                  <li key={p.id} className="flex items-center gap-2">
+                  <li key={p.id} className="flex items-center gap-2 group">
                     {p.profileImageUrl ? (
                       <img
                         src={p.profileImageUrl}
@@ -122,15 +147,29 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
                       <p className="text-[10px] text-gray-400 truncate">{p.email}</p>
                     </div>
                     {isAdmin && (
-                      <button
-                        type="button"
-                        onClick={() => setPermissionsUser({ id: p.id, name: p.name })}
-                        className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors flex-shrink-0"
-                        aria-label={`Manage board permissions for ${p.name}`}
-                        title="Manage board permissions"
-                      >
-                        <FiShield size={13} aria-hidden="true" />
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => handlePermissionsClick(p)}
+                          className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors flex-shrink-0"
+                          aria-label={`Manage board permissions for ${p.name}`}
+                          title="Manage permissions"
+                        >
+                          <FiShield size={13} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleRemove(p)}
+                          disabled={removingId === p.id}
+                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors flex-shrink-0 disabled:opacity-40"
+                          aria-label={`Remove ${p.name} from board`}
+                          title="Remove from board"
+                        >
+                          {removingId === p.id
+                            ? <FiLoader size={13} className="animate-spin" aria-hidden="true" />
+                            : <FiTrash2 size={13} aria-hidden="true" />}
+                        </button>
+                      </>
                     )}
                   </li>
                 ))}
@@ -213,16 +252,50 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
       </div>
     </div>
 
+    {/* Admin-blocked permissions notice */}
+    {adminBlockUser && (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-labelledby="admin-block-title">
+        <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="p-2 bg-indigo-50 rounded-full flex-shrink-0">
+              <FiShield size={18} className="text-indigo-500" aria-hidden="true" />
+            </div>
+            <div>
+              <h2 id="admin-block-title" className="text-sm font-semibold text-gray-800 mb-1">Cannot edit permissions</h2>
+              <p className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{adminBlockUser.name}</span> is{' '}
+                {adminBlockUser.role === UserRole.ORGANIZATION_ADMIN || adminBlockUser.role === UserRole.SYSTEM_ADMIN
+                  ? 'an Organization Admin'
+                  : 'a Workhub Admin'}
+                . You cannot edit their permissions on a specific board.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setAdminBlockUser(null)}
+              className="px-4 py-2 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Permissions modal */}
     {permissionsUser && (
       <UserPermissionsModal
         userId={permissionsUser.id}
         userName={permissionsUser.name}
+        profileImageUrl={permissionsUser.profileImageUrl}
         filterBoardId={boardId}
         canAssignAdmin={isAdmin}
         onClose={() => setPermissionsUser(null)}
       />
     )}
-  </>
+    </>
   );
 };
 

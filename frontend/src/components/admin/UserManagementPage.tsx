@@ -202,7 +202,7 @@ const UserManagementPage: React.FC = () => {
             aria-label={`User ${u.name}`}
         >
             <td
-                className="px-6 py-4 cursor-pointer max-w-[300px]"
+                className="px-6 py-4 cursor-pointer w-[300px] max-w-[300px] overflow-hidden"
                 onClick={navigateToUser}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigateToUser()}
                 tabIndex={0}
@@ -410,10 +410,10 @@ const UserManagementPage: React.FC = () => {
                         <p className="text-lg">{t('admin.noUsersFound')}</p>
                     </div>
                 ) : (
-                    <table className="w-full text-left border-collapse">
+                    <table className="w-full text-left border-collapse table-fixed">
                         <thead>
                             <tr className="bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider sticky top-0 z-10">
-                                <th className="px-6 py-3 font-medium max-w-[300px]">{t('common.name')}</th>
+                                <th className="px-6 py-3 font-medium w-[300px]">{t('common.name')}</th>
                                 <th className="px-6 py-3 font-medium">{t('common.email')}</th>
                                 <th className="px-6 py-3 font-medium">{t('common.workspace')}</th>
                                 <th className="px-4 py-3 font-medium text-center">{t('common.status')}</th>

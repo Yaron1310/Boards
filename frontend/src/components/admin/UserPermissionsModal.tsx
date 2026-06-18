@@ -9,6 +9,7 @@ import type { BoardPermissionsWorkspace } from '../../types';
 interface Props {
   userId: string;
   userName: string;
+  profileImageUrl?: string;
   isOrgAdmin?: boolean;
   isOrgEditor?: boolean;
   canAssignAdmin?: boolean;
@@ -32,7 +33,7 @@ const BOARD_ROLE_OPTIONS: Array<{ value: BoardRole; label: string }> = [
   { value: BoardRole.EDITOR, label: 'Edit' },
 ];
 
-const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, isOrgEditor, canAssignAdmin, filterBoardId, onClose }) => {
+const UserPermissionsModal: React.FC<Props> = ({ userId, userName, profileImageUrl, isOrgAdmin, isOrgEditor, canAssignAdmin, filterBoardId, onClose }) => {
   const { data, isLoading, isError } = useUserBoardPermissions(userId);
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
 
@@ -223,19 +224,31 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, i
                     {feedback.text}
                   </div>
                 )}
-                <p className="text-xs text-gray-500 mb-3">Set this user's access level for <span className="font-semibold text-gray-700">{board.name}</span>.</p>
                 <div className="flex items-center gap-3 px-3 py-3 rounded-lg border border-gray-200 bg-gray-50">
-                  <label className="flex items-center gap-2 flex-1 cursor-pointer min-w-0">
+                  {/* User avatar + name */}
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    {profileImageUrl ? (
+                      <img src={profileImageUrl} alt={userName} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0" aria-hidden="true">
+                        {userName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="text-sm font-medium text-gray-700 truncate">{userName}</span>
+                  </div>
+                  {/* Access toggle */}
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500 cursor-pointer flex-shrink-0">
                     <input
                       type="checkbox"
                       checked={isChecked}
                       onChange={() => toggleBoard(board.id)}
-                      className="accent-indigo-600 w-4 h-4 flex-shrink-0"
-                      aria-label={`Grant access to board ${board.name}`}
+                      className="accent-indigo-600 w-3.5 h-3.5"
+                      aria-label={`Grant access to ${userName}`}
                     />
-                    <span className="text-sm font-medium text-gray-700 truncate">{board.name}</span>
+                    Access
                   </label>
-                  <div className="flex items-center rounded-md border border-gray-200 overflow-hidden flex-shrink-0" role="group" aria-label={`Role for board ${board.name}`}>
+                  {/* View / Edit buttons */}
+                  <div className="flex items-center rounded-md border border-gray-200 overflow-hidden flex-shrink-0" role="group" aria-label={`Role for ${userName}`}>
                     {BOARD_ROLE_OPTIONS.map(opt => (
                       <button
                         key={opt.value}
@@ -244,7 +257,7 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, isOrgAdmin, i
                         onClick={() => setBoardRole(board.id, opt.value)}
                         className={`px-3 py-1 text-xs transition-colors ${role === opt.value && isChecked ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'} disabled:opacity-40`}
                         aria-pressed={role === opt.value && isChecked}
-                        aria-label={`Set role to ${opt.label} for ${board.name}`}
+                        aria-label={`Set role to ${opt.label} for ${userName}`}
                       >
                         {opt.label}
                       </button>

@@ -279,7 +279,7 @@ export const listParticipants = async (req: Request, res: Response) => {
         .get(),
     ]);
 
-    const participantMap = new Map<string, { id: string; name: string; email: string; profileImageUrl?: string }>();
+    const participantMap = new Map<string, { id: string; name: string; email: string; profileImageUrl?: string; role?: string }>();
 
     for (const doc of membersSnap.docs) {
       const m = doc.data() as DBBoardMember;
@@ -297,15 +297,20 @@ export const listParticipants = async (req: Request, res: Response) => {
     for (const doc of adminMembershipDocs) {
       const m = doc.data() as DBMembership;
       if (
-        !participantMap.has(m.userId) &&
         [UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN].includes(m.role as UserRole)
       ) {
-        participantMap.set(m.userId, {
-          id: m.userId,
-          name: m.userName ?? '',
-          email: m.userEmail ?? '',
-          profileImageUrl: m.userProfileImageUrl ?? undefined,
-        });
+        const existing = participantMap.get(m.userId);
+        if (existing) {
+          existing.role = m.role;
+        } else {
+          participantMap.set(m.userId, {
+            id: m.userId,
+            name: m.userName ?? '',
+            email: m.userEmail ?? '',
+            profileImageUrl: m.userProfileImageUrl ?? undefined,
+            role: m.role,
+          });
+        }
       }
     }
 
