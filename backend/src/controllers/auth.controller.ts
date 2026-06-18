@@ -111,13 +111,16 @@ export const formatUserForFrontend = async (
         }
         const repOrgSnapshots = await Promise.all(repOrgPromises);
         const allRepOrgs = repOrgSnapshots.flatMap(snap => querySnapshotToArray<DBWorkspace>(snap));
-        const seenOrganizations = new Set<string>();
+        // Group by orgId and prefer a real (non-personal, non-templates) workspace as the representative
+        const repByOrg = new Map<string, string>(); // orgId → workspaceId
         for (const org of allRepOrgs) {
-            if (!seenOrganizations.has(org.orgId)) {
-                seenOrganizations.add(org.orgId);
-                allRelevantOrgIds.push(org.id);
+            const existing = repByOrg.get(org.orgId);
+            const isReal = !org.isPersonal && !org.isTemplates && org.name !== 'Default Workspace';
+            if (!existing || isReal) {
+                repByOrg.set(org.orgId, org.id);
             }
         }
+        repByOrg.forEach(wsId => allRelevantOrgIds.push(wsId));
     }
     // For org_editor: fetch org names so the frontend can display them in context selection
     let orgEditorOrgs: { id: string; name: string }[] = [];
