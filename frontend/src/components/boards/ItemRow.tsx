@@ -151,7 +151,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
         {/* Item name */}
         <div
           role="gridcell"
-          className="flex items-center flex-1 min-w-0 px-3 py-2"
+          className="flex items-center flex-1 min-w-0 pl-3 py-2 group-hover:pr-3"
         >
           {editingName && canManage ? (
             <input
@@ -180,7 +180,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
                 <FiEdit2
                   size={10}
                   aria-hidden="true"
-                  className="flex-shrink-0 text-gray-400 opacity-0 group-hover/name:opacity-100 transition-opacity ml-1"
+                  className="flex-shrink-0 text-gray-400 w-0 overflow-hidden group-hover:w-auto ml-0 group-hover:ml-1 transition-all"
                 />
               )}
             </div>
