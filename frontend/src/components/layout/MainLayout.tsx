@@ -151,7 +151,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                   aria-label={`Open board ${board.name}`}
                 >
                   <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
-                  <span className="break-words min-w-0">{board.name}</span>
+                  <span className="truncate">{board.name}</span>
                 </NavLink>
               )}
               {canManage && (
