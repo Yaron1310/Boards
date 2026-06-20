@@ -13,10 +13,26 @@ import {
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import CreateBoardModal from './CreateBoardModal';
+import EditBoardModal from './EditBoardModal';
 import BoardContextMenu from './BoardContextMenu';
 import DuplicateOptionsModal from './DuplicateOptionsModal';
 import { importBoardFromXlsx } from '../../utils/importBoardFromXlsx';
 import type { DuplicateMode } from '../../services/workManagementService';
+
+const OverflowText: React.FC<{ text: string; className: string }> = ({ text, className }) => {
+  const ref = React.useRef<HTMLParagraphElement>(null);
+  const [clipped, setClipped] = React.useState(false);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setClipped(el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+  return <p ref={ref} className={className} title={clipped ? text : undefined}>{text}</p>;
+};
 
 const BoardListPage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -56,6 +72,7 @@ const BoardListPage: React.FC = () => {
   // Context menu state
   const [menuBoardId, setMenuBoardId] = React.useState<string | null>(null);
   const [menuTriggerRect, setMenuTriggerRect] = React.useState<DOMRect | null>(null);
+  const [editingBoard, setEditingBoard] = React.useState<Board | null>(null);
 
   const handleImportClick = () => {
     setImportError(null);
@@ -304,7 +321,10 @@ const BoardListPage: React.FC = () => {
                   <p className="font-semibold truncate text-gray-800">{board.name}</p>
                 )}
                 {board.description && (
-                  <p className="text-sm text-gray-500 mt-1 line-clamp-2">{board.description}</p>
+                  <OverflowText
+                    text={board.description}
+                    className="text-sm text-gray-500 mt-1 line-clamp-2"
+                  />
                 )}
               </div>
 
@@ -357,6 +377,7 @@ const BoardListPage: React.FC = () => {
           canManage={canManageBoards}
           onClose={() => { setMenuBoardId(null); setMenuTriggerRect(null); }}
           onOpenNewTab={() => window.open(`/boards/${menuBoard.id}`, '_blank')}
+          onEdit={() => { setMenuBoardId(null); setMenuTriggerRect(null); setEditingBoard(menuBoard); }}
           onRename={() => handleRenameStart(menuBoard)}
           onMove={(wsId) => void updateBoard({ id: menuBoard.id, patch: { workspaceId: wsId } })}
           onDuplicate={() => { setMenuBoardId(null); setDuplicateTargetId(menuBoard.id); }}
@@ -425,6 +446,13 @@ const BoardListPage: React.FC = () => {
         <CreateBoardModal
           workspaceId={workspaceId}
           onClose={() => setShowCreateModal(false)}
+        />
+      )}
+
+      {editingBoard && (
+        <EditBoardModal
+          board={editingBoard}
+          onClose={() => setEditingBoard(null)}
         />
       )}
 

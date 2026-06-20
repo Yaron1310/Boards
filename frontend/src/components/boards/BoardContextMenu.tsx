@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import {
   FiExternalLink, FiEdit2, FiMove, FiCopy, FiBookmark,
-  FiArchive, FiTrash2, FiChevronRight,
+  FiArchive, FiTrash2, FiChevronRight, FiSettings,
 } from 'react-icons/fi';
 import type { WorkHub } from '../../types';
 
@@ -16,6 +16,7 @@ interface BoardContextMenuProps {
   isTemplate?: boolean;
   onClose: () => void;
   onOpenNewTab: () => void;
+  onEdit: () => void;
   onRename: () => void;
   onMove: (workspaceId: string) => void;
   onDuplicate: () => void;
@@ -33,6 +34,7 @@ const BoardContextMenu: React.FC<BoardContextMenuProps> = ({
   isTemplate,
   onClose,
   onOpenNewTab,
+  onEdit,
   onRename,
   onMove,
   onDuplicate,
@@ -97,6 +99,7 @@ const BoardContextMenu: React.FC<BoardContextMenuProps> = ({
       {canManage && (
         <>
           <div className="my-1 border-t border-gray-100" role="separator" />
+          {menuItem(<FiSettings size={14} />, 'Edit', onEdit)}
           {menuItem(<FiEdit2 size={14} />, 'Rename', onRename)}
 
           {!isTemplate && moveTargets.length > 0 && (

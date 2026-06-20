@@ -256,6 +256,7 @@ const TemplatesPage: React.FC = () => {
           isTemplate={true}
           onClose={() => { setMenuBoardId(null); setMenuTriggerRect(null); }}
           onOpenNewTab={() => window.open(`/boards/${menuBoard.id}`, '_blank')}
+          onEdit={() => { setMenuBoardId(null); setMenuTriggerRect(null); setEditingBoard(menuBoard); }}
           onRename={() => setEditingBoard(menuBoard)}
           onMove={(wsId) => void updateBoard({ id: menuBoard.id, patch: { workspaceId: wsId } })}
           onDuplicate={() => { setMenuBoardId(null); setDuplicateTargetId(menuBoard.id); }}

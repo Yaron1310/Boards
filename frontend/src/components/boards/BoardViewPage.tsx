@@ -52,6 +52,21 @@ type DragData =
   | { type: 'group'; group: Group }
   | { type: 'item'; item: Item };
 
+const OverflowTooltip: React.FC<{ text: string; className: string }> = ({ text, className }) => {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [clipped, setClipped] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setClipped(el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [text]);
+  return <p ref={ref} className={className} title={clipped ? text : undefined}>{text}</p>;
+};
+
 const UndoButton: React.FC = () => {
   const { history, canUndo, undo } = useUndo();
   const [open, setOpen] = useState(false);
@@ -852,7 +867,7 @@ const BoardViewPage: React.FC = () => {
               </h1>
             )}
             {board.description && !editingName && (
-              <p className="text-sm text-gray-500 truncate mt-0.5">{board.description}</p>
+              <OverflowTooltip text={board.description} className="text-sm text-gray-500 truncate mt-0.5" />
             )}
           </div>
 

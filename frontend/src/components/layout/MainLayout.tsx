@@ -2,12 +2,13 @@ import React, { useState, useEffect, useLayoutEffect, useRef, Suspense } from 'r
 import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
-import { UserRole, User, WorkHub } from '../../types';
+import { UserRole, User, WorkHub, Board } from '../../types';
 import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiChevronLeft, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import BoardContextMenu from '../boards/BoardContextMenu';
+import EditBoardModal from '../boards/EditBoardModal';
 import DuplicateOptionsModal from '../boards/DuplicateOptionsModal';
 import type { DuplicateMode } from '../../services/workManagementService';
 import ReactDOM from 'react-dom';
@@ -56,6 +57,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [duplicateTargetId, setDuplicateTargetId] = useState<string | null>(null);
   const [templateTargetId, setTemplateTargetId] = useState<string | null>(null);
+  const [editingBoard, setEditingBoard] = useState<Board | null>(null);
   const { data: boards = [] } = useBoards(workspace.id, false, true);
   const navigate = useNavigate();
   const { mutateAsync: duplicateBoard } = useDuplicateBoard();
@@ -204,6 +206,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
           canManage={canManage}
           onClose={() => { setMenuBoardId(null); setMenuTriggerRect(null); }}
           onOpenNewTab={() => window.open(`/boards/${menuBoard.id}`, '_blank')}
+          onEdit={() => { setMenuBoardId(null); setMenuTriggerRect(null); setEditingBoard(menuBoard); }}
           onRename={() => handleRenameStart(menuBoard)}
           onMove={(wsId) => void updateBoard({ id: menuBoard.id, patch: { workspaceId: wsId } })}
           onDuplicate={() => { setMenuBoardId(null); setMenuTriggerRect(null); setDuplicateTargetId(menuBoard.id); }}
@@ -211,6 +214,10 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
           onArchive={() => void archiveBoard(menuBoard.id)}
           onDelete={() => { setMenuBoardId(null); setMenuTriggerRect(null); setConfirmDeleteId(menuBoard.id); }}
         />
+      )}
+
+      {editingBoard && (
+        <EditBoardModal board={editingBoard} onClose={() => setEditingBoard(null)} />
       )}
 
       {confirmDeleteId && ReactDOM.createPortal(
