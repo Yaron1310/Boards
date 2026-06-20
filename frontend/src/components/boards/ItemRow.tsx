@@ -187,9 +187,9 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
           )}
         </div>
 
-        {/* Row actions — inside sticky section */}
+        {/* Row actions — hidden until hover */}
         <div
-          className="flex items-center gap-2 pr-1.5 flex-shrink-0 w-0 overflow-hidden group-hover:w-auto group-hover:overflow-visible transition-all duration-150"
+          className="flex items-center gap-2 flex-shrink-0 w-0 overflow-hidden group-hover:w-auto group-hover:overflow-visible transition-all duration-150"
           role="gridcell"
           aria-label="Row actions"
         >
@@ -250,8 +250,10 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
               )}
             </>
           )}
+        </div>
 
-          {/* Chat bubble — always visible */}
+        {/* Chat bubble — always visible */}
+        <div className="flex items-center pr-1.5 flex-shrink-0" role="gridcell">
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); openChat(item); }}
