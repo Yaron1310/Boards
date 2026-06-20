@@ -113,15 +113,6 @@ const EditBoardModal: React.FC<EditBoardModalProps> = ({ board, onClose }) => {
 
         <form onSubmit={handleSave} noValidate className="flex flex-col min-h-0 flex-1">
           <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
-            {/* Icon */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Icon
-                {selectedEmoji && <span className="ml-2 text-lg">{selectedEmoji}</span>}
-              </label>
-              <EmojiPicker selected={selectedEmoji} onChange={setSelectedEmoji} />
-            </div>
-
             {/* Name */}
             <div>
               <label htmlFor="edit-board-name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -135,6 +126,15 @@ const EditBoardModal: React.FC<EditBoardModalProps> = ({ board, onClose }) => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 aria-required="true"
               />
+            </div>
+
+            {/* Icon */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Icon
+                {selectedEmoji && <span className="ml-2 text-lg">{selectedEmoji}</span>}
+              </label>
+              <EmojiPicker selected={selectedEmoji} onChange={setSelectedEmoji} />
             </div>
 
             {/* Description */}

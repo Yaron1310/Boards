@@ -189,7 +189,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
 
         {/* Row actions — inside sticky section */}
         <div
-          className="flex items-center gap-2 pr-1.5 flex-shrink-0"
+          className="flex items-center gap-2 pr-1.5 flex-shrink-0 w-0 overflow-hidden group-hover:w-auto group-hover:overflow-visible transition-all duration-150"
           role="gridcell"
           aria-label="Row actions"
         >
@@ -216,7 +216,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
                   </button>
                 </>
               ) : (
-                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-0.5">
                   {item.isArchived ? (
                     <button
                       type="button"

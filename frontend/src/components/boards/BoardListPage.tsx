@@ -22,6 +22,7 @@ import type { DuplicateMode } from '../../services/workManagementService';
 const OverflowText: React.FC<{ text: string; className: string }> = ({ text, className }) => {
   const ref = React.useRef<HTMLParagraphElement>(null);
   const [clipped, setClipped] = React.useState(false);
+  const [hovered, setHovered] = React.useState(false);
   React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -31,7 +32,21 @@ const OverflowText: React.FC<{ text: string; className: string }> = ({ text, cla
     ro.observe(el);
     return () => ro.disconnect();
   }, [text]);
-  return <p ref={ref} className={className} title={clipped ? text : undefined}>{text}</p>;
+  return (
+    <div className="relative">
+      <p
+        ref={ref}
+        className={className}
+        onMouseEnter={() => clipped && setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >{text}</p>
+      {clipped && hovered && (
+        <div className="absolute left-0 top-full mt-1 z-50 max-w-xs bg-gray-900 text-white text-xs rounded px-2 py-1 shadow-lg pointer-events-none whitespace-pre-wrap break-words">
+          {text}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const BoardListPage: React.FC = () => {

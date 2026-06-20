@@ -55,6 +55,7 @@ type DragData =
 const OverflowTooltip: React.FC<{ text: string; className: string }> = ({ text, className }) => {
   const ref = useRef<HTMLParagraphElement>(null);
   const [clipped, setClipped] = useState(false);
+  const [hovered, setHovered] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -64,7 +65,21 @@ const OverflowTooltip: React.FC<{ text: string; className: string }> = ({ text, 
     ro.observe(el);
     return () => ro.disconnect();
   }, [text]);
-  return <p ref={ref} className={className} title={clipped ? text : undefined}>{text}</p>;
+  return (
+    <div className="relative">
+      <p
+        ref={ref}
+        className={className}
+        onMouseEnter={() => clipped && setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >{text}</p>
+      {clipped && hovered && (
+        <div className="absolute left-0 top-full mt-1 z-50 max-w-sm bg-gray-900 text-white text-xs rounded px-2 py-1 shadow-lg pointer-events-none whitespace-pre-wrap break-words">
+          {text}
+        </div>
+      )}
+    </div>
+  );
 };
 
 const UndoButton: React.FC = () => {
