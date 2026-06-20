@@ -596,16 +596,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         >
           <style>{hoverEffectStyle}</style>
 
-          {/* Collapse toggle button — half on sidebar, half on page (desktop only) */}
-          <button
-            onClick={onToggleCollapsed}
-            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-50 w-6 h-6 rounded-full items-center justify-center shadow-md border transition-opacity opacity-0 hover:opacity-100 focus:opacity-100 group-hover/sidebar:opacity-100"
-            style={{ backgroundColor: sidebarColor, color: sidebarLinkColor, borderColor: `${sidebarLinkColor}44` }}
-            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          >
-            {isCollapsed ? <FiChevronRight size={12} /> : <FiChevronLeft size={12} />}
-          </button>
-
           {/* Collapsed icon-only view */}
           {isCollapsed && (
             <div className="flex flex-col items-center py-6 gap-1 flex-1 overflow-y-auto custom-scrollbar relative z-10">
@@ -627,6 +617,26 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                   <span className="[&>svg]:mr-0">{(item as NavItem).icon}</span>
                 </NavLink>
               ))}
+
+              {/* Organization Hub with separators */}
+              <div className="w-8 my-1" style={{ borderTop: `1px solid ${sidebarLinkColor}33` }} />
+              <NavLink
+                to="/admin/organization-hub"
+                onClick={(e) => {
+                  const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
+                  if (guard?.isDirty) { e.preventDefault(); guard.onAttempt('/admin/organization-hub'); return; }
+                  setIsSidebarOpen(false);
+                }}
+                title={t('layout.organizationHub')}
+                className={({ isActive }) =>
+                  `sidebar-nav-item flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-150 overflow-hidden ${isActive ? 'active' : ''}`
+                }
+                style={{ color: sidebarLinkColor }}
+              >
+                <FiBriefcase size={18} />
+              </NavLink>
+              <div className="w-8 my-1" style={{ borderTop: `1px solid ${sidebarLinkColor}33` }} />
+
               {availableAdminNavItems.map(item => (
                 <NavLink
                   key={(item as AdminNavItem).name}
@@ -1064,7 +1074,16 @@ const MainLayout: React.FC = () => {
       <CookieConsent />
       <LegalModal isOpen={showLegalModal} onClose={() => setShowLegalModal(false)} />
       <AccessibilityModal isOpen={showAccessibilityModal} onClose={() => setShowAccessibilityModal(false)} />
-      <aside className="hidden md:flex md:flex-shrink-0 group/sidebar">
+      <aside className="hidden md:flex md:flex-shrink-0 relative">
+        {/* Collapse toggle button — positioned on the right edge of aside, always visible */}
+        <button
+          onClick={() => setIsSidebarCollapsed(v => !v)}
+          className="absolute right-0 top-4 translate-x-1/2 z-50 w-6 h-6 rounded-full flex items-center justify-center shadow-md border"
+          style={{ backgroundColor: sidebarColor, color: sidebarLinkColor, borderColor: `${sidebarLinkColor}55` }}
+          aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {isSidebarCollapsed ? <FiChevronRight size={12} /> : <FiChevronLeft size={12} />}
+        </button>
         <div className={`flex flex-col text-white shadow-lg transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-[19rem]'}`}>
           <SidebarContent
             sidebarColor={sidebarColor}
