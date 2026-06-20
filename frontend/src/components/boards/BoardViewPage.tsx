@@ -74,7 +74,7 @@ const OverflowTooltip: React.FC<{ text: string; className: string }> = ({ text, 
         onMouseLeave={() => setHovered(false)}
       >{text}</p>
       {clipped && hovered && (
-        <div className="absolute left-0 top-full mt-1 z-50 max-w-sm bg-gray-900 text-white text-xs rounded px-2 py-1 shadow-lg pointer-events-none whitespace-pre-wrap break-words">
+        <div className="absolute left-0 top-full mt-1 z-50 max-w-sm bg-gray-100 text-gray-700 border border-gray-200 text-xs rounded px-2 py-1 shadow-md pointer-events-none whitespace-pre-wrap break-words">
           {text}
         </div>
       )}
