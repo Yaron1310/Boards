@@ -84,7 +84,8 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   // total starts at 0 on first render; paginationEnabled derived after first fetch
   const [knownTotal, setKnownTotal] = useState(0);
   const paginationEnabled = knownTotal > 100 || manualPagination;
-  const effectivePageSize = paginationEnabled ? pageSize : 10000;
+  // When pagination is off fetch a reasonable batch; don't request 10k items
+  const effectivePageSize = paginationEnabled ? pageSize : Math.max(pageSize, 200);
 
   const { data: groupItemsPage, isFetching } = useGroupItems(
     group.id,
@@ -134,17 +135,17 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     }
   }, [effectivePageSize]);
 
+  const goToPage = useCallback((page: number) => {
+    const clamped = Math.max(0, Math.min(page, totalPages - 1));
+    setCurrentPage(clamped);
+  }, [totalPages]);
+
   // Auto-go-back to previous page when current page becomes empty (e.g. all items deleted)
   useEffect(() => {
     if (!isFetching && currentPage > 0 && (groupItemsPage?.data?.length ?? 0) === 0) {
       goToPage(currentPage - 1);
     }
   }, [isFetching, currentPage, groupItemsPage?.data?.length, goToPage]);
-
-  const goToPage = useCallback((page: number) => {
-    const clamped = Math.max(0, Math.min(page, totalPages - 1));
-    setCurrentPage(clamped);
-  }, [totalPages]);
 
   // Mouse-wheel navigation when hovering over the group rows
   const sectionRef = useRef<HTMLElement>(null);
