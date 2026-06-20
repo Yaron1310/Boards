@@ -13,8 +13,10 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
-import { useBoard, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
+import { useBoard, useUpdateBoard, useArchiveBoard, useDuplicateBoard, useSaveAsBoardTemplate } from '../../hooks/queries/useBoardQueries';
+import type { DuplicateMode } from '../../services/workManagementService';
 import { useOrganizationSettingsQuery } from '../../hooks/queries/useAcademyQueries';
+import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { useGroups, useReorderGroups } from '../../hooks/queries/useGroupQueries';
 import { useReorderItems, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { usePageSize } from '../../hooks/usePageSize';
@@ -25,7 +27,7 @@ import { useBoardMembers } from '../../hooks/queries/useBoardMemberQueries';
 import { UserRole, BoardRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiList, FiRotateCcw, FiChevronDown } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiList, FiRotateCcw, FiChevronDown, FiMoreVertical } from 'react-icons/fi';
 import { UndoProvider, useUndo } from '../../contexts/UndoContext';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader, { ITEM_COL_ID } from './ColumnHeader';
@@ -40,6 +42,9 @@ import BoardArchiveModal from './BoardArchiveModal';
 import BoardFilterDropdown, { itemMatchesSearch, itemMatchesFilters } from './BoardFilterDropdown';
 import type { ActiveFilter } from './BoardFilterDropdown';
 import BoardInviteModal from './BoardInviteModal';
+import BoardContextMenu from './BoardContextMenu';
+import EditBoardModal from './EditBoardModal';
+import DuplicateOptionsModal from './DuplicateOptionsModal';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
@@ -511,9 +516,13 @@ const BoardViewPage: React.FC = () => {
   const { data: allUsersForExport = [] } = useUsersQuery({ limit: 200 }, selectedWorkspace?.workspacePermissions !== 'read_only');
 
   const { mutateAsync: updateBoard, isPending: isSaving } = useUpdateBoard();
+  const { mutateAsync: archiveBoard } = useArchiveBoard();
+  const { mutateAsync: duplicateBoard } = useDuplicateBoard();
+  const { mutateAsync: saveAsTemplate } = useSaveAsBoardTemplate();
   const { mutateAsync: reorderGroups } = useReorderGroups();
   const { mutateAsync: reorderItems } = useReorderItems();
   const { mutate: updateItemMutate } = useUpdateItem();
+  const { data: allWorkspaces = [] } = useWorkspacesQuery();
 
   // Real-time updates via Firestore onSnapshot (requires Firebase custom token auth)
   useBoardSnapshot(boardId, selectedWorkspace?.orgId ?? user?.orgId);
@@ -523,6 +532,9 @@ const BoardViewPage: React.FC = () => {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
+  const [boardMenuTriggerRect, setBoardMenuTriggerRect] = useState<DOMRect | null>(null);
+  const [editingBoard, setEditingBoard] = useState(false);
+  const [duplicateMode, setDuplicateMode] = useState<'duplicate' | 'template' | null>(null);
   const [showAddGroup, setShowAddGroup] = useState(false);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
@@ -886,6 +898,21 @@ const BoardViewPage: React.FC = () => {
             )}
           </div>
 
+          {/* Board context menu trigger */}
+          <button
+            type="button"
+            onClick={(e) => {
+              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+              setBoardMenuTriggerRect((prev) => prev ? null : rect);
+            }}
+            className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+            aria-label="Board options"
+            aria-haspopup="true"
+            aria-expanded={!!boardMenuTriggerRect}
+          >
+            <FiMoreVertical size={16} aria-hidden="true" />
+          </button>
+
           {/* Search + filter row */}
           <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
             <div className="relative">
@@ -1117,6 +1144,50 @@ const BoardViewPage: React.FC = () => {
       {chatItem && createPortal(
         <ItemChatModal item={chatItem} onClose={() => setChatItem(null)} />,
         document.body,
+      )}
+
+      {board && boardMenuTriggerRect && (
+        <BoardContextMenu
+          boardId={board.id}
+          boardName={board.name}
+          triggerRect={boardMenuTriggerRect}
+          workspaces={allWorkspaces.filter((w) => !w.isPersonal && !w.isTemplates)}
+          currentWorkspaceId={board.workspaceId}
+          canManage={canManage}
+          isTemplate={board.isTemplate}
+          onClose={() => setBoardMenuTriggerRect(null)}
+          onOpenNewTab={() => window.open(`/boards/${board.id}`, '_blank')}
+          onEdit={() => { setBoardMenuTriggerRect(null); setEditingBoard(true); }}
+          onRename={() => { setBoardMenuTriggerRect(null); setEditingName(true); }}
+          onMove={(wsId) => { setBoardMenuTriggerRect(null); void updateBoard({ id: board.id, patch: { workspaceId: wsId } }); }}
+          onDuplicate={() => { setBoardMenuTriggerRect(null); setDuplicateMode('duplicate'); }}
+          onSaveAsTemplate={() => { setBoardMenuTriggerRect(null); setDuplicateMode('template'); }}
+          onArchive={() => { setBoardMenuTriggerRect(null); void archiveBoard(board.id).then(() => navigate(`/WorkHubs/${board.workspaceId}/boards`)); }}
+          onDelete={() => { setBoardMenuTriggerRect(null); void archiveBoard(board.id).then(() => navigate(`/WorkHubs/${board.workspaceId}/boards`)); }}
+        />
+      )}
+
+      {board && editingBoard && (
+        <EditBoardModal board={board} onClose={() => setEditingBoard(false)} />
+      )}
+
+      {board && duplicateMode === 'duplicate' && (
+        <DuplicateOptionsModal
+          title="Duplicate board"
+          confirmLabel="Duplicate"
+          onConfirm={(mode: DuplicateMode) => { setDuplicateMode(null); void duplicateBoard({ id: board.id, mode }).catch(() => {}); }}
+          onClose={() => setDuplicateMode(null)}
+        />
+      )}
+
+      {board && duplicateMode === 'template' && (
+        <DuplicateOptionsModal
+          title="Save as template"
+          confirmLabel="Save"
+          onConfirm={(mode: DuplicateMode) => { setDuplicateMode(null); void saveAsTemplate({ id: board.id, mode }).then(() => navigate('/admin/templates')).catch(() => {}); }}
+
+          onClose={() => setDuplicateMode(null)}
+        />
       )}
     </UndoProvider>
   );
