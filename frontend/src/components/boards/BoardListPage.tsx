@@ -316,7 +316,7 @@ const BoardListPage: React.FC = () => {
               <div className="flex-shrink-0 w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
                 <FiLayout className="text-indigo-500" size={20} aria-hidden="true" />
               </div>
-              <div className="min-w-0 flex-1 pr-10">
+              <div className="min-w-0 flex-1">
                 {renamingBoardId === board.id ? (
                   <input
                     ref={renameInputRef}
@@ -333,7 +333,7 @@ const BoardListPage: React.FC = () => {
                     aria-label={`Rename board ${board.name}`}
                   />
                 ) : (
-                  <p className="font-semibold truncate text-gray-800">{board.name}</p>
+                  <p className="font-semibold break-words text-gray-800">{board.name}</p>
                 )}
                 {board.description && (
                   <OverflowText
