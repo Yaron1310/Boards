@@ -4,6 +4,7 @@ import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column, TextColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
+import { getTextDir } from '../../../utils/textDir';
 
 interface Props { item: Item; column: Column }
 
@@ -70,6 +71,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
                     autoFocus
                     maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
                     rows={3}
+                    dir={getTextDir(draft)}
                     className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none resize-none text-center"
                     onChange={(e) => setDraft(e.target.value)}
                     onBlur={() => commit(stopEdit)}
@@ -86,6 +88,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
                   value={draft}
                   autoFocus
                   maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
+                  dir={getTextDir(draft)}
                   className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none text-center"
                   onChange={(e) => setDraft(e.target.value)}
                   onBlur={() => commit(stopEdit)}
@@ -98,7 +101,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
               );
             }
             return (
-              <div className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center">
+              <div dir={getTextDir(rawValue)} className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center">
                 {rawValue || <span className="text-gray-300 text-xs">—</span>}
               </div>
             );
@@ -108,6 +111,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
           return (
             <div
               ref={cellRef}
+              dir={getTextDir(rawValue)}
               className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-50/30 transition-colors"
               onClick={() => { setDraft(rawValue); setModalOpen(true); }}
               onMouseEnter={handleMouseEnter}
@@ -158,6 +162,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
               onChange={(e) => setDraft(e.target.value)}
               rows={5}
               maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
+              dir={getTextDir(draft)}
               className="w-full px-3 py-2 text-sm text-gray-800 border border-gray-200 rounded-lg outline-none resize-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-shadow"
               onKeyDown={(e) => {
                 if (e.key === 'Escape') cancelModal();
