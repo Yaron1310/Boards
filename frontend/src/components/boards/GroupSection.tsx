@@ -555,7 +555,9 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                         onChange={(e) => setNewItemName(e.target.value)}
                         onKeyDown={handleAddItemKeyDown}
                         onBlur={() => {
-                          if (!newItemName.trim()) {
+                          if (newItemName.trim()) {
+                            void handleAddItem();
+                          } else {
                             setAddingItem(false);
                           }
                         }}

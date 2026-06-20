@@ -180,99 +180,118 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
               </div>
             )}
 
-            {/* Template picker — hidden when creating a template */}
-            {!isTemplate && templates.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Use template <span className="text-gray-400 font-normal">(optional)</span>
+            {/* Name + Template picker in one row */}
+            <div className="flex gap-3 items-start">
+              <div className="flex-1 min-w-0">
+                <label htmlFor="board-name" className="block text-sm font-medium text-gray-700 mb-1">
+                  Name <span aria-hidden="true" className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setShowTemplatePicker((v) => !v)}
-                    className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm text-left hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
-                    aria-label="Select a template"
-                    aria-expanded={showTemplatePicker}
-                    aria-haspopup="listbox"
-                  >
-                    <span className="flex items-center gap-2 text-gray-700">
-                      {selectedTemplate ? (
-                        <>
-                          <FiBookmark size={14} className="text-amber-500 flex-shrink-0" aria-hidden="true" />
-                          {selectedTemplate.name}
-                        </>
-                      ) : (
-                        <span className="text-gray-400">Select a template…</span>
-                      )}
-                    </span>
-                    <FiChevronDown
-                      size={14}
-                      className="text-gray-400 flex-shrink-0 transition-transform"
-                      style={{ transform: showTemplatePicker ? 'rotate(180deg)' : 'none' }}
-                      aria-hidden="true"
-                    />
-                  </button>
-                  {showTemplatePicker && (
-                    <ul
-                      role="listbox"
-                      aria-label="Available templates"
-                      className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
-                    >
-                      {selectedTemplateId && (
-                        <li
-                          role="option"
-                          aria-selected={false}
-                          onClick={() => { setSelectedTemplateId(null); setShowTemplatePicker(false); }}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 cursor-pointer"
-                        >
-                          None
-                        </li>
-                      )}
-                      {templates.map((t) => (
-                        <li
-                          key={t.id}
-                          role="option"
-                          aria-selected={t.id === selectedTemplateId}
-                          onClick={() => handleTemplateSelect(t.id)}
-                          className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${t.id === selectedTemplateId ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700'}`}
-                        >
-                          <FiBookmark size={13} className="text-amber-500 flex-shrink-0" aria-hidden="true" />
-                          {t.name}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
+                <input
+                  id="board-name"
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={isTemplate ? 'e.g. Project Kickoff' : 'e.g. Q3 Roadmap'}
+                  autoFocus
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  aria-required="true"
+                  aria-describedby={error ? 'board-error' : undefined}
+                />
+              </div>
 
-                {/* Inline mode selector — shown when a template is selected */}
-                {selectedTemplateId && (
-                  <div className="mt-3 space-y-1.5" role="radiogroup" aria-label="What to copy from the template">
-                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Copy from template</p>
-                    {TEMPLATE_MODE_OPTIONS.map((opt) => (
-                      <label
-                        key={opt.value}
-                        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                          templateMode === opt.value
-                            ? 'border-indigo-500 bg-indigo-50'
-                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                        }`}
+              {!isTemplate && templates.length > 0 && (
+                <div className="w-48 flex-shrink-0">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Use template <span className="text-gray-400 font-normal text-xs">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setShowTemplatePicker((v) => !v)}
+                      className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 rounded-lg text-sm text-left hover:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
+                      aria-label="Select a template"
+                      aria-expanded={showTemplatePicker}
+                      aria-haspopup="listbox"
+                    >
+                      <span className="flex items-center gap-2 text-gray-700 truncate">
+                        {selectedTemplate ? (
+                          <>
+                            <FiBookmark size={14} className="text-amber-500 flex-shrink-0" aria-hidden="true" />
+                            <span className="truncate">{selectedTemplate.name}</span>
+                          </>
+                        ) : (
+                          <span className="text-gray-400 truncate">Select…</span>
+                        )}
+                      </span>
+                      <FiChevronDown
+                        size={14}
+                        className="text-gray-400 flex-shrink-0 transition-transform ml-1"
+                        style={{ transform: showTemplatePicker ? 'rotate(180deg)' : 'none' }}
+                        aria-hidden="true"
+                      />
+                    </button>
+                    {showTemplatePicker && (
+                      <ul
+                        role="listbox"
+                        aria-label="Available templates"
+                        className="absolute z-10 w-56 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto"
                       >
-                        <input
-                          type="radio"
-                          name="template-mode"
-                          value={opt.value}
-                          checked={templateMode === opt.value}
-                          onChange={() => setTemplateMode(opt.value)}
-                          className="accent-indigo-600"
-                          aria-label={opt.label}
-                        />
-                        <span className={`text-sm ${templateMode === opt.value ? 'text-indigo-700 font-medium' : 'text-gray-700'}`}>
-                          {opt.label}
-                        </span>
-                      </label>
-                    ))}
+                        {selectedTemplateId && (
+                          <li
+                            role="option"
+                            aria-selected={false}
+                            onClick={() => { setSelectedTemplateId(null); setShowTemplatePicker(false); }}
+                            className="flex items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 cursor-pointer"
+                          >
+                            None
+                          </li>
+                        )}
+                        {templates.map((t) => (
+                          <li
+                            key={t.id}
+                            role="option"
+                            aria-selected={t.id === selectedTemplateId}
+                            onClick={() => handleTemplateSelect(t.id)}
+                            className={`flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-indigo-50 ${t.id === selectedTemplateId ? 'bg-indigo-50 font-semibold text-indigo-700' : 'text-gray-700'}`}
+                          >
+                            <FiBookmark size={13} className="text-amber-500 flex-shrink-0" aria-hidden="true" />
+                            {t.name}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                   </div>
-                )}
+                </div>
+              )}
+            </div>
+
+            {/* Inline mode selector */}
+            {!isTemplate && selectedTemplateId && (
+              <div className="space-y-1.5" role="radiogroup" aria-label="What to copy from the template">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Copy from template</p>
+                {TEMPLATE_MODE_OPTIONS.map((opt) => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                      templateMode === opt.value
+                        ? 'border-indigo-500 bg-indigo-50'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="template-mode"
+                      value={opt.value}
+                      checked={templateMode === opt.value}
+                      onChange={() => setTemplateMode(opt.value)}
+                      className="accent-indigo-600"
+                      aria-label={opt.label}
+                    />
+                    <span className={`text-sm ${templateMode === opt.value ? 'text-indigo-700 font-medium' : 'text-gray-700'}`}>
+                      {opt.label}
+                    </span>
+                  </label>
+                ))}
               </div>
             )}
 
@@ -282,23 +301,6 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ workspaceId, isTemp
                 {selectedEmoji && <span className="ml-2 text-lg">{selectedEmoji}</span>}
               </label>
               <EmojiPicker selected={selectedEmoji} onChange={setSelectedEmoji} />
-            </div>
-
-            <div>
-              <label htmlFor="board-name" className="block text-sm font-medium text-gray-700 mb-1">
-                Name <span aria-hidden="true" className="text-red-500">*</span>
-              </label>
-              <input
-                id="board-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={isTemplate ? 'e.g. Project Kickoff' : 'e.g. Q3 Roadmap'}
-                autoFocus
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                aria-required="true"
-                aria-describedby={error ? 'board-error' : undefined}
-              />
             </div>
 
             <div>

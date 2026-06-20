@@ -3,7 +3,7 @@ import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User, WorkHub } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiChevronLeft, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
@@ -413,6 +413,8 @@ interface SidebarContentProps {
   user: User | null;
   selectedWorkspaceIsPersonal: boolean;
   selectedWorkspaceId: string;
+  isCollapsed: boolean;
+  onToggleCollapsed: () => void;
   onOpenLegal: () => void;
   onOpenAccessibility: () => void;
 }
@@ -527,6 +529,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     user,
     selectedWorkspaceIsPersonal,
     selectedWorkspaceId,
+    isCollapsed,
+    onToggleCollapsed,
     onOpenLegal,
     onOpenAccessibility
 }) => {
@@ -586,12 +590,78 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     const maskAlpha = maskOpacity / 100;
 
     return (
-        <div 
-            className="flex flex-col h-full relative overflow-hidden" 
+        <div
+            className="flex flex-col h-full relative overflow-hidden"
             style={{ backgroundColor: sidebarColor }}
         >
           <style>{hoverEffectStyle}</style>
-          
+
+          {/* Collapse toggle button — half on sidebar, half on page (desktop only) */}
+          <button
+            onClick={onToggleCollapsed}
+            className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-50 w-6 h-6 rounded-full items-center justify-center shadow-md border transition-opacity opacity-0 hover:opacity-100 focus:opacity-100 group-hover/sidebar:opacity-100"
+            style={{ backgroundColor: sidebarColor, color: sidebarLinkColor, borderColor: `${sidebarLinkColor}44` }}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? <FiChevronRight size={12} /> : <FiChevronLeft size={12} />}
+          </button>
+
+          {/* Collapsed icon-only view */}
+          {isCollapsed && (
+            <div className="flex flex-col items-center py-6 gap-1 flex-1 overflow-y-auto custom-scrollbar relative z-10">
+              {availableNavItems.map(item => (
+                <NavLink
+                  key={(item as NavItem).name}
+                  to={(item as NavItem).path}
+                  onClick={(e) => {
+                    const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
+                    if (guard?.isDirty) { e.preventDefault(); guard.onAttempt((item as NavItem).path); return; }
+                    setIsSidebarOpen(false);
+                  }}
+                  title={(item as NavItem).name}
+                  className={({ isActive }) =>
+                    `sidebar-nav-item flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-150 overflow-hidden ${isActive ? 'active' : ''}`
+                  }
+                  style={{ color: sidebarLinkColor }}
+                >
+                  <span className="[&>svg]:mr-0">{(item as NavItem).icon}</span>
+                </NavLink>
+              ))}
+              {availableAdminNavItems.map(item => (
+                <NavLink
+                  key={(item as AdminNavItem).name}
+                  to={(item as AdminNavItem).path}
+                  onClick={(e) => {
+                    const guard = (window as Window & { __navigationGuard?: { isDirty: boolean; onAttempt: (path: string) => void } | null }).__navigationGuard;
+                    if (guard?.isDirty) { e.preventDefault(); guard.onAttempt((item as AdminNavItem).path); return; }
+                    setIsSidebarOpen(false);
+                  }}
+                  title={(item as AdminNavItem).name}
+                  className={({ isActive }) =>
+                    `sidebar-nav-item flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-150 overflow-hidden ${isActive ? 'active' : ''}`
+                  }
+                  style={{ color: sidebarLinkColor }}
+                >
+                  <span className="[&>svg]:mr-0">{(item as AdminNavItem).icon}</span>
+                </NavLink>
+              ))}
+              <NavLink
+                to="/profile"
+                onClick={() => setIsSidebarOpen(false)}
+                title="Profile"
+                className={({ isActive }) =>
+                  `sidebar-nav-item flex items-center justify-center w-10 h-10 rounded-lg transition-colors duration-150 mt-auto ${isActive ? 'active' : ''}`
+                }
+                style={{ color: sidebarLinkColor }}
+              >
+                <img src={userImageSidebar} alt="User" className="h-7 w-7 rounded-full object-cover border border-white/30" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = '/default_user.webp')} />
+              </NavLink>
+            </div>
+          )}
+
+          {/* Full sidebar — hidden when collapsed */}
+          {!isCollapsed && <>
+
           {/* Gradient Overlay for Stronger Hue Change */}
           {enableSidebarGradient && (
             <div 
@@ -819,6 +889,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 </button>
             </div>
           </div>
+          </>}
         </div>
     );
 };
@@ -841,6 +912,7 @@ const MainLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showLegalModal, setShowLegalModal] = useState(false);
   const [showAccessibilityModal, setShowAccessibilityModal] = useState(false);
   const previousPathnameRef = useRef<string | null>(null);
@@ -992,8 +1064,8 @@ const MainLayout: React.FC = () => {
       <CookieConsent />
       <LegalModal isOpen={showLegalModal} onClose={() => setShowLegalModal(false)} />
       <AccessibilityModal isOpen={showAccessibilityModal} onClose={() => setShowAccessibilityModal(false)} />
-      <aside className="hidden md:flex md:flex-shrink-0">
-        <div className="flex flex-col w-[19rem] text-white shadow-lg">
+      <aside className="hidden md:flex md:flex-shrink-0 group/sidebar">
+        <div className={`flex flex-col text-white shadow-lg transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-[19rem]'}`}>
           <SidebarContent
             sidebarColor={sidebarColor}
             enableSidebarGradient={enableSidebarGradient}
@@ -1012,7 +1084,8 @@ const MainLayout: React.FC = () => {
             user={user}
             selectedWorkspaceIsPersonal={selectedWorkspace.isPersonal || false}
             selectedWorkspaceId={selectedWorkspaceId}
-
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapsed={() => setIsSidebarCollapsed(v => !v)}
             onOpenLegal={() => setShowLegalModal(true)}
             onOpenAccessibility={() => setShowAccessibilityModal(true)}
           />
@@ -1039,7 +1112,8 @@ const MainLayout: React.FC = () => {
                 user={user}
                 selectedWorkspaceIsPersonal={selectedWorkspace.isPersonal || false}
                 selectedWorkspaceId={selectedWorkspaceId}
-    
+                isCollapsed={false}
+                onToggleCollapsed={() => {}}
                 onOpenLegal={() => setShowLegalModal(true)}
                 onOpenAccessibility={() => setShowAccessibilityModal(true)}
             />
