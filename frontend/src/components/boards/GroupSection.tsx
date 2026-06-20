@@ -3,6 +3,7 @@ import {
   FiChevronDown, FiChevronRight, FiMoreHorizontal, FiPlus,
   FiEdit2, FiTrash2, FiLoader, FiMenu, FiArchive, FiLink,
   FiChevronsLeft, FiChevronLeft, FiChevronRight as FiChevronRightNav,
+  FiCheckSquare, FiSquare,
 } from 'react-icons/fi';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -75,17 +76,30 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   // Maps page index → cursor needed to fetch that page (page 0 = undefined)
   const [cursorMap, setCursorMap] = useState<Record<number, string | undefined>>({ 0: undefined });
   const [pendingJumpToLast, setPendingJumpToLast] = useState(false);
+  // Manual pagination toggle (from context menu); auto-enables when total > 100
+  const [manualPagination, setManualPagination] = useState(false);
 
   const cursor = cursorMap[currentPage];
+
+  // total starts at 0 on first render; paginationEnabled derived after first fetch
+  const [knownTotal, setKnownTotal] = useState(0);
+  const paginationEnabled = knownTotal > 100 || manualPagination;
+  const effectivePageSize = paginationEnabled ? pageSize : 10000;
+
   const { data: groupItemsPage, isFetching } = useGroupItems(
     group.id,
     cursor,
-    pageSize,
+    effectivePageSize,
     !isCollapsed,
   );
 
   const total = groupItemsPage?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalPages = Math.max(1, Math.ceil(total / effectivePageSize));
+
+  // Keep knownTotal up to date so paginationEnabled reacts to first-fetch result
+  useEffect(() => {
+    if (total > 0) setKnownTotal(total);
+  }, [total]);
 
   // Cache the next-page cursor whenever we receive it
   useEffect(() => {
@@ -110,15 +124,22 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     }
   }, [pendingJumpToLast, isFetching, totalPages]);
 
-  // Reset to page 0 when page size changes (e.g. window resize)
-  const prevPageSizeRef = useRef(pageSize);
+  // Reset to page 0 when effective page size changes (window resize or pagination toggle)
+  const prevEffectivePageSizeRef = useRef(effectivePageSize);
   useEffect(() => {
-    if (prevPageSizeRef.current !== pageSize) {
-      prevPageSizeRef.current = pageSize;
+    if (prevEffectivePageSizeRef.current !== effectivePageSize) {
+      prevEffectivePageSizeRef.current = effectivePageSize;
       setCurrentPage(0);
       setCursorMap({ 0: undefined });
     }
-  }, [pageSize]);
+  }, [effectivePageSize]);
+
+  // Auto-go-back to previous page when current page becomes empty (e.g. all items deleted)
+  useEffect(() => {
+    if (!isFetching && currentPage > 0 && (groupItemsPage?.data?.length ?? 0) === 0) {
+      goToPage(currentPage - 1);
+    }
+  }, [isFetching, currentPage, groupItemsPage?.data?.length, goToPage]);
 
   const goToPage = useCallback((page: number) => {
     const clamped = Math.max(0, Math.min(page, totalPages - 1));
@@ -399,6 +420,20 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                 >
                   <FiEdit2 size={13} aria-hidden="true" />
                   Rename
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={manualPagination}
+                  onClick={() => setManualPagination((v) => !v)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  aria-label="Toggle pagination for this group"
+                >
+                  {manualPagination
+                    ? <FiCheckSquare size={13} aria-hidden="true" className="text-indigo-600" />
+                    : <FiSquare size={13} aria-hidden="true" />}
+                  Pagination
                 </button>
 
                 {confirmArchive ? (
