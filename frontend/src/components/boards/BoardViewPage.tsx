@@ -43,8 +43,8 @@ import BoardFilterDropdown, { itemMatchesSearch, itemMatchesFilters } from './Bo
 import type { ActiveFilter } from './BoardFilterDropdown';
 import BoardInviteModal from './BoardInviteModal';
 import BoardContextMenu from './BoardContextMenu';
-import EditBoardModal from './EditBoardModal';
-import DuplicateOptionsModal from './DuplicateOptionsModal';
+const EditBoardModal = React.lazy(() => import('./EditBoardModal'));
+const DuplicateOptionsModal = React.lazy(() => import('./DuplicateOptionsModal'));
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
@@ -1167,28 +1167,29 @@ const BoardViewPage: React.FC = () => {
         />
       )}
 
-      {board && editingBoard && (
-        <EditBoardModal board={board} onClose={() => setEditingBoard(false)} />
-      )}
+      <React.Suspense fallback={null}>
+        {board && editingBoard && (
+          <EditBoardModal board={board} onClose={() => setEditingBoard(false)} />
+        )}
 
-      {board && duplicateMode === 'duplicate' && (
-        <DuplicateOptionsModal
-          title="Duplicate board"
-          confirmLabel="Duplicate"
-          onConfirm={(mode: DuplicateMode) => { setDuplicateMode(null); void duplicateBoard({ id: board.id, mode }).catch(() => {}); }}
-          onClose={() => setDuplicateMode(null)}
-        />
-      )}
+        {board && duplicateMode === 'duplicate' && (
+          <DuplicateOptionsModal
+            title="Duplicate board"
+            confirmLabel="Duplicate"
+            onConfirm={(mode: DuplicateMode) => { setDuplicateMode(null); void duplicateBoard({ id: board.id, mode }).catch(() => {}); }}
+            onClose={() => setDuplicateMode(null)}
+          />
+        )}
 
-      {board && duplicateMode === 'template' && (
-        <DuplicateOptionsModal
-          title="Save as template"
-          confirmLabel="Save"
-          onConfirm={(mode: DuplicateMode) => { setDuplicateMode(null); void saveAsTemplate({ id: board.id, mode }).then(() => navigate('/admin/templates')).catch(() => {}); }}
-
-          onClose={() => setDuplicateMode(null)}
-        />
-      )}
+        {board && duplicateMode === 'template' && (
+          <DuplicateOptionsModal
+            title="Save as template"
+            confirmLabel="Save"
+            onConfirm={(mode: DuplicateMode) => { setDuplicateMode(null); void saveAsTemplate({ id: board.id, mode }).then(() => navigate('/admin/templates')).catch(() => {}); }}
+            onClose={() => setDuplicateMode(null)}
+          />
+        )}
+      </React.Suspense>
     </UndoProvider>
   );
 };
