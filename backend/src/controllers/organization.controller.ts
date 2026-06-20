@@ -112,10 +112,6 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
             const membershipSnapshot = await membershipsCollection.where('userId', '==', userId).get();
             const memberships = querySnapshotToArray<DBMembership>(membershipSnapshot);
 
-            if (memberships.some(m => m.role === UserRole.SYSTEM_ADMIN)) {
-                return { isHigherAdmin: true };
-            }
-
             const batch = db.batch();
             let createdPersonalOrg = false;
 
@@ -179,8 +175,7 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
 
         if (!userSnapshot.empty) {
             const user = snapshotToData<DBUser>(userSnapshot.docs[0])!;
-            const { isHigherAdmin, alreadyAdmin } = await addAdminRole(user.id, user.email, user.name);
-            if(isHigherAdmin) return res.status(400).json({ message: 'This user is a System Admin and cannot be assigned to a specific workspace.' });
+            const { alreadyAdmin } = await addAdminRole(user.id, user.email, user.name);
             if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already an admin for this workspace.` });
             const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
             const loginLink = `${env.FRONTEND_URL}/login`;

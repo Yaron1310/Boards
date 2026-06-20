@@ -1079,7 +1079,7 @@ const MainLayout: React.FC = () => {
         <button
           onClick={() => setIsSidebarCollapsed(v => !v)}
           className="absolute right-0 top-4 translate-x-1/2 z-50 w-6 h-6 rounded-full flex items-center justify-center shadow-md border"
-          style={{ backgroundColor: sidebarColor, color: sidebarLinkColor, borderColor: `${sidebarLinkColor}55` }}
+          style={{ backgroundColor: '#f3f4f6', color: '#374151', borderColor: '#d1d5db' }}
           aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {isSidebarCollapsed ? <FiChevronRight size={12} /> : <FiChevronLeft size={12} />}
