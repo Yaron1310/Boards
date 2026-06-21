@@ -310,16 +310,25 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
         .filter((m): m is number => m !== null);
     }
     if (col.type === ColumnType.TIME_RANGE) {
-      return items
-        .map((i) => {
-          const v = i.values[col.id] as TimeRangeValue | null | undefined;
-          if (!v?.start || !v?.end) return null;
-          const s = new Date(v.start as string);
-          const e = new Date(v.end as string);
-          if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
-          return Math.max(1, Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1);
-        })
-        .filter((d): d is number => d !== null);
+      const results = items.map((i) => {
+        const v = i.values[col.id] as TimeRangeValue | null | undefined;
+        if (!v?.start || !v?.end) {
+          console.log('[SummaryDebug] SKIPPED (no start/end)', { itemId: i.id, itemName: i.name, value: v });
+          return null;
+        }
+        const s = new Date(v.start as string);
+        const e = new Date(v.end as string);
+        if (isNaN(s.getTime()) || isNaN(e.getTime())) {
+          console.log('[SummaryDebug] SKIPPED (invalid date)', { itemId: i.id, itemName: i.name, start: v.start, end: v.end });
+          return null;
+        }
+        const days = Math.max(1, Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1);
+        console.log('[SummaryDebug] COUNTED', { itemId: i.id, itemName: i.name, start: v.start, end: v.end, storedDurationDays: v.durationDays, computedDays: days });
+        return days;
+      });
+      const filtered = results.filter((d): d is number => d !== null);
+      console.log('[SummaryDebug] TOTAL', { col: col.name, sum: filtered.reduce((a, b) => a + b, 0), itemCount: filtered.length });
+      return filtered;
     }
     return [];
   }
