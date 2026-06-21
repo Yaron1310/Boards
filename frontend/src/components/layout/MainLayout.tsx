@@ -119,7 +119,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
             </li>
           )}
           {boards.map((board) => (
-            <li key={board.id} role="listitem" className="group/board flex items-center pr-2">
+            <li key={board.id} role="listitem" className="group/board flex items-center">
               {renamingBoardId === board.id ? (
                 <div className="flex-1 min-w-0 flex items-center gap-2 pl-8 py-1" style={{ color: sidebarLinkColor }}>
                   <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
@@ -145,7 +145,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                   style={() => ({ color: sidebarLinkColor })}
                   className={({ isActive }) =>
                     `sidebar-nav-item flex-1 min-w-0 flex items-center gap-2 pl-8 py-1.5 rounded-lg text-sm transition-colors duration-150 ${
-                      isActive ? 'active font-semibold' : 'hover:text-white'
+                      isActive ? 'active' : 'hover:text-white'
                     }`
                   }
                   aria-label={`Open board ${board.name}`}
