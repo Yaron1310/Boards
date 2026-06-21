@@ -303,6 +303,41 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
     return [];
   }
 
+  function computeTimeRangeIntervals(): { s: Date; e: Date }[] {
+    return items
+      .map((i) => {
+        const v = i.values[col.id] as TimeRangeValue | null | undefined;
+        if (!v?.start || !v?.end) return null;
+        const s = new Date(v.start as string);
+        const e = new Date(v.end as string);
+        if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+        return { s, e };
+      })
+      .filter((x): x is { s: Date; e: Date } => x !== null);
+  }
+
+  // Sum for TIME_RANGE = total unique calendar days covered (union of all intervals).
+  // Avg/min/max/median still use per-item durations.
+  function mergedDays(intervals: { s: Date; e: Date }[]): number {
+    if (intervals.length === 0) return 0;
+    const sorted = [...intervals].sort((a, b) => a.s.getTime() - b.s.getTime());
+    let total = 0;
+    let curS = sorted[0].s;
+    let curE = sorted[0].e;
+    for (let i = 1; i < sorted.length; i++) {
+      const { s, e } = sorted[i];
+      if (s.getTime() <= curE.getTime()) {
+        if (e.getTime() > curE.getTime()) curE = e;
+      } else {
+        total += Math.round((curE.getTime() - curS.getTime()) / 86_400_000) + 1;
+        curS = s;
+        curE = e;
+      }
+    }
+    total += Math.round((curE.getTime() - curS.getTime()) / 86_400_000) + 1;
+    return total;
+  }
+
   function computeTimeVals(): number[] {
     if (col.type === ColumnType.TIME) {
       return items
@@ -310,25 +345,9 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
         .filter((m): m is number => m !== null);
     }
     if (col.type === ColumnType.TIME_RANGE) {
-      const results = items.map((i) => {
-        const v = i.values[col.id] as TimeRangeValue | null | undefined;
-        if (!v?.start || !v?.end) {
-          console.log('[SummaryDebug] SKIPPED (no start/end)', { itemId: i.id, itemName: i.name, value: v });
-          return null;
-        }
-        const s = new Date(v.start as string);
-        const e = new Date(v.end as string);
-        if (isNaN(s.getTime()) || isNaN(e.getTime())) {
-          console.log('[SummaryDebug] SKIPPED (invalid date)', { itemId: i.id, itemName: i.name, start: v.start, end: v.end });
-          return null;
-        }
-        const days = Math.max(1, Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1);
-        console.log('[SummaryDebug] COUNTED', { itemId: i.id, itemName: i.name, start: v.start, end: v.end, storedDurationDays: v.durationDays, computedDays: days });
-        return days;
-      });
-      const filtered = results.filter((d): d is number => d !== null);
-      console.log('[SummaryDebug] TOTAL', { col: col.name, sum: filtered.reduce((a, b) => a + b, 0), itemCount: filtered.length });
-      return filtered;
+      return computeTimeRangeIntervals().map(({ s, e }) =>
+        Math.max(1, Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1),
+      );
     }
     return [];
   }
@@ -362,8 +381,14 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
       const mins = computeTimeVals();
       if (mins.length === 0) return null;
       if (calc === 'count') return String(mins.length);
+      if (calc === 'sum') {
+        if (col.type === ColumnType.TIME_RANGE) {
+          const merged = mergedDays(computeTimeRangeIntervals());
+          return `${merged}d`;
+        }
+        return formatMinutes(mins.reduce((a, b) => a + b, 0));
+      }
       const total = mins.reduce((a, b) => a + b, 0);
-      if (calc === 'sum') return col.type === ColumnType.TIME_RANGE ? `${Math.round(total * 10) / 10}d` : formatMinutes(total);
       if (calc === 'avg') {
         const avg = total / mins.length;
         return col.type === ColumnType.TIME_RANGE ? `${Math.round(avg * 10) / 10}d` : formatMinutes(avg);
