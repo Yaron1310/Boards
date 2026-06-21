@@ -318,8 +318,7 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
   const selectedColor = selectedWorkspace?.color ?? '#FFB3C1';
 
   return (
-    <div className="pt-4 mt-4 border-t" style={{ borderColor: `${sidebarLinkColor}33` }}>
-      {/* WorkHub dropdown */}
+    <div className="-ml-3">
       <div className="px-4 mb-2 relative" ref={dropdownRef}>
         <button
           type="button"
@@ -1091,7 +1090,7 @@ const MainLayout: React.FC = () => {
         >
           {isSidebarCollapsed ? <FiChevronRight size={15} /> : <FiChevronLeft size={15} />}
         </button>
-        <div className={`flex flex-col text-white shadow-lg transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-[19rem]'}`}>
+        <div className={`flex flex-col text-white shadow-lg transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-[18rem]'}`}>
           <SidebarContent
             sidebarColor={sidebarColor}
             enableSidebarGradient={enableSidebarGradient}
