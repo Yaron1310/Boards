@@ -1085,11 +1085,11 @@ const MainLayout: React.FC = () => {
         {/* Collapse toggle button — positioned on the right edge of aside, always visible */}
         <button
           onClick={() => setIsSidebarCollapsed(v => !v)}
-          className="absolute right-0 top-4 translate-x-1/2 z-50 w-6 h-6 rounded-full flex items-center justify-center shadow-md border"
-          style={{ backgroundColor: '#f3f4f6', color: '#374151', borderColor: '#d1d5db' }}
+          className="absolute right-0 bottom-[0.6rem] translate-x-1/2 z-50 w-6 h-6 rounded-full flex items-center justify-center border"
+          style={{ backgroundColor: '#ebebeb', color: 'rgb(79 79 79)', borderColor: '#a0a0a04d' }}
           aria-label={isSidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          {isSidebarCollapsed ? <FiChevronRight size={12} /> : <FiChevronLeft size={12} />}
+          {isSidebarCollapsed ? <FiChevronRight size={15} /> : <FiChevronLeft size={15} />}
         </button>
         <div className={`flex flex-col text-white shadow-lg transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-[19rem]'}`}>
           <SidebarContent
