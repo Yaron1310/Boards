@@ -311,8 +311,15 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
     }
     if (col.type === ColumnType.TIME_RANGE) {
       return items
-        .map((i) => (i.values[col.id] as TimeRangeValue | null | undefined)?.durationDays)
-        .filter((d): d is number => d != null && !isNaN(d));
+        .map((i) => {
+          const v = i.values[col.id] as TimeRangeValue | null | undefined;
+          if (!v?.start || !v?.end) return null;
+          const s = new Date(v.start as string);
+          const e = new Date(v.end as string);
+          if (isNaN(s.getTime()) || isNaN(e.getTime())) return null;
+          return Math.max(1, Math.round((e.getTime() - s.getTime()) / 86_400_000) + 1);
+        })
+        .filter((d): d is number => d !== null);
     }
     return [];
   }

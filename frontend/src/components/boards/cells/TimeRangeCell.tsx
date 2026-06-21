@@ -87,10 +87,11 @@ interface DateRangePickerProps {
   anchorEl: HTMLElement | null;
   onCommit: (start: string, end: string) => void;
   onCancel: () => void;
+  onRemove: () => void;
 }
 
 const DateRangePicker: React.FC<DateRangePickerProps> = ({
-  initialStart, initialEnd, anchorEl, onCommit, onCancel,
+  initialStart, initialEnd, anchorEl, onCommit, onCancel, onRemove,
 }) => {
   // Phase ALWAYS starts at 'start' so the first click is always the start date,
   // even when the cell already has dates set.
@@ -286,8 +287,20 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
         ))}
       </div>
 
-      {/* Cancel link */}
-      <div className="flex justify-end mt-2 pt-2 border-t border-gray-100">
+      {/* Footer */}
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="flex items-center gap-1 text-[11px] text-red-500 hover:text-red-700 transition-colors"
+          aria-label="Remove dates"
+        >
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+            <path d="M6 2a1 1 0 0 0-1 1H3a1 1 0 0 0 0 2h10a1 1 0 0 0 0-2h-2a1 1 0 0 0-1-1H6zM3.5 6a.5.5 0 0 1 .5.5V12a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6.5a.5.5 0 0 1 1 0V12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5a.5.5 0 0 1 .5-.5z"/>
+            <path d="M6.5 7.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V8a.5.5 0 0 1 .5-.5zm3 0a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V8a.5.5 0 0 1 .5-.5z"/>
+          </svg>
+          Remove dates
+        </button>
         <button
           type="button"
           onClick={onCancel}
@@ -758,6 +771,17 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
                     commitValues(s, e, stopEdit);
                   }}
                   onCancel={stopEdit}
+                  onRemove={() => {
+                    const prevValue = rawValue;
+                    pushUndo({
+                      label: `Removed date range on "${item.name}"`,
+                      undo: () => mutate({ id: item.id, patch: { values: { [column.id]: prevValue ?? null } } }),
+                    });
+                    mutate({ id: item.id, patch: { values: { [column.id]: null } } });
+                    setStart('');
+                    setEnd('');
+                    stopEdit();
+                  }}
                 />,
                 document.body
               )}
