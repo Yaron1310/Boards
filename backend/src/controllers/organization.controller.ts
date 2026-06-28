@@ -10,6 +10,8 @@ import {
     organizationSettingsCollection,
     membershipsCollection,
     preapprovedUsersCollection,
+    boardsCollection,
+    boardMembersCollection,
 } from '../db/collections.js';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { DBWorkspace, DBUser, JwtVerificationPayload, UserRole, DBOrganizationSettings, DBMembership, JwtMultiOrgPayload, DBOrganization, JwtUserPayload } from '../types/index.js';
@@ -713,17 +715,40 @@ export const removeUserFromOrg = async (req: Request, res: Response) => {
                 : Promise.resolve(null),
         ]);
 
-        const batch = db.batch();
+        // Collect all board member docs for this user across all boards in the org
+        const boardsSnap = await boardsCollection(orgId).get();
+        const boardMemberRefs = await Promise.all(
+            boardsSnap.docs.map(b => boardMembersCollection(orgId, b.id).doc(userId).get())
+        );
+        const existingBoardMemberRefs = boardMemberRefs.filter(s => s.exists).map(s => s.ref);
+
+        // Firestore batches are limited to 500 writes — chunk if needed
+        const allRefs: FirebaseFirestore.DocumentReference[] = [];
         const deletedDocIds = new Set<string>();
-        byIdSnap.forEach(doc => { batch.delete(doc.ref); deletedDocIds.add(doc.id); });
-        byEmailSnap?.forEach(doc => { if (!deletedDocIds.has(doc.id)) batch.delete(doc.ref); });
+        byIdSnap.forEach(doc => { allRefs.push(doc.ref); deletedDocIds.add(doc.id); });
+        byEmailSnap?.forEach(doc => { if (!deletedDocIds.has(doc.id)) allRefs.push(doc.ref); });
+        existingBoardMemberRefs.forEach(ref => allRefs.push(ref));
 
-        // Stamp forceLogoutAt so the user's current JWT is invalidated on next request
-        batch.update(usersCollection.doc(userId), {
-            forceLogoutAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+        const BATCH_LIMIT = 499; // leave one slot for the forceLogoutAt update
+        for (let i = 0; i < allRefs.length; i += BATCH_LIMIT) {
+            const chunk = allRefs.slice(i, i + BATCH_LIMIT);
+            const chunkBatch = db.batch();
+            chunk.forEach(ref => chunkBatch.delete(ref));
+            if (i === 0) {
+                // Stamp forceLogoutAt so the user's current JWT is invalidated on next request
+                chunkBatch.update(usersCollection.doc(userId), {
+                    forceLogoutAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+            }
+            await chunkBatch.commit();
+        }
 
-        await batch.commit();
+        if (allRefs.length === 0) {
+            // Still need to stamp forceLogoutAt even if no memberships found
+            await usersCollection.doc(userId).update({
+                forceLogoutAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        }
 
         logger.info(`User ${userId} removed from org ${orgId} by ${requestingUser.id}`);
         return res.status(204).send();
