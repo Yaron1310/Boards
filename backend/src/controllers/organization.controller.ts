@@ -706,10 +706,14 @@ export const removeUserFromOrg = async (req: Request, res: Response) => {
         if (!userDoc.exists) return res.status(404).json({ message: "User not found." });
         const userEmail = (userDoc.data() as DBUser).email;
 
-        // Remove ALL memberships for this user within the org — by userId and also by
-        // userEmail to catch orphaned memberships with stale userId values.
-        const [byIdSnap, byEmailSnap] = await Promise.all([
+        // Remove ALL memberships for this user within the org.
+        // Three queries to cover all cases:
+        // 1. By userId + orgId field (catches workspace/regular memberships)
+        // 2. By userId + entityId == orgId (catches ORGANIZATION_ADMIN memberships whose entityId IS the orgId)
+        // 3. By userEmail + orgId (catches stale userId references)
+        const [byIdSnap, byEntityIdSnap, byEmailSnap] = await Promise.all([
             membershipsCollection.where('userId', '==', userId).where('orgId', '==', orgId).get(),
+            membershipsCollection.where('userId', '==', userId).where('entityId', '==', orgId).get(),
             userEmail
                 ? membershipsCollection.where('userEmail', '==', userEmail).where('orgId', '==', orgId).get()
                 : Promise.resolve(null),
@@ -726,6 +730,7 @@ export const removeUserFromOrg = async (req: Request, res: Response) => {
         const allRefs: FirebaseFirestore.DocumentReference[] = [];
         const deletedDocIds = new Set<string>();
         byIdSnap.forEach(doc => { allRefs.push(doc.ref); deletedDocIds.add(doc.id); });
+        byEntityIdSnap.forEach(doc => { if (!deletedDocIds.has(doc.id)) { allRefs.push(doc.ref); deletedDocIds.add(doc.id); } });
         byEmailSnap?.forEach(doc => { if (!deletedDocIds.has(doc.id)) allRefs.push(doc.ref); });
         existingBoardMemberRefs.forEach(ref => allRefs.push(ref));
 
