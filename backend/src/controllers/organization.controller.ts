@@ -559,16 +559,17 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
             const userSnap = await usersCollection.where('email', '==', sanitizedEmail).limit(1).get();
             const batch = db.batch();
             let addedToExisting = 0;
+            let updatedExisting = 0;
             let preApprovedCount = 0;
 
             if (!userSnap.empty) {
                 const existingUser = snapshotToData<DBUser>(userSnap.docs[0])!;
                 if (inviteAll) {
-                    // All-workhubs: create one org_editor membership if not already present
+                    // All-workhubs: create or update org_editor membership
                     const existingSnap = await membershipsCollection
                         .where('userId', '==', existingUser.id)
                         .where('orgId', '==', orgId)
-                        .where('role', '==', UserRole.ORG_EDITOR)
+                        .where('entityType', '==', 'organization')
                         .limit(1).get();
                     if (existingSnap.empty) {
                         const newMemberRef = membershipsCollection.doc();
@@ -585,9 +586,16 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
                             createdAt: admin.firestore.FieldValue.serverTimestamp(),
                         });
                         addedToExisting++;
+                    } else {
+                        // Update role and permissions if membership already exists
+                        batch.update(existingSnap.docs[0].ref, {
+                            role: UserRole.ORG_EDITOR,
+                            permissions: safePermissions,
+                        });
+                        updatedExisting++;
                     }
                 } else {
-                    // Specific workspaces — one membership per workspace
+                    // Specific workspaces — create or update one membership per workspace
                     for (const wsDoc of validWsDocs) {
                         const wsId = wsDoc.id;
                         const memberSnap = await membershipsCollection
@@ -609,6 +617,13 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
                                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                             });
                             addedToExisting++;
+                        } else {
+                            // Update role and permissions if membership already exists
+                            batch.update(memberSnap.docs[0].ref, {
+                                role: UserRole.REGULAR_USER,
+                                permissions: safePermissions,
+                            });
+                            updatedExisting++;
                         }
                     }
                 }
@@ -646,13 +661,13 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
 
             if (userSnap.empty && preApprovedCount > 0) {
                 await sendUserInvitationEmail(sanitizedEmail, orgName, orgName, registrationLink).catch(() => {});
-            } else if (!userSnap.empty && addedToExisting > 0) {
+            } else if (!userSnap.empty && (addedToExisting > 0 || updatedExisting > 0)) {
                 await sendUserInvitationEmail(sanitizedEmail, orgName, orgName, `${env.FRONTEND_URL}/login`).catch(() => {});
             }
 
-            totalAdded += addedToExisting;
+            totalAdded += addedToExisting + updatedExisting;
             totalPreApproved += preApprovedCount;
-            if (addedToExisting === 0 && preApprovedCount === 0) totalSkipped++;
+            if (addedToExisting === 0 && updatedExisting === 0 && preApprovedCount === 0) totalSkipped++;
         }
 
         const processedCount = rawEmails.length - totalSkipped;
