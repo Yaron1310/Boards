@@ -3,8 +3,10 @@ import React, { useState, useEffect, type ChangeEvent } from 'react';
 import ReactDOM from 'react-dom';
 import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
+import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '../../hooks/useData';
 import { useAuthSession } from '../../hooks/useAuthSession';
+import { queryKeys } from '../../hooks/queries/queryKeys';
 import type { WorkHub } from '../../types';
 
 interface InviteUsersOrgModalProps {
@@ -16,6 +18,7 @@ interface InviteUsersOrgModalProps {
 const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClose, workspaces }) => {
   const { inviteUsersToOrg, inviteUsersToOrgBulk } = useData();
   const { selectedWorkspace } = useAuthSession();
+  const queryClient = useQueryClient();
 
   const [email, setEmail] = useState('');
   const [scope, setScope] = useState<'all' | 'specific'>('all');
@@ -71,6 +74,7 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
       if (result) {
         setFeedback({ type: 'success', text: result.message });
         setEmail('');
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
         setTimeout(() => onClose(), 1500);
       } else {
         setFeedback({ type: 'error', text: 'Failed to invite user. Please try again.' });
@@ -120,6 +124,7 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
       if (result) {
         setFeedback({ type: 'success', text: result.message });
         setUploadFile(null);
+        queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       } else {
         throw new Error('An unknown error occurred during upload.');
       }
