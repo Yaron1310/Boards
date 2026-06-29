@@ -11,6 +11,15 @@ export const useGroups = (boardId: string, enabled = true) =>
     staleTime: 2 * 60 * 1000,
   });
 
+export const useSubitemGroup = (boardId: string, parentItemId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.groups.subitem(boardId, parentItemId),
+    queryFn: () => wm.listGroups(boardId, false, parentItemId),
+    enabled: enabled && !!boardId && !!parentItemId,
+    staleTime: 2 * 60 * 1000,
+    select: (groups) => groups[0] ?? null,
+  });
+
 export const useArchivedGroups = (boardId: string, enabled = true) =>
   useQuery({
     queryKey: queryKeys.groups.archived(boardId),

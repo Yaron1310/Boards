@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiEdit2 } from 'react-icons/fi';
+import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiEdit2, FiChevronRight } from 'react-icons/fi';
+import SubitemGroup from './SubitemGroup';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
@@ -36,6 +37,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(item.name);
+  const [subitemsOpen, setSubitemsOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: updateItem } = useUpdateItem();
 
@@ -124,6 +126,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
   };
 
   return (
+    <>
     <div
       ref={setNodeRef}
       role="row"
@@ -147,6 +150,21 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
         >
           <FiMenu size={13} aria-hidden="true" />
         </div>
+
+        {/* Subitems expand toggle */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setSubitemsOpen((o) => !o); }}
+          className={`flex items-center justify-center w-5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all text-gray-400 hover:text-indigo-600 ${subitemsOpen ? '!opacity-100 text-indigo-500' : ''}`}
+          aria-label={subitemsOpen ? `Collapse subitems for ${item.name}` : `Expand subitems for ${item.name}`}
+          aria-expanded={subitemsOpen}
+        >
+          <FiChevronRight
+            size={13}
+            aria-hidden="true"
+            className={`transition-transform duration-150 ${subitemsOpen ? 'rotate-90' : ''}`}
+          />
+        </button>
 
         {/* Item name */}
         <div
@@ -279,6 +297,14 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
       ))}
 
     </div>
+    {subitemsOpen && (
+      <SubitemGroup
+        boardId={item.boardId}
+        workspaceId={item.workspaceId}
+        parentItemId={item.id}
+      />
+    )}
+    </>
   );
 };
 

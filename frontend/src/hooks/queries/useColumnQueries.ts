@@ -11,6 +11,14 @@ export const useColumns = (boardId: string, enabled = true) =>
     staleTime: 5 * 60 * 1000,
   });
 
+export const useSubitemColumns = (boardId: string, parentGroupId: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.columns.subitem(boardId, parentGroupId),
+    queryFn: () => wm.listColumns(boardId, parentGroupId),
+    enabled: enabled && !!boardId && !!parentGroupId,
+    staleTime: 5 * 60 * 1000,
+  });
+
 export const useColumn = (boardId: string, id: string, enabled = true) =>
   useQuery({
     queryKey: queryKeys.columns.one(boardId, id),

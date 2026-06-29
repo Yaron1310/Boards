@@ -24,6 +24,7 @@ export const queryKeys = {
   groups: {
     all: (boardId: string) => ['groups', boardId] as const,
     archived: (boardId: string) => ['groups', boardId, 'archived'] as const,
+    subitem: (boardId: string, parentItemId: string) => ['groups', boardId, 'subitem', parentItemId] as const,
   },
   items: {
     list: (params: ListItemsParams) => ['items', params] as const,
@@ -34,6 +35,7 @@ export const queryKeys = {
   columns: {
     board: (boardId: string) => ['columns', { boardId }] as const,
     one: (boardId: string, id: string) => ['columns', { boardId }, id] as const,
+    subitem: (boardId: string, parentGroupId: string) => ['columns', { boardId, parentGroupId }] as const,
   },
   dashboard: {
     summary: (params: DashboardParams) => ['dashboard', 'summary', params] as const,

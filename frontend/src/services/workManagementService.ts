@@ -130,6 +130,7 @@ export interface CreateGroupData {
   name: string;
   color?: string;
   order?: number;
+  parentItemId?: string;
 }
 
 export interface UpdateGroupData {
@@ -144,8 +145,11 @@ export interface ReorderGroupItem {
   order: number;
 }
 
-export const listGroups = (boardId: string, includeArchived = false): Promise<Group[]> => {
-  const qs = includeArchived ? '?includeArchived=true' : '';
+export const listGroups = (boardId: string, includeArchived = false, parentItemId?: string): Promise<Group[]> => {
+  const params = new URLSearchParams();
+  if (includeArchived) params.set('includeArchived', 'true');
+  if (parentItemId) params.set('parentItemId', parentItemId);
+  const qs = params.toString() ? `?${params.toString()}` : '';
   return fetchWithAuth(`/api/boards/${boardId}/groups${qs}`);
 };
 
@@ -254,6 +258,7 @@ export interface CreateColumnData {
   name: string;
   type: ColumnType;
   settings?: ColumnSettings;
+  parentGroupId?: string;
 }
 
 export interface UpdateColumnData {
@@ -268,8 +273,10 @@ export interface ReorderColumnItem {
   order: number;
 }
 
-export const listColumns = (boardId: string): Promise<Column[]> =>
-  fetchWithAuth(`/api/boards/${boardId}/columns`);
+export const listColumns = (boardId: string, parentGroupId?: string): Promise<Column[]> => {
+  const qs = parentGroupId ? `?parentGroupId=${encodeURIComponent(parentGroupId)}` : '';
+  return fetchWithAuth(`/api/boards/${boardId}/columns${qs}`);
+};
 
 export const getColumn = (boardId: string, id: string): Promise<Column> =>
   fetchWithAuth(`/api/boards/${boardId}/columns/${id}`);

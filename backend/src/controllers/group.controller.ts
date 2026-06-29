@@ -24,7 +24,7 @@ function isAuthError(err: unknown): err is { status: number; message: string } {
 export const getGroups = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
-  const { includeArchived } = req.query;
+  const { includeArchived, parentItemId } = req.query;
 
   try {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
@@ -35,10 +35,19 @@ export const getGroups = async (req: Request, res: Response) => {
 
     const snapshot = await groupsCollection(user.orgId, boardId).orderBy('order').get();
     const allGroups = querySnapshotToArray<DBGroup>(snapshot);
-    // Documents without isArchived set are treated as active (backward compat)
-    const groups = includeArchived === 'true'
-      ? allGroups
-      : allGroups.filter((g) => !g.isArchived);
+
+    let groups = allGroups;
+
+    if (parentItemId && typeof parentItemId === 'string') {
+      // Return only subitem groups for the given parent item
+      groups = allGroups.filter((g) => g.parentItemId === parentItemId);
+    } else {
+      // Default: return only top-level groups (no parentItemId), optionally filtered by archive status
+      groups = allGroups.filter((g) => !g.parentItemId);
+      if (includeArchived !== 'true') {
+        groups = groups.filter((g) => !g.isArchived);
+      }
+    }
 
     res.json(groups);
   } catch (err: unknown) {
@@ -54,7 +63,7 @@ export const getGroups = async (req: Request, res: Response) => {
 export const createGroup = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
-  const { name, color, order } = req.body;
+  const { name, color, order, parentItemId } = req.body;
 
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ message: 'Group name is required.' });
@@ -80,6 +89,7 @@ export const createGroup = async (req: Request, res: Response) => {
       color: color ?? null,
       order: typeof order === 'number' ? order : 0,
       isCollapsed: false,
+      parentItemId: parentItemId ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -102,6 +112,7 @@ export const createGroup = async (req: Request, res: Response) => {
       color: color ?? null,
       order: groupOrder,
       isCollapsed: false,
+      ...(parentItemId ? { parentItemId } : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
     });

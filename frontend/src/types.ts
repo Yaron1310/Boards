@@ -254,6 +254,7 @@ export interface Column {
     unitAlign: 'left' | 'right';
   };
   width?: number;
+  parentGroupId?: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -330,6 +331,7 @@ export interface Group {
   order: number;
   isCollapsed?: boolean;
   isArchived?: boolean;
+  parentItemId?: string;
   createdAt: Date | string;
   updatedAt: Date | string;
 }

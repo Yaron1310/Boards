@@ -74,6 +74,7 @@ async function validateBoardOwnership(orgId: string, boardId: string): Promise<b
 export const getColumns = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
+  const { parentGroupId } = req.query;
 
   try {
     if (!await validateBoardOwnership(user.orgId, boardId)) {
@@ -81,9 +82,17 @@ export const getColumns = async (req: Request, res: Response) => {
     }
 
     const snapshot = await columnsCollection(user.orgId, boardId).get();
-    const columns = querySnapshotToArray<DBColumn>(snapshot).filter((col) =>
+    let columns = querySnapshotToArray<DBColumn>(snapshot).filter((col) =>
       canAccessColumn(user, asDBColumn(col), 'read'),
     );
+
+    if (parentGroupId && typeof parentGroupId === 'string') {
+      // Return only subitem columns for the given group
+      columns = columns.filter((col) => (col as DBColumn).parentGroupId === parentGroupId);
+    } else {
+      // Default: return only board-level columns (no parentGroupId)
+      columns = columns.filter((col) => !(col as DBColumn).parentGroupId);
+    }
 
     (columns as (DBColumn & { order?: number })[]).sort((a, b) => {
       const aOrder = typeof a.order === 'number' ? a.order : Infinity;
@@ -127,7 +136,7 @@ export const getColumnById = async (req: Request, res: Response) => {
 export const createColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
-  const { name, type, settings } = req.body;
+  const { name, type, settings, parentGroupId } = req.body;
 
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ message: 'Column name is required.' });
@@ -152,6 +161,7 @@ export const createColumn = async (req: Request, res: Response) => {
       name: sanitizeText(name),
       type: type as ColumnType,
       settings: settings ?? {},
+      ...(parentGroupId ? { parentGroupId } : {}),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -165,6 +175,7 @@ export const createColumn = async (req: Request, res: Response) => {
       name: sanitizeText(name),
       type: type as ColumnType,
       settings: settings ?? {},
+      ...(parentGroupId ? { parentGroupId } : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
     });

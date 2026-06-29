@@ -270,6 +270,7 @@ export interface DBColumn {
     unitAlign: 'left' | 'right';
   };
   width?: number;
+  parentGroupId?: string | null;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
@@ -340,6 +341,7 @@ export interface DBGroup {
   order: number;
   isCollapsed?: boolean;
   isArchived?: boolean;
+  parentItemId?: string | null;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
