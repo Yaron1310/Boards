@@ -299,7 +299,7 @@ const ItemChatModal: React.FC<ItemChatModalProps> = ({ item, onClose }) => {
 
   return (
     <div
-      className="fixed right-0 top-0 bottom-0 z-[10200] w-full max-w-[26rem] bg-white shadow-2xl flex flex-col"
+      className="fixed right-0 top-0 bottom-0 z-[10200] w-full max-w-[45rem] bg-white shadow-2xl flex flex-col"
       role="region"
       aria-label={`Chat for ${item.name}`}
       onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
