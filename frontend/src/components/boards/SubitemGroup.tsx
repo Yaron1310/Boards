@@ -14,6 +14,7 @@ import type { Column, Item } from '../../types';
 import { COLUMN_TYPE_ICONS } from './ColumnHeader';
 import { ColumnCell } from './cells';
 import { getUnreadCount } from './ItemChatModal';
+import { calculateColumnWidth } from '../../utils/columnWidths';
 
 const DEFAULT_STATUS_OPTIONS = [
   { id: 'todo', label: 'To Do', color: '#94a3b8' },
@@ -58,10 +59,10 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
       role="row"
       className="flex flex-nowrap items-stretch border-b border-[#e5e7eb] last:border-b-0 hover:bg-indigo-50/30 transition-colors group bg-white"
     >
-      {/* Name cell */}
+      {/* Name cell — fixed 220px to match header */}
       <div
         className="flex items-center px-3 py-1.5 min-w-0 flex-shrink-0 gap-1"
-        style={{ width: '220px' }}
+        style={{ width: '220px', minWidth: '220px' }}
         role="gridcell"
       >
         {editingName ? (
@@ -112,7 +113,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
         </button>
       </div>
 
-      {/* Dynamic column cells */}
+      {/* Dynamic column cells — width is controlled by ColumnCell internally */}
       {columns.map((col) => (
         <ColumnCell key={col.id} item={item} column={col} />
       ))}
@@ -126,6 +127,8 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const [isInitializing, setIsInitializing] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [newItemName, setNewItemName] = useState('');
+  // Deferred auto-focus: set during initialize(), consumed once isLoading turns false
+  const [pendingAutoFocus, setPendingAutoFocus] = useState(false);
   const addItemInputRef = useRef<HTMLInputElement>(null);
 
   const { mutateAsync: createGroup } = useCreateGroup();
@@ -149,7 +152,24 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
   const items = itemsPage?.data ?? [];
 
-  useEffect(() => { if (addingItem) addItemInputRef.current?.focus(); }, [addingItem]);
+  const isLoading = groupLoading || isInitializing || (!!subitemGroup && columnsLoading);
+
+  // Open and focus the add-item input once loading settles (after first-time initialization)
+  useEffect(() => {
+    if (!isLoading && pendingAutoFocus) {
+      setPendingAutoFocus(false);
+      setAddingItem(true);
+    }
+  }, [isLoading, pendingAutoFocus]);
+
+  // Focus the input whenever it becomes visible
+  useEffect(() => {
+    if (addingItem) {
+      // rAF ensures the input is in the DOM before we call focus
+      const id = requestAnimationFrame(() => addItemInputRef.current?.focus());
+      return () => cancelAnimationFrame(id);
+    }
+  }, [addingItem]);
 
   const initialize = async () => {
     if (!user || isInitializing || subitemGroup !== null) return;
@@ -173,8 +193,8 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
       await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
 
-      // Auto-open the add input so the user can immediately name the first subitem
-      setAddingItem(true);
+      // Signal that we want auto-focus after the loading state clears
+      setPendingAutoFocus(true);
     } finally {
       setIsInitializing(false);
     }
@@ -191,12 +211,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const handleAddItem = async () => {
     const trimmed = newItemName.trim();
     if (!trimmed || !user || !subitemGroup) return;
-    await createItem({
-      name: trimmed,
-      workspaceId,
-      boardId,
-      groupId: subitemGroup.id,
-    });
+    await createItem({ name: trimmed, workspaceId, boardId, groupId: subitemGroup.id });
     setNewItemName('');
     setAddingItem(false);
   };
@@ -205,8 +220,6 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     if (e.key === 'Enter') void handleAddItem();
     if (e.key === 'Escape') { setAddingItem(false); setNewItemName(''); }
   };
-
-  const isLoading = groupLoading || isInitializing || (!!subitemGroup && columnsLoading);
 
   if (isLoading) {
     return (
@@ -217,11 +230,13 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     );
   }
 
-  const nameColWidth = 220;
+  const NAME_COL_WIDTH = 220;
 
   return (
+    // No overflow-hidden — lets cell menus (person picker, status, etc.) escape the container.
+    // position:relative + z-index ensures this panel stacks above the board rows below it.
     <div
-      className="ml-8 mb-1 border border-[#e5e7eb] rounded-lg bg-white shadow-sm overflow-hidden"
+      className="relative z-[20] ml-8 mb-1 border border-[#e5e7eb] rounded-lg bg-white shadow-sm"
       role="region"
       aria-label="Subitems"
     >
@@ -232,22 +247,25 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       >
         <div
           className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-gray-500"
-          style={{ width: `${nameColWidth}px` }}
+          style={{ width: `${NAME_COL_WIDTH}px`, minWidth: `${NAME_COL_WIDTH}px` }}
           role="columnheader"
         >
           Subitem
         </div>
-        {columns.map((col) => (
-          <div
-            key={col.id}
-            role="columnheader"
-            style={{ width: `${col.width ?? 120}px` }}
-            className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-l border-[#e5e7eb] text-xs font-semibold text-gray-500"
-          >
-            <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
-            <span className="truncate">{col.name}</span>
-          </div>
-        ))}
+        {columns.map((col) => {
+          const colWidth = col.width ?? calculateColumnWidth(col.name, col.type);
+          return (
+            <div
+              key={col.id}
+              role="columnheader"
+              style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
+              className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-l border-[#e5e7eb] text-xs font-semibold text-gray-500"
+            >
+              <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
+              <span className="truncate">{col.name}</span>
+            </div>
+          );
+        })}
       </div>
 
       {/* Item rows */}
@@ -256,7 +274,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
           <div className="px-3 py-2 text-xs text-gray-400 flex items-center gap-1">
             <FiLoader size={10} className="animate-spin" aria-hidden="true" /> Loading…
           </div>
-        ) : items.length === 0 ? null : (
+        ) : (
           items.map((item) => (
             <SubitemRow key={item.id} item={item} columns={columns} />
           ))
@@ -264,7 +282,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       </div>
 
       {/* Add subitem row */}
-      <div className="px-3 py-1.5">
+      <div className="px-3 py-1.5 rounded-b-lg">
         {addingItem ? (
           <div className="flex items-center gap-2">
             <input
