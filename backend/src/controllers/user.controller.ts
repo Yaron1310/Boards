@@ -17,7 +17,7 @@ import {
 } from '../db/collections.js';
 import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { JwtUserPayload, DBUser, DBWorkspace, DBPreapprovedUser, UserRole, DBMembership, DBBoard, DBBoardMember, BoardRole, PaginatedResponse } from '../types/index.js';
-import { formatUserForFrontend, deriveHighestRole } from './auth.controller.js';
+import { formatUserForFrontend } from './auth.controller.js';
 import { sanitizeText, sanitizeImageUrl } from '../utils/sanitizer.js';
 import { sendUserInvitationEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
@@ -462,97 +462,6 @@ export const getAllUsers = async (req: Request, res: Response) => {
         logger.error("[DBG:getAllUsers] ERROR caught:", error);
         logger.error("Error fetching users:", error);
         res.status(500).json({ message: "Failed to fetch users." });
-    }
-};
-
-// ---------------------------------------------------------------------------
-// GET /users/role-debug?email=...&userId=...   (TEMPORARY DEBUG — remove later)
-// Dumps the raw membership/user-doc state behind a user's displayed role so we
-// can see WHY the /admin/users table shows a different role than the user's own
-// login. Org-admin / system-admin only; scoped to the requester's org.
-// ---------------------------------------------------------------------------
-export const getUserRoleDebug = async (req: Request, res: Response) => {
-    const requester = req.user as JwtUserPayload;
-    const email = (req.query.email as string | undefined)?.toLowerCase().trim();
-    const userIdParam = req.query.userId as string | undefined;
-
-    const dumpMembership = (m: DBMembership) => ({
-        id: m.id,
-        userId: m.userId,
-        userEmail: m.userEmail ?? null,
-        userName: m.userName ?? null,
-        entityId: m.entityId,
-        entityType: m.entityType,
-        role: m.role,
-        orgId: m.orgId ?? null,
-        boardOnlyAccess: m.boardOnlyAccess ?? null,
-        boardIds: m.boardIds ?? null,
-    });
-
-    try {
-        // 1) All user documents matching the email (detects duplicate/old user docs)
-        const userDocsByEmail = email
-            ? querySnapshotToArray<DBUser>(await usersCollection.where('email', '==', email).get())
-            : [];
-        const candidateUserIds = new Set<string>(userDocsByEmail.map(u => u.id));
-        if (userIdParam) candidateUserIds.add(userIdParam);
-
-        // 2) Memberships keyed by each candidate userId (this is what login uses)
-        const membershipsByUserId: Record<string, any[]> = {};
-        for (const uid of candidateUserIds) {
-            const snap = await membershipsCollection.where('userId', '==', uid).get();
-            membershipsByUserId[uid] = querySnapshotToArray<DBMembership>(snap).map(dumpMembership);
-        }
-
-        // 3) Memberships keyed by userEmail (catches docs whose userId is stale)
-        const membershipsByEmail = email
-            ? querySnapshotToArray<DBMembership>(
-                await membershipsCollection.where('userEmail', '==', email).get(),
-              ).map(dumpMembership)
-            : [];
-
-        // 4) The org-admin SUPPLEMENT query getAllUsers runs: entityId == requester.orgId
-        const supplementSnap = await membershipsCollection.where('entityId', '==', requester.orgId).get();
-        const supplementOrgAdmins = querySnapshotToArray<DBMembership>(supplementSnap)
-            .filter(m => m.role === UserRole.ORGANIZATION_ADMIN)
-            .map(dumpMembership);
-
-        // 5) Any org_admin membership for this user, regardless of how stored
-        const orgAdminForUser = querySnapshotToArray<DBMembership>(supplementSnap)
-            .filter(m => m.role === UserRole.ORGANIZATION_ADMIN &&
-                (candidateUserIds.has(m.userId) || (m.userEmail && m.userEmail.toLowerCase() === email)))
-            .map(dumpMembership);
-
-        // 6) What deriveHighestRole + formatUserForFrontend compute for each candidate user doc
-        const computed: Record<string, any> = {};
-        for (const u of userDocsByEmail) {
-            const memSnap = await membershipsCollection.where('userId', '==', u.id).get();
-            const mems = querySnapshotToArray<DBMembership>(memSnap);
-            const formatted = await formatUserForFrontend(u, { orgId: requester.orgId });
-            computed[u.id] = {
-                status: u.status,
-                deriveHighestRole: deriveHighestRole(mems),
-                formattedRole: formatted.role,
-                formattedDbRoles: formatted.dbRoles,
-            };
-        }
-
-        const result = {
-            requesterOrgId: requester.orgId,
-            query: { email: email ?? null, userId: userIdParam ?? null },
-            userDocsByEmail: userDocsByEmail.map(u => ({ id: u.id, email: u.email, status: u.status })),
-            duplicateUserDocs: userDocsByEmail.length > 1,
-            membershipsByUserId,
-            membershipsByEmail,
-            orgAdminMembershipsForThisUser: orgAdminForUser,
-            supplementOrgAdminsInOrg: supplementOrgAdmins,
-            computedPerUserDoc: computed,
-        };
-        logger.info('[DBG:getUserRoleDebug]', result);
-        return res.json(result);
-    } catch (error: any) {
-        logger.error('[DBG:getUserRoleDebug] ERROR', error);
-        return res.status(500).json({ message: 'role-debug failed', error: String(error?.message ?? error) });
     }
 };
 

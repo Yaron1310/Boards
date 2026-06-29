@@ -134,9 +134,20 @@ export const formatUserForFrontend = async (
     // De-duplicate the final list
     allRelevantOrgIds = [...new Set(allRelevantOrgIds)];
 
+    // When formatting a user for display within a specific org (e.g. the
+    // /admin/users table), derive the role from that org's memberships only —
+    // otherwise deriveHighestRole would surface a role the user holds in a
+    // DIFFERENT organization (e.g. an org admin of another org showing up as
+    // "Org Admin" in this org's user list while they are only a regular member here).
+    const roleMemberships = context?.orgId
+        ? memberships.filter(m => m.orgId === context.orgId)
+        : context?.workspaceId
+            ? memberships.filter(m => m.entityId === context.workspaceId)
+            : memberships;
+
     const userForFrontend: any = {
         ...rest,
-        role: context?.role || deriveHighestRole(memberships),
+        role: context?.role || deriveHighestRole(roleMemberships),
         hasPassword: !!passwordHash,
         dbRoles,
         ...(orgEditorOrgs.length > 0 ? { orgEditorOrgs } : {}),

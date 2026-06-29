@@ -78,12 +78,7 @@ const UserManagementPage: React.FC = () => {
   }, !!authUser);
 
   const allUsers = useMemo(() => {
-    const users = infiniteData?.pages.flatMap((page: any) => page?.data ?? []) ?? [];
-    // TEMPORARY DEBUG — confirms exactly what the server returned for each row
-    // (id + role), so we can tell server data apart from any client cache.
-    // eslint-disable-next-line no-console
-    console.debug('[DBG:/admin/users] rows from API:', users.map((u: User) => ({ id: u.id, email: u.email, role: u.role })));
-    return users;
+    return infiniteData?.pages.flatMap((page: any) => page?.data ?? []) ?? [];
   }, [infiniteData]);
 
   // Filter preApprovedUsers by search term and workspaceId, then exclude emails already in allUsers

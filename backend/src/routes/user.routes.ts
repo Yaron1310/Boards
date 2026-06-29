@@ -19,8 +19,6 @@ userRouter.put('/me/profile-image', userController.updateMyProfileImage);
 
 
 // --- General user management (Admin/Manager) ---
-// TEMPORARY DEBUG endpoint — must be registered before '/:userId'. Remove later.
-userRouter.get('/role-debug', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), userController.getUserRoleDebug);
 userRouter.get('/', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]), userController.getAllUsers);
 userRouter.get('/:userId/board-permissions', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), userController.getUserBoardPermissions);
 userRouter.put('/:userId/board-permissions', requireRole([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]), userController.updateUserBoardPermissions);
