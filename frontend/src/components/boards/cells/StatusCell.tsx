@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-// Force refresh
+import { createPortal } from 'react-dom';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useUpdateColumn } from '../../../hooks/queries/useColumnQueries';
@@ -84,11 +84,13 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
     });
   };
 
+  const anchorRef = useRef<HTMLDivElement>(null);
+
   return (
     <CellWrapper column={column}>
       {(isEditing, stopEdit) => (
         <>
-          <div className="w-full flex justify-center">
+          <div ref={anchorRef} className="w-full flex justify-center">
             {currentOption ? (
               <span
                 className="inline-block py-[0.4rem] rounded-full text-xs font-medium shadow-sm"
@@ -108,10 +110,10 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
             )}
           </div>
 
-          {isEditing && (
+          {isEditing && createPortal(
             <>
               <div
-                className="fixed inset-0 z-40"
+                className="fixed inset-0 z-[9998]"
                 onClick={() => {
                   setIsAdding(false);
                   stopEdit();
@@ -119,7 +121,13 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
                 aria-hidden="true"
               />
               <div
-                className="absolute top-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg mt-0.5 min-w-[200px] py-1"
+                style={{
+                  position: 'fixed',
+                  top: (anchorRef.current?.getBoundingClientRect().bottom ?? 0) + 2,
+                  left: anchorRef.current?.getBoundingClientRect().left ?? 0,
+                  zIndex: 9999,
+                }}
+                className="bg-white border border-gray-200 rounded shadow-lg min-w-[200px] py-1"
                 role="listbox"
                 aria-label={`Select ${column.name}`}
               >
@@ -222,7 +230,8 @@ const StatusCellInner: React.FC<Props> = ({ item, column }) => {
                   <p className="px-3 py-2 text-xs text-gray-400">No options configured</p>
                 )}
               </div>
-            </>
+            </>,
+            document.body
           )}
         </>
       )}

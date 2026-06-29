@@ -61,7 +61,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
     >
       {/* Name cell — fixed 220px to match header */}
       <div
-        className="flex items-center px-3 py-1.5 min-w-0 flex-shrink-0 gap-1"
+        className="flex items-center px-3 py-1.5 min-w-0 flex-shrink-0 gap-1 border-r border-[#e5e7eb]"
         style={{ width: '220px', minWidth: '220px' }}
         role="gridcell"
       >
@@ -130,6 +130,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   // Deferred auto-focus: set during initialize(), consumed once isLoading turns false
   const [pendingAutoFocus, setPendingAutoFocus] = useState(false);
   const addItemInputRef = useRef<HTMLInputElement>(null);
+  const shouldFocusOnMount = useRef(false);
 
   const { mutateAsync: createGroup } = useCreateGroup();
   const { mutateAsync: createColumn } = useCreateColumn(boardId);
@@ -162,14 +163,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     }
   }, [isLoading, pendingAutoFocus]);
 
-  // Focus the input whenever it becomes visible
-  useEffect(() => {
-    if (addingItem) {
-      // rAF ensures the input is in the DOM before we call focus
-      const id = requestAnimationFrame(() => addItemInputRef.current?.focus());
-      return () => cancelAnimationFrame(id);
-    }
-  }, [addingItem]);
+  // No explicit focus effect needed — the input uses autoFocus and a ref callback
 
   const initialize = async () => {
     if (!user || isInitializing || subitemGroup !== null) return;
@@ -194,6 +188,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
 
       // Signal that we want auto-focus after the loading state clears
+      shouldFocusOnMount.current = true;
       setPendingAutoFocus(true);
     } finally {
       setIsInitializing(false);
@@ -236,7 +231,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     // No overflow-hidden — lets cell menus (person picker, status, etc.) escape the container.
     // position:relative + z-index ensures this panel stacks above the board rows below it.
     <div
-      className="relative z-[20] ml-8 mb-1 border border-[#e5e7eb] rounded-lg bg-white shadow-sm"
+      className="relative z-[50] ml-8 mb-1 border border-[#e5e7eb] rounded-lg bg-white shadow-sm"
       role="region"
       aria-label="Subitems"
     >
@@ -246,7 +241,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         role="row"
       >
         <div
-          className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-gray-500"
+          className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-gray-500 border-r border-[#e5e7eb]"
           style={{ width: `${NAME_COL_WIDTH}px`, minWidth: `${NAME_COL_WIDTH}px` }}
           role="columnheader"
         >
@@ -259,7 +254,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
               key={col.id}
               role="columnheader"
               style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
-              className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-l border-[#e5e7eb] text-xs font-semibold text-gray-500"
+              className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] last:border-r-0 text-xs font-semibold text-gray-500"
             >
               <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
               <span className="truncate">{col.name}</span>
@@ -286,7 +281,14 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         {addingItem ? (
           <div className="flex items-center gap-2">
             <input
-              ref={addItemInputRef}
+              ref={(el) => {
+                addItemInputRef.current = el;
+                if (el && shouldFocusOnMount.current) {
+                  shouldFocusOnMount.current = false;
+                  el.focus();
+                }
+              }}
+              autoFocus
               type="text"
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}

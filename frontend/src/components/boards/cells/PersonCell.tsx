@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useUsersQuery } from '../../../hooks/queries/useUserQueries';
@@ -169,6 +170,8 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
   };
 
+  const anchorRef = useRef<HTMLDivElement>(null);
+
   return (
     <>
       {hoveredUser && tooltipAnchor && (
@@ -182,7 +185,7 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
       <CellWrapper column={column}>
         {(isEditing, stopEdit) => (
           <>
-            <div className="px-2 py-[2px] w-full flex items-center justify-center">
+            <div ref={anchorRef} className="px-2 py-[2px] w-full flex items-center justify-center">
               {selectedUsers.length > 0 ? (
                 <div className="flex items-center -space-x-1.5">
                   {selectedUsers.slice(0, 3).map((u) => (
@@ -208,11 +211,17 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
               )}
             </div>
 
-            {isEditing && (
+            {isEditing && createPortal(
               <>
-                <div className="fixed inset-0 z-40" onClick={stopEdit} aria-hidden="true" />
+                <div className="fixed inset-0 z-[9998]" onClick={stopEdit} aria-hidden="true" />
                 <div
-                  className="absolute top-full left-0 z-50 bg-white border border-gray-200 rounded shadow-lg mt-0.5 w-56"
+                  style={{
+                    position: 'fixed',
+                    top: (anchorRef.current?.getBoundingClientRect().bottom ?? 0) + 2,
+                    left: anchorRef.current?.getBoundingClientRect().left ?? 0,
+                    zIndex: 9999,
+                  }}
+                  className="bg-white border border-gray-200 rounded shadow-lg w-56"
                   role="listbox"
                   aria-label={`Select ${column.name}`}
                   aria-multiselectable={multiple}
@@ -253,7 +262,8 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
                     )}
                   </ul>
                 </div>
-              </>
+              </>,
+              document.body
             )}
           </>
         )}
