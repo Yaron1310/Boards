@@ -19,6 +19,7 @@ interface AddColumnModalProps {
   onClose: () => void;
   insertAfterColumnId?: string;
   insertBeforeColumnId?: string;
+  parentGroupId?: string;
 }
 
 const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
@@ -177,7 +178,7 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId }) => {
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending } = useCreateColumn(boardId);
   const { data: allColumns = [] } = useColumns(boardId);
@@ -288,7 +289,13 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
     setError('');
     try {
-      await createColumn({ name: trimmedName, type, settings: buildSettings(), width: calculateColumnWidth(trimmedName, type) });
+      await createColumn({ name: trimmedName, type, settings: buildSettings(), width: calculateColumnWidth(trimmedName, type), ...(parentGroupId ? { parentGroupId } : {}) });
+
+      if (parentGroupId) {
+        await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, parentGroupId) });
+        onClose();
+        return;
+      }
 
       await qc.refetchQueries({ queryKey: queryKeys.columns.board(boardId) });
       const rawColumns = qc.getQueryData(queryKeys.columns.board(boardId)) as any[] ?? [];

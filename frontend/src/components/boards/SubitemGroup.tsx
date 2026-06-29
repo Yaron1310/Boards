@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiPlus, FiLoader, FiTrash2, FiMessageSquare, FiX, FiCheck } from 'react-icons/fi';
+import { FiPlus, FiLoader, FiTrash2, FiMessageSquare } from 'react-icons/fi';
+import AddColumnModal from './AddColumnModal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSubitemColumns } from '../../hooks/queries/useColumnQueries';
 import { useSubitemGroup } from '../../hooks/queries/useGroupQueries';
@@ -117,6 +118,8 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
       {columns.map((col) => (
         <ColumnCell key={col.id} item={item} column={col} />
       ))}
+      {/* Sentinel: prevents CSS last:border-r-0 from hiding the last cell's right border */}
+      <div className="w-0 flex-shrink-0" aria-hidden="true" />
     </div>
   );
 };
@@ -132,11 +135,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const [pendingAutoFocus, setPendingAutoFocus] = useState(false);
   const addItemInputRef = useRef<HTMLInputElement>(null);
   const shouldFocusOnMount = useRef(false);
-  const [showAddCol, setShowAddCol] = useState(false);
-  const [newColName, setNewColName] = useState('');
-  const [newColType, setNewColType] = useState<ColumnType>(ColumnType.TEXT);
-  const [isAddingCol, setIsAddingCol] = useState(false);
-  const addColRef = useRef<HTMLDivElement>(null);
+  const [showAddColModal, setShowAddColModal] = useState(false);
 
   const { mutateAsync: createGroup } = useCreateGroup();
   const { mutateAsync: createColumn } = useCreateColumn(boardId);
@@ -180,16 +179,9 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         data: { name: 'Subitems', color: '#94a3b8', parentItemId },
       });
 
-      await Promise.all([
-        createColumn({ name: 'Assignee', type: ColumnType.PERSON, settings: { multiple: true }, parentGroupId: group.id }),
-        createColumn({
-          name: 'Status',
-          type: ColumnType.STATUS,
-          settings: { options: DEFAULT_STATUS_OPTIONS },
-          parentGroupId: group.id,
-        }),
-        createColumn({ name: 'Due Date', type: ColumnType.DATE, settings: {}, parentGroupId: group.id }),
-      ]);
+      await createColumn({ name: 'Person', type: ColumnType.PERSON, settings: { multiple: true }, parentGroupId: group.id });
+      await createColumn({ name: 'Status', type: ColumnType.STATUS, settings: { options: DEFAULT_STATUS_OPTIONS }, parentGroupId: group.id });
+      await createColumn({ name: 'Date', type: ColumnType.DATE, settings: {}, parentGroupId: group.id });
 
       await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
 
@@ -220,21 +212,6 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const handleAddItemKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') void handleAddItem();
     if (e.key === 'Escape') { setAddingItem(false); setNewItemName(''); }
-  };
-
-  const handleAddColumn = async () => {
-    const name = newColName.trim() || newColType;
-    if (!subitemGroup) return;
-    setIsAddingCol(true);
-    try {
-      await createColumn({ name, type: newColType, settings: newColType === ColumnType.STATUS ? { options: DEFAULT_STATUS_OPTIONS } : {}, parentGroupId: subitemGroup.id });
-      await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, subitemGroup.id) });
-      setShowAddCol(false);
-      setNewColName('');
-      setNewColType(ColumnType.TEXT);
-    } finally {
-      setIsAddingCol(false);
-    }
   };
 
   if (isLoading) {
@@ -284,58 +261,23 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         })}
 
         {/* Add column button */}
-        <div ref={addColRef} className="relative flex-shrink-0">
-          <button
-            type="button"
-            onClick={() => setShowAddCol((o) => !o)}
-            className="flex items-center justify-center w-8 h-full text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors"
-            aria-label="Add subitem column"
-          >
-            <FiPlus size={13} aria-hidden="true" />
-          </button>
-          {showAddCol && (
-            <>
-              <div className="fixed inset-0 z-[9990]" onClick={() => setShowAddCol(false)} aria-hidden="true" />
-              <div className="absolute top-full left-0 mt-1 z-[9991] bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-52 flex flex-col gap-2">
-                <input
-                  autoFocus
-                  type="text"
-                  value={newColName}
-                  onChange={(e) => setNewColName(e.target.value)}
-                  placeholder="Column name…"
-                  className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  aria-label="New column name"
-                  onKeyDown={(e) => { if (e.key === 'Enter') void handleAddColumn(); if (e.key === 'Escape') setShowAddCol(false); }}
-                />
-                <select
-                  value={newColType}
-                  onChange={(e) => setNewColType(e.target.value as ColumnType)}
-                  className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
-                  aria-label="Column type"
-                >
-                  {Object.values(ColumnType).map((t) => (
-                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()}</option>
-                  ))}
-                </select>
-                <div className="flex justify-end gap-1">
-                  <button type="button" onClick={() => setShowAddCol(false)} className="p-1 text-gray-400 hover:text-gray-600" aria-label="Cancel">
-                    <FiX size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleAddColumn()}
-                    disabled={isAddingCol}
-                    className="p-1 text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
-                    aria-label="Create column"
-                  >
-                    {isAddingCol ? <FiLoader size={13} className="animate-spin" /> : <FiCheck size={13} />}
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddColModal(true)}
+          className="flex items-center justify-center w-8 flex-shrink-0 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors"
+          aria-label="Add subitem column"
+        >
+          <FiPlus size={13} aria-hidden="true" />
+        </button>
       </div>
+
+      {showAddColModal && subitemGroup && (
+        <AddColumnModal
+          boardId={boardId}
+          parentGroupId={subitemGroup.id}
+          onClose={() => setShowAddColModal(false)}
+        />
+      )}
 
       {/* Item rows */}
       <div role="rowgroup">
