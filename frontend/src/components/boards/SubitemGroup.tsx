@@ -123,6 +123,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
 
 const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId }) => {
   const { user } = useAuthSession();
+  const { columnWidths } = useBoardRender();
   const qc = useQueryClient();
   const [isInitializing, setIsInitializing] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
@@ -248,7 +249,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
           Subitem
         </div>
         {columns.map((col) => {
-          const colWidth = col.width ?? calculateColumnWidth(col.name, col.type);
+          const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
           return (
             <div
               key={col.id}
