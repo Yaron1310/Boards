@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   DragOverlay,
@@ -18,11 +19,11 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns, useReorderColumns, useDeleteColumn, useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
-import type { Column } from '../../types';
+import type { Column, Item, PaginatedResponse } from '../../types';
 import {
   FiType, FiHash, FiCalendar, FiFlag, FiUser, FiChevronDown,
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
-  FiZap, FiLink, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings, FiEdit2,
+  FiZap, FiLink, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings, FiEdit2, FiRefreshCw,
 } from 'react-icons/fi';
 import { calculateColumnWidth, COLUMN_TYPE_MIN_WIDTHS } from '../../utils/columnWidths';
 import AddColumnModal from './AddColumnModal';
@@ -144,6 +145,11 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [showEditConfigModal, setShowEditConfigModal] = useState(false);
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
+  const [showSwapWarning, setShowSwapWarning] = useState(false);
+  const [isSwapping, setIsSwapping] = useState(false);
+  const [showSwapAddModal, setShowSwapAddModal] = useState(false);
+  const [swapInsertAfterId, setSwapInsertAfterId] = useState<string | undefined>(undefined);
+  const [swapInsertBeforeId, setSwapInsertBeforeId] = useState<string | undefined>(undefined);
 
   const isConfigurable = [
     ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN,
@@ -153,6 +159,8 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
   const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdateColumn(boardId);
+  const { data: allColumns } = useColumns(boardId);
+  const qc = useQueryClient();
 
   const {
     attributes,
@@ -221,6 +229,58 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
     setInsertPosition(position);
     setShowAddColumnModal(true);
     setMenuOpen(false);
+  };
+
+  const columnHasData = (): boolean => {
+    const cached = qc.getQueriesData<PaginatedResponse<Item> | Item>({ queryKey: ['items'] });
+    for (const [, data] of cached) {
+      if (!data) continue;
+      const items: Item[] =
+        data !== null && typeof data === 'object' && 'data' in data && Array.isArray((data as PaginatedResponse<Item>).data)
+          ? (data as PaginatedResponse<Item>).data
+          : data !== null && typeof data === 'object' && 'values' in data
+          ? [data as Item]
+          : [];
+      for (const item of items) {
+        const val = item.values?.[column.id];
+        if (val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const proceedWithSwap = async () => {
+    setShowSwapWarning(false);
+    setIsSwapping(true);
+    try {
+      await deleteColumn(column.id);
+      setShowSwapAddModal(true);
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
+  const handleSwapType = () => {
+    const cols = allColumns ?? [];
+    const idx = cols.findIndex(c => c.id === column.id);
+    if (idx > 0) {
+      setSwapInsertAfterId(cols[idx - 1].id);
+      setSwapInsertBeforeId(undefined);
+    } else if (cols.length > 1) {
+      setSwapInsertAfterId(undefined);
+      setSwapInsertBeforeId(cols[1].id);
+    } else {
+      setSwapInsertAfterId(undefined);
+      setSwapInsertBeforeId(undefined);
+    }
+    setMenuOpen(false);
+    if (columnHasData()) {
+      setShowSwapWarning(true);
+    } else {
+      void proceedWithSwap();
+    }
   };
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -409,6 +469,17 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
                     <button
                       type="button"
                       role="menuitem"
+                      onClick={handleSwapType}
+                      disabled={isSwapping}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60"
+                      aria-label="Change column type"
+                    >
+                      <FiRefreshCw size={12} aria-hidden="true" />
+                      Change type
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
                       onClick={() => setConfirmDelete(true)}
                       className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
                       aria-label="Delete column"
@@ -445,6 +516,57 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
           boardId={boardId}
           column={column}
           onClose={() => setShowEditConfigModal(false)}
+        />
+      )}
+
+      {/* Change type — data-loss warning modal */}
+      {showSwapWarning && (
+        <div
+          className="fixed inset-0 z-[10300] flex items-center justify-center bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="swap-type-warning-title"
+        >
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <h2 id="swap-type-warning-title" className="text-sm font-semibold text-gray-900 mb-2">
+              Change column type?
+            </h2>
+            <p className="text-sm text-gray-600 mb-5">
+              This column contains data that will be <strong>permanently deleted</strong> when you change its type. This action cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSwapWarning(false)}
+                className="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                aria-label="Cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void proceedWithSwap()}
+                className="px-3 py-1.5 text-xs text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
+                aria-label="Delete data and change column type"
+              >
+                Delete data &amp; continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change type — new column creation modal (shown after old column is deleted) */}
+      {showSwapAddModal && (
+        <AddColumnModal
+          boardId={boardId}
+          onClose={() => {
+            setShowSwapAddModal(false);
+            setSwapInsertAfterId(undefined);
+            setSwapInsertBeforeId(undefined);
+          }}
+          insertAfterColumnId={swapInsertAfterId}
+          insertBeforeColumnId={swapInsertBeforeId}
         />
       )}
     </div>
