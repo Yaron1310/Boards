@@ -140,20 +140,20 @@ const UserManagementPage: React.FC = () => {
     const workspaceName = workspaces.find(w => w.id === p.workspaceId)?.name;
     return (
       <tr className="hover:bg-gray-50 transition-colors border-b border-gray-200" aria-label={`Pending user ${p.email}`}>
-        <td className="px-6 py-4">
-          <div className="flex items-center gap-3">
+        <td className="px-6 py-4 max-w-0 overflow-hidden">
+          <div className="flex items-center gap-3 overflow-hidden">
             <img
               className="h-10 w-10 rounded-full object-cover shrink-0 opacity-40"
               src="/default_user.webp"
               alt="Pending user"
             />
-            <div className="min-w-0">
-              <div className="text-sm font-medium text-gray-500 whitespace-nowrap italic">{p.email}</div>
+            <div className="min-w-0 overflow-hidden">
+              <div className="text-sm font-medium text-gray-500 truncate italic">{p.email}</div>
               <div className="text-xs text-gray-400">Pending invitation</div>
             </div>
           </div>
         </td>
-        <td className="px-6 py-4 text-sm text-gray-500">{p.email}</td>
+        <td className="px-6 py-4 max-w-0 overflow-hidden"><div className="text-sm text-gray-500 truncate">{p.email}</div></td>
         <td className="px-6 py-4 text-sm text-gray-500">{workspaceName || '—'}</td>
         <td className="px-4 py-4 text-center">
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -194,7 +194,7 @@ const UserManagementPage: React.FC = () => {
     })();
 
     const navigateToUser = () => navigate(`/admin/users/${u.id}`);
-    const tdNav = "px-6 py-4 text-sm text-gray-700 cursor-pointer whitespace-nowrap";
+    const tdNav = "px-6 py-4 text-sm text-gray-700 cursor-pointer max-w-0 overflow-hidden";
 
     return (
         <tr
@@ -221,9 +221,9 @@ const UserManagementPage: React.FC = () => {
                     </div>
                 </div>
             </td>
-            <td className={tdNav} onClick={navigateToUser}>{u.email}</td>
+            <td className={tdNav} onClick={navigateToUser}><div className="truncate">{u.email}</div></td>
             <td className={tdNav} onClick={navigateToUser}>
-                {u.role === UserRole.ORGANIZATION_ADMIN ? 'All Workhubs' : (u.workspaceName || 'N/A')}
+                <div className="truncate">{u.role === UserRole.ORGANIZATION_ADMIN ? 'All Workhubs' : (u.workspaceName || 'N/A')}</div>
             </td>
             <td className="px-4 py-4 text-center cursor-pointer" onClick={navigateToUser}>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${u.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
