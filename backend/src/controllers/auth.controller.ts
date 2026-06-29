@@ -226,6 +226,82 @@ export const formatUserForFrontend = async (
     return userForFrontend;
 };
 
+/**
+ * Creates memberships (and board-member docs) for a user from ALL their
+ * pre-approval records and queues deletion of those records. Mirrors the
+ * email/password register flow so board-only invites (boardOnlyAccess/boardIds)
+ * survive every sign-up path — including Google/Microsoft OAuth, which
+ * previously copied only `permissions` and silently granted full workspace
+ * access. Writes are added to `batch`; the caller commits. Returns the resolved
+ * primary orgId (first membership's org), or '' if none.
+ */
+export async function applyPreapprovalsToBatch(
+    batch: admin.firestore.WriteBatch,
+    newUser: { id: string; name: string; email: string; profileImageUrl?: string | null },
+    preapprovedDocs: admin.firestore.QueryDocumentSnapshot[],
+): Promise<string> {
+    let orgId = '';
+    for (const preapprovedDoc of preapprovedDocs) {
+        const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedDoc)!;
+
+        if (preapprovedData.allWorkspaces && preapprovedData.orgId) {
+            // Org-editor: one membership scoped to the org, not a specific workspace
+            if (!orgId) orgId = preapprovedData.orgId;
+            const newMembershipRef = membershipsCollection.doc();
+            batch.set(newMembershipRef, {
+                id: newMembershipRef.id,
+                userId: newUser.id,
+                userName: newUser.name,
+                userEmail: newUser.email,
+                entityId: preapprovedData.orgId,
+                entityType: 'organization',
+                role: UserRole.ORG_EDITOR,
+                orgId: preapprovedData.orgId,
+                permissions: preapprovedData.permissions ?? 'edit',
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+        } else if (preapprovedData.workspaceId) {
+            const orgDoc = await workspacesCollection.doc(preapprovedData.workspaceId).get();
+            const wsOrgId = orgDoc.exists ? (orgDoc.data()?.orgId || '') : '';
+            if (!orgId) orgId = wsOrgId;
+            const newMembershipRef = membershipsCollection.doc();
+            batch.set(newMembershipRef, {
+                id: newMembershipRef.id,
+                userId: newUser.id,
+                userName: newUser.name,
+                userEmail: newUser.email,
+                entityId: preapprovedData.workspaceId,
+                entityType: 'workspace',
+                role: UserRole.REGULAR_USER,
+                orgId: wsOrgId,
+                ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
+                ...(preapprovedData.boardOnlyAccess ? { boardOnlyAccess: true } : {}),
+                ...(preapprovedData.boardIds ? { boardIds: preapprovedData.boardIds } : {}),
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            if (preapprovedData.boardIds?.length && wsOrgId) {
+                const boardRole = preapprovedData.permissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
+                for (const boardId of preapprovedData.boardIds) {
+                    batch.set(boardMembersCollection(wsOrgId, boardId).doc(newUser.id), {
+                        userId: newUser.id,
+                        boardId,
+                        workspaceId: preapprovedData.workspaceId,
+                        role: boardRole,
+                        addedBy: preapprovedData.addedBy ?? 'system',
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        userName: newUser.name ?? null,
+                        userEmail: newUser.email ?? null,
+                        userProfileImageUrl: newUser.profileImageUrl ?? null,
+                    });
+                }
+            }
+        }
+        // Delete pre-approval record immediately — no longer needed
+        batch.delete(preapprovedDoc.ref);
+    }
+    return orgId;
+}
+
 export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceId: string, memberships: DBMembership[], sessionRole?: UserRole) => {
     const effectiveRole = sessionRole || deriveHighestRole(memberships);
     if (!effectiveRole) {
@@ -502,66 +578,12 @@ export const register = async (req: Request, res: Response) => {
         const batch = db.batch();
         batch.set(newUserRef, { ...newUser, createdAt: new Date() });
 
-        // Create a membership for every workspace the user was pre-approved into
-        let orgId = '';
-        for (const preapprovedDoc of allPreapprovedDocs) {
-            const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedDoc)!;
-
-            if (preapprovedData.allWorkspaces && preapprovedData.orgId) {
-                // Org-editor: one membership scoped to the org, not a specific workspace
-                if (!orgId) orgId = preapprovedData.orgId;
-                const newMembershipRef = membershipsCollection.doc();
-                batch.set(newMembershipRef, {
-                    id: newMembershipRef.id,
-                    userId: newUser.id,
-                    userName: newUser.name,
-                    userEmail: newUser.email,
-                    entityId: preapprovedData.orgId,
-                    entityType: 'organization',
-                    role: UserRole.ORG_EDITOR,
-                    orgId: preapprovedData.orgId,
-                    permissions: preapprovedData.permissions ?? 'edit',
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-            } else if (preapprovedData.workspaceId) {
-                const orgDoc = await workspacesCollection.doc(preapprovedData.workspaceId).get();
-                const wsOrgId = orgDoc.exists ? (orgDoc.data()?.orgId || '') : '';
-                if (!orgId) orgId = wsOrgId;
-                const newMembershipRef = membershipsCollection.doc();
-                batch.set(newMembershipRef, {
-                    id: newMembershipRef.id,
-                    userId: newUser.id,
-                    userName: newUser.name,
-                    userEmail: newUser.email,
-                    entityId: preapprovedData.workspaceId,
-                    entityType: 'workspace',
-                    role: UserRole.REGULAR_USER,
-                    orgId: wsOrgId,
-                    ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
-                    ...(preapprovedData.boardOnlyAccess ? { boardOnlyAccess: true } : {}),
-                    ...(preapprovedData.boardIds ? { boardIds: preapprovedData.boardIds } : {}),
-                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                });
-                if (preapprovedData.boardIds?.length && wsOrgId) {
-                    const boardRole = preapprovedData.permissions === 'read_only' ? BoardRole.VIEWER : BoardRole.EDITOR;
-                    for (const boardId of preapprovedData.boardIds) {
-                        batch.set(boardMembersCollection(wsOrgId, boardId).doc(newUser.id), {
-                            userId: newUser.id,
-                            boardId,
-                            workspaceId: preapprovedData.workspaceId,
-                            role: boardRole,
-                            addedBy: preapprovedData.addedBy ?? 'system',
-                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                            userName: newUser.name ?? null,
-                            userEmail: newUser.email ?? null,
-                            userProfileImageUrl: newUser.profileImageUrl ?? null,
-                        });
-                    }
-                }
-            }
-            // Delete pre-approval record immediately — no longer needed
-            batch.delete(preapprovedDoc.ref);
-        }
+        // Create a membership for every workspace/board the user was pre-approved into.
+        const orgId = await applyPreapprovalsToBatch(
+            batch,
+            { id: newUser.id, name: newUser.name, email: newUser.email, profileImageUrl: newUser.profileImageUrl },
+            allPreapprovedDocs,
+        );
 
         await batch.commit();
 
@@ -976,35 +998,18 @@ export const googleCallback = async (req: Request, res: Response) => {
             return res.redirect(`${env.FRONTEND_URL}/auth/google/callback?token=${partialToken}`);
         }
 
-        const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', dbUser.email.toLowerCase()).limit(1).get();
+        const preapprovedQuery = await preapprovedUsersCollection.where('email', '==', dbUser.email.toLowerCase()).get();
         if (preapprovedQuery.empty) {
             return res.redirect(`${env.FRONTEND_URL}/login?google_auth_failed=true&error_message=Your%20email%20is%20not%20pre-approved.`);
         }
 
-        const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedQuery.docs[0])!;
-        const workspaceId = preapprovedData.workspaceId;
-        
         const batch = db.batch();
-
-        // Look up orgId from the org for denormalization
-        const orgDoc = await workspacesCollection.doc(workspaceId).get();
-        const orgOrganizationId = orgDoc.exists ? orgDoc.data()?.orgId || '' : '';
-
-        const newMembershipRef = membershipsCollection.doc();
-        batch.set(newMembershipRef, {
-            id: newMembershipRef.id,
-            userId: dbUser.id,
-            userName: dbUser.name,
-            userEmail: dbUser.email,
-            entityId: workspaceId,
-            entityType: 'workspace',
-            role: UserRole.REGULAR_USER,
-            orgId: orgOrganizationId,
-            ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
-            createdAt: admin.firestore.FieldValue.serverTimestamp()
-        });
+        await applyPreapprovalsToBatch(
+            batch,
+            { id: dbUser.id, name: dbUser.name, email: dbUser.email, profileImageUrl: dbUser.profileImageUrl },
+            preapprovedQuery.docs,
+        );
         batch.update(usersCollection.doc(dbUser.id), { status: 'active', registrationType: 'standard', emailVerified: true });
-        batch.delete(preapprovedQuery.docs[0].ref);
         await batch.commit();
 
         const partialTokenPayload: JwtMultiOrgPayload = { id: dbUser.id, action: 'select-workspace' };
@@ -1109,13 +1114,10 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
 
         if (userSnap.empty) {
             // New user registration flow
-            const preapprovedSnap = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
+            const preapprovedSnap = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).get();
             if (preapprovedSnap.empty) {
                 return res.status(403).json({ message: "Your email is not pre-approved for registration." });
             }
-
-            const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedSnap.docs[0])!;
-            const workspaceId = preapprovedData.workspaceId;
 
             const newUserRef = usersCollection.doc();
             const newUserData: Omit<DBUser, 'createdAt' | 'passwordHash'> = {
@@ -1134,27 +1136,12 @@ export const nativeGoogleLogin = async (req: Request, res: Response) => {
                 createdAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            // Look up orgId from the org for denormalization
-            const orgDocForOrganization = await workspacesCollection.doc(workspaceId).get();
-            const orgOrganizationId = orgDocForOrganization.exists ? orgDocForOrganization.data()?.orgId || '' : '';
-
-            // Create membership
-            const newMembershipRef = membershipsCollection.doc();
-            batch.set(newMembershipRef, {
-                id: newMembershipRef.id,
-                userId: newUserRef.id,
-                userName: name,
-                userEmail: email,
-                entityId: workspaceId,
-                entityType: 'workspace',
-                role: UserRole.REGULAR_USER,
-                orgId: orgOrganizationId,
-                ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            // Remove preapproval
-            batch.delete(preapprovedSnap.docs[0].ref);
+            // Create memberships from ALL pre-approvals (preserves boardOnlyAccess/boardIds)
+            await applyPreapprovalsToBatch(
+                batch,
+                { id: newUserRef.id, name, email, profileImageUrl: picture },
+                preapprovedSnap.docs,
+            );
 
             await batch.commit();
 
@@ -1272,13 +1259,10 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
         let user: DBUser;
 
         if (userSnap.empty) {
-            const preapprovedSnap = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).limit(1).get();
+            const preapprovedSnap = await preapprovedUsersCollection.where('email', '==', email.toLowerCase()).get();
             if (preapprovedSnap.empty) {
                 return res.status(403).json({ message: "Your email is not pre-approved for registration." });
             }
-            
-            const preapprovedData = snapshotToData<DBPreapprovedUser>(preapprovedSnap.docs[0])!;
-            const workspaceId = preapprovedData.workspaceId;
 
             const newUserRef = usersCollection.doc();
             const newUserData: Omit<DBUser, 'createdAt' | 'passwordHash' | 'googleId'> = {
@@ -1290,29 +1274,15 @@ export const nativeMicrosoftLogin = async (req: Request, res: Response) => {
                 emailVerified: true,
             };
 
-            // Look up orgId from the org for denormalization
-            const orgDocForOrganization = await workspacesCollection.doc(workspaceId).get();
-            const msOrgOrganizationId = orgDocForOrganization.exists ? orgDocForOrganization.data()?.orgId || '' : '';
-
             const batch = db.batch();
             batch.set(newUserRef, { ...newUserData, createdAt: admin.firestore.FieldValue.serverTimestamp() });
 
-            const newMembershipRef = membershipsCollection.doc();
-            batch.set(newMembershipRef, {
-                id: newMembershipRef.id,
-                userId: newUserRef.id,
-                userName: name,
-                userEmail: email,
-                entityId: workspaceId,
-                entityType: 'workspace',
-                role: UserRole.REGULAR_USER,
-                orgId: msOrgOrganizationId,
-                ...(preapprovedData.permissions ? { permissions: preapprovedData.permissions } : {}),
-                createdAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            batch.delete(preapprovedSnap.docs[0].ref);
-
+            // Create memberships from ALL pre-approvals (preserves boardOnlyAccess/boardIds)
+            await applyPreapprovalsToBatch(
+                batch,
+                { id: newUserRef.id, name, email, profileImageUrl: null },
+                preapprovedSnap.docs,
+            );
             await batch.commit();
 
             const userDoc = await newUserRef.get();
