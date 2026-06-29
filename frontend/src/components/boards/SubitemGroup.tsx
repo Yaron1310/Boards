@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiPlus, FiLoader, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiLoader, FiTrash2, FiMessageSquare } from 'react-icons/fi';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSubitemColumns } from '../../hooks/queries/useColumnQueries';
 import { useSubitemGroup } from '../../hooks/queries/useGroupQueries';
@@ -8,10 +8,12 @@ import { useCreateColumn } from '../../hooks/queries/useColumnQueries';
 import { useCreateGroup } from '../../hooks/queries/useGroupQueries';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useAuthSession } from '../../hooks/useAuthSession';
+import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { ColumnType } from '../../types';
 import type { Column, Item } from '../../types';
 import { COLUMN_TYPE_ICONS } from './ColumnHeader';
 import { ColumnCell } from './cells';
+import { getUnreadCount } from './ItemChatModal';
 
 const DEFAULT_STATUS_OPTIONS = [
   { id: 'todo', label: 'To Do', color: '#94a3b8' },
@@ -25,10 +27,9 @@ interface SubitemGroupProps {
   parentItemId: string;
 }
 
-const SubitemRow: React.FC<{
-  item: Item;
-  columns: Column[];
-}> = ({ item, columns }) => {
+const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns }) => {
+  const { user } = useAuthSession();
+  const { openChat } = useBoardRender();
   const { mutateAsync: archiveItem } = useArchiveItem();
   const { mutateAsync: updateItem } = useUpdateItem();
   const [editingName, setEditingName] = useState(false);
@@ -50,6 +51,8 @@ const SubitemRow: React.FC<{
     if (e.key === 'Escape') { setNameValue(item.name); setEditingName(false); }
   };
 
+  const unreadCount = user ? getUnreadCount(user.id, item) : 0;
+
   return (
     <div
       role="row"
@@ -57,7 +60,7 @@ const SubitemRow: React.FC<{
     >
       {/* Name cell */}
       <div
-        className="flex items-center px-3 py-1.5 min-w-0 flex-shrink-0"
+        className="flex items-center px-3 py-1.5 min-w-0 flex-shrink-0 gap-1"
         style={{ width: '220px' }}
         role="gridcell"
       >
@@ -68,27 +71,45 @@ const SubitemRow: React.FC<{
             onChange={(e) => setNameValue(e.target.value)}
             onBlur={() => void commitName()}
             onKeyDown={handleKeyDown}
-            className="w-full text-xs text-gray-700 bg-white border border-indigo-400 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-indigo-400"
+            className="flex-1 text-xs text-gray-700 bg-white border border-indigo-400 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-indigo-400"
             aria-label="Edit subitem name"
           />
         ) : (
-          <div className="flex items-center gap-1 flex-1 min-w-0">
-            <span
-              className="text-xs text-gray-700 truncate cursor-text flex-1"
-              onClick={() => setEditingName(true)}
-            >
-              {item.name}
-            </span>
-            <button
-              type="button"
-              onClick={() => void archiveItem(item.id)}
-              className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 text-gray-400 hover:text-red-500 rounded transition-all flex-shrink-0"
-              aria-label={`Delete subitem ${item.name}`}
-            >
-              <FiTrash2 size={11} aria-hidden="true" />
-            </button>
-          </div>
+          <span
+            className="text-xs text-gray-700 truncate cursor-text flex-1"
+            onClick={() => setEditingName(true)}
+          >
+            {item.name}
+          </span>
         )}
+
+        {/* Chat button */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); openChat(item); }}
+          className="relative flex items-center justify-center w-5 h-5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
+          aria-label={`Open chat for ${item.name}`}
+        >
+          <FiMessageSquare size={12} aria-hidden="true" />
+          {unreadCount > 0 && (
+            <span
+              className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[10px] h-[10px] px-0.5 bg-red-500 text-white text-[7px] font-bold rounded-full leading-none"
+              aria-label={`${unreadCount} unread`}
+            >
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </button>
+
+        {/* Delete button */}
+        <button
+          type="button"
+          onClick={() => void archiveItem(item.id)}
+          className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-5 h-5 text-gray-400 hover:text-red-500 rounded transition-all flex-shrink-0"
+          aria-label={`Delete subitem ${item.name}`}
+        >
+          <FiTrash2 size={11} aria-hidden="true" />
+        </button>
       </div>
 
       {/* Dynamic column cells */}
@@ -151,6 +172,9 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       ]);
 
       await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
+
+      // Auto-open the add input so the user can immediately name the first subitem
+      setAddingItem(true);
     } finally {
       setIsInitializing(false);
     }
@@ -188,7 +212,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     return (
       <div className="flex items-center gap-2 pl-10 py-2 text-xs text-gray-400">
         <FiLoader size={11} className="animate-spin" aria-hidden="true" />
-        Loading subitems…
+        Setting up subitems…
       </div>
     );
   }
@@ -250,7 +274,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
               onChange={(e) => setNewItemName(e.target.value)}
               onKeyDown={handleAddItemKeyDown}
               onBlur={() => { if (!newItemName.trim()) setAddingItem(false); }}
-              placeholder="Subitem name…"
+              placeholder="Subitem name… (Enter to save)"
               disabled={isCreatingItem}
               className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
               aria-label="New subitem name"
