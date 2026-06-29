@@ -134,12 +134,11 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, profileImageU
         boardId,
         role: boardRoles.get(boardId) ?? BoardRole.EDITOR,
       }));
-      const workspaceIds = [...new Set([
-        ...checkedWorkspaces,
-        ...(data?.workspaces ?? [])
-          .filter(ws => ws.boards.some(b => checkedBoards.has(b.id)))
-          .map(ws => ws.id),
-      ])];
+      // Only workspaces whose checkbox is explicitly ticked grant FULL workspace
+      // access. A workspace with only individual boards checked is sent via `boards`
+      // and the backend grants board-only access — do NOT auto-include it here, or
+      // the user would see every board in that workspace.
+      const workspaceIds = [...checkedWorkspaces];
       const workspacePermissions = Object.fromEntries(wsPermissions);
       await savePermissions({ boards, workspaceIds, workspacePermissions });
       setFeedback({ type: 'success', text: 'Permissions saved successfully.' });

@@ -789,6 +789,9 @@ export const getUserBoardPermissions = async (req: Request, res: Response) => {
             .get();
         const wsMembershipMap = new Map<string, 'edit' | 'read_only' | 'admin'>();
         querySnapshotToArray<DBMembership>(wsMemberSnap).forEach(m => {
+            // Board-only memberships are NOT full workspace members — they must not
+            // tick the workspace checkbox, otherwise saving would re-grant full access.
+            if (m.boardOnlyAccess) return;
             if (m.role === UserRole.WORKSPACE_ADMIN) {
                 wsMembershipMap.set(m.entityId, 'admin');
             } else {
@@ -852,7 +855,6 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
             .where('orgId', '==', requestingUser.orgId)
             .get();
         const currentWsMemberships = querySnapshotToArray<DBMembership>(currentWsMemberSnap);
-        const currentWsIds = new Set(currentWsMemberships.map(m => m.entityId));
 
         // Get all boards for the org
         const boardsSnap = await boardsCollection(requestingUser.orgId)
@@ -871,51 +873,76 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
             if (currentMemberSnaps[i].exists) currentMemberBoardIds.add(b.id);
         });
 
-        const newBoardIdSet = new Set(newBoards.map(b => b.boardId).filter(id => allBoardIds.has(id)));
-        const desiredWsIds = new Set(Array.isArray(newWorkspaceIds) ? newWorkspaceIds : []);
+        // Resolve the checked boards and group them by their owning workspace.
+        const checkedBoardsByWs = new Map<string, Set<string>>();
+        for (const { boardId } of newBoards) {
+            if (!allBoardIds.has(boardId)) continue;
+            const board = boardMap.get(boardId)!;
+            if (!checkedBoardsByWs.has(board.workspaceId)) checkedBoardsByWs.set(board.workspaceId, new Set());
+            checkedBoardsByWs.get(board.workspaceId)!.add(boardId);
+        }
+        const newBoardIdSet = new Set([...checkedBoardsByWs.values()].flatMap(s => [...s]));
+
+        // Workspaces the admin explicitly granted FULL access to (workspace checkbox ticked).
+        const fullWsIds = new Set(Array.isArray(newWorkspaceIds) ? newWorkspaceIds : []);
+        // Workspaces that only have individual boards checked → board-only access.
+        const boardOnlyWsIds = new Set<string>();
+        for (const wsId of checkedBoardsByWs.keys()) {
+            if (!fullWsIds.has(wsId)) boardOnlyWsIds.add(wsId);
+        }
+        const allDesiredWsIds = new Set<string>([...fullWsIds, ...boardOnlyWsIds]);
 
         const batch = db.batch();
 
         // --- Workspace membership changes ---
-        if (Array.isArray(newWorkspaceIds)) {
-            // Add or update workspace memberships
-            for (const wsId of desiredWsIds) {
-                const rawPerm = newWsPermissions?.[wsId];
-                const isAdmin = rawPerm === 'admin';
-                const wsPerms: 'edit' | 'read_only' = rawPerm === 'read_only' ? 'read_only' : 'edit';
-                const memberRole = isAdmin ? UserRole.WORKSPACE_ADMIN : UserRole.REGULAR_USER;
-                if (!currentWsIds.has(wsId)) {
-                    const wsDoc = await workspacesCollection.doc(wsId).get();
-                    if (!wsDoc.exists || (wsDoc.data() as DBWorkspace).orgId !== requestingUser.orgId) continue;
-                    const newRef = membershipsCollection.doc();
-                    batch.set(newRef, {
-                        id: newRef.id,
-                        userId,
-                        userName: userData.name,
-                        userEmail: userData.email,
-                        entityId: wsId,
-                        entityType: 'workspace',
-                        role: memberRole,
-                        orgId: requestingUser.orgId,
-                        permissions: wsPerms,
-                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                    });
-                } else {
-                    // Update role and permissions on existing membership
-                    const existingDoc = currentWsMemberSnap.docs.find(d => (d.data() as DBMembership).entityId === wsId);
-                    if (existingDoc) batch.update(existingDoc.ref, { role: memberRole, permissions: wsPerms });
-                }
+        // A membership is either full (sees every board in the workspace) or board-only
+        // (boardOnlyAccess: true + boardIds restricts visibility to the checked boards).
+        for (const wsId of allDesiredWsIds) {
+            const isFull = fullWsIds.has(wsId);
+            const rawPerm = newWsPermissions?.[wsId];
+            const isAdmin = isFull && rawPerm === 'admin';
+            const wsPerms: 'edit' | 'read_only' = rawPerm === 'read_only' ? 'read_only' : 'edit';
+            const memberRole = isAdmin ? UserRole.WORKSPACE_ADMIN : UserRole.REGULAR_USER;
+            const boardIdsForWs = isFull ? [] : [...(checkedBoardsByWs.get(wsId) ?? [])];
+
+            const existingDoc = currentWsMemberSnap.docs.find(d => (d.data() as DBMembership).entityId === wsId);
+            if (!existingDoc) {
+                const wsDoc = await workspacesCollection.doc(wsId).get();
+                if (!wsDoc.exists || (wsDoc.data() as DBWorkspace).orgId !== requestingUser.orgId) continue;
+                const newRef = membershipsCollection.doc();
+                batch.set(newRef, {
+                    id: newRef.id,
+                    userId,
+                    userName: userData.name,
+                    userEmail: userData.email,
+                    entityId: wsId,
+                    entityType: 'workspace',
+                    role: memberRole,
+                    orgId: requestingUser.orgId,
+                    permissions: wsPerms,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    ...(isFull ? {} : { boardOnlyAccess: true, boardIds: boardIdsForWs }),
+                });
+            } else {
+                // Switch the existing membership between full and board-only access.
+                batch.update(existingDoc.ref, {
+                    role: memberRole,
+                    permissions: wsPerms,
+                    ...(isFull
+                        ? { boardOnlyAccess: admin.firestore.FieldValue.delete(), boardIds: admin.firestore.FieldValue.delete() }
+                        : { boardOnlyAccess: true, boardIds: boardIdsForWs }),
+                });
             }
-            // Remove workspace memberships no longer desired
-            for (const m of currentWsMemberships) {
-                if (!desiredWsIds.has(m.entityId)) {
-                    const docSnap = currentWsMemberSnap.docs.find(d => d.id === m.id);
-                    if (docSnap) batch.delete(docSnap.ref);
-                }
+        }
+        // Remove workspace memberships that are no longer desired (neither full nor board-only).
+        for (const m of currentWsMemberships) {
+            if (!allDesiredWsIds.has(m.entityId)) {
+                const docSnap = currentWsMemberSnap.docs.find(d => d.id === m.id);
+                if (docSnap) batch.delete(docSnap.ref);
             }
         }
 
-        // --- Board membership changes ---
+        // --- Board membership records (explicit per-board role rows) ---
         for (const { boardId, role } of newBoards) {
             if (!allBoardIds.has(boardId)) continue;
             const board = boardMap.get(boardId)!;
@@ -939,12 +966,11 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
             }
         }
 
-        // Update boardIds on workspace memberships that use boardOnlyAccess
-        const newBoardIdArray = [...newBoardIdSet];
-        currentWsMemberSnap.docs.forEach(doc => {
-            if ((doc.data() as DBMembership).boardOnlyAccess) {
-                batch.update(doc.ref, { boardIds: newBoardIdArray });
-            }
+        // Invalidate the target user's current session so the new board scoping —
+        // which is carried in their JWT (boardIds) — takes effect on their next
+        // request instead of lingering until the token naturally expires.
+        batch.update(usersCollection.doc(userId), {
+            forceLogoutAt: admin.firestore.FieldValue.serverTimestamp(),
         });
 
         await batch.commit();
