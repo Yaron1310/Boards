@@ -5,6 +5,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useArchiveItem, useRestoreItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
+import { useSubitemGroup } from '../../hooks/queries/useGroupQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useUndo } from '../../contexts/UndoContext';
 import { useBoardMembers } from '../../hooks/queries/useBoardMemberQueries';
@@ -38,6 +39,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(item.name);
   const [subitemsOpen, setSubitemsOpen] = useState(false);
+  const { data: subitemGroup } = useSubitemGroup(item.boardId, item.id);
   const inputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: updateItem } = useUpdateItem();
 
@@ -155,7 +157,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setSubitemsOpen((o) => !o); }}
-          className={`flex items-center justify-center w-5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all text-gray-400 hover:text-indigo-600 ${subitemsOpen ? '!opacity-100 text-indigo-500' : ''}`}
+          className={`flex items-center justify-center w-5 flex-shrink-0 transition-all text-gray-400 hover:text-indigo-600 ${subitemsOpen ? 'opacity-100 text-indigo-500' : subitemGroup ? 'opacity-60' : 'opacity-0 group-hover:opacity-100'}`}
           aria-label={subitemsOpen ? `Collapse subitems for ${item.name}` : `Expand subitems for ${item.name}`}
           aria-expanded={subitemsOpen}
         >

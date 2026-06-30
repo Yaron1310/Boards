@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiPlus, FiLoader, FiTrash2, FiMessageSquare } from 'react-icons/fi';
+import { FiPlus, FiLoader, FiTrash2, FiMessageSquare, FiMoreVertical, FiEdit2 } from 'react-icons/fi';
 import AddColumnModal from './AddColumnModal';
 import { useQueryClient } from '@tanstack/react-query';
-import { useSubitemColumns } from '../../hooks/queries/useColumnQueries';
+import { useSubitemColumns, useDeleteColumn, useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { useSubitemGroup } from '../../hooks/queries/useGroupQueries';
 import { useGroupItems, useCreateItem, useArchiveItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useCreateColumn } from '../../hooks/queries/useColumnQueries';
@@ -28,6 +28,119 @@ interface SubitemGroupProps {
   workspaceId: string;
   parentItemId: string;
 }
+
+const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroupId: string; colWidth: number }> = ({ col, boardId, subitemGroupId, colWidth }) => {
+  const qc = useQueryClient();
+  const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
+  const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdateColumn(boardId);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newName, setNewName] = useState(col.name);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { setNewName(col.name); }, [col.name]);
+  useEffect(() => { if (isRenaming) renameInputRef.current?.select(); }, [isRenaming]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [menuOpen]);
+
+  const handleRename = async () => {
+    const trimmed = newName.trim();
+    if (!trimmed || trimmed === col.name) { setIsRenaming(false); setNewName(col.name); return; }
+    await updateColumn({ id: col.id, patch: { name: trimmed } });
+    await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, subitemGroupId) });
+    setIsRenaming(false);
+    setMenuOpen(false);
+  };
+
+  const handleDelete = async () => {
+    await deleteColumn(col.id);
+    await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, subitemGroupId) });
+    setMenuOpen(false);
+    setConfirmDelete(false);
+  };
+
+  return (
+    <div
+      role="columnheader"
+      style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
+      className="relative flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-gray-500 group/hdr"
+    >
+      <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
+      <span className="truncate">{col.name}</span>
+
+      <div className="relative ml-auto flex-shrink-0" ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setMenuOpen((o) => !o)}
+          className="opacity-0 group-hover/hdr:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 rounded p-0.5 flex items-center justify-center"
+          aria-label={`Options for ${col.name} column`}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+        >
+          <FiMoreVertical size={11} aria-hidden="true" />
+        </button>
+
+        {menuOpen && (
+          <div
+            role="menu"
+            className="absolute right-0 top-full mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-[9995] py-1"
+            aria-label="Column actions"
+          >
+            {isRenaming ? (
+              <div className="px-3 py-2">
+                <input
+                  ref={renameInputRef}
+                  type="text"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onBlur={() => void handleRename()}
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleRename(); if (e.key === 'Escape') { setIsRenaming(false); setNewName(col.name); } }}
+                  disabled={isUpdating}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  aria-label="Column name"
+                />
+              </div>
+            ) : confirmDelete ? (
+              <div className="px-3 py-2 space-y-1">
+                <p className="text-xs text-red-600">Delete this column?</p>
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => void handleDelete()} disabled={isDeleting}
+                    className="flex-1 px-2 py-1 text-xs text-white bg-red-500 rounded hover:bg-red-600 disabled:opacity-60" aria-label="Confirm delete">
+                    {isDeleting ? '…' : 'Delete'}
+                  </button>
+                  <button type="button" onClick={() => setConfirmDelete(false)}
+                    className="flex-1 px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded hover:bg-gray-200" aria-label="Cancel">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <button type="button" role="menuitem" onClick={() => setIsRenaming(true)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors" aria-label="Rename column">
+                  <FiEdit2 size={11} aria-hidden="true" /> Edit name
+                </button>
+                <button type="button" role="menuitem" onClick={() => setConfirmDelete(true)}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors" aria-label="Delete column">
+                  <FiTrash2 size={11} aria-hidden="true" /> Delete
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns }) => {
   const { user } = useAuthSession();
@@ -248,15 +361,13 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         {columns.map((col) => {
           const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
           return (
-            <div
+            <SubitemColumnHeader
               key={col.id}
-              role="columnheader"
-              style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
-              className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-gray-500"
-            >
-              <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
-              <span className="truncate">{col.name}</span>
-            </div>
+              col={col}
+              boardId={boardId}
+              subitemGroupId={subitemGroup!.id}
+              colWidth={colWidth}
+            />
           );
         })}
 
