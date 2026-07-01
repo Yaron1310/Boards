@@ -48,9 +48,8 @@ const SubitemColumnHeader: React.FC<{
   boardId: string;
   subitemGroupId: string;
   colWidth: number;
-  allColumns: Column[];
-  onSwapCommitted: (insertAfterId: string | undefined, insertBeforeId: string | undefined) => void;
-}> = ({ col, boardId, subitemGroupId, colWidth, allColumns, onSwapCommitted }) => {
+  onSwapCommitted: (replaceColumnId: string) => void;
+}> = ({ col, boardId, subitemGroupId, colWidth, onSwapCommitted }) => {
   const qc = useQueryClient();
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
   const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdateColumn(boardId);
@@ -62,9 +61,6 @@ const SubitemColumnHeader: React.FC<{
   const [showEditConfigModal, setShowEditConfigModal] = useState(false);
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
   const [showSwapWarning, setShowSwapWarning] = useState(false);
-  const [isSwapping, setIsSwapping] = useState(false);
-  const [swapInsertAfterId, setSwapInsertAfterId] = useState<string | undefined>(undefined);
-  const [swapInsertBeforeId, setSwapInsertBeforeId] = useState<string | undefined>(undefined);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -126,38 +122,20 @@ const SubitemColumnHeader: React.FC<{
     return false;
   };
 
-  const proceedWithSwap = async () => {
+  // Nothing is deleted here — the old column is only removed once the user
+  // finishes creating its replacement in the AddColumnModal opened by the parent
+  // (SubitemGroup). Cancelling that modal leaves the original column untouched.
+  const proceedWithSwap = () => {
     setShowSwapWarning(false);
-    setIsSwapping(true);
-    try {
-      await deleteColumn(col.id);
-      await qc.invalidateQueries({ queryKey: subitemColumnsKey });
-      // The replacement column's AddColumnModal is rendered by the parent
-      // (SubitemGroup) rather than here, since this cell unmounts the instant
-      // the column it represents is deleted.
-      onSwapCommitted(swapInsertAfterId, swapInsertBeforeId);
-    } finally {
-      setIsSwapping(false);
-    }
+    onSwapCommitted(col.id);
   };
 
   const handleSwapType = () => {
-    const idx = allColumns.findIndex(c => c.id === col.id);
-    if (idx > 0) {
-      setSwapInsertAfterId(allColumns[idx - 1].id);
-      setSwapInsertBeforeId(undefined);
-    } else if (allColumns.length > 1) {
-      setSwapInsertAfterId(undefined);
-      setSwapInsertBeforeId(allColumns[1].id);
-    } else {
-      setSwapInsertAfterId(undefined);
-      setSwapInsertBeforeId(undefined);
-    }
     setMenuOpen(false);
     if (columnHasData()) {
       setShowSwapWarning(true);
     } else {
-      void proceedWithSwap();
+      proceedWithSwap();
     }
   };
 
@@ -236,8 +214,8 @@ const SubitemColumnHeader: React.FC<{
                   className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors" aria-label="Add column to the right">
                   <FiPlus size={11} aria-hidden="true" /> Add right
                 </button>
-                <button type="button" role="menuitem" onClick={handleSwapType} disabled={isSwapping}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60" aria-label="Change column type">
+                <button type="button" role="menuitem" onClick={handleSwapType}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors" aria-label="Change column type">
                   <FiRefreshCw size={11} aria-hidden="true" /> Change type
                 </button>
                 <button type="button" role="menuitem" onClick={() => setConfirmDelete(true)}
@@ -279,9 +257,9 @@ const SubitemColumnHeader: React.FC<{
                 className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors" aria-label="Cancel change type">
                 Cancel
               </button>
-              <button type="button" onClick={() => void proceedWithSwap()} disabled={isSwapping}
-                className="px-3 py-1.5 text-sm text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60" aria-label="Confirm change type">
-                {isSwapping ? 'Deleting…' : 'Continue'}
+              <button type="button" onClick={proceedWithSwap}
+                className="px-3 py-1.5 text-sm text-white bg-red-500 rounded hover:bg-red-600 transition-colors" aria-label="Confirm change type">
+                Continue
               </button>
             </div>
           </div>
@@ -399,7 +377,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const addItemInputRef = useRef<HTMLInputElement>(null);
   const shouldFocusOnMount = useRef(false);
   const [showAddColModal, setShowAddColModal] = useState(false);
-  const [swapAddModal, setSwapAddModal] = useState<{ insertAfterId?: string; insertBeforeId?: string } | null>(null);
+  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string } | null>(null);
   const [showQuickAddCol, setShowQuickAddCol] = useState(false);
   const [quickColName, setQuickColName] = useState('');
   const [quickColType, setQuickColType] = useState<ColumnType>(ColumnType.TEXT);
@@ -434,6 +412,11 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
   const realItems = itemsPage?.data ?? [];
 
+  // Set once teardown starts and never reset — prevents the auto-init effect below
+  // from racing a just-emptied group back into existence in the brief window
+  // between the group query resolving to null and the panel actually unmounting.
+  const isClosingRef = useRef(false);
+
   const initialize = (): Promise<{ id: string }> => {
     if (groupPromiseRef.current) return groupPromiseRef.current;
     const p = (async () => {
@@ -462,7 +445,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
   // Auto-initialize on first render if no subitem group exists yet
   useEffect(() => {
-    if (!groupLoading && subitemGroup === null) {
+    if (!groupLoading && subitemGroup === null && !isClosingRef.current) {
       shouldFocusOnMount.current = true;
       setPendingAutoFocus(true);
       void initialize();
@@ -548,6 +531,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     if (total !== 0) return;
 
     isTearingDownRef.current = true;
+    isClosingRef.current = true;
     void (async () => {
       try {
         await Promise.all(columns.map((c) => deleteColumn(c.id)));
@@ -597,8 +581,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                   boardId={boardId}
                   subitemGroupId={subitemGroup.id}
                   colWidth={colWidth}
-                  allColumns={columns}
-                  onSwapCommitted={(insertAfterId, insertBeforeId) => setSwapAddModal({ insertAfterId, insertBeforeId })}
+                  onSwapCommitted={(replaceColumnId) => setSwapAddModal({ replaceColumnId })}
                 />
               );
             })
@@ -691,14 +674,15 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       )}
 
       {/* Change type — replacement column modal, rendered here (not inside the per-column
-          header) since the deleted column's header unmounts as soon as it's removed. */}
+          header) since the deleted column's header unmounts as soon as it's removed. The
+          old column is only deleted once its replacement is created (or never, if this
+          modal is cancelled). */}
       {swapAddModal && subitemGroup && (
         <AddColumnModal
           boardId={boardId}
           parentGroupId={subitemGroup.id}
           onClose={() => setSwapAddModal(null)}
-          insertAfterColumnId={swapAddModal.insertAfterId}
-          insertBeforeColumnId={swapAddModal.insertBeforeId}
+          replaceColumnId={swapAddModal.replaceColumnId}
         />
       )}
 

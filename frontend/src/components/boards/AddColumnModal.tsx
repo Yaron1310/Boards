@@ -6,7 +6,7 @@ import {
   FiFlag, FiUser, FiChevronDown, FiCheckSquare, FiTag,
   FiMail, FiPhone, FiMapPin, FiZap, FiLink,
 } from 'react-icons/fi';
-import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns } from '../../hooks/queries/useColumnQueries';
+import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
@@ -20,6 +20,12 @@ interface AddColumnModalProps {
   insertAfterColumnId?: string;
   insertBeforeColumnId?: string;
   parentGroupId?: string;
+  /**
+   * When set, this column is deleted only after the new column is successfully
+   * created and positioned in its place — i.e. "Change column type". Nothing is
+   * deleted if the user cancels the modal.
+   */
+  replaceColumnId?: string;
 }
 
 const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
@@ -178,9 +184,10 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId }) => {
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending } = useCreateColumn(boardId);
+  const { mutateAsync: deleteColumn } = useDeleteColumn(boardId);
   const { data: boardColumns = [] } = useColumns(boardId, !parentGroupId);
   const { data: subitemColumns = [] } = useSubitemColumns(boardId, parentGroupId ?? '', !!parentGroupId);
   const allColumns = parentGroupId ? subitemColumns : boardColumns;
@@ -309,6 +316,8 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
         return aTime - bTime;
       });
 
+      const effectiveInsertBefore = replaceColumnId ?? insertBeforeColumnId;
+
       if (updatedColumns.length > 0) {
         const newColumnId = updatedColumns.find(col => !previousColumnsRef.current.includes(col.id))?.id;
 
@@ -318,20 +327,36 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
           if (insertAfterColumnId) {
             const afterIdx = updatedColumns.findIndex(c => c.id === insertAfterColumnId);
             if (afterIdx !== -1) targetIndex = afterIdx + 1;
-          } else if (insertBeforeColumnId) {
-            const beforeIdx = updatedColumns.findIndex(c => c.id === insertBeforeColumnId);
+          } else if (effectiveInsertBefore) {
+            const beforeIdx = updatedColumns.findIndex(c => c.id === effectiveInsertBefore);
             if (beforeIdx !== -1) targetIndex = beforeIdx;
           }
 
           const currentIndex = updatedColumns.findIndex(c => c.id === newColumnId);
           if (currentIndex !== -1) {
-            const reordered = updatedColumns.filter(c => c.id !== newColumnId);
-            reordered.splice(Math.min(targetIndex, reordered.length), 0, updatedColumns[currentIndex]);
+            // Exclude the column being replaced from the reordered list entirely — its
+            // slot is taken over by the new column, and it gets deleted right after.
+            const reordered = updatedColumns.filter(c => c.id !== newColumnId && c.id !== replaceColumnId);
+            let insertAt: number;
+            if (replaceColumnId) {
+              // Count columns (excluding the new one) that precede the column being
+              // replaced — that's exactly where the new column should land.
+              const replaceIdx = updatedColumns.findIndex(c => c.id === replaceColumnId);
+              insertAt = updatedColumns.slice(0, replaceIdx).filter(c => c.id !== newColumnId).length;
+            } else {
+              insertAt = Math.min(targetIndex, reordered.length);
+            }
+            reordered.splice(Math.max(insertAt, 0), 0, updatedColumns[currentIndex]);
             const finalOrder = reordered.map((col, idx) => ({ id: col.id, order: idx }));
             await reorderColumns(finalOrder);
             if (parentGroupId) await qc.invalidateQueries({ queryKey: scopedQueryKey });
           }
         }
+      }
+
+      if (replaceColumnId) {
+        await deleteColumn(replaceColumnId);
+        await qc.invalidateQueries({ queryKey: scopedQueryKey });
       }
 
       onClose();
