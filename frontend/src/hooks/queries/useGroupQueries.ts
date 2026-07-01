@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
-import type { CreateGroupData, UpdateGroupData, ReorderGroupItem } from '@/services/workManagementService';
+import type { CreateGroupData, UpdateGroupData, ReorderGroupItem, DuplicateGroupMode } from '@/services/workManagementService';
 
 export const useGroups = (boardId: string, enabled = true) =>
   useQuery({
@@ -91,8 +91,8 @@ export const useRestoreGroup = () => {
 export const useDuplicateGroup = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ boardId, groupId, withData }: { boardId: string; groupId: string; withData: boolean }) =>
-      wm.duplicateGroup(boardId, groupId, withData),
+    mutationFn: ({ boardId, groupId, mode }: { boardId: string; groupId: string; mode: DuplicateGroupMode }) =>
+      wm.duplicateGroup(boardId, groupId, mode),
     onSuccess: (_group, { boardId }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.groups.all(boardId) });
       void qc.invalidateQueries({ queryKey: ['items'] });

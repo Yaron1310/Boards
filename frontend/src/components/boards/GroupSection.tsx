@@ -14,6 +14,7 @@ import { useAuthSession } from '../../hooks/useAuthSession';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
 import type { Group, Item, StatusColumnSettings } from '../../types';
+import type { DuplicateGroupMode } from '../../services/workManagementService';
 import ItemRow from './ItemRow';
 import GroupSummaryRow from './GroupSummaryRow';
 import GroupWebhookModal from './GroupWebhookModal';
@@ -64,6 +65,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 
   const [colorPickerOpen, setColorPickerOpen] = useState(false);
   const colorPickerRef = useRef<HTMLDivElement>(null);
+  const nameEditContainerRef = useRef<HTMLDivElement>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -253,6 +255,21 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     });
   };
 
+  // Commit the name (and close editing) on any click outside the whole name-edit
+  // area (swatch + popover + input), not just on the input's own blur — clicking
+  // a color swatch moves focus away from the input first, so relying on the
+  // input's onBlur alone missed a subsequent click on empty space.
+  useEffect(() => {
+    if (!editingName) return;
+    const handleClick = (e: MouseEvent) => {
+      if (nameEditContainerRef.current && !nameEditContainerRef.current.contains(e.target as Node)) {
+        void commitNameEdit();
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [editingName, commitNameEdit]);
+
   const handleNameKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') void commitNameEdit();
     if (e.key === 'Escape') {
@@ -261,9 +278,9 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     }
   };
 
-  const handleDuplicate = async (withData: boolean) => {
+  const handleDuplicate = async (mode: DuplicateGroupMode) => {
     setShowDuplicateModal(false);
-    await duplicateGroup({ boardId, groupId: group.id, withData });
+    await duplicateGroup({ boardId, groupId: group.id, mode });
   };
 
   const handleDelete = async () => {
@@ -357,46 +374,44 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             : <FiChevronDown size={20} aria-hidden="true" />}
         </button>
 
-        {/* Group color swatch — only shown while editing the name. onMouseDown
-            preventDefault stops the name input from blurring (and committing/
-            closing) when the swatch or popover is clicked. */}
-        {editingName && canManage && (
-          <div
-            className="relative flex-shrink-0"
-            ref={colorPickerRef}
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <button
-              type="button"
-              onClick={() => setColorPickerOpen((o) => !o)}
-              className="w-4 h-4 rounded flex-shrink-0 border border-black/10 hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
-              style={{ backgroundColor: groupColor }}
-              aria-label={`Change color for group ${group.name}`}
-              aria-haspopup="dialog"
-              aria-expanded={colorPickerOpen}
-            />
-            {colorPickerOpen && (
-              <div className="absolute left-0 top-full mt-1 z-[60] bg-white border border-gray-200 rounded-lg shadow-lg w-[168px]">
-                <ColorPickerPopover value={groupColor} onChange={(c) => { void handleColorChange(c); setColorPickerOpen(false); }} />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Group name */}
+        {/* Group name editing — swatch + input share one container so a click
+            outside either of them (not just outside the input) commits the name. */}
         {editingName && canManage ? (
-          <input
-            ref={nameInputRef}
-            type="text"
-            value={nameValue}
-            onChange={(e) => setNameValue(e.target.value)}
-            onBlur={() => void commitNameEdit()}
-            onKeyDown={handleNameKeyDown}
-            disabled={isUpdating}
-            className="text-xl font-bold bg-transparent border-b-2 outline-none min-w-0 max-w-[240px]"
-            style={{ color: groupColor, borderColor: groupColor }}
-            aria-label="Edit group name"
-          />
+          <div ref={nameEditContainerRef} className="flex items-center gap-1.5">
+            <div
+              className="relative flex-shrink-0"
+              ref={colorPickerRef}
+              onMouseDown={(e) => e.preventDefault()}
+            >
+              <button
+                type="button"
+                onClick={() => setColorPickerOpen((o) => !o)}
+                className="w-4 h-4 rounded flex-shrink-0 border border-black/10 hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
+                style={{ backgroundColor: groupColor }}
+                aria-label={`Change color for group ${group.name}`}
+                aria-haspopup="dialog"
+                aria-expanded={colorPickerOpen}
+              />
+              {colorPickerOpen && (
+                <div className="absolute left-0 top-full mt-1 z-[60] bg-white border border-gray-200 rounded-lg shadow-lg w-[168px]">
+                  <ColorPickerPopover value={groupColor} onChange={(c) => { void handleColorChange(c); setColorPickerOpen(false); }} />
+                </div>
+              )}
+            </div>
+
+            <input
+              ref={nameInputRef}
+              type="text"
+              value={nameValue}
+              onChange={(e) => setNameValue(e.target.value)}
+              onBlur={() => void commitNameEdit()}
+              onKeyDown={handleNameKeyDown}
+              disabled={isUpdating}
+              className="text-xl font-bold bg-transparent border-b-2 outline-none min-w-0 max-w-[240px]"
+              style={{ color: groupColor, borderColor: groupColor }}
+              aria-label="Edit group name"
+            />
+          </div>
         ) : (
           <h2
             className={`text-xl font-bold truncate max-w-[240px] ${
@@ -736,26 +751,35 @@ const GroupSection: React.FC<GroupSectionProps> = ({
               Duplicate &quot;{group.name}&quot;
             </h2>
             <p className="text-sm text-gray-600 mb-5">
-              Create a copy of this group. Do you want to include its items, or start with an empty group?
+              Create a copy of this group. Choose whether to bring its items along, and whether to keep their data.
             </p>
             <div className="flex flex-col gap-2">
               <button
                 type="button"
-                onClick={() => void handleDuplicate(true)}
+                onClick={() => void handleDuplicate('with_data')}
                 disabled={isDuplicating}
                 className="w-full px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
-                aria-label="Duplicate group with its items"
+                aria-label="Duplicate items with data"
               >
-                Duplicate with data
+                Duplicate items with data
               </button>
               <button
                 type="button"
-                onClick={() => void handleDuplicate(false)}
+                onClick={() => void handleDuplicate('without_data')}
                 disabled={isDuplicating}
                 className="w-full px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-60"
-                aria-label="Duplicate group without its items"
+                aria-label="Duplicate items without data"
               >
-                Duplicate without data
+                Duplicate items, without data
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDuplicate('empty')}
+                disabled={isDuplicating}
+                className="w-full px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-60"
+                aria-label="Duplicate group without items"
+              >
+                Duplicate empty
               </button>
               <button
                 type="button"

@@ -418,7 +418,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                       aria-label="Add new group at the top"
                     >
                       <FiPlus size={15} aria-hidden="true" />
-                      Add Group to Top
+                      Add Group
                     </button>
                   </div>
                 )

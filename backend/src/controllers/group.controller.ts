@@ -377,12 +377,16 @@ export const restoreGroup = async (req: Request, res: Response) => {
 
 // ---------------------------------------------------------------------------
 // POST /boards/:boardId/groups/:groupId/duplicate
-// body: { withData: boolean }
+// body: { mode: 'with_data' | 'without_data' | 'empty' }
+//   with_data    — copy items and their column values
+//   without_data — copy items (rows), but with empty column values
+//   empty        — don't copy any items, just the (empty) group itself
 // ---------------------------------------------------------------------------
 export const duplicateGroup = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId, groupId } = req.params;
-  const withData = req.body?.withData === true;
+  const mode = req.body?.mode === 'with_data' || req.body?.mode === 'without_data' ? req.body.mode : 'empty';
+  const copyItems = mode === 'with_data' || mode === 'without_data';
 
   try {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
@@ -412,7 +416,7 @@ export const duplicateGroup = async (req: Request, res: Response) => {
       updatedAt: timestamp,
     });
 
-    if (withData) {
+    if (copyItems) {
       const itemsSnap = await itemsCollection(user.orgId)
         .where('boardId', '==', boardId)
         .where('groupId', '==', groupId)
@@ -437,6 +441,7 @@ export const duplicateGroup = async (req: Request, res: Response) => {
             chatSeenBy: {},
             createdAt: timestamp,
             updatedAt: timestamp,
+            ...(mode === 'without_data' ? { values: {}, status: null, assignees: [], dueDate: null } : {}),
           });
           count++;
           if (count % BATCH_SIZE === 0) {
