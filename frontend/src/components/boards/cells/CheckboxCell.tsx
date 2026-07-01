@@ -2,6 +2,7 @@ import React from 'react';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column } from '../../../types';
+import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
 
@@ -17,21 +18,19 @@ const CheckboxCellInner: React.FC<Props> = ({ item, column }) => {
   };
 
   return (
-    <div
-      role="gridcell"
-      aria-label={column.name}
-      className="flex items-center justify-center min-w-[120px] px-3 py-2 border-r border-gray-100 last:border-r-0"
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        readOnly
-        disabled={isPending}
-        onClick={toggle}
-        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-60"
-        aria-label={`Toggle ${column.name}`}
-      />
-    </div>
+    <CellWrapper column={column} isReadOnly>
+      {() => (
+        <input
+          type="checkbox"
+          checked={checked}
+          readOnly
+          disabled={isPending}
+          onClick={toggle}
+          className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-60"
+          aria-label={`Toggle ${column.name}`}
+        />
+      )}
+    </CellWrapper>
   );
 };
 
