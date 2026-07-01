@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { FiLoader, FiPlus } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { DndContext } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { FiLoader, FiPlus, FiExternalLink } from 'react-icons/fi';
 import { useBoard } from '../../hooks/queries/useBoardQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { usePersonalColumns, usePersonalItemValues } from '../../hooks/queries/usePersonalHubQueries';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
-import { ColumnCell } from '../boards/cells';
-import { formatItemName } from '../../utils/formatItemName';
+import ItemRow from '../boards/ItemRow';
 import PersonalColumnCell from './PersonalColumnCell';
 import AddPersonalColumnModal from './AddPersonalColumnModal';
 import type { Item } from '../../types';
@@ -27,12 +29,13 @@ const PERSONAL_COL_WIDTH = 160;
  * board name stands in for the group name, and each board keeps its own
  * column set since items here come from different boards.
  *
- * Source-board columns are always rendered read-only (BoardRenderProvider's
- * isBoardReadOnly locks CellWrapper editing) — this page mirrors real data,
- * it never mutates it. Personal columns (owned by the hub's user) are the
- * only editable fields here, and only the hub owner can edit them.
+ * Source-board columns are the real, live item data — edits here save
+ * straight back to the source board (same permission rules as viewing that
+ * board directly). Personal columns (owned by the hub's user) are appended
+ * after them and are only editable by the hub's owner.
  */
 const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenDetail, onOpenChat }) => {
+  const navigate = useNavigate();
   const { data: board, isLoading: boardLoading } = useBoard(boardId);
   const { data: columns = [] } = useColumns(boardId);
   const { data: allPersonalColumns = [] } = usePersonalColumns();
@@ -63,6 +66,15 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
         <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${items.length} items`}>
           {items.length}
         </span>
+        <button
+          type="button"
+          onClick={() => navigate(`/boards/${boardId}`)}
+          className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors flex-shrink-0"
+          aria-label={`Go to the ${board.name} board`}
+          title="Go to source board"
+        >
+          <FiExternalLink size={14} aria-hidden="true" />
+        </button>
       </div>
 
       <section
@@ -84,7 +96,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
               role="columnheader"
               style={{ width: `${col.width ?? calculateColumnWidth(col.name, col.type)}px` }}
               className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600"
-              title={`${col.name} (read-only — mirrors the source board)`}
+              title={col.name}
             >
               <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
               <span className="truncate">{col.name}</span>
@@ -116,54 +128,40 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
           )}
         </div>
 
-        <BoardRenderProvider visibleItems={items} columns={columns} boardView="table" isBoardReadOnly openChat={onOpenChat}>
-          <div role="rowgroup" aria-label={`Items assigned to you in ${board.name}`} className="w-max">
-            {items.length === 0 ? (
-              <div className="px-4 py-4 text-xs text-gray-400 italic">No assigned items on this board.</div>
-            ) : (
-              items.map((item) => (
-                <div
-                  key={item.id}
-                  role="row"
-                  className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] last:border-b-0 hover:bg-indigo-50/40 transition-colors w-max bg-white"
-                >
-                  <div
-                    className="flex flex-shrink-0 items-center border-r border-[#d2d2d4] sticky left-4 z-[1] bg-white pl-3 py-2"
-                    style={{ width: `${itemSectionWidth}px`, borderLeft: '4px solid #6366f1' }}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onOpenDetail(item)}
-                      className="text-sm font-medium text-gray-800 truncate text-left hover:text-indigo-600 transition-colors"
-                      aria-label={`Open details for ${item.name} (read-only)`}
-                    >
-                      {formatItemName(item.name)}
-                    </button>
-                  </div>
-
-                  {columns.map((col) => (
-                    <ColumnCell key={col.id} item={item} column={col} />
+        <BoardRenderProvider visibleItems={items} columns={columns} boardView="table" openChat={onOpenChat}>
+          <DndContext onDragEnd={() => {}}>
+            <div role="rowgroup" aria-label={`Items assigned to you in ${board.name}`} className="w-max">
+              {items.length === 0 ? (
+                <div className="px-4 py-4 text-xs text-gray-400 italic">No assigned items on this board.</div>
+              ) : (
+                <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
+                  {items.map((item) => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      onOpenDetail={onOpenDetail}
+                      groupColor="#6366f1"
+                      extraCells={personalColumns.map((col) => (
+                        <div
+                          key={col.id}
+                          role="gridcell"
+                          style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+                          className="flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0"
+                        >
+                          <PersonalColumnCell
+                            column={col}
+                            itemId={item.id}
+                            value={personalValuesByItem[item.id]?.[col.id]}
+                            editable={isOwn}
+                          />
+                        </div>
+                      ))}
+                    />
                   ))}
-
-                  {personalColumns.map((col) => (
-                    <div
-                      key={col.id}
-                      role="gridcell"
-                      style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-                      className="flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0"
-                    >
-                      <PersonalColumnCell
-                        column={col}
-                        itemId={item.id}
-                        value={personalValuesByItem[item.id]?.[col.id]}
-                        editable={isOwn}
-                      />
-                    </div>
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
+                </SortableContext>
+              )}
+            </div>
+          </DndContext>
         </BoardRenderProvider>
       </section>
 

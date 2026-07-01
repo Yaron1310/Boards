@@ -192,8 +192,8 @@ const PersonalHubPage: React.FC = () => {
       )}
 
       {detailItem && (
-        <BoardRenderProvider visibleItems={items} columns={[]} isBoardReadOnly openChat={setChatItem}>
-          <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} readOnly />
+        <BoardRenderProvider visibleItems={items} columns={[]} openChat={setChatItem}>
+          <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
         </BoardRenderProvider>
       )}
 

@@ -22,9 +22,11 @@ interface ItemRowProps {
   item: Item;
   onOpenDetail: (item: Item) => void;
   groupColor?: string;
+  /** Extra cells appended after this item's board columns (used by Personal Hub for personal columns). */
+  extraCells?: React.ReactNode;
 }
 
-const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }) => {
+const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, extraCells }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const { boardView, columnWidths, openChat } = useBoardRender();
@@ -298,6 +300,8 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
       {columns.map((col) => (
         <ColumnCell key={col.id} item={item} column={col} groupColor={groupColor} />
       ))}
+
+      {extraCells}
 
     </div>
     {subitemsOpen && (
