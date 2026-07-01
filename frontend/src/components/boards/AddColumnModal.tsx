@@ -303,7 +303,10 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       const updatedColumns = [...rawColumns].sort((a: any, b: any) => {
         const aOrder = typeof a.order === 'number' ? a.order : Infinity;
         const bOrder = typeof b.order === 'number' ? b.order : Infinity;
-        return aOrder - bOrder;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return aTime - bTime;
       });
 
       if (updatedColumns.length > 0) {

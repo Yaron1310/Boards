@@ -94,10 +94,13 @@ export const getColumns = async (req: Request, res: Response) => {
       columns = columns.filter((col) => !(col as DBColumn).parentGroupId);
     }
 
-    (columns as (DBColumn & { order?: number })[]).sort((a, b) => {
+    (columns as (DBColumn & { order?: number; createdAt?: Date })[]).sort((a, b) => {
       const aOrder = typeof a.order === 'number' ? a.order : Infinity;
       const bOrder = typeof b.order === 'number' ? b.order : Infinity;
-      return aOrder - bOrder;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+      const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+      return aTime - bTime;
     });
 
     res.json(columns);

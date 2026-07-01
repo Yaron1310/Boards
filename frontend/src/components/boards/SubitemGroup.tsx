@@ -487,9 +487,12 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
   // No explicit focus effect needed — the input uses autoFocus and a ref callback
 
+  const isSubmittingItemRef = useRef(false);
   const handleAddItem = async () => {
     const trimmed = newItemName.trim();
-    if (!trimmed || !user) return;
+    if (!trimmed || !user || isSubmittingItemRef.current) return;
+    isSubmittingItemRef.current = true;
+    setTimeout(() => { isSubmittingItemRef.current = false; }, 0);
     setNewItemName('');
     setAddingItem(false);
 
@@ -531,24 +534,31 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     }
   };
 
-  // Auto-teardown: if the user removes every subitem row, delete the (now empty)
-  // subitem group + its columns and collapse the panel on the host item.
-  const prevItemCountRef = useRef<number | null>(null);
+  // Auto-teardown: whenever the subitem group has no rows left (and isn't in the
+  // middle of being created / getting its first row added), delete the group and
+  // its columns and collapse the panel — this also cleans up any empty group left
+  // over from a session before this behavior existed.
+  const isTearingDownRef = useRef(false);
   useEffect(() => {
     if (!subitemGroup || itemsFetching || columnsLoading) return;
+    if (isInitializing || pendingAutoFocus || addingItem) return;
+    if (isTearingDownRef.current) return;
     const total = realItems.length + pendingItems.length;
-    const prev = prevItemCountRef.current;
-    prevItemCountRef.current = total;
-    if (prev !== null && prev > 0 && total === 0) {
-      void (async () => {
+    if (total !== 0) return;
+
+    isTearingDownRef.current = true;
+    void (async () => {
+      try {
         await Promise.all(columns.map((c) => deleteColumn(c.id)));
         await deleteGroup({ boardId, groupId: subitemGroup.id });
         await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
         onEmpty?.();
-      })();
-    }
+      } finally {
+        isTearingDownRef.current = false;
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [realItems.length, pendingItems.length, subitemGroup, itemsFetching, columnsLoading]);
+  }, [realItems.length, pendingItems.length, subitemGroup, itemsFetching, columnsLoading, isInitializing, pendingAutoFocus, addingItem]);
 
   const pendingColumnPlaceholders: Column[] = pendingColumns.map((c) => ({
     id: c.tempId, boardId, name: c.name, type: c.type, settings: {},
@@ -716,7 +726,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               onKeyDown={handleAddItemKeyDown}
-              onBlur={() => { if (!newItemName.trim()) setAddingItem(false); }}
+              onBlur={() => { if (newItemName.trim()) void handleAddItem(); else setAddingItem(false); }}
               placeholder="Subitem name… (Enter to save)"
               disabled={isCreatingItem}
               className="flex-1 text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
