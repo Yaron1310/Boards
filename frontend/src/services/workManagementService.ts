@@ -168,6 +168,12 @@ export const archiveGroup = (boardId: string, groupId: string): Promise<void> =>
 export const restoreGroup = (boardId: string, groupId: string): Promise<Group> =>
   fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/restore`, { method: 'PATCH' });
 
+export const duplicateGroup = (boardId: string, groupId: string, withData: boolean): Promise<Group> =>
+  fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}/duplicate`, {
+    method: 'POST',
+    body: JSON.stringify({ withData }),
+  });
+
 export const reorderGroups = (boardId: string, order: ReorderGroupItem[]): Promise<void> =>
   fetchWithAuth(`/api/boards/${boardId}/groups/reorder`, { method: 'PATCH', body: JSON.stringify({ order }) });
 

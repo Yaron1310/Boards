@@ -3,12 +3,12 @@ import {
   FiChevronDown, FiChevronRight, FiMoreHorizontal, FiPlus,
   FiEdit2, FiTrash2, FiLoader, FiMenu, FiArchive, FiLink,
   FiChevronsLeft, FiChevronLeft, FiChevronRight as FiChevronRightNav,
-  FiCheckSquare, FiSquare,
+  FiCheckSquare, FiSquare, FiCopy,
 } from 'react-icons/fi';
 import { SortableContext, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useCreateItem, useGroupItems } from '../../hooks/queries/useItemQueries';
-import { useUpdateGroup, useArchiveGroup, useRestoreGroup } from '../../hooks/queries/useGroupQueries';
+import { useUpdateGroup, useArchiveGroup, useRestoreGroup, useDuplicateGroup } from '../../hooks/queries/useGroupQueries';
 import { useUndo } from '../../contexts/UndoContext';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
@@ -17,6 +17,7 @@ import type { Group, Item, StatusColumnSettings } from '../../types';
 import ItemRow from './ItemRow';
 import GroupSummaryRow from './GroupSummaryRow';
 import GroupWebhookModal from './GroupWebhookModal';
+import ColorPickerPopover from './ColorPickerPopover';
 import { COLUMN_TYPE_ICONS, ITEM_COL_ID } from './ColumnHeader';
 import { calculateColumnWidth, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
@@ -53,12 +54,16 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const { mutateAsync: updateGroup, isPending: isUpdating } = useUpdateGroup();
   const { mutateAsync: archiveGroup, isPending: isArchiving } = useArchiveGroup();
   const { mutateAsync: restoreGroup } = useRestoreGroup();
+  const { mutateAsync: duplicateGroup, isPending: isDuplicating } = useDuplicateGroup();
   const { mutateAsync: createItem, isPending: isCreatingItem } = useCreateItem();
   const { push: pushUndo } = useUndo();
 
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(group.name);
   const nameInputRef = useRef<HTMLInputElement>(null);
+
+  const [colorPickerOpen, setColorPickerOpen] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement>(null);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -70,6 +75,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [webhookModalOpen, setWebhookModalOpen] = useState(false);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(0);
@@ -202,8 +208,25 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, [menuOpen]);
 
+  useEffect(() => {
+    if (!colorPickerOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
+        setColorPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [colorPickerOpen]);
+
   const toggleCollapse = async () => {
     await updateGroup({ boardId, groupId: group.id, patch: { isCollapsed: !isCollapsed } });
+  };
+
+  const handleColorChange = async (color: string) => {
+    const prevColor = group.color;
+    pushUndo({ label: `Changed color of group "${group.name}"`, undo: () => { void updateGroup({ boardId, groupId: group.id, patch: { color: prevColor } }); } });
+    await updateGroup({ boardId, groupId: group.id, patch: { color } });
   };
 
   const commitNameEdit = async () => {
@@ -226,6 +249,11 @@ const GroupSection: React.FC<GroupSectionProps> = ({
       setEditingName(false);
       setNameValue(group.name);
     }
+  };
+
+  const handleDuplicate = async (withData: boolean) => {
+    setShowDuplicateModal(false);
+    await duplicateGroup({ boardId, groupId: group.id, withData });
   };
 
   const handleDelete = async () => {
@@ -318,6 +346,32 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             ? <FiChevronRight size={20} aria-hidden="true" />
             : <FiChevronDown size={20} aria-hidden="true" />}
         </button>
+
+        {/* Group color swatch — only shown while editing the name. onMouseDown
+            preventDefault stops the name input from blurring (and committing/
+            closing) when the swatch or popover is clicked. */}
+        {editingName && canManage && (
+          <div
+            className="relative flex-shrink-0"
+            ref={colorPickerRef}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <button
+              type="button"
+              onClick={() => setColorPickerOpen((o) => !o)}
+              className="w-4 h-4 rounded flex-shrink-0 border border-black/10 hover:scale-110 transition-transform focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-indigo-500"
+              style={{ backgroundColor: groupColor }}
+              aria-label={`Change color for group ${group.name}`}
+              aria-haspopup="dialog"
+              aria-expanded={colorPickerOpen}
+            />
+            {colorPickerOpen && (
+              <div className="absolute left-0 top-full mt-1 z-[60] bg-white border border-gray-200 rounded-lg shadow-lg w-[168px]">
+                <ColorPickerPopover value={groupColor} onChange={(c) => { void handleColorChange(c); setColorPickerOpen(false); }} />
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Group name */}
         {editingName && canManage ? (
@@ -421,6 +475,17 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                 >
                   <FiEdit2 size={13} aria-hidden="true" />
                   Rename
+                </button>
+
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setMenuOpen(false); setShowDuplicateModal(true); }}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  aria-label="Duplicate group"
+                >
+                  <FiCopy size={13} aria-hidden="true" />
+                  Duplicate
                 </button>
 
                 <button
@@ -645,6 +710,53 @@ const GroupSection: React.FC<GroupSectionProps> = ({
           groupName={group.name}
           onClose={() => setWebhookModalOpen(false)}
         />
+      )}
+
+      {showDuplicateModal && (
+        <div
+          className="fixed inset-0 z-[10300] flex items-center justify-center bg-black/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="duplicate-group-title"
+        >
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <h2 id="duplicate-group-title" className="text-sm font-semibold text-gray-900 mb-2">
+              Duplicate &quot;{group.name}&quot;
+            </h2>
+            <p className="text-sm text-gray-600 mb-5">
+              Create a copy of this group. Do you want to include its items, or start with an empty group?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => void handleDuplicate(true)}
+                disabled={isDuplicating}
+                className="w-full px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
+                aria-label="Duplicate group with its items"
+              >
+                Duplicate with data
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDuplicate(false)}
+                disabled={isDuplicating}
+                className="w-full px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors disabled:opacity-60"
+                aria-label="Duplicate group without its items"
+              >
+                Duplicate without data
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDuplicateModal(false)}
+                disabled={isDuplicating}
+                className="w-full px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-60"
+                aria-label="Cancel"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

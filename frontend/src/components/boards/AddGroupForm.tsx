@@ -20,9 +20,12 @@ const GROUP_COLORS = [
 interface AddGroupFormProps {
   boardId: string;
   onClose: () => void;
+  /** When set, the new group is inserted before the group with this order
+   * (used for the "add group to top" button) instead of appended at the end. */
+  insertBeforeOrder?: number;
 }
 
-const AddGroupForm: React.FC<AddGroupFormProps> = ({ boardId, onClose }) => {
+const AddGroupForm: React.FC<AddGroupFormProps> = ({ boardId, onClose, insertBeforeOrder }) => {
   const [name, setName] = useState('');
   const [color, setColor] = useState(GROUP_COLORS[0]);
   const [error, setError] = useState('');
@@ -43,7 +46,14 @@ const AddGroupForm: React.FC<AddGroupFormProps> = ({ boardId, onClose }) => {
     }
     setError('');
     try {
-      await createGroup({ boardId, data: { name: trimmed, color } });
+      await createGroup({
+        boardId,
+        data: {
+          name: trimmed,
+          color,
+          ...(insertBeforeOrder !== undefined ? { order: insertBeforeOrder - 1 } : {}),
+        },
+      });
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create group.');

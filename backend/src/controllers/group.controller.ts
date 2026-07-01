@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { boardsCollection, groupsCollection, boardMembersCollection } from '../db/collections.js';
-import { JwtUserPayload, DBBoard, DBGroup, DBBoardMember } from '../types/index.js';
+import { boardsCollection, groupsCollection, boardMembersCollection, itemsCollection } from '../db/collections.js';
+import { JwtUserPayload, DBBoard, DBGroup, DBBoardMember, DBItem } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, getClientIp } from '../services/audit.service.js';
 import {
@@ -372,5 +372,101 @@ export const restoreGroup = async (req: Request, res: Response) => {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error(`Error restoring group ${req.params.groupId}:`, err);
     res.status(500).json({ message: 'Failed to restore group.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /boards/:boardId/groups/:groupId/duplicate
+// body: { withData: boolean }
+// ---------------------------------------------------------------------------
+export const duplicateGroup = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { boardId, groupId } = req.params;
+  const withData = req.body?.withData === true;
+
+  try {
+    const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
+    if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
+    const board = snapshotToData<DBBoard>(boardDoc)!;
+
+    const groupDoc = await groupsCollection(user.orgId, boardId).doc(groupId).get();
+    if (!groupDoc.exists) return res.status(404).json({ message: 'Group not found.' });
+    const group = snapshotToData<DBGroup>(groupDoc)!;
+
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertGroupAccess(user, group, 'create', board.createdBy, memberData, board.workspaceId);
+
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    const newGroupRef = groupsCollection(user.orgId, boardId).doc();
+    await newGroupRef.set({
+      id: newGroupRef.id,
+      workspaceId: group.workspaceId,
+      boardId,
+      name: `${group.name} (copy)`,
+      color: group.color ?? null,
+      // Sits immediately after the source group without renumbering any others.
+      order: (typeof group.order === 'number' ? group.order : 0) + 0.5,
+      isCollapsed: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    if (withData) {
+      const itemsSnap = await itemsCollection(user.orgId)
+        .where('boardId', '==', boardId)
+        .where('groupId', '==', groupId)
+        .where('isArchived', '==', false)
+        .get();
+
+      if (!itemsSnap.empty) {
+        const BATCH_SIZE = 400;
+        let batch = db.batch();
+        let count = 0;
+
+        for (const itemDoc of itemsSnap.docs) {
+          const itemData = snapshotToData<DBItem>(itemDoc)!;
+          const newItemRef = itemsCollection(user.orgId).doc();
+          batch.set(newItemRef, {
+            ...itemData,
+            id: newItemRef.id,
+            groupId: newGroupRef.id,
+            createdBy: user.id,
+            chatMessageCount: 0,
+            chatLastMessageAt: null,
+            chatSeenBy: {},
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+          count++;
+          if (count % BATCH_SIZE === 0) {
+            await batch.commit();
+            batch = db.batch();
+          }
+        }
+        if (count % BATCH_SIZE !== 0) await batch.commit();
+      }
+    }
+
+    touchBoardVersion(user.orgId, boardId);
+
+    void logAudit({
+      actorUserId: user.id,
+      actorRole: user.role,
+      action: 'CREATE',
+      resourceType: 'group',
+      resourceId: newGroupRef.id,
+      workspaceId: user.orgId,
+      orgId: user.orgId,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    const created = snapshotToData<DBGroup>(await newGroupRef.get());
+    res.status(201).json(created);
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error duplicating group ${req.params.groupId}:`, err);
+    res.status(500).json({ message: 'Failed to duplicate group.' });
   }
 };

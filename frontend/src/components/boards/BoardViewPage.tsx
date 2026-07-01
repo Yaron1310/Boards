@@ -194,6 +194,8 @@ interface BoardContentProps {
   localItemsByGroup: Record<string, Item[]>;
   showAddGroup: boolean;
   setShowAddGroup: (v: boolean) => void;
+  showAddGroupTop: boolean;
+  setShowAddGroupTop: (v: boolean) => void;
   activeDrag: DragData | null;
   sensors: ReturnType<typeof useSensors>;
   handleDragStart: (e: import('@dnd-kit/core').DragStartEvent) => void;
@@ -260,6 +262,8 @@ const BoardContent: React.FC<BoardContentProps> = ({
   localItemsByGroup,
   showAddGroup,
   setShowAddGroup,
+  showAddGroupTop,
+  setShowAddGroupTop,
   activeDrag,
   sensors,
   handleDragStart,
@@ -398,6 +402,28 @@ const BoardContent: React.FC<BoardContentProps> = ({
             onDragEnd={handleDragEnd}
           >
             <div className="p-4 space-y-4" role="region" aria-label="Board groups">
+              {canManage && !board.isArchived && !groupsLoading && localGroups.length > 0 && (
+                showAddGroupTop && boardId ? (
+                  <AddGroupForm
+                    boardId={boardId}
+                    onClose={() => setShowAddGroupTop(false)}
+                    insertBeforeOrder={Math.min(...localGroups.map((g) => g.order ?? 0))}
+                  />
+                ) : (
+                  <div className="sticky left-4 w-max">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddGroupTop(true)}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 border border-dashed border-gray-300 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors"
+                      aria-label="Add new group at the top"
+                    >
+                      <FiPlus size={15} aria-hidden="true" />
+                      Add Group to Top
+                    </button>
+                  </div>
+                )
+              )}
+
               {groupsLoading ? (
                 <div className="flex justify-center items-center py-16" role="status" aria-label="Loading groups">
                   <FiLoader className="animate-spin h-6 w-6 text-indigo-400" aria-hidden="true" />
@@ -536,6 +562,7 @@ const BoardViewPage: React.FC = () => {
   const [editingBoard, setEditingBoard] = useState(false);
   const [duplicateMode, setDuplicateMode] = useState<'duplicate' | 'template' | null>(null);
   const [showAddGroup, setShowAddGroup] = useState(false);
+  const [showAddGroupTop, setShowAddGroupTop] = useState(false);
   const [showAddColumn, setShowAddColumn] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -1089,6 +1116,8 @@ const BoardViewPage: React.FC = () => {
               localItemsByGroup={localItemsByGroup}
               showAddGroup={showAddGroup}
               setShowAddGroup={setShowAddGroup}
+              showAddGroupTop={showAddGroupTop}
+              setShowAddGroupTop={setShowAddGroupTop}
               activeDrag={activeDrag}
               sensors={sensors}
               handleDragStart={handleDragStart}
