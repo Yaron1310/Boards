@@ -1,11 +1,15 @@
 import React, { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useUsersQuery } from '../../../hooks/queries/useUserQueries';
+import { useAuthSession } from '../../../hooks/useAuthSession';
 import { useBoardRender } from '../../../contexts/BoardRenderContext';
+import { UserRole } from '../../../types';
 import type { Item, Column, PersonColumnSettings, User } from '../../../types';
 import CellWrapper from './CellWrapper';
+import { FiUser } from 'react-icons/fi';
 
 interface Props { item: Item; column: Column }
 
@@ -56,7 +60,9 @@ const ProfileTooltip: React.FC<{
   anchor: TooltipAnchor;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
-}> = ({ user, anchor, onMouseEnter, onMouseLeave }) => {
+  canViewPersonalHub: boolean;
+  onViewPersonalHub: () => void;
+}> = ({ user, anchor, onMouseEnter, onMouseLeave, canViewPersonalHub, onViewPersonalHub }) => {
   const [imgError, setImgError] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -118,6 +124,17 @@ const ProfileTooltip: React.FC<{
             )}
           </button>
         </div>
+        {canViewPersonalHub && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onViewPersonalHub(); }}
+            className="mt-1 flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            aria-label={`Go to ${user.name}'s Personal Hub`}
+          >
+            <FiUser size={12} aria-hidden="true" />
+            View Personal Hub
+          </button>
+        )}
       </div>
     </div>
   );
@@ -135,6 +152,17 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { isBoardReadOnly } = useBoardRender();
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, !isBoardReadOnly);
+  const { user: authUser } = useAuthSession();
+  const navigate = useNavigate();
+  const isOrgAdmin = authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN;
+
+  const goToPersonalHub = (targetUserId: string) => {
+    if (authUser?.id === targetUserId) {
+      navigate('/personal-hub');
+    } else {
+      navigate(`/admin/users/${targetUserId}/personal-hub`);
+    }
+  };
 
   const selectedUsers = allUsers.filter((u) => selected.includes(u.id));
   const filtered = allUsers.filter((u) => typeof u.name === 'string' && u.name.toLowerCase().includes(search.toLowerCase()));
@@ -180,6 +208,8 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
           anchor={tooltipAnchor}
           onMouseEnter={cancelClose}
           onMouseLeave={scheduleClose}
+          canViewPersonalHub={authUser?.id === hoveredUser.id || isOrgAdmin}
+          onViewPersonalHub={() => goToPersonalHub(hoveredUser.id)}
         />
       )}
       <CellWrapper column={column}>

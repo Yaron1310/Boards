@@ -193,7 +193,7 @@ const UserManagementPage: React.FC = () => {
         }
     })();
 
-    const navigateToUser = () => navigate(`/admin/users/${u.id}`);
+    const navigateToUser = () => navigate(`/admin/users/${u.id}/personal-hub`);
     const tdNav = "px-6 py-4 text-sm text-gray-700 cursor-pointer max-w-0 overflow-hidden";
 
     return (
@@ -206,7 +206,7 @@ const UserManagementPage: React.FC = () => {
                 onClick={navigateToUser}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && navigateToUser()}
                 tabIndex={0}
-                title="View profile page"
+                title="View Personal Hub"
             >
                 <div className="flex items-center gap-3 overflow-hidden">
                     <img
