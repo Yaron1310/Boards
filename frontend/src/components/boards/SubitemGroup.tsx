@@ -43,7 +43,14 @@ const DEFAULT_LOCAL_COLUMNS: Column[] = [
 let pendingIdCounter = 0;
 const nextPendingId = (prefix: string) => `${prefix}-${Date.now()}-${++pendingIdCounter}`;
 
-const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroupId: string; colWidth: number; allColumns: Column[] }> = ({ col, boardId, subitemGroupId, colWidth, allColumns }) => {
+const SubitemColumnHeader: React.FC<{
+  col: Column;
+  boardId: string;
+  subitemGroupId: string;
+  colWidth: number;
+  allColumns: Column[];
+  onSwapCommitted: (insertAfterId: string | undefined, insertBeforeId: string | undefined) => void;
+}> = ({ col, boardId, subitemGroupId, colWidth, allColumns, onSwapCommitted }) => {
   const qc = useQueryClient();
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
   const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdateColumn(boardId);
@@ -56,7 +63,6 @@ const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroup
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
   const [showSwapWarning, setShowSwapWarning] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
-  const [showSwapAddModal, setShowSwapAddModal] = useState(false);
   const [swapInsertAfterId, setSwapInsertAfterId] = useState<string | undefined>(undefined);
   const [swapInsertBeforeId, setSwapInsertBeforeId] = useState<string | undefined>(undefined);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -126,7 +132,10 @@ const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroup
     try {
       await deleteColumn(col.id);
       await qc.invalidateQueries({ queryKey: subitemColumnsKey });
-      setShowSwapAddModal(true);
+      // The replacement column's AddColumnModal is rendered by the parent
+      // (SubitemGroup) rather than here, since this cell unmounts the instant
+      // the column it represents is deleted.
+      onSwapCommitted(swapInsertAfterId, swapInsertBeforeId);
     } finally {
       setIsSwapping(false);
     }
@@ -279,15 +288,6 @@ const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroup
         </div>
       )}
 
-      {showSwapAddModal && (
-        <AddColumnModal
-          boardId={boardId}
-          parentGroupId={subitemGroupId}
-          onClose={() => { setShowSwapAddModal(false); void qc.invalidateQueries({ queryKey: subitemColumnsKey }); }}
-          insertAfterColumnId={swapInsertAfterId}
-          insertBeforeColumnId={swapInsertBeforeId}
-        />
-      )}
     </div>
   );
 };
@@ -399,6 +399,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const addItemInputRef = useRef<HTMLInputElement>(null);
   const shouldFocusOnMount = useRef(false);
   const [showAddColModal, setShowAddColModal] = useState(false);
+  const [swapAddModal, setSwapAddModal] = useState<{ insertAfterId?: string; insertBeforeId?: string } | null>(null);
   const [showQuickAddCol, setShowQuickAddCol] = useState(false);
   const [quickColName, setQuickColName] = useState('');
   const [quickColType, setQuickColType] = useState<ColumnType>(ColumnType.TEXT);
@@ -597,6 +598,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                   subitemGroupId={subitemGroup.id}
                   colWidth={colWidth}
                   allColumns={columns}
+                  onSwapCommitted={(insertAfterId, insertBeforeId) => setSwapAddModal({ insertAfterId, insertBeforeId })}
                 />
               );
             })
@@ -685,6 +687,18 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
           boardId={boardId}
           parentGroupId={subitemGroup.id}
           onClose={() => setShowAddColModal(false)}
+        />
+      )}
+
+      {/* Change type — replacement column modal, rendered here (not inside the per-column
+          header) since the deleted column's header unmounts as soon as it's removed. */}
+      {swapAddModal && subitemGroup && (
+        <AddColumnModal
+          boardId={boardId}
+          parentGroupId={subitemGroup.id}
+          onClose={() => setSwapAddModal(null)}
+          insertAfterColumnId={swapAddModal.insertAfterId}
+          insertBeforeColumnId={swapAddModal.insertBeforeId}
         />
       )}
 

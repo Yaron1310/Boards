@@ -130,10 +130,11 @@ interface ColumnHeaderCellProps {
   boardView?: BoardView;
   currentWidth: number;
   onWidthCommit: (width: number) => void;
+  onSwapCommitted: (insertAfterId: string | undefined, insertBeforeId: string | undefined) => void;
 }
 
 const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
-  column, sort, onSort, canManage, boardId, boardView, currentWidth, onWidthCommit,
+  column, sort, onSort, canManage, boardId, boardView, currentWidth, onWidthCommit, onSwapCommitted,
 }) => {
   const isActive = sort?.columnId === column.id;
   const icon = COLUMN_TYPE_ICONS[column.type];
@@ -147,7 +148,6 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
   const [showSwapWarning, setShowSwapWarning] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
-  const [showSwapAddModal, setShowSwapAddModal] = useState(false);
   const [swapInsertAfterId, setSwapInsertAfterId] = useState<string | undefined>(undefined);
   const [swapInsertBeforeId, setSwapInsertBeforeId] = useState<string | undefined>(undefined);
 
@@ -256,7 +256,10 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
     setIsSwapping(true);
     try {
       await deleteColumn(column.id);
-      setShowSwapAddModal(true);
+      // The AddColumnModal for the replacement column is rendered by the parent
+      // (ColumnHeader) rather than here, since this cell unmounts the instant
+      // the column it represents is deleted.
+      onSwapCommitted(swapInsertAfterId, swapInsertBeforeId);
     } finally {
       setIsSwapping(false);
     }
@@ -556,19 +559,6 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
         </div>
       )}
 
-      {/* Change type — new column creation modal (shown after old column is deleted) */}
-      {showSwapAddModal && (
-        <AddColumnModal
-          boardId={boardId}
-          onClose={() => {
-            setShowSwapAddModal(false);
-            setSwapInsertAfterId(undefined);
-            setSwapInsertBeforeId(undefined);
-          }}
-          insertAfterColumnId={swapInsertAfterId}
-          insertBeforeColumnId={swapInsertBeforeId}
-        />
-      )}
     </div>
   );
 };
@@ -586,6 +576,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const serverColumnsRef = useRef<Column[]>([]);
+  const [swapAddModal, setSwapAddModal] = useState<{ insertAfterId?: string; insertBeforeId?: string } | null>(null);
 
   // Item column resize state
   const [itemResizingWidth, setItemResizingWidth] = useState<number | null>(null);
@@ -762,6 +753,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
                 boardView={boardView}
                 currentWidth={colWidth}
                 onWidthCommit={(w) => onWidthChange(col.id, w)}
+                onSwapCommitted={(insertAfterId, insertBeforeId) => setSwapAddModal({ insertAfterId, insertBeforeId })}
               />
             );
           })}
@@ -798,6 +790,17 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
           </div>
         )}
       </DragOverlay>
+
+      {/* Change type — replacement column modal, rendered here (not per-cell) since the
+          deleted column's cell unmounts as soon as it's removed from the columns list. */}
+      {swapAddModal && (
+        <AddColumnModal
+          boardId={boardId}
+          onClose={() => setSwapAddModal(null)}
+          insertAfterColumnId={swapAddModal.insertAfterId}
+          insertBeforeColumnId={swapAddModal.insertBeforeId}
+        />
+      )}
     </DndContext>
   );
 };
