@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiPlus, FiLoader, FiTrash2, FiMessageSquare, FiMoreVertical, FiEdit2 } from 'react-icons/fi';
+import { FiPlus, FiLoader, FiTrash2, FiMessageSquare, FiMoreVertical, FiEdit2, FiSettings, FiRefreshCw } from 'react-icons/fi';
 import AddColumnModal from './AddColumnModal';
+import EditColumnConfigModal from './EditColumnConfigModal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSubitemColumns, useDeleteColumn, useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { useSubitemGroup } from '../../hooks/queries/useGroupQueries';
@@ -11,11 +12,13 @@ import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { ColumnType } from '../../types';
-import type { Column, Item } from '../../types';
+import type { Column, Item, PaginatedResponse } from '../../types';
 import { COLUMN_TYPE_ICONS } from './ColumnHeader';
 import { ColumnCell } from './cells';
 import { getUnreadCount } from './ItemChatModal';
 import { calculateColumnWidth } from '../../utils/columnWidths';
+
+const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN];
 
 const DEFAULT_STATUS_OPTIONS = [
   { id: 'todo', label: 'To Do', color: '#94a3b8' },
@@ -29,7 +32,7 @@ interface SubitemGroupProps {
   parentItemId: string;
 }
 
-const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroupId: string; colWidth: number }> = ({ col, boardId, subitemGroupId, colWidth }) => {
+const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroupId: string; colWidth: number; allColumns: Column[] }> = ({ col, boardId, subitemGroupId, colWidth, allColumns }) => {
   const qc = useQueryClient();
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
   const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdateColumn(boardId);
@@ -37,8 +40,19 @@ const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroup
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [newName, setNewName] = useState(col.name);
+  const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+  const [showEditConfigModal, setShowEditConfigModal] = useState(false);
+  const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
+  const [showSwapWarning, setShowSwapWarning] = useState(false);
+  const [isSwapping, setIsSwapping] = useState(false);
+  const [showSwapAddModal, setShowSwapAddModal] = useState(false);
+  const [swapInsertAfterId, setSwapInsertAfterId] = useState<string | undefined>(undefined);
+  const [swapInsertBeforeId, setSwapInsertBeforeId] = useState<string | undefined>(undefined);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const isConfigurable = CONFIGURABLE_TYPES.includes(col.type);
+  const subitemColumnsKey = queryKeys.columns.subitem(boardId, subitemGroupId);
 
   useEffect(() => { setNewName(col.name); }, [col.name]);
   useEffect(() => { if (isRenaming) renameInputRef.current?.select(); }, [isRenaming]);
@@ -56,16 +70,75 @@ const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroup
     const trimmed = newName.trim();
     if (!trimmed || trimmed === col.name) { setIsRenaming(false); setNewName(col.name); return; }
     await updateColumn({ id: col.id, patch: { name: trimmed } });
-    await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, subitemGroupId) });
+    await qc.invalidateQueries({ queryKey: subitemColumnsKey });
     setIsRenaming(false);
     setMenuOpen(false);
   };
 
   const handleDelete = async () => {
     await deleteColumn(col.id);
-    await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, subitemGroupId) });
+    await qc.invalidateQueries({ queryKey: subitemColumnsKey });
     setMenuOpen(false);
     setConfirmDelete(false);
+  };
+
+  const handleAddColumn = (position: 'left' | 'right') => {
+    setInsertPosition(position);
+    setShowAddColumnModal(true);
+    setMenuOpen(false);
+  };
+
+  const columnHasData = (): boolean => {
+    const cached = qc.getQueriesData<PaginatedResponse<Item> | Item>({ queryKey: ['items'] });
+    for (const [, data] of cached) {
+      if (!data) continue;
+      const items: Item[] =
+        data !== null && typeof data === 'object' && 'data' in data && Array.isArray((data as PaginatedResponse<Item>).data)
+          ? (data as PaginatedResponse<Item>).data
+          : data !== null && typeof data === 'object' && 'values' in data
+          ? [data as Item]
+          : [];
+      for (const item of items) {
+        if (item.groupId !== subitemGroupId) continue;
+        const val = item.values?.[col.id];
+        if (val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  const proceedWithSwap = async () => {
+    setShowSwapWarning(false);
+    setIsSwapping(true);
+    try {
+      await deleteColumn(col.id);
+      await qc.invalidateQueries({ queryKey: subitemColumnsKey });
+      setShowSwapAddModal(true);
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
+  const handleSwapType = () => {
+    const idx = allColumns.findIndex(c => c.id === col.id);
+    if (idx > 0) {
+      setSwapInsertAfterId(allColumns[idx - 1].id);
+      setSwapInsertBeforeId(undefined);
+    } else if (allColumns.length > 1) {
+      setSwapInsertAfterId(undefined);
+      setSwapInsertBeforeId(allColumns[1].id);
+    } else {
+      setSwapInsertAfterId(undefined);
+      setSwapInsertBeforeId(undefined);
+    }
+    setMenuOpen(false);
+    if (columnHasData()) {
+      setShowSwapWarning(true);
+    } else {
+      void proceedWithSwap();
+    }
   };
 
   return (
@@ -92,7 +165,7 @@ const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroup
         {menuOpen && (
           <div
             role="menu"
-            className="absolute right-0 top-full mt-1 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-[9995] py-1"
+            className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-[9995] py-1"
             aria-label="Column actions"
           >
             {isRenaming ? (
@@ -129,6 +202,24 @@ const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroup
                   className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors" aria-label="Rename column">
                   <FiEdit2 size={11} aria-hidden="true" /> Edit name
                 </button>
+                {isConfigurable && (
+                  <button type="button" role="menuitem" onClick={() => { setShowEditConfigModal(true); setMenuOpen(false); }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors" aria-label="Edit column configuration">
+                    <FiSettings size={11} aria-hidden="true" /> Settings
+                  </button>
+                )}
+                <button type="button" role="menuitem" onClick={() => handleAddColumn('left')}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors" aria-label="Add column to the left">
+                  <FiPlus size={11} aria-hidden="true" /> Add left
+                </button>
+                <button type="button" role="menuitem" onClick={() => handleAddColumn('right')}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors" aria-label="Add column to the right">
+                  <FiPlus size={11} aria-hidden="true" /> Add right
+                </button>
+                <button type="button" role="menuitem" onClick={handleSwapType} disabled={isSwapping}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-60" aria-label="Change column type">
+                  <FiRefreshCw size={11} aria-hidden="true" /> Change type
+                </button>
                 <button type="button" role="menuitem" onClick={() => setConfirmDelete(true)}
                   className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors" aria-label="Delete column">
                   <FiTrash2 size={11} aria-hidden="true" /> Delete
@@ -138,6 +229,54 @@ const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroup
           </div>
         )}
       </div>
+
+      {showAddColumnModal && (
+        <AddColumnModal
+          boardId={boardId}
+          parentGroupId={subitemGroupId}
+          onClose={() => { setShowAddColumnModal(false); setInsertPosition(null); }}
+          insertAfterColumnId={insertPosition === 'right' ? col.id : undefined}
+          insertBeforeColumnId={insertPosition === 'left' ? col.id : undefined}
+        />
+      )}
+
+      {showEditConfigModal && (
+        <EditColumnConfigModal
+          boardId={boardId}
+          column={col}
+          onClose={() => { setShowEditConfigModal(false); void qc.invalidateQueries({ queryKey: subitemColumnsKey }); }}
+        />
+      )}
+
+      {showSwapWarning && (
+        <div className="fixed inset-0 z-[10300] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5">
+            <p className="text-sm text-gray-700 mb-4">
+              Changing this column&apos;s type will permanently delete the data currently stored in it. Do you want to continue?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setShowSwapWarning(false)}
+                className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors" aria-label="Cancel change type">
+                Cancel
+              </button>
+              <button type="button" onClick={() => void proceedWithSwap()} disabled={isSwapping}
+                className="px-3 py-1.5 text-sm text-white bg-red-500 rounded hover:bg-red-600 transition-colors disabled:opacity-60" aria-label="Confirm change type">
+                {isSwapping ? 'Deleting…' : 'Continue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSwapAddModal && (
+        <AddColumnModal
+          boardId={boardId}
+          parentGroupId={subitemGroupId}
+          onClose={() => { setShowSwapAddModal(false); void qc.invalidateQueries({ queryKey: subitemColumnsKey }); }}
+          insertAfterColumnId={swapInsertAfterId}
+          insertBeforeColumnId={swapInsertBeforeId}
+        />
+      )}
     </div>
   );
 };
@@ -367,6 +506,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
               boardId={boardId}
               subitemGroupId={subitemGroup!.id}
               colWidth={colWidth}
+              allColumns={columns}
             />
           );
         })}

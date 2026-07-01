@@ -6,7 +6,7 @@ import {
   FiFlag, FiUser, FiChevronDown, FiCheckSquare, FiTag,
   FiMail, FiPhone, FiMapPin, FiZap, FiLink,
 } from 'react-icons/fi';
-import { useCreateColumn, useColumns, useReorderColumns } from '../../hooks/queries/useColumnQueries';
+import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns } from '../../hooks/queries/useColumnQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
@@ -181,12 +181,15 @@ const STATUS_PALETTE = [
 const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId }) => {
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending } = useCreateColumn(boardId);
-  const { data: allColumns = [] } = useColumns(boardId);
+  const { data: boardColumns = [] } = useColumns(boardId, !parentGroupId);
+  const { data: subitemColumns = [] } = useSubitemColumns(boardId, parentGroupId ?? '', !!parentGroupId);
+  const allColumns = parentGroupId ? subitemColumns : boardColumns;
   const { mutateAsync: reorderColumns } = useReorderColumns(boardId);
   const previousColumnsRef = useRef<string[]>([]);
 
   useEffect(() => {
     previousColumnsRef.current = allColumns.map(c => c.id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -288,17 +291,14 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     }
 
     setError('');
+    const scopedQueryKey = parentGroupId
+      ? queryKeys.columns.subitem(boardId, parentGroupId)
+      : queryKeys.columns.board(boardId);
     try {
       await createColumn({ name: trimmedName, type, settings: buildSettings(), width: calculateColumnWidth(trimmedName, type), ...(parentGroupId ? { parentGroupId } : {}) });
 
-      if (parentGroupId) {
-        await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, parentGroupId) });
-        onClose();
-        return;
-      }
-
-      await qc.refetchQueries({ queryKey: queryKeys.columns.board(boardId) });
-      const rawColumns = qc.getQueryData(queryKeys.columns.board(boardId)) as any[] ?? [];
+      await qc.refetchQueries({ queryKey: scopedQueryKey });
+      const rawColumns = qc.getQueryData(scopedQueryKey) as any[] ?? [];
 
       const updatedColumns = [...rawColumns].sort((a: any, b: any) => {
         const aOrder = typeof a.order === 'number' ? a.order : Infinity;
@@ -326,6 +326,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             reordered.splice(Math.min(targetIndex, reordered.length), 0, updatedColumns[currentIndex]);
             const finalOrder = reordered.map((col, idx) => ({ id: col.id, order: idx }));
             await reorderColumns(finalOrder);
+            if (parentGroupId) await qc.invalidateQueries({ queryKey: scopedQueryKey });
           }
         }
       }
