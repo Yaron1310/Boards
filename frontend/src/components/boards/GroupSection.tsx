@@ -82,8 +82,10 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   // Maps page index → cursor needed to fetch that page (page 0 = undefined)
   const [cursorMap, setCursorMap] = useState<Record<number, string | undefined>>({ 0: undefined });
   const [pendingJumpToLast, setPendingJumpToLast] = useState(false);
-  // Manual pagination toggle (from context menu); auto-enables when total > 100
+  // Manual pagination toggle (from context menu); auto-enables when total > 100.
+  // The toggle itself is only offered once the group has enough rows to matter.
   const [manualPagination, setManualPagination] = useState(false);
+  const MANUAL_PAGINATION_MIN_ROWS = 50;
 
   const cursor = cursorMap[currentPage];
 
@@ -107,6 +109,14 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   useEffect(() => {
     if (total > 0) setKnownTotal(total);
   }, [total]);
+
+  // If the group shrinks below the manual-pagination threshold, drop the override
+  // too so the menu option and its state stay consistent.
+  useEffect(() => {
+    if (manualPagination && knownTotal > 0 && knownTotal < MANUAL_PAGINATION_MIN_ROWS) {
+      setManualPagination(false);
+    }
+  }, [knownTotal, manualPagination]);
 
   // Cache the next-page cursor whenever we receive it
   useEffect(() => {
@@ -488,19 +498,21 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                   Duplicate
                 </button>
 
-                <button
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={manualPagination}
-                  onClick={() => setManualPagination((v) => !v)}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                  aria-label="Toggle pagination for this group"
-                >
-                  {manualPagination
-                    ? <FiCheckSquare size={13} aria-hidden="true" className="text-indigo-600" />
-                    : <FiSquare size={13} aria-hidden="true" />}
-                  Pagination
-                </button>
+                {knownTotal >= MANUAL_PAGINATION_MIN_ROWS && (
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={manualPagination}
+                    onClick={() => setManualPagination((v) => !v)}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                    aria-label="Toggle pagination for this group"
+                  >
+                    {manualPagination
+                      ? <FiCheckSquare size={13} aria-hidden="true" className="text-indigo-600" />
+                      : <FiSquare size={13} aria-hidden="true" />}
+                    Pagination
+                  </button>
+                )}
 
                 {confirmArchive ? (
                   <div className="px-3 py-2 space-y-1">
