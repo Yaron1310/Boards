@@ -52,4 +52,8 @@ export const queryKeys = {
   chat: {
     messages: (itemId: string) => ['chat', itemId, 'messages'] as const,
   },
+  personalHub: {
+    columns: ['personalHub', 'columns'] as const,
+    itemValues: (itemIds: string[]) => ['personalHub', 'itemValues', [...itemIds].sort()] as const,
+  },
 };

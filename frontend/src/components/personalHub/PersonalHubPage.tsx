@@ -154,6 +154,7 @@ const PersonalHubPage: React.FC = () => {
                 key={boardId}
                 boardId={boardId}
                 items={itemsByBoard[boardId]}
+                isOwn={isOwn}
                 onOpenDetail={setDetailItem}
                 onOpenChat={setChatItem}
               />
@@ -191,8 +192,8 @@ const PersonalHubPage: React.FC = () => {
       )}
 
       {detailItem && (
-        <BoardRenderProvider visibleItems={items} columns={[]} isBoardReadOnly={false} openChat={setChatItem}>
-          <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
+        <BoardRenderProvider visibleItems={items} columns={[]} isBoardReadOnly openChat={setChatItem}>
+          <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} readOnly />
         </BoardRenderProvider>
       )}
 

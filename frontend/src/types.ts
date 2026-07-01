@@ -581,6 +581,27 @@ export interface BoardPermissionsWorkspace {
   }>;
 }
 
+// =============================================================================
+// PERSONAL HUB — user-owned columns overlaid on top of assigned items
+// =============================================================================
+
+export type PersonalColumnScope = 'board' | 'all';
+
+export interface PersonalColumn {
+  id: string;
+  orgId: string;
+  userId: string;
+  name: string;
+  type: ColumnType;
+  settings: ColumnSettings;
+  scope: PersonalColumnScope;
+  boardId?: string;
+  width?: number;
+  order: number;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
 export type NotificationType = 'assignment' | 'mention';
 
 export interface Notification {

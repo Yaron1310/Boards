@@ -15,9 +15,11 @@ import { useBoardRender } from '../../contexts/BoardRenderContext';
 interface ItemDetailPanelProps {
   item: Item;
   onClose: () => void;
+  /** Forces the panel into a fully locked, view-only mode (used by Personal Hub, where source-board data must not be editable). */
+  readOnly?: boolean;
 }
 
-const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, onClose }) => {
+const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, onClose, readOnly = false }) => {
   const { user } = useAuthSession();
   const { openChat } = useBoardRender();
   const { data: columns = [] } = useColumns(initialItem.boardId);
@@ -40,18 +42,20 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   useFocusTrap(panelRef);
 
   const canManage =
-    user?.role === UserRole.WORKSPACE_ADMIN ||
+    !readOnly &&
+    (user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
     item.createdBy === user?.id ||
-    (item.assignees ?? []).includes(user?.id ?? '');
+    (item.assignees ?? []).includes(user?.id ?? ''));
 
   const canDelete =
-    user?.role === UserRole.WORKSPACE_ADMIN ||
+    !readOnly &&
+    (user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
-    user?.role === UserRole.SYSTEM_ADMIN;
+    user?.role === UserRole.SYSTEM_ADMIN);
 
   useEffect(() => {
     setNameValue(item.name);

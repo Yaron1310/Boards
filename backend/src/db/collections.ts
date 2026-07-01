@@ -59,3 +59,13 @@ export const webhooksCollection = db.collection('webhooks');
 // /organizations/{orgId}/customDashboards/{dashboardId}
 export const customDashboardsCollection = (orgId: string) =>
   db.collection('organizations').doc(orgId).collection('customDashboards');
+
+// Personal Hub — user-owned columns, org-level (never attached to a real board):
+// /organizations/{orgId}/personalColumns/{columnId}
+export const personalColumnsCollection = (orgId: string) =>
+  db.collection('organizations').doc(orgId).collection('personalColumns');
+
+// Personal Hub — per-(user,item) values for personal columns:
+// /organizations/{orgId}/personalItemValues/{userId_itemId}
+export const personalItemValuesCollection = (orgId: string) =>
+  db.collection('organizations').doc(orgId).collection('personalItemValues');

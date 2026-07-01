@@ -275,6 +275,35 @@ export interface DBColumn {
   updatedAt: admin.firestore.Timestamp | Date | any;
 }
 
+// --- Personal Hub columns — user-owned columns overlaid on top of items the
+// user is assigned to, scoped to a single source board or to every board
+// shown in that user's Personal Hub. Never attached to a real Board, so they
+// can never be picked up as a source board by anyone's Personal Hub query. ---
+
+export interface DBPersonalColumn {
+  id: string;
+  orgId: string;
+  userId: string;
+  name: string;
+  type: ColumnType;
+  settings: ColumnSettings;
+  scope: 'board' | 'all';
+  boardId?: string; // required when scope === 'board'
+  order: number;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
+// One doc per (userId, itemId) holding that user's personal-column values for that item.
+export interface DBPersonalItemValue {
+  id: string; // `${userId}_${itemId}`
+  orgId: string;
+  userId: string;
+  itemId: string;
+  values: Record<string, unknown>;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
 // --- Column value types (stored inside Item.values) ---
 
 export interface LocationValue {

@@ -28,6 +28,8 @@ import { customDashboardRouter } from './customDashboard.routes.js';
 import { notificationRouter } from './notification.routes.js';
 // Item chat
 import { itemChatRouter } from './itemChat.routes.js';
+// Personal Hub
+import { personalHubRouter } from './personalHub.routes.js';
 
 export const mainRouter = Router();
 
@@ -62,3 +64,5 @@ mainRouter.use('/custom-dashboards', customDashboardRouter);
 mainRouter.use('/notifications', notificationRouter);
 // Item chat
 mainRouter.use('/items/:itemId/chat', itemChatRouter);
+// Personal Hub
+mainRouter.use('/personal-hub', personalHubRouter);
