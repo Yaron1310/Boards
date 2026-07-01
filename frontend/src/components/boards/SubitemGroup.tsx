@@ -4,7 +4,7 @@ import AddColumnModal from './AddColumnModal';
 import EditColumnConfigModal from './EditColumnConfigModal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSubitemColumns, useDeleteColumn, useUpdateColumn } from '../../hooks/queries/useColumnQueries';
-import { useSubitemGroup } from '../../hooks/queries/useGroupQueries';
+import { useSubitemGroup, useDeleteGroup } from '../../hooks/queries/useGroupQueries';
 import { useGroupItems, useCreateItem, useArchiveItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useCreateColumn } from '../../hooks/queries/useColumnQueries';
 import { useCreateGroup } from '../../hooks/queries/useGroupQueries';
@@ -30,7 +30,18 @@ interface SubitemGroupProps {
   boardId: string;
   workspaceId: string;
   parentItemId: string;
+  groupColor?: string;
+  onEmpty?: () => void;
 }
+
+const DEFAULT_LOCAL_COLUMNS: Column[] = [
+  { id: '__local_person__', boardId: '', name: 'Person', type: ColumnType.PERSON, settings: { multiple: true } } as Column,
+  { id: '__local_status__', boardId: '', name: 'Status', type: ColumnType.STATUS, settings: { options: DEFAULT_STATUS_OPTIONS } } as Column,
+  { id: '__local_date__', boardId: '', name: 'Date', type: ColumnType.DATE, settings: {} } as Column,
+];
+
+let pendingIdCounter = 0;
+const nextPendingId = (prefix: string) => `${prefix}-${Date.now()}-${++pendingIdCounter}`;
 
 const SubitemColumnHeader: React.FC<{ col: Column; boardId: string; subitemGroupId: string; colWidth: number; allColumns: Column[] }> = ({ col, boardId, subitemGroupId, colWidth, allColumns }) => {
   const qc = useQueryClient();
@@ -376,7 +387,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
   );
 };
 
-const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId }) => {
+const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty }) => {
   const { user } = useAuthSession();
   const { columnWidths } = useBoardRender();
   const qc = useQueryClient();
@@ -388,10 +399,22 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const addItemInputRef = useRef<HTMLInputElement>(null);
   const shouldFocusOnMount = useRef(false);
   const [showAddColModal, setShowAddColModal] = useState(false);
+  const [showQuickAddCol, setShowQuickAddCol] = useState(false);
+  const [quickColName, setQuickColName] = useState('');
+  const [quickColType, setQuickColType] = useState<ColumnType>(ColumnType.TEXT);
+
+  // Optimistic-update bookkeeping: items/columns queued while the group (and its
+  // default columns) are still being created in the background, remembered in
+  // the order they happen so they can be replayed once the real IDs exist.
+  const [pendingItems, setPendingItems] = useState<{ tempId: string; name: string }[]>([]);
+  const [pendingColumns, setPendingColumns] = useState<{ tempId: string; name: string; type: ColumnType }[]>([]);
+  const groupPromiseRef = useRef<Promise<{ id: string }> | null>(null);
 
   const { mutateAsync: createGroup } = useCreateGroup();
   const { mutateAsync: createColumn } = useCreateColumn(boardId);
   const { mutateAsync: createItem, isPending: isCreatingItem } = useCreateItem();
+  const { mutateAsync: deleteColumn } = useDeleteColumn(boardId);
+  const { mutateAsync: deleteGroup } = useDeleteGroup();
 
   const { data: subitemGroup, isLoading: groupLoading } = useSubitemGroup(boardId, parentItemId);
 
@@ -408,9 +431,51 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     !!subitemGroup,
   );
 
-  const items = itemsPage?.data ?? [];
+  const realItems = itemsPage?.data ?? [];
 
-  const isLoading = groupLoading || isInitializing || (!!subitemGroup && columnsLoading);
+  const initialize = (): Promise<{ id: string }> => {
+    if (groupPromiseRef.current) return groupPromiseRef.current;
+    const p = (async () => {
+      setIsInitializing(true);
+      try {
+        const group = await createGroup({
+          boardId,
+          data: { name: 'Subitems', color: groupColor ?? '#94a3b8', parentItemId },
+        });
+
+        await createColumn({ name: 'Person', type: ColumnType.PERSON, settings: { multiple: true }, parentGroupId: group.id });
+        await createColumn({ name: 'Status', type: ColumnType.STATUS, settings: { options: DEFAULT_STATUS_OPTIONS }, parentGroupId: group.id });
+        await createColumn({ name: 'Date', type: ColumnType.DATE, settings: {}, parentGroupId: group.id });
+
+        await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
+        await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, group.id) });
+
+        return group;
+      } finally {
+        setIsInitializing(false);
+      }
+    })();
+    groupPromiseRef.current = p;
+    return p;
+  };
+
+  // Auto-initialize on first render if no subitem group exists yet
+  useEffect(() => {
+    if (!groupLoading && subitemGroup === null) {
+      shouldFocusOnMount.current = true;
+      setPendingAutoFocus(true);
+      void initialize();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupLoading, subitemGroup]);
+
+  // Resolves once the real subitem group exists — creates it (idempotently) if needed.
+  const ensureGroupReady = (): Promise<{ id: string }> => {
+    if (subitemGroup) return Promise.resolve(subitemGroup);
+    return initialize();
+  };
+
+  const isLoading = groupLoading;
 
   // Open and focus the add-item input once loading settles (after first-time initialization)
   useEffect(() => {
@@ -422,43 +487,21 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
   // No explicit focus effect needed — the input uses autoFocus and a ref callback
 
-  const initialize = async () => {
-    if (!user || isInitializing || subitemGroup !== null) return;
-    setIsInitializing(true);
-    try {
-      const group = await createGroup({
-        boardId,
-        data: { name: 'Subitems', color: '#94a3b8', parentItemId },
-      });
-
-      await createColumn({ name: 'Person', type: ColumnType.PERSON, settings: { multiple: true }, parentGroupId: group.id });
-      await createColumn({ name: 'Status', type: ColumnType.STATUS, settings: { options: DEFAULT_STATUS_OPTIONS }, parentGroupId: group.id });
-      await createColumn({ name: 'Date', type: ColumnType.DATE, settings: {}, parentGroupId: group.id });
-
-      await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
-
-      // Signal that we want auto-focus after the loading state clears
-      shouldFocusOnMount.current = true;
-      setPendingAutoFocus(true);
-    } finally {
-      setIsInitializing(false);
-    }
-  };
-
-  // Auto-initialize on first render if no subitem group exists yet
-  useEffect(() => {
-    if (!groupLoading && subitemGroup === null && !isInitializing) {
-      void initialize();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [groupLoading, subitemGroup]);
-
   const handleAddItem = async () => {
     const trimmed = newItemName.trim();
-    if (!trimmed || !user || !subitemGroup) return;
-    await createItem({ name: trimmed, workspaceId, boardId, groupId: subitemGroup.id });
+    if (!trimmed || !user) return;
     setNewItemName('');
     setAddingItem(false);
+
+    const tempId = nextPendingId('item');
+    setPendingItems((prev) => [...prev, { tempId, name: trimmed }]);
+    try {
+      const group = await ensureGroupReady();
+      await createItem({ name: trimmed, workspaceId, boardId, groupId: group.id });
+      await qc.invalidateQueries({ queryKey: queryKeys.items.group(group.id, undefined, 200) });
+    } finally {
+      setPendingItems((prev) => prev.filter((p) => p.tempId !== tempId));
+    }
   };
 
   const handleAddItemKeyDown = (e: React.KeyboardEvent) => {
@@ -466,14 +509,50 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     if (e.key === 'Escape') { setAddingItem(false); setNewItemName(''); }
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center gap-2 pl-10 py-2 text-xs text-gray-400">
-        <FiLoader size={11} className="animate-spin" aria-hidden="true" />
-        Setting up subitems…
-      </div>
-    );
-  }
+  const handleQuickAddColumn = async () => {
+    const trimmed = quickColName.trim() || quickColType;
+    const type = quickColType;
+    const tempId = nextPendingId('col');
+    setPendingColumns((prev) => [...prev, { tempId, name: trimmed, type }]);
+    setShowQuickAddCol(false);
+    setQuickColName('');
+    setQuickColType(ColumnType.TEXT);
+    try {
+      const group = await ensureGroupReady();
+      await createColumn({
+        name: trimmed,
+        type,
+        settings: type === ColumnType.STATUS ? { options: DEFAULT_STATUS_OPTIONS } : {},
+        parentGroupId: group.id,
+      });
+      await qc.invalidateQueries({ queryKey: queryKeys.columns.subitem(boardId, group.id) });
+    } finally {
+      setPendingColumns((prev) => prev.filter((c) => c.tempId !== tempId));
+    }
+  };
+
+  // Auto-teardown: if the user removes every subitem row, delete the (now empty)
+  // subitem group + its columns and collapse the panel on the host item.
+  const prevItemCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!subitemGroup || itemsFetching || columnsLoading) return;
+    const total = realItems.length + pendingItems.length;
+    const prev = prevItemCountRef.current;
+    prevItemCountRef.current = total;
+    if (prev !== null && prev > 0 && total === 0) {
+      void (async () => {
+        await Promise.all(columns.map((c) => deleteColumn(c.id)));
+        await deleteGroup({ boardId, groupId: subitemGroup.id });
+        await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
+        onEmpty?.();
+      })();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [realItems.length, pendingItems.length, subitemGroup, itemsFetching, columnsLoading]);
+
+  const pendingColumnPlaceholders: Column[] = pendingColumns.map((c) => ({
+    id: c.tempId, boardId, name: c.name, type: c.type, settings: {},
+  } as Column));
 
   const NAME_COL_WIDTH = 220;
 
@@ -497,29 +576,98 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         >
           Subitem
         </div>
-        {columns.map((col) => {
-          const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
+        {subitemGroup
+          ? columns.map((col) => {
+              const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
+              return (
+                <SubitemColumnHeader
+                  key={col.id}
+                  col={col}
+                  boardId={boardId}
+                  subitemGroupId={subitemGroup.id}
+                  colWidth={colWidth}
+                  allColumns={columns}
+                />
+              );
+            })
+          : DEFAULT_LOCAL_COLUMNS.map((col) => {
+              const colWidth = calculateColumnWidth(col.name, col.type);
+              return (
+                <div
+                  key={col.id}
+                  role="columnheader"
+                  style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
+                  className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-gray-400"
+                >
+                  <span className="flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
+                  <span className="truncate">{col.name}</span>
+                </div>
+              );
+            })}
+
+        {pendingColumnPlaceholders.map((col) => {
+          const colWidth = calculateColumnWidth(col.name, col.type);
           return (
-            <SubitemColumnHeader
+            <div
               key={col.id}
-              col={col}
-              boardId={boardId}
-              subitemGroupId={subitemGroup!.id}
-              colWidth={colWidth}
-              allColumns={columns}
-            />
+              role="columnheader"
+              style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
+              className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-gray-400 opacity-60"
+            >
+              <FiLoader size={11} className="animate-spin flex-shrink-0" aria-hidden="true" />
+              <span className="truncate">{col.name}</span>
+            </div>
           );
         })}
 
         {/* Add column button */}
-        <button
-          type="button"
-          onClick={() => setShowAddColModal(true)}
-          className="flex items-center justify-center w-8 flex-shrink-0 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors"
-          aria-label="Add subitem column"
-        >
-          <FiPlus size={13} aria-hidden="true" />
-        </button>
+        <div className="relative flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => (subitemGroup ? setShowAddColModal(true) : setShowQuickAddCol((o) => !o))}
+            className="flex items-center justify-center w-8 h-full text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/50 transition-colors"
+            aria-label="Add subitem column"
+          >
+            <FiPlus size={13} aria-hidden="true" />
+          </button>
+
+          {/* Lightweight quick-add used only while the group is still being created in the background */}
+          {showQuickAddCol && !subitemGroup && (
+            <>
+              <div className="fixed inset-0 z-[9990]" onClick={() => setShowQuickAddCol(false)} aria-hidden="true" />
+              <div className="absolute top-full right-0 mt-1 z-[9991] bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-52 flex flex-col gap-2">
+                <input
+                  autoFocus
+                  type="text"
+                  value={quickColName}
+                  onChange={(e) => setQuickColName(e.target.value)}
+                  placeholder="Column name…"
+                  className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  aria-label="New column name"
+                  onKeyDown={(e) => { if (e.key === 'Enter') void handleQuickAddColumn(); if (e.key === 'Escape') setShowQuickAddCol(false); }}
+                />
+                <select
+                  value={quickColType}
+                  onChange={(e) => setQuickColType(e.target.value as ColumnType)}
+                  className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white"
+                  aria-label="Column type"
+                >
+                  {Object.values(ColumnType).map((t) => (
+                    <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1).toLowerCase()}</option>
+                  ))}
+                </select>
+                <div className="flex justify-end gap-1">
+                  <button type="button" onClick={() => setShowQuickAddCol(false)} className="px-2 py-1 text-xs text-gray-500 hover:text-gray-700" aria-label="Cancel">
+                    Cancel
+                  </button>
+                  <button type="button" onClick={() => void handleQuickAddColumn()} className="px-2 py-1 text-xs text-indigo-600 hover:text-indigo-700 font-medium" aria-label="Create column">
+                    Add
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {showAddColModal && subitemGroup && (
@@ -532,14 +680,22 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
       {/* Item rows */}
       <div role="rowgroup">
-        {itemsFetching && items.length === 0 ? (
+        {itemsFetching && realItems.length === 0 && pendingItems.length === 0 ? (
           <div className="px-3 py-2 text-xs text-gray-400 flex items-center gap-1">
             <FiLoader size={10} className="animate-spin" aria-hidden="true" /> Loading…
           </div>
         ) : (
-          items.map((item) => (
-            <SubitemRow key={item.id} item={item} columns={columns} />
-          ))
+          <>
+            {realItems.map((item) => (
+              <SubitemRow key={item.id} item={item} columns={columns} />
+            ))}
+            {pendingItems.map((p) => (
+              <div key={p.tempId} role="row" className="flex items-center gap-2 border-b border-[#e5e7eb] px-3 py-1.5 opacity-60">
+                <FiLoader size={10} className="animate-spin flex-shrink-0 text-indigo-400" aria-hidden="true" />
+                <span className="text-xs text-gray-500 truncate">{p.name}</span>
+              </div>
+            ))}
+          </>
         )}
       </div>
 

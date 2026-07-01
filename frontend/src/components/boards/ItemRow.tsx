@@ -157,7 +157,8 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setSubitemsOpen((o) => !o); }}
-          className={`flex items-center justify-center w-5 flex-shrink-0 transition-all text-gray-400 hover:text-indigo-600 ${subitemsOpen ? 'opacity-100 text-indigo-500' : subitemGroup ? 'opacity-60' : 'opacity-0 group-hover:opacity-100'}`}
+          style={(subitemsOpen || subitemGroup) && groupColor ? { color: groupColor } : undefined}
+          className={`flex items-center justify-center w-5 flex-shrink-0 transition-all ${subitemsOpen ? 'opacity-100' : subitemGroup ? 'opacity-60' : 'opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600'}`}
           aria-label={subitemsOpen ? `Collapse subitems for ${item.name}` : `Expand subitems for ${item.name}`}
           aria-expanded={subitemsOpen}
         >
@@ -304,6 +305,8 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor }
         boardId={item.boardId}
         workspaceId={item.workspaceId}
         parentItemId={item.id}
+        groupColor={groupColor}
+        onEmpty={() => setSubitemsOpen(false)}
       />
     )}
     </>
