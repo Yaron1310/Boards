@@ -24,6 +24,7 @@ import ItemChatModal from '../boards/ItemChatModal';
 import UndoButton from '../boards/UndoButton';
 import AddColumnModal from '../boards/AddColumnModal';
 import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
+import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { usePersonalColumns } from '../../hooks/queries/usePersonalHubQueries';
 import { PERSONAL_COL_WIDTH } from './constants';
 import { exportPersonalHubToXlsx } from '../../utils/exportPersonalHubToXlsx';
@@ -321,6 +322,9 @@ const PersonalHubPageInner: React.FC = () => {
         </div>
       </div>
 
+      <div className="flex-1 relative min-h-0 flex flex-col">
+      <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
+
       {isLoading ? (
         <div className="flex justify-center items-center h-64" role="status" aria-label="Loading assigned items">
           <FiLoader className="animate-spin h-8 w-8 text-indigo-600" aria-hidden="true" />
@@ -340,8 +344,10 @@ const PersonalHubPageInner: React.FC = () => {
               managed (rename/settings/reorder/delete); each group below shows their
               names too for alignment, but read-only — their own source-board columns
               are never editable here. */}
-          <div className="sticky top-0 z-[3] flex items-center gap-1 px-4 pt-3 pb-1 bg-gray-50/95 backdrop-blur-sm" role="row" aria-label="Personal Hub column controls">
-            <div className="w-[282px] flex-shrink-0 px-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</div>
+          <div className="sticky top-0 z-[3] flex items-center bg-gray-50/95 backdrop-blur-sm border-b border-[#d2d2d4]" role="row" aria-label="Personal Hub column controls">
+            <div className="w-[282px] flex-shrink-0 px-4 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 sticky left-0 z-[1] bg-gray-50/95">
+              Item
+            </div>
             {crossGroupColumns.map((col) => (
               isOwn
                 ? <PersonalColumnHeaderCell key={col.id} column={col} />
@@ -350,9 +356,10 @@ const PersonalHubPageInner: React.FC = () => {
                     key={col.id}
                     role="columnheader"
                     style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-                    className="flex flex-shrink-0 items-center justify-center px-2 py-2 text-sm font-semibold text-indigo-600 bg-indigo-50/50 rounded"
+                    className="flex flex-shrink-0 items-center justify-center gap-1.5 px-2 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 bg-indigo-50/50"
                     title={`${col.name} (personal column)`}
                   >
+                    <span className="text-indigo-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
                     <span className="truncate">{col.name}</span>
                   </div>
                 )
@@ -418,6 +425,7 @@ const PersonalHubPageInner: React.FC = () => {
           )}
         </div>
       )}
+      </div>
 
       {detailItem && (
         <DependencyProvider items={items}>

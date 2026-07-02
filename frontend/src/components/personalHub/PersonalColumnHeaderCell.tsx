@@ -7,6 +7,7 @@ import type { PersonalColumn } from '../../types';
 import { PERSONAL_COL_WIDTH } from './constants';
 import AddColumnModal from '../boards/AddColumnModal';
 import EditColumnConfigModal from '../boards/EditColumnConfigModal';
+import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 
 interface Props {
   column: PersonalColumn;
@@ -118,7 +119,12 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
       className="relative flex flex-shrink-0 items-center px-2 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 bg-indigo-50/50 group"
       title={`${column.name} (your personal column)`}
     >
-      <span className="flex-1 truncate text-center px-1">{column.name}</span>
+      <span className="flex flex-1 items-center justify-center gap-1.5 min-w-0 truncate px-1">
+        <span className="text-indigo-400 flex-shrink-0" title={column.type}>
+          {COLUMN_TYPE_ICONS[column.type]}
+        </span>
+        <span className="truncate">{column.name}</span>
+      </span>
 
       <div className="relative flex-shrink-0" ref={menuRef}>
         <button

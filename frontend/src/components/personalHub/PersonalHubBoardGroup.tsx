@@ -47,6 +47,7 @@ const PersonalColumnHeaderLabel: React.FC<{ col: PersonalColumn }> = ({ col }) =
     className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 bg-indigo-50/50"
     title={`${col.name} (personal column)`}
   >
+    <span className="text-indigo-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
     <span className="truncate">{col.name}</span>
   </div>
 );
