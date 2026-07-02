@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { boardsCollection, boardVersionsCollection, groupsCollection, columnsCollection, workspacesCollection, boardMembersCollection, itemsCollection } from '../db/collections.js';
+import { boardsCollection, boardVersionsCollection, groupsCollection, columnsCollection, workspacesCollection, boardMembersCollection, itemsCollection, itemChatMessagesCollection } from '../db/collections.js';
 import { JwtUserPayload, DBBoard, DBBoardMember } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -417,12 +417,37 @@ export const deleteBoard = async (req: Request, res: Response) => {
     const board = snapshotToData<DBBoard>(doc)!;
     assertBoardAccess(user, board, 'delete');
 
-    // Batch-delete all groups under this board, then delete the board itself
-    const groupsSnap = await groupsCollection(user.orgId, id).get();
-    const batch = db.batch();
-    groupsSnap.forEach((g: { ref: FirebaseFirestore.DocumentReference }) => batch.delete(g.ref));
-    batch.delete(boardsCollection(user.orgId).doc(id));
-    await batch.commit();
+    // Cascade-delete everything that belongs to this board so nothing is left
+    // orphaned: groups, columns, board members, items, and each item's chat
+    // messages — then the board doc itself.
+    const [groupsSnap, columnsSnap, membersSnap, itemsSnap] = await Promise.all([
+      groupsCollection(user.orgId, id).get(),
+      columnsCollection(user.orgId, id).get(),
+      boardMembersCollection(user.orgId, id).get(),
+      itemsCollection(user.orgId).where('boardId', '==', id).get(),
+    ]);
+
+    const chatMessageRefs: FirebaseFirestore.DocumentReference[] = [];
+    for (const itemDoc of itemsSnap.docs) {
+      const chatSnap = await itemChatMessagesCollection(user.orgId, itemDoc.id).get();
+      chatSnap.forEach((m) => chatMessageRefs.push(m.ref));
+    }
+
+    const refsToDelete: FirebaseFirestore.DocumentReference[] = [
+      ...chatMessageRefs,
+      ...itemsSnap.docs.map((d) => d.ref),
+      ...columnsSnap.docs.map((d) => d.ref),
+      ...membersSnap.docs.map((d) => d.ref),
+      ...groupsSnap.docs.map((d) => d.ref),
+      boardsCollection(user.orgId).doc(id),
+    ];
+
+    const BATCH_SIZE = 400;
+    for (let i = 0; i < refsToDelete.length; i += BATCH_SIZE) {
+      const batch = db.batch();
+      refsToDelete.slice(i, i + BATCH_SIZE).forEach((ref) => batch.delete(ref));
+      await batch.commit();
+    }
     void revokeAllWebhooksForBoard(user.orgId, id);
 
     void logAudit({
