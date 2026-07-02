@@ -37,7 +37,7 @@ const PERSONAL_COL_WIDTH = 160;
  */
 const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenDetail, onOpenChat }) => {
   const navigate = useNavigate();
-  const { data: board, isLoading: boardLoading } = useBoard(boardId);
+  const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
   const { data: columns = [] } = useColumns(boardId);
   const { data: allPersonalColumns = [] } = usePersonalColumns();
   const [showAddColumn, setShowAddColumn] = useState(false);
@@ -51,6 +51,10 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
   const { data: personalValuesByItem = {} } = usePersonalItemValues(itemIds, isOwn);
 
   const itemSectionWidth = 298 - 16;
+
+  // The source board no longer exists (or is no longer accessible) — its items are
+  // orphaned, so there's nothing meaningful to render for this group.
+  if (boardError) return null;
 
   if (boardLoading || !board) {
     return (
