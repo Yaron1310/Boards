@@ -37,13 +37,18 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
 
   useEffect(() => { if (!isEditing) setDraft(cellFormula); }, [cellFormula, isEditing]);
 
+  // Registered once per edit session (see effect below), so this closure must never read
+  // `draft` directly — it would capture the value from when editing started and every
+  // subsequent insert would overwrite prior inserts instead of appending. Use the
+  // functional setState form to always build on the latest draft.
   const insertCellRef = (cellAddress: string) => {
     const input = inputRef.current;
-    const pos = input ? (input.selectionStart ?? draft.length) : draft.length;
     const ref = `{${cellAddress}}`;
-    const next = draft.slice(0, pos) + ref + draft.slice(pos);
-    setDraft(next);
-    cursorRef.current = pos + ref.length;
+    setDraft((prevDraft) => {
+      const pos = input ? (input.selectionStart ?? prevDraft.length) : prevDraft.length;
+      cursorRef.current = pos + ref.length;
+      return prevDraft.slice(0, pos) + ref + prevDraft.slice(pos);
+    });
     requestAnimationFrame(() => {
       if (inputRef.current) {
         inputRef.current.focus();
@@ -56,7 +61,6 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     if (!isEditing) return;
     setInsertHandler(insertCellRef);
     return () => setInsertHandler(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, setInsertHandler]);
 
   const rowIndex = gridContext.rowOrder.indexOf(itemId);

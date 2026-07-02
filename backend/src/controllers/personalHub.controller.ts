@@ -119,19 +119,30 @@ export const reorderPersonalColumns = async (req: Request, res: Response) => {
       }
     }
 
+    const skippedIds = (order as { id: string; order: number }[])
+      .filter((_, i) => !docs[i]?.exists)
+      .map((entry) => entry.id);
+    if (skippedIds.length > 0) {
+      logger.warn('reorderPersonalColumns: skipping stale/missing column ids', { userId: user.id, skippedIds });
+    }
+
     const batch = admin.firestore().batch();
     let updated = 0;
     (order as { id: string; order: number }[]).forEach((entry, i) => {
       if (docs[i]?.exists) {
-        batch.update(personalColumnsCollection(user.orgId).doc(entry.id), { order: entry.order, updatedAt: timestamp });
+        // set(..., { merge: true }) instead of update() — update() throws NOT_FOUND if
+        // the document is deleted in the (tiny) window between the existence check above
+        // and this commit; set-merge upserts, so a confirmed-existing doc can never
+        // NOT_FOUND here, and it writes identical fields either way.
+        batch.set(personalColumnsCollection(user.orgId).doc(entry.id), { order: entry.order, updatedAt: timestamp }, { merge: true });
         updated += 1;
       }
     });
     if (updated > 0) await batch.commit();
 
-    res.json({ message: 'Personal columns reordered.' });
+    res.json({ message: 'Personal columns reordered.', updated, skipped: skippedIds.length });
   } catch (err: unknown) {
-    logger.error('Error reordering personal columns:', err);
+    logger.error('Error reordering personal columns:', err, { userId: user.id, order });
     res.status(500).json({ message: 'Failed to reorder personal columns.' });
   }
 };
