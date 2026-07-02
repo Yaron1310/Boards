@@ -8,6 +8,7 @@ import { useItems } from '../../hooks/queries/useItemQueries';
 import { useBoard } from '../../hooks/queries/useBoardQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
+import { DependencyProvider } from '../../contexts/DependencyContext';
 import { UserRole, ColumnType } from '../../types';
 import type { Item, Group } from '../../types';
 import PersonalHubBoardGroup from './PersonalHubBoardGroup';
@@ -192,9 +193,11 @@ const PersonalHubPage: React.FC = () => {
       )}
 
       {detailItem && (
-        <BoardRenderProvider visibleItems={items} columns={[]} openChat={setChatItem}>
-          <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
-        </BoardRenderProvider>
+        <DependencyProvider items={items}>
+          <BoardRenderProvider visibleItems={items} columns={[]} openChat={setChatItem}>
+            <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
+          </BoardRenderProvider>
+        </DependencyProvider>
       )}
 
       {chatItem && createPortal(

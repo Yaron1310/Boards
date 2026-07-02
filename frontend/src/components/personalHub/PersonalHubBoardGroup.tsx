@@ -7,6 +7,7 @@ import { useBoard } from '../../hooks/queries/useBoardQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { usePersonalColumns, usePersonalItemValues } from '../../hooks/queries/usePersonalHubQueries';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
+import { DependencyProvider } from '../../contexts/DependencyContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import ItemRow from '../boards/ItemRow';
@@ -129,6 +130,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
         </div>
 
         <BoardRenderProvider visibleItems={items} columns={columns} boardView="table" openChat={onOpenChat}>
+          <DependencyProvider items={items}>
           <DndContext onDragEnd={() => {}}>
             <div role="rowgroup" aria-label={`Items assigned to you in ${board.name}`} className="w-max">
               {items.length === 0 ? (
@@ -162,6 +164,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
               )}
             </div>
           </DndContext>
+          </DependencyProvider>
         </BoardRenderProvider>
       </section>
 
