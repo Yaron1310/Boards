@@ -104,7 +104,11 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
     if (board) onBoardResolved?.(boardId, board.name);
   }, [board, boardId, onBoardResolved]);
 
-  const { data: columns = [] } = useColumns(boardId);
+  // Don't fire columns/groups lookups until the board itself has resolved — for
+  // orphaned items (pointing at a hard-deleted board), the board fetch 404s and
+  // this group renders nothing anyway, so there's no point also firing (and
+  // console-logging) doomed columns/groups requests for it.
+  const { data: columns = [] } = useColumns(boardId, !!board);
   const { data: allPersonalColumns = [] } = usePersonalColumns();
 
   const crossGroupColumns = useMemo(
@@ -117,11 +121,13 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
   );
 
   // Resolve each assigned item's group so subitems can be swapped out for their hosting item.
+  // Gated on the board having resolved — see the useColumns note above.
   const groupResults = useQueries({
     queries: items.map((item) => ({
       queryKey: queryKeys.groups.one(boardId, item.groupId),
       queryFn: () => wm.getGroup(boardId, item.groupId),
       staleTime: 2 * 60 * 1000,
+      enabled: !!board,
     })),
   });
   const groupsSettled = groupResults.every((r) => !r.isLoading);
