@@ -7,12 +7,12 @@ import {
   FiMail, FiPhone, FiMapPin, FiZap, FiLink,
 } from 'react-icons/fi';
 import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
-import { useCreatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
+import { useCreatePersonalColumn, usePersonalColumns, useReorderPersonalColumns, useDeletePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
-import type { StatusOption, DropdownOption, PersonalColumnScope } from '../../types';
+import type { StatusOption, DropdownOption, PersonalColumnScope, PersonalColumn } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface AddColumnModalProps {
@@ -204,10 +204,17 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const { data: subitemColumns = [] } = useSubitemColumns(boardId ?? '', parentGroupId ?? '', !isPersonal && !!parentGroupId);
   const allColumns = parentGroupId ? subitemColumns : boardColumns;
   const { mutateAsync: reorderColumns } = useReorderColumns(boardId ?? '');
+
+  const { data: allPersonalColumns = [] } = usePersonalColumns(isPersonal);
+  const personalAllScopeColumns = allPersonalColumns.filter((c: PersonalColumn) => c.scope === 'all');
+  const { mutateAsync: reorderPersonalColumns } = useReorderPersonalColumns();
+  const { mutateAsync: deletePersonalColumnMutation } = useDeletePersonalColumn();
+
+  const trackedColumns = isPersonal ? personalAllScopeColumns : allColumns;
   const previousColumnsRef = useRef<string[]>([]);
 
   useEffect(() => {
-    previousColumnsRef.current = allColumns.map(c => c.id);
+    previousColumnsRef.current = trackedColumns.map(c => c.id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -318,9 +325,55 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
           name: trimmedName,
           type,
           settings: buildSettings(),
-          scope: personalScope!,
+          scope: personalScope,
           ...(personalScope === 'board' ? { boardId } : {}),
         });
+
+        if (personalScope === 'all') {
+          await qc.refetchQueries({ queryKey: queryKeys.personalHub.columns });
+          const rawColumns = (qc.getQueryData(queryKeys.personalHub.columns) as PersonalColumn[] | undefined) ?? [];
+          const updatedColumns = [...rawColumns]
+            .filter((c) => c.scope === 'all')
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+          const effectiveInsertBefore = replaceColumnId ?? insertBeforeColumnId;
+
+          if (updatedColumns.length > 0) {
+            const newColumnId = updatedColumns.find((col) => !previousColumnsRef.current.includes(col.id))?.id;
+
+            if (newColumnId) {
+              let targetIndex = updatedColumns.length - 1;
+
+              if (insertAfterColumnId) {
+                const afterIdx = updatedColumns.findIndex((c) => c.id === insertAfterColumnId);
+                if (afterIdx !== -1) targetIndex = afterIdx + 1;
+              } else if (effectiveInsertBefore) {
+                const beforeIdx = updatedColumns.findIndex((c) => c.id === effectiveInsertBefore);
+                if (beforeIdx !== -1) targetIndex = beforeIdx;
+              }
+
+              const currentIndex = updatedColumns.findIndex((c) => c.id === newColumnId);
+              if (currentIndex !== -1) {
+                const reordered = updatedColumns.filter((c) => c.id !== newColumnId && c.id !== replaceColumnId);
+                let insertAt: number;
+                if (replaceColumnId) {
+                  const replaceIdx = updatedColumns.findIndex((c) => c.id === replaceColumnId);
+                  insertAt = updatedColumns.slice(0, replaceIdx).filter((c) => c.id !== newColumnId).length;
+                } else {
+                  insertAt = Math.min(targetIndex, reordered.length);
+                }
+                reordered.splice(Math.max(insertAt, 0), 0, updatedColumns[currentIndex]);
+                const finalOrder = reordered.map((col, idx) => ({ id: col.id, order: idx }));
+                await reorderPersonalColumns(finalOrder);
+              }
+            }
+          }
+
+          if (replaceColumnId) {
+            await deletePersonalColumnMutation(replaceColumnId);
+          }
+        }
+
         onClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create column.');

@@ -22,6 +22,9 @@ import ItemDetailPanel from '../boards/ItemDetailPanel';
 import ItemChatModal from '../boards/ItemChatModal';
 import UndoButton from '../boards/UndoButton';
 import AddColumnModal from '../boards/AddColumnModal';
+import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
+import { usePersonalColumns } from '../../hooks/queries/usePersonalHubQueries';
+import { PERSONAL_COL_WIDTH } from './constants';
 import { exportPersonalHubToXlsx } from '../../utils/exportPersonalHubToXlsx';
 
 type ViewMode = 'table' | 'rows' | 'gantt' | 'dashboard';
@@ -95,6 +98,9 @@ const PersonalHubPageInner: React.FC = () => {
 
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
   const targetUser = isOwn ? authUser : allUsers.find((u) => u.id === targetUserId);
+
+  const { data: allPersonalColumns = [] } = usePersonalColumns();
+  const crossGroupColumns = useMemo(() => allPersonalColumns.filter((c) => c.scope === 'all'), [allPersonalColumns]);
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [detailItem, setDetailItem] = useState<Item | null>(null);
@@ -305,16 +311,32 @@ const PersonalHubPageInner: React.FC = () => {
         </div>
       ) : viewMode === 'table' || viewMode === 'rows' ? (
         <div className="flex-1 overflow-x-auto overflow-y-auto" role="region" aria-label="Assigned items by board">
-          {/* Page-level header — intentionally minimal (Item + add-column only), since each
-              group below keeps its own source-board columns. This is only the entry point
-              for columns that should appear across every group. */}
+          {/* Page-level header — this is the ONLY place cross-group personal columns are
+              managed (rename/settings/reorder/delete); each group below shows their
+              names too for alignment, but read-only — their own source-board columns
+              are never editable here. */}
           <div className="sticky top-0 z-[3] flex items-center gap-1 px-4 pt-3 pb-1 bg-gray-50/95 backdrop-blur-sm" role="row" aria-label="Personal Hub column controls">
             <div className="w-[282px] flex-shrink-0 px-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</div>
+            {crossGroupColumns.map((col) => (
+              isOwn
+                ? <PersonalColumnHeaderCell key={col.id} column={col} />
+                : (
+                  <div
+                    key={col.id}
+                    role="columnheader"
+                    style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+                    className="flex flex-shrink-0 items-center justify-center px-2 py-2 text-sm font-semibold text-indigo-600 bg-indigo-50/50 rounded"
+                    title={`${col.name} (personal column)`}
+                  >
+                    <span className="truncate">{col.name}</span>
+                  </div>
+                )
+            ))}
             {isOwn && (
               <button
                 type="button"
                 onClick={() => setShowAddCrossGroupColumn(true)}
-                className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
+                className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors flex-shrink-0"
                 aria-label="Add a personal column to every group"
                 title="Add column to all groups"
               >

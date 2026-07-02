@@ -18,9 +18,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
+import { useUpdatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
 import { ColumnType } from '../../types';
 import type {
   Column,
+  PersonalColumn,
   StatusOption,
   DropdownOption,
   TextColumnSettings,
@@ -31,9 +33,11 @@ import type {
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface EditColumnConfigModalProps {
-  boardId: string;
-  column: Column;
+  /** Required in board mode (default); ignored in personal mode. */
+  boardId?: string;
+  column: Column | PersonalColumn;
   onClose: () => void;
+  mode?: 'board' | 'personal';
 }
 
 interface SortableStatusOptionProps {
@@ -116,11 +120,14 @@ const SortableStatusOption: React.FC<SortableStatusOptionProps> = ({
 };
 
 
-const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, column, onClose }) => {
+const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, column, onClose, mode = 'board' }) => {
+  const isPersonal = mode === 'personal';
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
-  const { mutateAsync: updateColumn, isPending } = useUpdateColumn(boardId);
+  const { mutateAsync: updateBoardColumn, isPending: isPendingBoard } = useUpdateColumn(boardId ?? '');
+  const { mutateAsync: updatePersonalColumn, isPending: isPendingPersonal } = useUpdatePersonalColumn();
+  const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
   const [error, setError] = useState('');
 
   // TEXT
@@ -229,7 +236,11 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
     }
     setError('');
     try {
-      await updateColumn({ id: column.id, patch: { settings: buildSettings() } });
+      if (isPersonal) {
+        await updatePersonalColumn({ id: column.id, patch: { settings: buildSettings() } });
+      } else {
+        await updateBoardColumn({ id: column.id, patch: { settings: buildSettings() } });
+      }
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save configuration.');

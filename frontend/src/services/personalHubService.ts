@@ -55,6 +55,14 @@ export const updatePersonalColumn = (id: string, patch: UpdatePersonalColumnData
 export const deletePersonalColumn = (id: string): Promise<null> =>
   fetchWithAuth(`/api/personal-hub/columns/${id}`, { method: 'DELETE' });
 
+export interface ReorderPersonalColumnItem {
+  id: string;
+  order: number;
+}
+
+export const reorderPersonalColumns = (order: ReorderPersonalColumnItem[]): Promise<void> =>
+  fetchWithAuth('/api/personal-hub/columns/reorder', { method: 'PATCH', body: JSON.stringify({ order }) });
+
 export const getPersonalItemValues = (itemIds: string[]): Promise<Record<string, Record<string, unknown>>> => {
   if (itemIds.length === 0) return Promise.resolve({});
   return fetchWithAuth(`/api/personal-hub/item-values?itemIds=${itemIds.map(encodeURIComponent).join(',')}`);

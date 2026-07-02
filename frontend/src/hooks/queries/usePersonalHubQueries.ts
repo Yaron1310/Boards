@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import * as ph from '@/services/personalHubService';
-import type { CreatePersonalColumnData, UpdatePersonalColumnData } from '@/services/personalHubService';
+import type { CreatePersonalColumnData, UpdatePersonalColumnData, ReorderPersonalColumnItem } from '@/services/personalHubService';
 
 export const usePersonalColumns = (enabled = true) =>
   useQuery({
@@ -25,6 +25,16 @@ export const useUpdatePersonalColumn = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdatePersonalColumnData }) => ph.updatePersonalColumn(id, patch),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columns });
+    },
+  });
+};
+
+export const useReorderPersonalColumns = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (order: ReorderPersonalColumnItem[]) => ph.reorderPersonalColumns(order),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columns });
     },

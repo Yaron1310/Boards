@@ -83,6 +83,41 @@ export const createPersonalColumn = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
+// PATCH /personal-hub/columns/reorder  (registered BEFORE /:id to avoid conflict)
+// body: { order: { id: string; order: number }[] }
+// ---------------------------------------------------------------------------
+export const reorderPersonalColumns = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { order } = req.body;
+
+  if (!Array.isArray(order) || order.length === 0) {
+    return res.status(400).json({ message: 'order must be a non-empty array of { id, order } objects.' });
+  }
+
+  try {
+    const batch = admin.firestore().batch();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+    for (const entry of order as { id: string; order: number }[]) {
+      if (typeof entry.id !== 'string' || typeof entry.order !== 'number') {
+        return res.status(400).json({ message: 'Each entry must have id (string) and order (number).' });
+      }
+      const doc = await personalColumnsCollection(user.orgId).doc(entry.id).get();
+      if (!doc.exists || doc.data()?.userId !== user.id) {
+        return res.status(403).json({ message: 'Forbidden: one or more columns are not yours.' });
+      }
+      batch.update(personalColumnsCollection(user.orgId).doc(entry.id), { order: entry.order, updatedAt: timestamp });
+    }
+    await batch.commit();
+
+    res.json({ message: 'Personal columns reordered.' });
+  } catch (err: unknown) {
+    logger.error('Error reordering personal columns:', err);
+    res.status(500).json({ message: 'Failed to reorder personal columns.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
 // PATCH /personal-hub/columns/:id
 // ---------------------------------------------------------------------------
 export const updatePersonalColumn = async (req: Request, res: Response) => {
