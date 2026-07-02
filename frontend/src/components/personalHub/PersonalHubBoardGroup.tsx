@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DndContext } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { FiLoader, FiPlus, FiExternalLink } from 'react-icons/fi';
+import { FiLoader, FiExternalLink } from 'react-icons/fi';
 import { useBoard } from '../../hooks/queries/useBoardQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { usePersonalColumns, usePersonalItemValues } from '../../hooks/queries/usePersonalHubQueries';
@@ -12,7 +12,6 @@ import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import PersonalHubItemRow from './PersonalHubItemRow';
 import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
-import AddColumnModal from '../boards/AddColumnModal';
 import { PERSONAL_COL_WIDTH } from './constants';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import type { Item, PersonalColumn } from '../../types';
@@ -48,10 +47,9 @@ const PersonalColumnHeader: React.FC<{ col: PersonalColumn; isOwn: boolean }> = 
  *
  * Source-board columns are the real, live item data — edits here save
  * straight back to the source board (same permission rules as viewing that
- * board directly). Personal columns (owned by the hub's user) are woven in
- * on either side of them: cross-group columns (added once, from the page
- * header) come before the real columns, board-only columns (added from this
- * group's own "+") come after — both are only editable by the hub's owner.
+ * board directly), and stay exactly as fetched — no column management here.
+ * Cross-group personal columns (added once, from the page-level "+") are
+ * woven in before them, on the left. Only editable by the hub's owner.
  */
 const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardView, onOpenDetail, onOpenChat, onBoardResolved }) => {
   const navigate = useNavigate();
@@ -62,7 +60,6 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
   }, [board, boardId, onBoardResolved]);
   const { data: columns = [] } = useColumns(boardId);
   const { data: allPersonalColumns = [] } = usePersonalColumns();
-  const [showAddColumn, setShowAddColumn] = useState(false);
 
   const crossGroupColumns = useMemo(
     () => allPersonalColumns.filter((c) => c.scope === 'all'),
@@ -139,19 +136,6 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
           {boardOnlyColumns.map((col) => (
             <PersonalColumnHeader key={col.id} col={col} isOwn={isOwn} />
           ))}
-          {isOwn && (
-            <div className="flex-shrink-0 flex items-center justify-center px-1">
-              <button
-                type="button"
-                onClick={() => setShowAddColumn(true)}
-                className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                aria-label={`Add a personal column only to ${board.name}`}
-                title="Add column to this group only"
-              >
-                <FiPlus size={15} aria-hidden="true" />
-              </button>
-            </div>
-          )}
         </div>
 
         <BoardRenderProvider visibleItems={items} columns={columns} boardView={boardView} openChat={onOpenChat}>
@@ -181,10 +165,6 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
           </DependencyProvider>
         </BoardRenderProvider>
       </section>
-
-      {showAddColumn && (
-        <AddColumnModal mode="personal" personalScope="board" boardId={boardId} onClose={() => setShowAddColumn(false)} />
-      )}
     </div>
   );
 };
