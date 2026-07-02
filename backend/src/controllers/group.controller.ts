@@ -58,6 +58,34 @@ export const getGroups = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
+// GET /boards/:boardId/groups/:groupId
+// ---------------------------------------------------------------------------
+export const getGroupById = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { boardId, groupId } = req.params;
+
+  try {
+    const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
+    if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
+    const board = snapshotToData<DBBoard>(boardDoc)!;
+
+    const groupDoc = await groupsCollection(user.orgId, boardId).doc(groupId).get();
+    if (!groupDoc.exists) return res.status(404).json({ message: 'Group not found.' });
+    const group = snapshotToData<DBGroup>(groupDoc)!;
+
+    const memberDoc = await boardMembersCollection(user.orgId, boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertGroupAccess(user, group, 'read', board.createdBy, memberData, board.workspaceId);
+
+    res.json(group);
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error fetching group ${req.params.groupId}:`, err);
+    res.status(500).json({ message: 'Failed to fetch group.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
 // POST /boards/:boardId/groups
 // ---------------------------------------------------------------------------
 export const createGroup = async (req: Request, res: Response) => {

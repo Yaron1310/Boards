@@ -13,6 +13,9 @@ groupRouter.post('/', groupController.createGroup);
 // Reorder (specific route before parameterised /:groupId to avoid conflict)
 groupRouter.patch('/reorder', groupController.reorderGroups);
 
+// Single group fetch (used to resolve a subitem's parent group, e.g. from Personal Hub)
+groupRouter.get('/:groupId', groupController.getGroupById);
+
 // Single group archive/restore/duplicate (before generic /:groupId)
 groupRouter.patch('/:groupId/archive', groupController.archiveGroup);
 groupRouter.patch('/:groupId/restore', groupController.restoreGroup);

@@ -153,6 +153,9 @@ export const listGroups = (boardId: string, includeArchived = false, parentItemI
   return fetchWithAuth(`/api/boards/${boardId}/groups${qs}`);
 };
 
+export const getGroup = (boardId: string, groupId: string): Promise<Group> =>
+  fetchWithAuth(`/api/boards/${boardId}/groups/${groupId}`);
+
 export const createGroup = (boardId: string, data: CreateGroupData): Promise<Group> =>
   fetchWithAuth(`/api/boards/${boardId}/groups`, { method: 'POST', body: JSON.stringify(data) });
 

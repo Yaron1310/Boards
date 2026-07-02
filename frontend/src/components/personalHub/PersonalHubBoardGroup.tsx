@@ -10,9 +10,9 @@ import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import { DependencyProvider } from '../../contexts/DependencyContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
-import ItemRow from '../boards/ItemRow';
-import PersonalColumnCell from './PersonalColumnCell';
+import PersonalHubItemRow from './PersonalHubItemRow';
 import AddPersonalColumnModal from './AddPersonalColumnModal';
+import { PERSONAL_COL_WIDTH } from './constants';
 import type { Item } from '../../types';
 
 interface Props {
@@ -22,8 +22,6 @@ interface Props {
   onOpenDetail: (item: Item) => void;
   onOpenChat: (item: Item) => void;
 }
-
-const PERSONAL_COL_WIDTH = 160;
 
 /**
  * Renders one board's assigned items as a "group" in the Personal Hub — the
@@ -142,26 +140,14 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
               ) : (
                 <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
                   {items.map((item) => (
-                    <ItemRow
+                    <PersonalHubItemRow
                       key={item.id}
                       item={item}
+                      boardId={boardId}
+                      personalColumns={personalColumns}
+                      personalValuesByItem={personalValuesByItem}
+                      isOwn={isOwn}
                       onOpenDetail={onOpenDetail}
-                      groupColor="#6366f1"
-                      extraCells={personalColumns.map((col) => (
-                        <div
-                          key={col.id}
-                          role="gridcell"
-                          style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-                          className="flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0"
-                        >
-                          <PersonalColumnCell
-                            column={col}
-                            itemId={item.id}
-                            value={personalValuesByItem[item.id]?.[col.id]}
-                            editable={isOwn}
-                          />
-                        </div>
-                      ))}
                     />
                   ))}
                 </SortableContext>
