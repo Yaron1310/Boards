@@ -1,6 +1,7 @@
 import React from 'react';
 import { ColumnType } from '../../types';
 import type { PersonalColumn } from '../../types';
+import type { PersonalGridContext } from './cells/types';
 import PersonalTextCell from './cells/PersonalTextCell';
 import PersonalNumberCell from './cells/PersonalNumberCell';
 import PersonalDateCell from './cells/PersonalDateCell';
@@ -23,10 +24,8 @@ interface Props {
   itemName?: string;
   value: unknown;
   editable: boolean;
-  /** Sibling columns in the same list (cross-group or board-only) — used by Simple Formula to resolve {ColumnName} refs. */
-  siblingColumns?: PersonalColumn[];
-  /** This item's full personal-values map (columnId -> value) — used by Simple Formula. */
-  itemValues?: Record<string, unknown>;
+  /** Only needed by Number (as a formula click-target) and Simple Formula cells. */
+  gridContext?: PersonalGridContext;
 }
 
 /**
@@ -39,16 +38,17 @@ interface Props {
  * a separate store. So each case here is a UI-identical copy wired to the
  * personal-hub storage/mutations instead.
  *
- * Simple Formula can't use {B2}-style board-grid addressing (no consistent
- * grid across boards), but it can reference sibling personal columns by
- * name — {Hours} * {Rate} — since those are the same set on every item.
+ * Simple Formula uses the same {ColumnLetter}{RowNumber} addressing as the
+ * real board's formula grid, scoped to the table it's rendered in (a board
+ * group's list of cross-group or board-only personal columns) — any cell,
+ * any row, not just the same row as the formula.
  */
-const PersonalColumnCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, siblingColumns, itemValues }) => {
+const PersonalColumnCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext }) => {
   const props = { column, itemId, itemName: itemName ?? '', value, editable };
 
   switch (column.type) {
     case ColumnType.TEXT: return <PersonalTextCell {...props} />;
-    case ColumnType.NUMBER: return <PersonalNumberCell {...props} />;
+    case ColumnType.NUMBER: return <PersonalNumberCell {...props} gridContext={gridContext} />;
     case ColumnType.DATE: return <PersonalDateCell {...props} />;
     case ColumnType.STATUS: return <PersonalStatusCell {...props} />;
     case ColumnType.PERSON: return <PersonalPersonCell {...props} />;
@@ -62,7 +62,7 @@ const PersonalColumnCell: React.FC<Props> = ({ column, itemId, itemName, value, 
     case ColumnType.LINK: return <PersonalLinkCell {...props} />;
     case ColumnType.TIME_RANGE: return <PersonalTimeRangeCell {...props} />;
     case ColumnType.SIMPLE_FORMULA:
-      return <PersonalFormulaCell {...props} siblingColumns={siblingColumns ?? []} itemValues={itemValues ?? {}} />;
+      return <PersonalFormulaCell {...props} gridContext={gridContext ?? { rowOrder: [itemId], columns: [], valuesByItem: {} }} />;
     default:
       return <PersonalTextCell {...props} />;
   }

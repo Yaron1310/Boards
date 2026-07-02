@@ -6,14 +6,18 @@
  * Example: "{B2} * {C2} + 10"
  */
 
-import type { Item, Column } from '../types';
 import { ColumnType } from '../types';
 
 export type ColumnValues = Record<string, number | null | undefined>;
 
+/** Minimal shapes — real board Item[]/Column[] satisfy these structurally, and so do
+ *  Personal Hub's pseudo-rows (items backed by personalItemValues instead of item.values). */
+export interface FormulaRow { values: Record<string, unknown> }
+export interface FormulaColumn { id: string; type: ColumnType }
+
 export interface FormulaContext {
-  allItems: Item[];
-  columns: Column[];
+  allItems: FormulaRow[];
+  columns: FormulaColumn[];
   /** 0-based index of the current item in allItems — required for relative {C} refs */
   currentRowIndex?: number;
 }

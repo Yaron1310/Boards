@@ -18,6 +18,7 @@ import ItemRow from '../boards/ItemRow';
 import PersonalColumnCell from './PersonalColumnCell';
 import { PERSONAL_COL_WIDTH } from './constants';
 import type { BoardView } from '../../contexts/BoardRenderContext';
+import type { PersonalGridContext } from './cells/types';
 import type { Item, PersonalColumn } from '../../types';
 
 interface Props {
@@ -47,12 +48,10 @@ const renderPersonalCells = (
   item: Item,
   personalValuesByItem: Record<string, Record<string, unknown>>,
   isOwn: boolean,
+  gridContext: PersonalGridContext,
 ): React.ReactNode =>
   columns.length === 0 ? null : (
-    // Scoped per (item, columns list) so a Simple Formula cell's "click a Number
-    // cell to insert it" only wires up to its own sibling columns — not the real
-    // board's columns rendered alongside it, and not the other personal-columns list.
-    <FormulaEditProvider>
+    <>
       {columns.map((col) => (
         <div
           key={col.id}
@@ -66,12 +65,11 @@ const renderPersonalCells = (
             itemName={item.name}
             value={personalValuesByItem[item.id]?.[col.id]}
             editable={isOwn}
-            siblingColumns={columns}
-            itemValues={personalValuesByItem[item.id] ?? {}}
+            gridContext={gridContext}
           />
         </div>
       ))}
-    </FormulaEditProvider>
+    </>
   );
 
 /**
@@ -160,6 +158,17 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
   // items and any hosting items we promoted into view.
   const { data: personalValuesByItem = {} } = usePersonalItemValues([...new Set([...itemIds, ...displayItemIds])], isOwn);
 
+  // Cross-group columns get a real spreadsheet-style grid — every displayed row in this
+  // board group is addressable ({B3} etc.), matching the real board's formula behavior.
+  const crossGroupGridContext = useMemo<PersonalGridContext>(
+    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem }),
+    [displayItemIds, crossGroupColumns, personalValuesByItem],
+  );
+  const boardOnlyGridContext = useMemo<PersonalGridContext>(
+    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem }),
+    [displayItemIds, boardOnlyColumns, personalValuesByItem],
+  );
+
   const itemSectionWidth = 298 - 16;
 
   // The source board no longer exists (or is no longer accessible) — its items are
@@ -238,18 +247,22 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
               ) : displayItems.length === 0 ? (
                 <div className="px-4 py-4 text-xs text-gray-400 italic">No assigned items on this board.</div>
               ) : (
-                <SortableContext items={displayItemIds} strategy={verticalListSortingStrategy}>
-                  {displayItems.map((item) => (
-                    <ItemRow
-                      key={item.id}
-                      item={item}
-                      onOpenDetail={onOpenDetail}
-                      groupColor="#6366f1"
-                      leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn)}
-                      extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn)}
-                    />
-                  ))}
-                </SortableContext>
+                // One shared FormulaEditProvider for the whole table (not per row) — a Simple
+                // Formula cell being edited in any row can address a Number cell in any other row.
+                <FormulaEditProvider>
+                  <SortableContext items={displayItemIds} strategy={verticalListSortingStrategy}>
+                    {displayItems.map((item) => (
+                      <ItemRow
+                        key={item.id}
+                        item={item}
+                        onOpenDetail={onOpenDetail}
+                        groupColor="#6366f1"
+                        leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext)}
+                        extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext)}
+                      />
+                    ))}
+                  </SortableContext>
+                </FormulaEditProvider>
               )}
             </div>
           </DndContext>

@@ -7,3 +7,19 @@ export interface PersonalCellProps {
   value: unknown;
   editable: boolean;
 }
+
+/**
+ * Shared addressing context for Simple Formula support: the ordered list of
+ * items and columns rendered together in one table (a board group's
+ * cross-group or board-only personal columns), so cells can be addressed by
+ * {ColumnLetter}{RowNumber} exactly like the real board's formula grid —
+ * any cell, any row, not just the same row as the formula.
+ */
+export interface PersonalGridContext {
+  /** Ordered item ids as rendered in this table — row 1 is rowOrder[0], etc. */
+  rowOrder: string[];
+  /** Ordered sibling columns in this same list — column B is columns[0], etc. */
+  columns: PersonalColumn[];
+  /** itemId -> (columnId -> value) for every row in rowOrder. */
+  valuesByItem: Record<string, Record<string, unknown>>;
+}

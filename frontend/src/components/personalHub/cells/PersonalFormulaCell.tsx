@@ -3,23 +3,21 @@ import { useUpdatePersonalItemValue, useUpdatePersonalColumn } from '../../../ho
 import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
 import { evaluateFormula } from '../../../utils/formulaEngine';
-import { ColumnType } from '../../../types';
-import type { PersonalColumn, SimpleFormulaColumnSettings } from '../../../types';
-import type { PersonalCellProps } from './types';
+import type { FormulaRow } from '../../../utils/formulaEngine';
+import type { SimpleFormulaColumnSettings } from '../../../types';
+import type { PersonalCellProps, PersonalGridContext } from './types';
 
 interface Props extends PersonalCellProps {
-  siblingColumns: PersonalColumn[];
-  itemValues: Record<string, unknown>;
+  gridContext: PersonalGridContext;
 }
 
 /**
  * Same UX as the real board's Simple Formula cell (click to type a formula,
- * live preview, "apply to all cells" vs "just this cell"), but references
- * are resolved by column NAME — {Hours} * {Rate} — against sibling personal
- * columns on this same item, instead of {B2}-style board-grid addressing.
- * evaluateFormula already supports name-keyed lookups for exactly this case.
+ * live preview, "apply to all cells" vs "just this cell"), and the same
+ * {ColumnLetter}{RowNumber} addressing — any cell in this table, any row,
+ * not just the formula's own row.
  */
-const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, siblingColumns, itemValues }) => {
+const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext }) => {
   const { mutate: mutateItemValue } = useUpdatePersonalItemValue();
   const { mutateAsync: updateColumn } = useUpdatePersonalColumn();
   const { push: pushUndo } = useUndo();
@@ -39,10 +37,10 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
 
   useEffect(() => { if (!isEditing) setDraft(cellFormula); }, [cellFormula, isEditing]);
 
-  const insertColumnName = (name: string) => {
+  const insertCellRef = (cellAddress: string) => {
     const input = inputRef.current;
     const pos = input ? (input.selectionStart ?? draft.length) : draft.length;
-    const ref = `{${name}}`;
+    const ref = `{${cellAddress}}`;
     const next = draft.slice(0, pos) + ref + draft.slice(pos);
     setDraft(next);
     cursorRef.current = pos + ref.length;
@@ -56,23 +54,23 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
 
   useEffect(() => {
     if (!isEditing) return;
-    setInsertHandler(insertColumnName);
+    setInsertHandler(insertCellRef);
     return () => setInsertHandler(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditing, setInsertHandler]);
 
-  const columnValues = React.useMemo(() => {
-    const map: Record<string, number | null | undefined> = {};
-    for (const col of siblingColumns) {
-      if (col.id === column.id || col.type !== ColumnType.NUMBER) continue;
-      const v = itemValues[col.id];
-      map[col.name] = v != null ? Number(v) : undefined;
-    }
-    return map;
-  }, [siblingColumns, itemValues, column.id]);
+  const rowIndex = gridContext.rowOrder.indexOf(itemId);
+  const allRows: FormulaRow[] = React.useMemo(
+    () => gridContext.rowOrder.map((id) => ({ values: gridContext.valuesByItem[id] ?? {} })),
+    [gridContext],
+  );
+  const formulaContext = React.useMemo(
+    () => ({ allItems: allRows, columns: gridContext.columns, currentRowIndex: rowIndex >= 0 ? rowIndex : undefined }),
+    [allRows, gridContext.columns, rowIndex],
+  );
 
-  const result = React.useMemo(() => (cellFormula ? evaluateFormula(cellFormula, columnValues) : null), [cellFormula, columnValues]);
-  const previewResult = React.useMemo(() => (isEditing ? evaluateFormula(draft, columnValues) : null), [isEditing, draft, columnValues]);
+  const result = React.useMemo(() => (cellFormula ? evaluateFormula(cellFormula, {}, formulaContext) : null), [cellFormula, formulaContext]);
+  const previewResult = React.useMemo(() => (isEditing ? evaluateFormula(draft, {}, formulaContext) : null), [isEditing, draft, formulaContext]);
 
   const formatNumber = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
@@ -123,11 +121,16 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
 
   const hasOverride = storedValue !== null;
 
+  /** Strip row numbers so the default formula is row-relative: {C3} → {C} */
+  const makeRelativeFormula = (formula: string): string =>
+    formula.replace(/\{([A-Za-z]+)\d+\}/g, (_, col: string) => `{${col.toUpperCase()}}`);
+
   const handleApplyToAll = async () => {
     if (pendingFormula === null) return;
+    const relativeFormula = makeRelativeFormula(pendingFormula);
     setPendingFormula(null);
     try {
-      await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: pendingFormula } } });
+      await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula } } });
       persistValue(null);
     } catch {
       persistValue(pendingFormula);
@@ -160,7 +163,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
               if (e.key === 'Escape') { e.preventDefault(); discard(); }
             }}
             className="flex-1 text-xs font-mono text-gray-800 bg-transparent outline-none min-w-0"
-            placeholder={defaultFormula || 'e.g. {Hours} * {Rate}'}
+            placeholder={defaultFormula || 'e.g. {B2} * {C2}'}
             aria-label={`Formula for ${column.name}`}
             spellCheck={false}
           />
@@ -181,7 +184,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
           </span>
         </div>
         <div className="px-2 pb-1.5 text-[10px] text-gray-400">
-          Click any Number cell in this row to insert it
+          Click any Number cell in this table to insert its address
         </div>
       </div>
     );
