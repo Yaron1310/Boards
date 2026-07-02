@@ -11,6 +11,7 @@ import { queryKeys } from '../../hooks/queries/queryKeys';
 import * as wm from '../../services/workManagementService';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import { DependencyProvider } from '../../contexts/DependencyContext';
+import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import ItemRow from '../boards/ItemRow';
@@ -48,7 +49,10 @@ const renderPersonalCells = (
   isOwn: boolean,
 ): React.ReactNode =>
   columns.length === 0 ? null : (
-    <>
+    // Scoped per (item, columns list) so a Simple Formula cell's "click a Number
+    // cell to insert it" only wires up to its own sibling columns — not the real
+    // board's columns rendered alongside it, and not the other personal-columns list.
+    <FormulaEditProvider>
       {columns.map((col) => (
         <div
           key={col.id}
@@ -67,7 +71,7 @@ const renderPersonalCells = (
           />
         </div>
       ))}
-    </>
+    </FormulaEditProvider>
   );
 
 /**

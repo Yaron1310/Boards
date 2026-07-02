@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useUpdatePersonalItemValue } from '../../../hooks/queries/usePersonalHubQueries';
 import { useUndo } from '../../../contexts/UndoContext';
+import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
 import CellWrapper from '../../boards/cells/CellWrapper';
 import type { NumberColumnSettings, Column } from '../../../types';
 import type { PersonalCellProps } from './types';
@@ -10,6 +11,7 @@ const PersonalNumberCell: React.FC<PersonalCellProps> = ({ column, itemId, itemN
   const settings = column.settings as NumberColumnSettings;
   const { mutate } = useUpdatePersonalItemValue();
   const { push: pushUndo } = useUndo();
+  const { isFormulaEditing, insertCellAddress } = useFormulaEdit();
   const [draft, setDraft] = useState<string>(rawValue != null ? String(rawValue) : '');
 
   useEffect(() => { setDraft(rawValue != null ? String(rawValue) : ''); }, [rawValue]);
@@ -30,6 +32,24 @@ const PersonalNumberCell: React.FC<PersonalCellProps> = ({ column, itemId, itemN
     const formatted = Number.isInteger(rawValue) ? String(rawValue) : rawValue.toFixed(precision);
     return settings?.unit ? `${formatted} ${settings.unit}` : formatted;
   };
+
+  // When a formula cell (in the same personal-columns list) is being edited,
+  // intercept clicks to insert this column's name into the formula instead
+  // of entering edit mode.
+  if (isFormulaEditing) {
+    const display = formatDisplay();
+    return (
+      <div
+        role="gridcell"
+        className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-100/60 transition-colors"
+        onMouseDown={(e) => { e.preventDefault(); insertCellAddress(column.name); }}
+        title={`Insert {${column.name}} into formula`}
+        aria-label={`Insert ${column.name} into formula`}
+      >
+        {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
+      </div>
+    );
+  }
 
   return (
     <CellWrapper column={column as unknown as Column} isReadOnly={!editable}>

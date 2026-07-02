@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useUpdatePersonalItemValue, useUpdatePersonalColumn } from '../../../hooks/queries/usePersonalHubQueries';
 import { useUndo } from '../../../contexts/UndoContext';
+import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
 import { evaluateFormula } from '../../../utils/formulaEngine';
 import { ColumnType } from '../../../types';
 import type { PersonalColumn, SimpleFormulaColumnSettings } from '../../../types';
@@ -22,6 +23,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
   const { mutate: mutateItemValue } = useUpdatePersonalItemValue();
   const { mutateAsync: updateColumn } = useUpdatePersonalColumn();
   const { push: pushUndo } = useUndo();
+  const { setInsertHandler } = useFormulaEdit();
 
   const settings = column.settings as SimpleFormulaColumnSettings;
   const defaultFormula: string = settings?.defaultFormula ?? '';
@@ -33,8 +35,31 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
   const [draft, setDraft] = useState(cellFormula);
   const [pendingFormula, setPendingFormula] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const cursorRef = useRef<number>(0);
 
   useEffect(() => { if (!isEditing) setDraft(cellFormula); }, [cellFormula, isEditing]);
+
+  const insertColumnName = (name: string) => {
+    const input = inputRef.current;
+    const pos = input ? (input.selectionStart ?? draft.length) : draft.length;
+    const ref = `{${name}}`;
+    const next = draft.slice(0, pos) + ref + draft.slice(pos);
+    setDraft(next);
+    cursorRef.current = pos + ref.length;
+    requestAnimationFrame(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(cursorRef.current, cursorRef.current);
+      }
+    });
+  };
+
+  useEffect(() => {
+    if (!isEditing) return;
+    setInsertHandler(insertColumnName);
+    return () => setInsertHandler(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing, setInsertHandler]);
 
   const columnValues = React.useMemo(() => {
     const map: Record<string, number | null | undefined> = {};
@@ -156,7 +181,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
           </span>
         </div>
         <div className="px-2 pb-1.5 text-[10px] text-gray-400">
-          References other cross-group columns by name, e.g. {'{Hours}'}
+          Click any Number cell in this row to insert it
         </div>
       </div>
     );
