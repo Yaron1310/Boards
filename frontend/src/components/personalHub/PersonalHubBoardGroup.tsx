@@ -12,7 +12,7 @@ import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import PersonalHubItemRow from './PersonalHubItemRow';
 import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
-import AddPersonalColumnModal from './AddPersonalColumnModal';
+import AddColumnModal from '../boards/AddColumnModal';
 import { PERSONAL_COL_WIDTH } from './constants';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import type { Item, PersonalColumn } from '../../types';
@@ -183,7 +183,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
       </section>
 
       {showAddColumn && (
-        <AddPersonalColumnModal scope="board" boardId={boardId} boardName={board.name} onClose={() => setShowAddColumn(false)} />
+        <AddColumnModal mode="personal" personalScope="board" boardId={boardId} onClose={() => setShowAddColumn(false)} />
       )}
     </div>
   );

@@ -7,15 +7,17 @@ import {
   FiMail, FiPhone, FiMapPin, FiZap, FiLink,
 } from 'react-icons/fi';
 import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
+import { useCreatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
-import type { StatusOption, DropdownOption } from '../../types';
+import type { StatusOption, DropdownOption, PersonalColumnScope } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface AddColumnModalProps {
-  boardId: string;
+  /** Real board columns require boardId. Personal columns with scope 'all' don't belong to any single board. */
+  boardId?: string;
   onClose: () => void;
   insertAfterColumnId?: string;
   insertBeforeColumnId?: string;
@@ -23,9 +25,16 @@ interface AddColumnModalProps {
   /**
    * When set, this column is deleted only after the new column is successfully
    * created and positioned in its place — i.e. "Change column type". Nothing is
-   * deleted if the user cancels the modal.
+   * deleted if the user cancels the modal. Not applicable in personal mode.
    */
   replaceColumnId?: string;
+  /**
+   * 'board' (default) creates a real column on the source board. 'personal' creates
+   * a user-owned Personal Hub column instead — same type picker and settings UI,
+   * different destination. Requires personalScope (and boardId when personalScope is 'board').
+   */
+  mode?: 'board' | 'personal';
+  personalScope?: PersonalColumnScope;
 }
 
 const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
@@ -184,14 +193,17 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, mode = 'board', personalScope }) => {
+  const isPersonal = mode === 'personal';
   const qc = useQueryClient();
-  const { mutateAsync: createColumn, isPending } = useCreateColumn(boardId);
-  const { mutateAsync: deleteColumn } = useDeleteColumn(boardId);
-  const { data: boardColumns = [] } = useColumns(boardId, !parentGroupId);
-  const { data: subitemColumns = [] } = useSubitemColumns(boardId, parentGroupId ?? '', !!parentGroupId);
+  const { mutateAsync: createColumn, isPending: isPendingBoard } = useCreateColumn(boardId ?? '');
+  const { mutateAsync: createPersonalColumn, isPending: isPendingPersonal } = useCreatePersonalColumn();
+  const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
+  const { mutateAsync: deleteColumn } = useDeleteColumn(boardId ?? '');
+  const { data: boardColumns = [] } = useColumns(boardId ?? '', !isPersonal && !parentGroupId && !!boardId);
+  const { data: subitemColumns = [] } = useSubitemColumns(boardId ?? '', parentGroupId ?? '', !isPersonal && !!parentGroupId);
   const allColumns = parentGroupId ? subitemColumns : boardColumns;
-  const { mutateAsync: reorderColumns } = useReorderColumns(boardId);
+  const { mutateAsync: reorderColumns } = useReorderColumns(boardId ?? '');
   const previousColumnsRef = useRef<string[]>([]);
 
   useEffect(() => {
@@ -298,6 +310,25 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     }
 
     setError('');
+
+    if (isPersonal) {
+      if (!personalScope || (personalScope === 'board' && !boardId)) return;
+      try {
+        await createPersonalColumn({
+          name: trimmedName,
+          type,
+          settings: buildSettings(),
+          scope: personalScope!,
+          ...(personalScope === 'board' ? { boardId } : {}),
+        });
+        onClose();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to create column.');
+      }
+      return;
+    }
+
+    if (!boardId) return;
     const scopedQueryKey = parentGroupId
       ? queryKeys.columns.subitem(boardId, parentGroupId)
       : queryKeys.columns.board(boardId);

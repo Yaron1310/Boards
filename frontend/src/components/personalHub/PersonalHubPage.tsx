@@ -21,7 +21,7 @@ import BoardDashboardView from '../boards/BoardDashboardView';
 import ItemDetailPanel from '../boards/ItemDetailPanel';
 import ItemChatModal from '../boards/ItemChatModal';
 import UndoButton from '../boards/UndoButton';
-import AddPersonalColumnModal from './AddPersonalColumnModal';
+import AddColumnModal from '../boards/AddColumnModal';
 import { exportPersonalHubToXlsx } from '../../utils/exportPersonalHubToXlsx';
 
 type ViewMode = 'table' | 'rows' | 'gantt' | 'dashboard';
@@ -382,7 +382,7 @@ const PersonalHubPageInner: React.FC = () => {
       )}
 
       {showAddCrossGroupColumn && (
-        <AddPersonalColumnModal scope="all" onClose={() => setShowAddCrossGroupColumn(false)} />
+        <AddColumnModal mode="personal" personalScope="all" onClose={() => setShowAddCrossGroupColumn(false)} />
       )}
     </div>
   );
