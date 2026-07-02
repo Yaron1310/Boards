@@ -62,6 +62,8 @@ const renderPersonalCells = (
             itemName={item.name}
             value={personalValuesByItem[item.id]?.[col.id]}
             editable={isOwn}
+            siblingColumns={columns}
+            itemValues={personalValuesByItem[item.id] ?? {}}
           />
         </div>
       ))}
