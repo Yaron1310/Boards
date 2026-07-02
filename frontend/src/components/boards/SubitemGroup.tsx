@@ -32,6 +32,8 @@ interface SubitemGroupProps {
   parentItemId: string;
   groupColor?: string;
   onEmpty?: () => void;
+  /** Personal Hub only: when set, only render subitems this user is assigned to. */
+  filterAssigneeId?: string;
 }
 
 const DEFAULT_LOCAL_COLUMNS: Column[] = [
@@ -365,7 +367,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
   );
 };
 
-const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty }) => {
+const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, filterAssigneeId }) => {
   const { user } = useAuthSession();
   const { columnWidths } = useBoardRender();
   const qc = useQueryClient();
@@ -411,6 +413,12 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   );
 
   const realItems = itemsPage?.data ?? [];
+  // Only affects what's rendered below — group emptiness/creation logic still
+  // uses the unfiltered `realItems`, since the underlying subitems group itself
+  // isn't scoped to this user.
+  const displayedItems = filterAssigneeId
+    ? realItems.filter((item) => (item.assignees ?? []).includes(filterAssigneeId))
+    : realItems;
 
   // Set once teardown starts and never reset — prevents the auto-init effect below
   // from racing a just-emptied group back into existence in the brief window
@@ -694,7 +702,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
           </div>
         ) : (
           <>
-            {realItems.map((item) => (
+            {displayedItems.map((item) => (
               <SubitemRow key={item.id} item={item} columns={columns} />
             ))}
             {pendingItems.map((p) => (

@@ -37,6 +37,12 @@ interface Props {
   crossGroupGridContext?: PersonalGridContext;
   /** Reports this group's resolved display rows + values up to the page once settled. */
   onRowsResolved?: (boardId: string, itemIds: string[], values: Record<string, Record<string, unknown>>) => void;
+  /**
+   * When a promoted parent item is expanded, only show subitems this user is
+   * assigned to — not every subitem under that host, which is what the real
+   * board's SubitemGroup shows by default.
+   */
+  subitemAssigneeFilterId?: string;
 }
 
 /** Always plain — the interactive rename/settings/delete menu lives only in the page-level header. */
@@ -97,7 +103,7 @@ const renderPersonalCells = (
  * board, and the user expands its chevron to reach the assigned subitem via
  * the real SubitemGroup panel (same one the source board uses).
  */
-const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved }) => {
+const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId }) => {
   const navigate = useNavigate();
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
 
@@ -279,6 +285,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
                       groupColor="#6366f1"
                       leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext)}
                       extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext)}
+                      subitemAssigneeFilterId={subitemAssigneeFilterId}
                     />
                   ))}
                 </SortableContext>

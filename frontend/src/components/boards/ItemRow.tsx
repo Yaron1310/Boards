@@ -26,9 +26,11 @@ interface ItemRowProps {
   leadingExtraCells?: React.ReactNode;
   /** Extra cells appended after this item's board columns (used by Personal Hub for board-only personal columns). */
   extraCells?: React.ReactNode;
+  /** Personal Hub only: when expanding subitems, only show ones this user is assigned to. */
+  subitemAssigneeFilterId?: string;
 }
 
-const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells }) => {
+const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const { boardView, columnWidths, openChat } = useBoardRender();
@@ -315,6 +317,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         parentItemId={item.id}
         groupColor={groupColor}
         onEmpty={() => setSubitemsOpen(false)}
+        filterAssigneeId={subitemAssigneeFilterId}
       />
     )}
     </>

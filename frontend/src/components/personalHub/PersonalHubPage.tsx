@@ -391,6 +391,7 @@ const PersonalHubPageInner: React.FC = () => {
                   onBoardResolved={registerBoardName}
                   crossGroupGridContext={pageCrossGroupGridContext}
                   onRowsResolved={handleRowsResolved}
+                  subitemAssigneeFilterId={targetUserId}
                 />
               ))}
             </FormulaEditProvider>
