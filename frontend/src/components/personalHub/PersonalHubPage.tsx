@@ -345,7 +345,7 @@ const PersonalHubPageInner: React.FC = () => {
               names too for alignment, but read-only — their own source-board columns
               are never editable here. */}
           <div className="sticky top-0 z-[21] flex items-center bg-gray-50/95 backdrop-blur-sm border-b border-[#d2d2d4]" role="row" aria-label="Personal Hub column controls">
-            <div className="w-[20.7rem] flex-shrink-0 px-4 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 sticky left-0 z-[1] bg-gray-50/95">
+            <div className="w-[298px] flex-shrink-0 px-4 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 sticky left-0 z-[1] bg-gray-50/95">
               Item
             </div>
             {crossGroupColumns.map((col) => (
