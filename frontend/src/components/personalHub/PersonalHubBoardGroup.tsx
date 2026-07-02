@@ -11,17 +11,35 @@ import { DependencyProvider } from '../../contexts/DependencyContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import PersonalHubItemRow from './PersonalHubItemRow';
+import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
 import AddPersonalColumnModal from './AddPersonalColumnModal';
 import { PERSONAL_COL_WIDTH } from './constants';
-import type { Item } from '../../types';
+import type { BoardView } from '../../contexts/BoardRenderContext';
+import type { Item, PersonalColumn } from '../../types';
 
 interface Props {
   boardId: string;
   items: Item[];
   isOwn: boolean;
+  boardView: BoardView;
   onOpenDetail: (item: Item) => void;
   onOpenChat: (item: Item) => void;
+  onBoardResolved?: (boardId: string, name: string) => void;
 }
+
+const PersonalColumnHeader: React.FC<{ col: PersonalColumn; isOwn: boolean }> = ({ col, isOwn }) =>
+  isOwn ? (
+    <PersonalColumnHeaderCell column={col} />
+  ) : (
+    <div
+      role="columnheader"
+      style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+      className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 bg-indigo-50/50"
+      title={`${col.name} (personal column)`}
+    >
+      <span className="truncate">{col.name}</span>
+    </div>
+  );
 
 /**
  * Renders one board's assigned items as a "group" in the Personal Hub — the
@@ -35,9 +53,13 @@ interface Props {
  * header) come before the real columns, board-only columns (added from this
  * group's own "+") come after — both are only editable by the hub's owner.
  */
-const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenDetail, onOpenChat }) => {
+const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardView, onOpenDetail, onOpenChat, onBoardResolved }) => {
   const navigate = useNavigate();
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
+
+  React.useEffect(() => {
+    if (board) onBoardResolved?.(boardId, board.name);
+  }, [board, boardId, onBoardResolved]);
   const { data: columns = [] } = useColumns(boardId);
   const { data: allPersonalColumns = [] } = usePersonalColumns();
   const [showAddColumn, setShowAddColumn] = useState(false);
@@ -100,15 +122,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
             style={{ width: `${itemSectionWidth}px`, borderLeft: '4px solid #6366f1' }}
           />
           {crossGroupColumns.map((col) => (
-            <div
-              key={col.id}
-              role="columnheader"
-              style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-              className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 bg-indigo-50/50"
-              title={`${col.name} (your personal column)`}
-            >
-              <span className="truncate">{col.name}</span>
-            </div>
+            <PersonalColumnHeader key={col.id} col={col} isOwn={isOwn} />
           ))}
           {columns.map((col) => (
             <div
@@ -123,15 +137,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
             </div>
           ))}
           {boardOnlyColumns.map((col) => (
-            <div
-              key={col.id}
-              role="columnheader"
-              style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-              className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 bg-indigo-50/50"
-              title={`${col.name} (your personal column)`}
-            >
-              <span className="truncate">{col.name}</span>
-            </div>
+            <PersonalColumnHeader key={col.id} col={col} isOwn={isOwn} />
           ))}
           {isOwn && (
             <div className="flex-shrink-0 flex items-center justify-center px-1">
@@ -148,7 +154,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
           )}
         </div>
 
-        <BoardRenderProvider visibleItems={items} columns={columns} boardView="table" openChat={onOpenChat}>
+        <BoardRenderProvider visibleItems={items} columns={columns} boardView={boardView} openChat={onOpenChat}>
           <DependencyProvider items={items}>
           <DndContext onDragEnd={() => {}}>
             <div role="rowgroup" aria-label={`Items assigned to you in ${board.name}`} className="w-max">

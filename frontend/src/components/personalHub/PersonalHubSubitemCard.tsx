@@ -9,6 +9,7 @@ import { calculateColumnWidth } from '../../utils/columnWidths';
 import { ColumnCell } from '../boards/cells';
 import { getUnreadCount } from '../boards/ItemChatModal';
 import PersonalColumnCell from './PersonalColumnCell';
+import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
 import { PERSONAL_COL_WIDTH } from './constants';
 import type { Group, Item, PersonalColumn } from '../../types';
 
@@ -79,17 +80,21 @@ const PersonalHubSubitemCard: React.FC<Props> = ({ item, boardId, group, crossGr
         >
           Subitem
         </div>
-        {crossGroupColumns.map((col) => (
-          <div
-            key={col.id}
-            role="columnheader"
-            style={{ width: `${PERSONAL_COL_WIDTH}px`, minWidth: `${PERSONAL_COL_WIDTH}px` }}
-            className="flex flex-shrink-0 items-center justify-center px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-indigo-600 bg-indigo-50/50"
-            title={`${col.name} (your personal column)`}
-          >
-            <span className="truncate">{col.name}</span>
-          </div>
-        ))}
+        {crossGroupColumns.map((col) =>
+          isOwn ? (
+            <PersonalColumnHeaderCell key={col.id} column={col} />
+          ) : (
+            <div
+              key={col.id}
+              role="columnheader"
+              style={{ width: `${PERSONAL_COL_WIDTH}px`, minWidth: `${PERSONAL_COL_WIDTH}px` }}
+              className="flex flex-shrink-0 items-center justify-center px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-indigo-600 bg-indigo-50/50"
+              title={`${col.name} (personal column)`}
+            >
+              <span className="truncate">{col.name}</span>
+            </div>
+          ),
+        )}
         {columns.map((col) => {
           const colWidth = col.width ?? calculateColumnWidth(col.name, col.type);
           return (
@@ -105,17 +110,21 @@ const PersonalHubSubitemCard: React.FC<Props> = ({ item, boardId, group, crossGr
             </div>
           );
         })}
-        {boardOnlyColumns.map((col) => (
-          <div
-            key={col.id}
-            role="columnheader"
-            style={{ width: `${PERSONAL_COL_WIDTH}px`, minWidth: `${PERSONAL_COL_WIDTH}px` }}
-            className="flex flex-shrink-0 items-center justify-center px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-indigo-600 bg-indigo-50/50"
-            title={`${col.name} (your personal column)`}
-          >
-            <span className="truncate">{col.name}</span>
-          </div>
-        ))}
+        {boardOnlyColumns.map((col) =>
+          isOwn ? (
+            <PersonalColumnHeaderCell key={col.id} column={col} />
+          ) : (
+            <div
+              key={col.id}
+              role="columnheader"
+              style={{ width: `${PERSONAL_COL_WIDTH}px`, minWidth: `${PERSONAL_COL_WIDTH}px` }}
+              className="flex flex-shrink-0 items-center justify-center px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-indigo-600 bg-indigo-50/50"
+              title={`${col.name} (personal column)`}
+            >
+              <span className="truncate">{col.name}</span>
+            </div>
+          ),
+        )}
       </div>
 
       <div role="row" className="flex flex-nowrap items-stretch bg-white hover:bg-indigo-50/30 transition-colors group">
