@@ -43,7 +43,7 @@ const PersonalColumnHeaderLabel: React.FC<{ col: PersonalColumn }> = ({ col }) =
 
 const renderPersonalCells = (
   columns: PersonalColumn[],
-  itemId: string,
+  item: Item,
   personalValuesByItem: Record<string, Record<string, unknown>>,
   isOwn: boolean,
 ): React.ReactNode =>
@@ -58,8 +58,9 @@ const renderPersonalCells = (
         >
           <PersonalColumnCell
             column={col}
-            itemId={itemId}
-            value={personalValuesByItem[itemId]?.[col.id]}
+            itemId={item.id}
+            itemName={item.name}
+            value={personalValuesByItem[item.id]?.[col.id]}
             editable={isOwn}
           />
         </div>
@@ -238,8 +239,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
                       item={item}
                       onOpenDetail={onOpenDetail}
                       groupColor="#6366f1"
-                      leadingExtraCells={renderPersonalCells(crossGroupColumns, item.id, personalValuesByItem, isOwn)}
-                      extraCells={renderPersonalCells(boardOnlyColumns, item.id, personalValuesByItem, isOwn)}
+                      leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn)}
+                      extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn)}
                     />
                   ))}
                 </SortableContext>
