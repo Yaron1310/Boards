@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
-import { snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
+import { db, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
 import { personalColumnsCollection, personalItemValuesCollection } from '../db/collections.js';
 import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, ColumnType } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
@@ -126,7 +126,11 @@ export const reorderPersonalColumns = async (req: Request, res: Response) => {
       logger.warn('reorderPersonalColumns: skipping stale/missing column ids', { userId: user.id, skippedIds });
     }
 
-    const batch = admin.firestore().batch();
+    // Must use `db` (the named-database instance every other query here uses), not
+    // admin.firestore() (the default database) — a batch from the wrong Firestore
+    // instance commits against docs that don't exist there, throwing NOT_FOUND even
+    // though the .get() checks above (correctly scoped via `db`) found them.
+    const batch = db.batch();
     let updated = 0;
     (order as { id: string; order: number }[]).forEach((entry, i) => {
       if (docs[i]?.exists) {
