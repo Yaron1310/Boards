@@ -5,8 +5,10 @@ import { ColumnType } from '../../types';
 import type { PersonalColumnScope } from '../../types';
 
 interface Props {
-  boardId: string;
-  boardName: string;
+  /** 'all' — added once, appears in every board group. 'board' — added only to boardId's group. */
+  scope: PersonalColumnScope;
+  boardId?: string;
+  boardName?: string;
   onClose: () => void;
 }
 
@@ -17,21 +19,16 @@ const CREATABLE_TYPES: { type: ColumnType; label: string; icon: React.ReactNode 
   { type: ColumnType.CHECKBOX, label: 'Checkbox', icon: <FiCheckSquare size={14} aria-hidden="true" /> },
 ];
 
-const AddPersonalColumnModal: React.FC<Props> = ({ boardId, boardName, onClose }) => {
+const AddPersonalColumnModal: React.FC<Props> = ({ scope, boardId, boardName, onClose }) => {
   const { mutateAsync: createColumn, isPending } = useCreatePersonalColumn();
   const [name, setName] = useState('');
   const [type, setType] = useState<ColumnType>(ColumnType.TEXT);
-  const [scope, setScope] = useState<PersonalColumnScope | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     const trimmed = name.trim();
     if (!trimmed) {
       setError('Column name is required.');
-      return;
-    }
-    if (!scope) {
-      setError('Choose where this column should appear.');
       return;
     }
     try {
@@ -69,6 +66,12 @@ const AddPersonalColumnModal: React.FC<Props> = ({ boardId, boardName, onClose }
           </button>
         </div>
 
+        <p className="text-xs text-gray-500 mb-4">
+          {scope === 'all'
+            ? 'This column will appear on every board group in your Personal Hub.'
+            : `This column will appear only on “${boardName}” items in your Personal Hub.`}
+        </p>
+
         <div className="space-y-4">
           <div>
             <label htmlFor="personal-column-name" className="block text-xs font-medium text-gray-500 mb-1">
@@ -103,32 +106,6 @@ const AddPersonalColumnModal: React.FC<Props> = ({ boardId, boardName, onClose }
                   {opt.label}
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div>
-            <span className="block text-xs font-medium text-gray-500 mb-1">Where should it appear?</span>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setScope('board')}
-                className={`text-left px-3 py-2 text-sm rounded-lg border transition-colors ${
-                  scope === 'board' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                Add column only to current group
-                <span className="block text-xs text-gray-400 mt-0.5">Only on “{boardName}” items in your Personal Hub</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setScope('all')}
-                className={`text-left px-3 py-2 text-sm rounded-lg border transition-colors ${
-                  scope === 'all' ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                Add column to all groups
-                <span className="block text-xs text-gray-400 mt-0.5">On every board section in your Personal Hub</span>
-              </button>
             </div>
           </div>
 

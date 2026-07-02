@@ -30,8 +30,10 @@ interface Props {
  *
  * Source-board columns are the real, live item data — edits here save
  * straight back to the source board (same permission rules as viewing that
- * board directly). Personal columns (owned by the hub's user) are appended
- * after them and are only editable by the hub's owner.
+ * board directly). Personal columns (owned by the hub's user) are woven in
+ * on either side of them: cross-group columns (added once, from the page
+ * header) come before the real columns, board-only columns (added from this
+ * group's own "+") come after — both are only editable by the hub's owner.
  */
 const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenDetail, onOpenChat }) => {
   const navigate = useNavigate();
@@ -40,8 +42,12 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
   const { data: allPersonalColumns = [] } = usePersonalColumns();
   const [showAddColumn, setShowAddColumn] = useState(false);
 
-  const personalColumns = useMemo(
-    () => allPersonalColumns.filter((c) => c.scope === 'all' || c.boardId === boardId),
+  const crossGroupColumns = useMemo(
+    () => allPersonalColumns.filter((c) => c.scope === 'all'),
+    [allPersonalColumns],
+  );
+  const boardOnlyColumns = useMemo(
+    () => allPersonalColumns.filter((c) => c.scope === 'board' && c.boardId === boardId),
     [allPersonalColumns, boardId],
   );
 
@@ -93,6 +99,17 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
             className="flex-shrink-0 border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1] rounded-tl-lg"
             style={{ width: `${itemSectionWidth}px`, borderLeft: '4px solid #6366f1' }}
           />
+          {crossGroupColumns.map((col) => (
+            <div
+              key={col.id}
+              role="columnheader"
+              style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+              className="flex flex-shrink-0 items-center justify-center gap-1.5 px-3 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 bg-indigo-50/50"
+              title={`${col.name} (your personal column)`}
+            >
+              <span className="truncate">{col.name}</span>
+            </div>
+          ))}
           {columns.map((col) => (
             <div
               key={col.id}
@@ -105,7 +122,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
               <span className="truncate">{col.name}</span>
             </div>
           ))}
-          {personalColumns.map((col) => (
+          {boardOnlyColumns.map((col) => (
             <div
               key={col.id}
               role="columnheader"
@@ -122,8 +139,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
                 type="button"
                 onClick={() => setShowAddColumn(true)}
                 className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                aria-label={`Add a personal column to ${board.name}`}
-                title="Add personal column"
+                aria-label={`Add a personal column only to ${board.name}`}
+                title="Add column to this group only"
               >
                 <FiPlus size={15} aria-hidden="true" />
               </button>
@@ -144,7 +161,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
                       key={item.id}
                       item={item}
                       boardId={boardId}
-                      personalColumns={personalColumns}
+                      crossGroupColumns={crossGroupColumns}
+                      boardOnlyColumns={boardOnlyColumns}
                       personalValuesByItem={personalValuesByItem}
                       isOwn={isOwn}
                       onOpenDetail={onOpenDetail}
@@ -159,7 +177,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, onOpenD
       </section>
 
       {showAddColumn && (
-        <AddPersonalColumnModal boardId={boardId} boardName={board.name} onClose={() => setShowAddColumn(false)} />
+        <AddPersonalColumnModal scope="board" boardId={boardId} boardName={board.name} onClose={() => setShowAddColumn(false)} />
       )}
     </div>
   );

@@ -8,13 +8,18 @@ import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import { ColumnCell } from '../boards/cells';
 import { getUnreadCount } from '../boards/ItemChatModal';
-import type { Group, Item } from '../../types';
+import PersonalColumnCell from './PersonalColumnCell';
+import { PERSONAL_COL_WIDTH } from './constants';
+import type { Group, Item, PersonalColumn } from '../../types';
 
 interface Props {
   item: Item;
   boardId: string;
   group: Group;
-  extraCells?: React.ReactNode;
+  crossGroupColumns: PersonalColumn[];
+  boardOnlyColumns: PersonalColumn[];
+  personalValuesByItem: Record<string, Record<string, unknown>>;
+  isOwn: boolean;
 }
 
 const NAME_COL_WIDTH = 220;
@@ -23,9 +28,11 @@ const NAME_COL_WIDTH = 220;
  * Renders one assigned subitem exactly as it appears on the source board's
  * SubitemGroup panel: its own header row using the subitem group's own
  * columns (not the parent board's top-level columns), labeled with the
- * hosting (parent) item's name.
+ * hosting (parent) item's name. Personal columns are woven in the same
+ * order as the main board rows: cross-group columns first, then the real
+ * subitem columns, then board-only personal columns.
  */
-const PersonalHubSubitemCard: React.FC<Props> = ({ item, boardId, group, extraCells }) => {
+const PersonalHubSubitemCard: React.FC<Props> = ({ item, boardId, group, crossGroupColumns, boardOnlyColumns, personalValuesByItem, isOwn }) => {
   const { user } = useAuthSession();
   const { openChat } = useBoardRender();
   const { data: columns = [] } = useSubitemColumns(boardId, group.id, true);
@@ -72,6 +79,17 @@ const PersonalHubSubitemCard: React.FC<Props> = ({ item, boardId, group, extraCe
         >
           Subitem
         </div>
+        {crossGroupColumns.map((col) => (
+          <div
+            key={col.id}
+            role="columnheader"
+            style={{ width: `${PERSONAL_COL_WIDTH}px`, minWidth: `${PERSONAL_COL_WIDTH}px` }}
+            className="flex flex-shrink-0 items-center justify-center px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-indigo-600 bg-indigo-50/50"
+            title={`${col.name} (your personal column)`}
+          >
+            <span className="truncate">{col.name}</span>
+          </div>
+        ))}
         {columns.map((col) => {
           const colWidth = col.width ?? calculateColumnWidth(col.name, col.type);
           return (
@@ -87,6 +105,17 @@ const PersonalHubSubitemCard: React.FC<Props> = ({ item, boardId, group, extraCe
             </div>
           );
         })}
+        {boardOnlyColumns.map((col) => (
+          <div
+            key={col.id}
+            role="columnheader"
+            style={{ width: `${PERSONAL_COL_WIDTH}px`, minWidth: `${PERSONAL_COL_WIDTH}px` }}
+            className="flex flex-shrink-0 items-center justify-center px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-indigo-600 bg-indigo-50/50"
+            title={`${col.name} (your personal column)`}
+          >
+            <span className="truncate">{col.name}</span>
+          </div>
+        ))}
       </div>
 
       <div role="row" className="flex flex-nowrap items-stretch bg-white hover:bg-indigo-50/30 transition-colors group">
@@ -138,11 +167,31 @@ const PersonalHubSubitemCard: React.FC<Props> = ({ item, boardId, group, extraCe
           </button>
         </div>
 
+        {crossGroupColumns.map((col) => (
+          <div
+            key={col.id}
+            role="gridcell"
+            style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+            className="flex flex-shrink-0 items-center justify-center border-r border-[#e5e7eb] last:border-r-0"
+          >
+            <PersonalColumnCell column={col} itemId={item.id} value={personalValuesByItem[item.id]?.[col.id]} editable={isOwn} />
+          </div>
+        ))}
+
         {columns.map((col) => (
           <ColumnCell key={col.id} item={item} column={col} />
         ))}
 
-        {extraCells}
+        {boardOnlyColumns.map((col) => (
+          <div
+            key={col.id}
+            role="gridcell"
+            style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+            className="flex flex-shrink-0 items-center justify-center border-r border-[#e5e7eb] last:border-r-0"
+          >
+            <PersonalColumnCell column={col} itemId={item.id} value={personalValuesByItem[item.id]?.[col.id]} editable={isOwn} />
+          </div>
+        ))}
       </div>
     </div>
   );

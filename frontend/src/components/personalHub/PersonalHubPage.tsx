@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiLoader, FiUser, FiList, FiUsers } from 'react-icons/fi';
+import { FiLoader, FiUser, FiList, FiUsers, FiPlus } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { useItems } from '../../hooks/queries/useItemQueries';
@@ -16,6 +16,7 @@ import GanttView from '../boards/GanttView';
 import BoardDashboardView from '../boards/BoardDashboardView';
 import ItemDetailPanel from '../boards/ItemDetailPanel';
 import ItemChatModal from '../boards/ItemChatModal';
+import AddPersonalColumnModal from './AddPersonalColumnModal';
 
 type ViewMode = 'table' | 'gantt' | 'dashboard';
 
@@ -67,6 +68,7 @@ const PersonalHubPage: React.FC = () => {
   const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [chatItem, setChatItem] = useState<Item | null>(null);
   const [dashboardBoardId, setDashboardBoardId] = useState<string>('');
+  const [showAddCrossGroupColumn, setShowAddCrossGroupColumn] = useState(false);
 
   const { data: itemsPage, isLoading } = useItems(
     { assignee: targetUserId, limit: 500 },
@@ -149,7 +151,25 @@ const PersonalHubPage: React.FC = () => {
         </div>
       ) : viewMode === 'table' ? (
         <div className="flex-1 overflow-x-auto overflow-y-auto" role="region" aria-label="Assigned items by board">
-          <div className="p-4 space-y-4">
+          {/* Page-level header — intentionally minimal (Item + add-column only), since each
+              group below keeps its own source-board columns. This is only the entry point
+              for columns that should appear across every group. */}
+          <div className="sticky top-0 z-[3] flex items-center gap-1 px-4 pt-3 pb-1 bg-gray-50/95 backdrop-blur-sm" role="row" aria-label="Personal Hub column controls">
+            <div className="w-[282px] flex-shrink-0 px-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">Item</div>
+            {isOwn && (
+              <button
+                type="button"
+                onClick={() => setShowAddCrossGroupColumn(true)}
+                className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors"
+                aria-label="Add a personal column to every group"
+                title="Add column to all groups"
+              >
+                <FiPlus size={14} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+
+          <div className="px-4 pb-4 space-y-4">
             {boardIds.map((boardId) => (
               <PersonalHubBoardGroup
                 key={boardId}
@@ -203,6 +223,10 @@ const PersonalHubPage: React.FC = () => {
       {chatItem && createPortal(
         <ItemChatModal item={chatItem} onClose={() => setChatItem(null)} />,
         document.body,
+      )}
+
+      {showAddCrossGroupColumn && (
+        <AddPersonalColumnModal scope="all" onClose={() => setShowAddCrossGroupColumn(false)} />
       )}
     </div>
   );

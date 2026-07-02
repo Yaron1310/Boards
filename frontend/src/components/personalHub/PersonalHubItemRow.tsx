@@ -9,24 +9,22 @@ import type { Item, PersonalColumn } from '../../types';
 interface Props {
   item: Item;
   boardId: string;
-  personalColumns: PersonalColumn[];
+  crossGroupColumns: PersonalColumn[];
+  boardOnlyColumns: PersonalColumn[];
   personalValuesByItem: Record<string, Record<string, unknown>>;
   isOwn: boolean;
   onOpenDetail: (item: Item) => void;
 }
 
-/**
- * Resolves whether an assigned item lives in a top-level group or a subitem
- * group, and renders it accordingly — subitems get their own card using the
- * subitem group's own columns (matching the source board exactly), instead
- * of being mixed into the parent board's item table with the wrong columns.
- */
-const PersonalHubItemRow: React.FC<Props> = ({ item, boardId, personalColumns, personalValuesByItem, isOwn, onOpenDetail }) => {
-  const { data: group, isLoading, isError } = useGroup(boardId, item.groupId);
-
-  const extraCells = personalColumns.length > 0 ? (
+const renderPersonalCells = (
+  columns: PersonalColumn[],
+  itemId: string,
+  personalValuesByItem: Record<string, Record<string, unknown>>,
+  isOwn: boolean,
+): React.ReactNode =>
+  columns.length === 0 ? null : (
     <>
-      {personalColumns.map((col) => (
+      {columns.map((col) => (
         <div
           key={col.id}
           role="gridcell"
@@ -35,14 +33,37 @@ const PersonalHubItemRow: React.FC<Props> = ({ item, boardId, personalColumns, p
         >
           <PersonalColumnCell
             column={col}
-            itemId={item.id}
-            value={personalValuesByItem[item.id]?.[col.id]}
+            itemId={itemId}
+            value={personalValuesByItem[itemId]?.[col.id]}
             editable={isOwn}
           />
         </div>
       ))}
     </>
-  ) : null;
+  );
+
+/**
+ * Resolves whether an assigned item lives in a top-level group or a subitem
+ * group, and renders it accordingly — subitems get their own card using the
+ * subitem group's own columns (matching the source board exactly), instead
+ * of being mixed into the parent board's item table with the wrong columns.
+ *
+ * Column order: item name → cross-group personal columns → real board
+ * columns → board-only personal columns.
+ */
+const PersonalHubItemRow: React.FC<Props> = ({
+  item,
+  boardId,
+  crossGroupColumns,
+  boardOnlyColumns,
+  personalValuesByItem,
+  isOwn,
+  onOpenDetail,
+}) => {
+  const { data: group, isLoading, isError } = useGroup(boardId, item.groupId);
+
+  const leadingCells = renderPersonalCells(crossGroupColumns, item.id, personalValuesByItem, isOwn);
+  const trailingCells = renderPersonalCells(boardOnlyColumns, item.id, personalValuesByItem, isOwn);
 
   if (isLoading) {
     return (
@@ -55,10 +76,28 @@ const PersonalHubItemRow: React.FC<Props> = ({ item, boardId, personalColumns, p
   // If the item's group can no longer be resolved (e.g. it was deleted),
   // fall back to the normal row instead of hiding the item.
   if (!isError && group?.parentItemId) {
-    return <PersonalHubSubitemCard item={item} boardId={boardId} group={group} extraCells={extraCells} />;
+    return (
+      <PersonalHubSubitemCard
+        item={item}
+        boardId={boardId}
+        group={group}
+        crossGroupColumns={crossGroupColumns}
+        boardOnlyColumns={boardOnlyColumns}
+        personalValuesByItem={personalValuesByItem}
+        isOwn={isOwn}
+      />
+    );
   }
 
-  return <ItemRow item={item} onOpenDetail={onOpenDetail} groupColor="#6366f1" extraCells={extraCells} />;
+  return (
+    <ItemRow
+      item={item}
+      onOpenDetail={onOpenDetail}
+      groupColor="#6366f1"
+      leadingExtraCells={leadingCells}
+      extraCells={trailingCells}
+    />
+  );
 };
 
 export default PersonalHubItemRow;
