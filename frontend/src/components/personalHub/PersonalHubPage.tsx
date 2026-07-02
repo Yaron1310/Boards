@@ -10,6 +10,7 @@ import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import { DependencyProvider } from '../../contexts/DependencyContext';
+import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { UndoProvider } from '../../contexts/UndoContext';
 import { UserRole, ColumnType } from '../../types';
 import type { Item, Group } from '../../types';
@@ -26,6 +27,7 @@ import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
 import { usePersonalColumns } from '../../hooks/queries/usePersonalHubQueries';
 import { PERSONAL_COL_WIDTH } from './constants';
 import { exportPersonalHubToXlsx } from '../../utils/exportPersonalHubToXlsx';
+import type { PersonalGridContext } from './cells/types';
 
 type ViewMode = 'table' | 'rows' | 'gantt' | 'dashboard';
 
@@ -116,6 +118,20 @@ const PersonalHubPageInner: React.FC = () => {
     setBoardNames((prev) => (prev[boardId] === name ? prev : { ...prev, [boardId]: name }));
   }, []);
 
+  // Each board group reports its resolved rows + personal values here so cross-group
+  // ("all groups") Simple Formula columns can address a Number cell in ANY group's
+  // table, not just their own — matching the real board's any-cell addressing.
+  const [rowsByBoard, setRowsByBoard] = useState<Record<string, string[]>>({});
+  const [valuesByBoard, setValuesByBoard] = useState<Record<string, Record<string, Record<string, unknown>>>>({});
+
+  const handleRowsResolved = React.useCallback(
+    (boardId: string, itemIds: string[], values: Record<string, Record<string, unknown>>) => {
+      setRowsByBoard((prev) => (prev[boardId]?.join(',') === itemIds.join(',') ? prev : { ...prev, [boardId]: itemIds }));
+      setValuesByBoard((prev) => (prev[boardId] === values ? prev : { ...prev, [boardId]: values }));
+    },
+    [],
+  );
+
   const { data: itemsPage, isLoading } = useItems(
     { assignee: targetUserId, limit: 500 },
     !!targetUserId && (isOwn || isOrgAdmin),
@@ -148,6 +164,15 @@ const PersonalHubPageInner: React.FC = () => {
 
   const boardIds = Object.keys(itemsByBoard);
   const allBoardIds = useMemo(() => [...new Set(items.map((i) => i.boardId))], [items]);
+
+  const pageCrossGroupGridContext = useMemo<PersonalGridContext>(() => {
+    const rowOrder = boardIds.flatMap((id) => rowsByBoard[id] ?? []);
+    const valuesByItem = boardIds.reduce<Record<string, Record<string, unknown>>>((acc, id) => {
+      Object.assign(acc, valuesByBoard[id]);
+      return acc;
+    }, {});
+    return { rowOrder, columns: crossGroupColumns, valuesByItem };
+  }, [boardIds, rowsByBoard, valuesByBoard, crossGroupColumns]);
 
   React.useEffect(() => {
     if (!dashboardBoardId && boardIds.length > 0) setDashboardBoardId(boardIds[0]);
@@ -346,18 +371,22 @@ const PersonalHubPageInner: React.FC = () => {
           </div>
 
           <div className="px-4 pb-4 space-y-4">
-            {boardIds.map((boardId) => (
-              <PersonalHubBoardGroup
-                key={boardId}
-                boardId={boardId}
-                items={itemsByBoard[boardId]}
-                isOwn={isOwn}
-                boardView={viewMode as BoardView}
-                onOpenDetail={setDetailItem}
-                onOpenChat={setChatItem}
-                onBoardResolved={registerBoardName}
-              />
-            ))}
+            <FormulaEditProvider>
+              {boardIds.map((boardId) => (
+                <PersonalHubBoardGroup
+                  key={boardId}
+                  boardId={boardId}
+                  items={itemsByBoard[boardId]}
+                  isOwn={isOwn}
+                  boardView={viewMode as BoardView}
+                  onOpenDetail={setDetailItem}
+                  onOpenChat={setChatItem}
+                  onBoardResolved={registerBoardName}
+                  crossGroupGridContext={pageCrossGroupGridContext}
+                  onRowsResolved={handleRowsResolved}
+                />
+              ))}
+            </FormulaEditProvider>
           </div>
         </div>
       ) : viewMode === 'gantt' ? (

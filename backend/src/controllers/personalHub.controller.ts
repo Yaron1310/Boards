@@ -95,20 +95,39 @@ export const reorderPersonalColumns = async (req: Request, res: Response) => {
   }
 
   try {
-    const batch = admin.firestore().batch();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+    // Verify ownership of every entry up front (fail fast on a genuinely
+    // foreign column), but only batch-update ones that still exist by the
+    // time we commit — a column can be deleted/replaced concurrently (e.g.
+    // "change type" deletes the old column right after reordering), and a
+    // stale id in the reorder payload shouldn't fail the whole request.
+    const docs = await Promise.all(
+      (order as { id: string; order: number }[]).map((entry) =>
+        typeof entry.id === 'string' ? personalColumnsCollection(user.orgId).doc(entry.id).get() : null,
+      ),
+    );
 
     for (const entry of order as { id: string; order: number }[]) {
       if (typeof entry.id !== 'string' || typeof entry.order !== 'number') {
         return res.status(400).json({ message: 'Each entry must have id (string) and order (number).' });
       }
-      const doc = await personalColumnsCollection(user.orgId).doc(entry.id).get();
-      if (!doc.exists || doc.data()?.userId !== user.id) {
+    }
+    for (const doc of docs) {
+      if (doc?.exists && doc.data()?.userId !== user.id) {
         return res.status(403).json({ message: 'Forbidden: one or more columns are not yours.' });
       }
-      batch.update(personalColumnsCollection(user.orgId).doc(entry.id), { order: entry.order, updatedAt: timestamp });
     }
-    await batch.commit();
+
+    const batch = admin.firestore().batch();
+    let updated = 0;
+    (order as { id: string; order: number }[]).forEach((entry, i) => {
+      if (docs[i]?.exists) {
+        batch.update(personalColumnsCollection(user.orgId).doc(entry.id), { order: entry.order, updatedAt: timestamp });
+        updated += 1;
+      }
+    });
+    if (updated > 0) await batch.commit();
 
     res.json({ message: 'Personal columns reordered.' });
   } catch (err: unknown) {

@@ -11,7 +11,6 @@ import { queryKeys } from '../../hooks/queries/queryKeys';
 import * as wm from '../../services/workManagementService';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import { DependencyProvider } from '../../contexts/DependencyContext';
-import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import ItemRow from '../boards/ItemRow';
@@ -29,6 +28,15 @@ interface Props {
   onOpenDetail: (item: Item) => void;
   onOpenChat: (item: Item) => void;
   onBoardResolved?: (boardId: string, name: string) => void;
+  /**
+   * Page-wide grid context for cross-group ("all groups") personal columns —
+   * spans every board group's rows so a formula in any group can address a
+   * Number cell in any other group's table. Falls back to this group's own
+   * rows only if not provided.
+   */
+  crossGroupGridContext?: PersonalGridContext;
+  /** Reports this group's resolved display rows + values up to the page once settled. */
+  onRowsResolved?: (boardId: string, itemIds: string[], values: Record<string, Record<string, unknown>>) => void;
 }
 
 /** Always plain — the interactive rename/settings/delete menu lives only in the page-level header. */
@@ -88,7 +96,7 @@ const renderPersonalCells = (
  * board, and the user expands its chevron to reach the assigned subitem via
  * the real SubitemGroup panel (same one the source board uses).
  */
-const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardView, onOpenDetail, onOpenChat, onBoardResolved }) => {
+const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved }) => {
   const navigate = useNavigate();
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
 
@@ -158,16 +166,24 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
   // items and any hosting items we promoted into view.
   const { data: personalValuesByItem = {} } = usePersonalItemValues([...new Set([...itemIds, ...displayItemIds])], isOwn);
 
-  // Cross-group columns get a real spreadsheet-style grid — every displayed row in this
-  // board group is addressable ({B3} etc.), matching the real board's formula behavior.
-  const crossGroupGridContext = useMemo<PersonalGridContext>(
+  // Cross-group columns get a real spreadsheet-style grid — every displayed row across
+  // EVERY board group is addressable ({B3} etc.), matching the real board's formula
+  // behavior. The page assembles this across all groups; fall back to this group's own
+  // rows only if the page hasn't wired it up.
+  const localCrossGroupGridContext = useMemo<PersonalGridContext>(
     () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem }),
     [displayItemIds, crossGroupColumns, personalValuesByItem],
   );
+  const crossGroupGridContext = pageCrossGroupGridContext ?? localCrossGroupGridContext;
   const boardOnlyGridContext = useMemo<PersonalGridContext>(
     () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem }),
     [displayItemIds, boardOnlyColumns, personalValuesByItem],
   );
+
+  React.useEffect(() => {
+    if (groupsSettled && parentItemsSettled) onRowsResolved?.(boardId, displayItemIds, personalValuesByItem);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardId, displayItemIds.join(','), personalValuesByItem, groupsSettled, parentItemsSettled, onRowsResolved]);
 
   const itemSectionWidth = 298 - 16;
 
@@ -247,22 +263,18 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
               ) : displayItems.length === 0 ? (
                 <div className="px-4 py-4 text-xs text-gray-400 italic">No assigned items on this board.</div>
               ) : (
-                // One shared FormulaEditProvider for the whole table (not per row) — a Simple
-                // Formula cell being edited in any row can address a Number cell in any other row.
-                <FormulaEditProvider>
-                  <SortableContext items={displayItemIds} strategy={verticalListSortingStrategy}>
-                    {displayItems.map((item) => (
-                      <ItemRow
-                        key={item.id}
-                        item={item}
-                        onOpenDetail={onOpenDetail}
-                        groupColor="#6366f1"
-                        leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext)}
-                        extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext)}
-                      />
-                    ))}
-                  </SortableContext>
-                </FormulaEditProvider>
+                <SortableContext items={displayItemIds} strategy={verticalListSortingStrategy}>
+                  {displayItems.map((item) => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      onOpenDetail={onOpenDetail}
+                      groupColor="#6366f1"
+                      leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext)}
+                      extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext)}
+                    />
+                  ))}
+                </SortableContext>
               )}
             </div>
           </DndContext>

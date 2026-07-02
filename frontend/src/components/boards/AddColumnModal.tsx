@@ -212,11 +212,16 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
   const trackedColumns = isPersonal ? personalAllScopeColumns : allColumns;
   const previousColumnsRef = useRef<string[]>([]);
+  const hasSubmittedRef = useRef(false);
 
+  // Keep tracking the "before" snapshot up until submit — if the column list hadn't
+  // finished loading yet when this modal mounted, a one-time snapshot would freeze at
+  // [] and make every existing column look "new" once data arrived, corrupting the
+  // insert-position logic below.
   useEffect(() => {
-    previousColumnsRef.current = trackedColumns.map(c => c.id);
+    if (!hasSubmittedRef.current) previousColumnsRef.current = trackedColumns.map(c => c.id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [trackedColumns.map(c => c.id).join(',')]);
 
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
@@ -317,6 +322,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     }
 
     setError('');
+    hasSubmittedRef.current = true;
 
     if (isPersonal) {
       if (!personalScope || (personalScope === 'board' && !boardId)) return;
