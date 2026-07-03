@@ -14,6 +14,7 @@ import { DependencyProvider } from '../../contexts/DependencyContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import ItemRow from '../boards/ItemRow';
+import GroupSummaryRow from '../boards/GroupSummaryRow';
 import PersonalColumnCell from './PersonalColumnCell';
 import { PERSONAL_COL_WIDTH } from './constants';
 import type { BoardView } from '../../contexts/BoardRenderContext';
@@ -292,6 +293,11 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
               )}
             </div>
           </DndContext>
+
+          {/* Sum / average summary row — same component, same per-column config, as a
+              normal board group. summaryConfig lives on the (real, shared) Column doc,
+              so setting it here reflects on the source board too, same as any other edit. */}
+          {!stillResolving && <GroupSummaryRow items={displayItems} columns={columns} />}
           </DependencyProvider>
         </BoardRenderProvider>
       </section>
