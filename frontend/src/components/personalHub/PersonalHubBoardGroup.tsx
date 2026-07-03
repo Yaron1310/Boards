@@ -296,8 +296,34 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
 
           {/* Sum / average summary row — same component, same per-column config, as a
               normal board group. summaryConfig lives on the (real, shared) Column doc,
-              so setting it here reflects on the source board too, same as any other edit. */}
-          {!stillResolving && <GroupSummaryRow items={displayItems} columns={columns} />}
+              so setting it here reflects on the source board too, same as any other edit.
+              Leading/trailing spacers reserve the exact width of the personal columns
+              woven around the source columns in the data rows, so every source-column
+              summary lines up with its column. */}
+          {!stillResolving && (
+            <GroupSummaryRow
+              items={displayItems}
+              columns={columns}
+              leadingExtraCells={crossGroupColumns.length > 0 ? crossGroupColumns.map((col) => (
+                <div
+                  key={col.id}
+                  role="gridcell"
+                  aria-hidden="true"
+                  style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+                  className="flex-shrink-0 border-r border-[#d2d2d4] bg-white"
+                />
+              )) : undefined}
+              trailingExtraCells={boardOnlyColumns.length > 0 ? boardOnlyColumns.map((col) => (
+                <div
+                  key={col.id}
+                  role="gridcell"
+                  aria-hidden="true"
+                  style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+                  className="flex-shrink-0 border-r border-[#d2d2d4] last:border-r-0 bg-white"
+                />
+              )) : undefined}
+            />
+          )}
           </DependencyProvider>
         </BoardRenderProvider>
       </section>

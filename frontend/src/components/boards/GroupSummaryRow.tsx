@@ -138,7 +138,6 @@ const SummaryPopover: React.FC<PopoverProps> = ({
   const setCustom = (val: string) => { setCustomUnit(val); onChange({ ...config, unit: val }); };
   const setAlign = (unitAlign: 'left' | 'right') => onChange({ ...config, unitAlign });
 
-  const activeUnit = PRESET_UNITS.includes(config.unit) ? config.unit : (config.unit ? '' : '');
   const isCustomActive = !PRESET_UNITS.includes(config.unit) && config.unit !== '';
   const isNoneUnitActive = config.unit === '';
 
@@ -487,17 +486,30 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
 interface Props {
   items: Item[];
   columns: Column[];
+  /**
+   * Cells (or spacers) rendered between the sticky item section and the first
+   * summarized column — used by Personal Hub to reserve the exact width of its
+   * leading cross-group personal columns so source-column summaries stay aligned
+   * with the data rows above. Also forces the row to render even when `columns`
+   * alone has nothing summarizable.
+   */
+  leadingExtraCells?: React.ReactNode;
+  /** Cells (or spacers) rendered after the summarized columns (Personal Hub board-only columns). */
+  trailingExtraCells?: React.ReactNode;
 }
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns }) => {
+const GroupSummaryRow: React.FC<Props> = ({ items, columns, leadingExtraCells, trailingExtraCells }) => {
+  const { columnWidths } = useBoardRender();
+
   const hasSummaryColumns = columns.some(
     (c) => AGGREGATABLE_TYPES.has(c.type) || COUNT_ONLY_TYPES.has(c.type),
   );
-  if (!hasSummaryColumns) return null;
+  // Still render (for alignment) when the caller supplies its own leading/trailing
+  // cells, even if the source columns themselves have nothing to summarize.
+  if (!hasSummaryColumns && !leadingExtraCells && !trailingExtraCells) return null;
 
   const nonArchived = items.filter((i) => !i.isArchived);
   const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
-  const { columnWidths } = useBoardRender();
   const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
   return (
@@ -511,15 +523,17 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns }) => {
         style={{ width: `${itemSectionWidth}px`, borderBottomLeftRadius: '6px' }}
         aria-hidden="true"
       />
+      {leadingExtraCells}
       {columns.map((col, index) => (
         <SummaryCell
           key={col.id}
           col={col}
           items={nonArchived}
           numberCols={numberCols}
-          isFirst={index === 0}
+          isFirst={index === 0 && !leadingExtraCells}
         />
       ))}
+      {trailingExtraCells}
     </div>
   );
 };
