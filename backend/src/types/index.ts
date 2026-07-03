@@ -268,6 +268,7 @@ export interface DBColumn {
     calc: string;
     unit: string;
     unitAlign: 'left' | 'right';
+    cumulative?: boolean;
   };
   width?: number;
   parentGroupId?: string | null;
@@ -291,6 +292,7 @@ export interface DBPersonalColumn {
     calc: string;
     unit: string;
     unitAlign: 'left' | 'right';
+    cumulative?: boolean;
   };
   scope: 'board' | 'all';
   boardId?: string; // required when scope === 'board'

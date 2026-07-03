@@ -45,6 +45,7 @@ export interface UpdatePersonalColumnData {
     calc: string;
     unit: string;
     unitAlign: 'left' | 'right';
+    cumulative?: boolean;
   };
 }
 

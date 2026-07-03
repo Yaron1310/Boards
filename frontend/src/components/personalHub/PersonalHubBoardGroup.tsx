@@ -51,23 +51,27 @@ interface Props {
 }
 
 /**
- * Evaluate a personal Simple Formula column for every row in its grid, using the
- * same {Letter}{Row} addressing the cells use, and return the numeric results so
- * the summary row can aggregate them (sum/avg/…), same as a board formula column.
+ * Build a per-item evaluator for a personal Simple Formula column, using the same
+ * {Letter}{Row} grid addressing the cells use. Returned per-item so the summary
+ * row can aggregate over exactly the items it's scoped to (this group, or this
+ * group plus every group above it when cumulative), same as a board formula.
  */
-const computePersonalFormulaVals = (col: PersonalColumn, gridContext: PersonalGridContext): number[] => {
+const makePersonalFormulaEvaluator = (col: PersonalColumn, gridContext: PersonalGridContext) => {
   const settings = col.settings as SimpleFormulaColumnSettings;
   const defaultFormula = settings?.defaultFormula ?? '';
   const allRows: FormulaRow[] = gridContext.rowOrder.map((id) => ({ values: gridContext.valuesByItem[id] ?? {} }));
-  const results: number[] = [];
-  gridContext.rowOrder.forEach((id, idx) => {
-    const stored = gridContext.valuesByItem[id]?.[col.id];
+  return (item: Item): number | null => {
+    const stored = gridContext.valuesByItem[item.id]?.[col.id];
     const formula = typeof stored === 'string' ? stored : defaultFormula;
-    if (!formula) return;
-    const r = evaluateFormula(formula, {}, { allItems: allRows, columns: gridContext.columns, currentRowIndex: idx });
-    if (r !== null && !isNaN(r)) results.push(r);
-  });
-  return results;
+    if (!formula) return null;
+    const idx = gridContext.rowOrder.indexOf(item.id);
+    const r = evaluateFormula(formula, {}, {
+      allItems: allRows,
+      columns: gridContext.columns,
+      currentRowIndex: idx >= 0 ? idx : undefined,
+    });
+    return r !== null && !isNaN(r) ? r : null;
+  };
 };
 
 /** Always plain — the interactive rename/settings/delete menu lives only in the page-level header. */
@@ -219,6 +223,17 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
     [displayItemIds, boardOnlyColumns, personalValuesByItem],
   );
 
+  // For cumulative cross-group summaries: rows from every board group above this one.
+  // The page-wide grid's rowOrder is all groups' rows in display order, so anything
+  // before this group's first row is "above". Values live in the same page-wide grid,
+  // so lightweight {id}-only pseudo-items are enough for the summary aggregation.
+  const crossGroupItemsAbove = useMemo<Item[]>(() => {
+    if (displayItemIds.length === 0) return [];
+    const start = crossGroupGridContext.rowOrder.indexOf(displayItemIds[0]);
+    if (start <= 0) return [];
+    return crossGroupGridContext.rowOrder.slice(0, start).map((id) => ({ id } as Item));
+  }, [crossGroupGridContext, displayItemIds]);
+
   React.useEffect(() => {
     if (groupsSettled && parentItemsSettled) onRowsResolved?.(boardId, displayItemIds, personalValuesByItem);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -335,10 +350,13 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
                       key={col.id}
                       col={col as unknown as SummaryColumn}
                       items={displayItems}
+                      itemsAbove={crossGroupItemsAbove}
                       numberCols={[]}
                       widthOverride={PERSONAL_COL_WIDTH}
-                      getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
-                      formulaValsOverride={col.type === ColumnType.SIMPLE_FORMULA ? computePersonalFormulaVals(col, crossGroupGridContext) : undefined}
+                      // Page-wide value source so both this group's rows and rows from
+                      // groups above (cumulative scope) resolve.
+                      getValue={(item) => crossGroupGridContext.valuesByItem[item.id]?.[col.id]}
+                      evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, crossGroupGridContext) : undefined}
                       onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
                     />
                   ))
@@ -352,7 +370,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
                       numberCols={[]}
                       widthOverride={PERSONAL_COL_WIDTH}
                       getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
-                      formulaValsOverride={col.type === ColumnType.SIMPLE_FORMULA ? computePersonalFormulaVals(col, boardOnlyGridContext) : undefined}
+                      evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, boardOnlyGridContext) : undefined}
                       onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
                     />
                   ))

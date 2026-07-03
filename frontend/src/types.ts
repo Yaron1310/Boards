@@ -252,6 +252,8 @@ export interface Column {
     calc: string;
     unit: string;
     unitAlign: 'left' | 'right';
+    /** When true, each group's summary includes items from all groups above it (running total). */
+    cumulative?: boolean;
   };
   width?: number;
   parentGroupId?: string;
@@ -598,6 +600,8 @@ export interface PersonalColumn {
     calc: string;
     unit: string;
     unitAlign: 'left' | 'right';
+    /** When true, each group's summary includes items from all groups above it (running total). */
+    cumulative?: boolean;
   };
   scope: PersonalColumnScope;
   boardId?: string;

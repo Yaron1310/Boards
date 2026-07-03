@@ -16,6 +16,8 @@ export interface CellConfig {
   calc: CalcMode;
   unit: string;
   unitAlign: 'left' | 'right';
+  /** Aggregate this group's items plus every group above it (running total) when true. */
+  cumulative: boolean;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -39,15 +41,16 @@ function median(vals: number[]): number {
 }
 
 
-function configFromColumn(col: { summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' } }, defaultCalc: CalcMode = 'sum'): CellConfig {
+function configFromColumn(col: { summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right'; cumulative?: boolean } }, defaultCalc: CalcMode = 'sum'): CellConfig {
   if (col.summaryConfig) {
     return {
       calc: (col.summaryConfig.calc as CalcMode) || defaultCalc,
       unit: col.summaryConfig.unit ?? '',
       unitAlign: col.summaryConfig.unitAlign ?? 'left',
+      cumulative: col.summaryConfig.cumulative ?? false,
     };
   }
-  return { calc: defaultCalc, unit: '', unitAlign: 'left' };
+  return { calc: defaultCalc, unit: '', unitAlign: 'left', cumulative: false };
 }
 
 function applyUnit(value: string, unit: string, align: 'left' | 'right'): string {
@@ -137,6 +140,7 @@ const SummaryPopover: React.FC<PopoverProps> = ({
   const setUnit = (unit: string) => { setCustomUnit(''); onChange({ ...config, unit }); };
   const setCustom = (val: string) => { setCustomUnit(val); onChange({ ...config, unit: val }); };
   const setAlign = (unitAlign: 'left' | 'right') => onChange({ ...config, unitAlign });
+  const setCumulative = (cumulative: boolean) => onChange({ ...config, cumulative });
 
   const isCustomActive = !PRESET_UNITS.includes(config.unit) && config.unit !== '';
   const isNoneUnitActive = config.unit === '';
@@ -170,6 +174,28 @@ const SummaryPopover: React.FC<PopoverProps> = ({
             {CALC_LABEL[c]}
           </button>
         ))}
+      </div>
+
+      {/* Scope — this group only vs. this group + all groups above it (running total) */}
+      <p className="text-sm font-semibold text-gray-700 mb-2">Scope</p>
+      <div className="flex items-center gap-1.5 mb-4">
+        <button
+          type="button"
+          onClick={() => setCumulative(false)}
+          className={`px-2.5 py-1 text-sm rounded border transition-all ${!config.cumulative ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}
+          aria-pressed={!config.cumulative}
+        >
+          This group
+        </button>
+        <button
+          type="button"
+          onClick={() => setCumulative(true)}
+          className={`px-2.5 py-1 text-sm rounded border transition-all ${config.cumulative ? 'border-blue-500 text-blue-600 bg-blue-50' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}
+          aria-pressed={config.cumulative}
+          title="Include items from this group and every group above it"
+        >
+          This + groups above
+        </button>
       </div>
 
       {/* Unit — hidden for time/checkbox/count-only columns */}
@@ -246,29 +272,34 @@ export interface SummaryColumn {
   settings: unknown;
   boardId?: string;
   width?: number;
-  summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' };
+  summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right'; cumulative?: boolean };
 }
 
 interface SummaryCellProps {
   col: SummaryColumn;
   items: Item[];
   numberCols: Column[];
+  /**
+   * Items from every group above this one, already display-filtered. Only used
+   * when the column's summary is set to cumulative ("this + groups above").
+   */
+  itemsAbove?: Item[];
   /** Personal Hub: fixed width instead of resolving from board column widths. */
   widthOverride?: number;
   /** Personal Hub: read a value from the personal store instead of item.values. */
   getValue?: (item: Item, colId: string) => unknown;
   /**
-   * Personal Hub: pre-evaluated numeric results for a SIMPLE_FORMULA column
-   * (personal formulas use {Letter}{Row} grid addressing, not the board's
-   * name-based per-row evaluation), fed straight into numeric aggregation.
+   * Personal Hub: evaluate a SIMPLE_FORMULA column for one item (personal
+   * formulas use {Letter}{Row} grid addressing, not the board's name-based
+   * per-row evaluation). Called per item so it composes with cumulative scope.
    */
-  formulaValsOverride?: number[];
+  evalFormula?: (item: Item) => number | null;
   /** Personal Hub: persist summaryConfig to the personal column instead of the board column. */
   onPersist?: (config: CellConfig) => void;
 }
 
 export const SummaryCell: React.FC<SummaryCellProps> = ({
-  col, items, numberCols, widthOverride, getValue, formulaValsOverride, onPersist,
+  col, items, numberCols, itemsAbove, widthOverride, getValue, evalFormula, onPersist,
 }) => {
   const getVal = getValue ?? ((i: Item, colId: string) => i.values[colId]);
   const isCheckbox = col.type === ColumnType.CHECKBOX;
@@ -285,6 +316,9 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
   const isInteractive = isAggregatable || isCountOnly;
   const colWidth = widthOverride ?? columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
+
+  // Cumulative scope aggregates this group's items plus every group above it.
+  const effectiveItems = config.cumulative && itemsAbove?.length ? [...itemsAbove, ...items] : items;
 
   // Keep local state in sync if the column data is refreshed from the server
   useEffect(() => {
@@ -308,11 +342,15 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
     if (col.type === ColumnType.NUMBER || col.type === ColumnType.SIMPLE_FORMULA) {
       if (col.type === ColumnType.SIMPLE_FORMULA) {
         // Personal formula columns evaluate via {Letter}{Row} grid addressing; the
-        // caller pre-computes those numeric results and hands them in directly.
-        if (formulaValsOverride) return formulaValsOverride;
+        // caller supplies a per-item evaluator so it composes with cumulative scope.
+        if (evalFormula) {
+          return effectiveItems
+            .map((i) => evalFormula(i))
+            .filter((v): v is number => v !== null);
+        }
         const settings = col.settings as SimpleFormulaColumnSettings;
         const defaultFormula = settings?.defaultFormula ?? '';
-        return items
+        return effectiveItems
           .map((i) => {
             const stored = getVal(i, col.id);
             const formula = typeof stored === 'string' ? stored : defaultFormula;
@@ -326,7 +364,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
           })
           .filter((v): v is number => v !== null);
       }
-      return items
+      return effectiveItems
         .map((i) => getVal(i, col.id))
         .filter((v) => v != null && v !== '')
         .map((v) => Number(v))
@@ -336,7 +374,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   }
 
   function computeTimeRangeIntervals(): { s: Date; e: Date }[] {
-    return items
+    return effectiveItems
       .map((i) => {
         const v = getVal(i, col.id) as TimeRangeValue | null | undefined;
         if (!v?.start || !v?.end) return null;
@@ -372,7 +410,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
 
   function computeTimeVals(): number[] {
     if (col.type === ColumnType.TIME) {
-      return items
+      return effectiveItems
         .map((i) => parseTimeToMinutes((getVal(i, col.id) as string) ?? ''))
         .filter((m): m is number => m !== null);
     }
@@ -390,7 +428,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
 
     if (isCountOnly) {
       if (calc === 'count') {
-        const filled = items.filter((i) => {
+        const filled = effectiveItems.filter((i) => {
           const v = getVal(i, col.id);
           if (v == null || v === '') return false;
           if (Array.isArray(v)) return v.length > 0;
@@ -403,7 +441,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
 
     if (isCheckbox) {
       if (calc === 'count') {
-        const checked = items.filter((i) => Boolean(getVal(i, col.id))).length;
+        const checked = effectiveItems.filter((i) => Boolean(getVal(i, col.id))).length;
         return String(checked);
       }
       return null;
@@ -519,6 +557,8 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
 interface Props {
   items: Item[];
   columns: Column[];
+  /** Items from every group above this one (for cumulative "this + groups above" summaries). */
+  itemsAbove?: Item[];
   /**
    * Cells (or spacers) rendered between the sticky item section and the first
    * summarized column — used by Personal Hub to reserve the exact width of its
@@ -531,7 +571,7 @@ interface Props {
   trailingExtraCells?: React.ReactNode;
 }
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns, leadingExtraCells, trailingExtraCells }) => {
+const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, leadingExtraCells, trailingExtraCells }) => {
   const { columnWidths } = useBoardRender();
 
   const hasSummaryColumns = columns.some(
@@ -542,6 +582,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, leadingExtraCells, t
   if (!hasSummaryColumns && !leadingExtraCells && !trailingExtraCells) return null;
 
   const nonArchived = items.filter((i) => !i.isArchived);
+  const nonArchivedAbove = itemsAbove?.filter((i) => !i.isArchived);
   const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
   const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
@@ -562,6 +603,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, leadingExtraCells, t
           key={col.id}
           col={col}
           items={nonArchived}
+          itemsAbove={nonArchivedAbove}
           numberCols={numberCols}
         />
       ))}

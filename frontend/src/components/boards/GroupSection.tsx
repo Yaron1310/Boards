@@ -30,6 +30,8 @@ interface GroupSectionProps {
   canManage: boolean;
   /** Filtered/sorted items for display — supplied by parent after applying search & filters */
   items: Item[];
+  /** Display items from every group above this one (for cumulative summaries). */
+  itemsAbove?: Item[];
   onOpenDetail: (item: Item) => void;
   pageSize: number;
   onPageItemsChange: (groupId: string, items: Item[]) => void;
@@ -41,6 +43,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   workspaceId,
   canManage,
   items,
+  itemsAbove,
   onOpenDetail,
   pageSize,
   onPageItemsChange,
@@ -715,7 +718,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             )}
 
             {/* Sum / average summary row */}
-            <GroupSummaryRow items={items} columns={columns} />
+            <GroupSummaryRow items={items} columns={columns} itemsAbove={itemsAbove} />
           </div>
         )}
 

@@ -175,11 +175,12 @@ export const updatePersonalColumn = async (req: Request, res: Response) => {
       updateData.width = Math.round(width);
     }
     if (summaryConfig !== undefined && summaryConfig !== null && typeof summaryConfig === 'object') {
-      const { calc, unit, unitAlign } = summaryConfig as { calc?: unknown; unit?: unknown; unitAlign?: unknown };
+      const { calc, unit, unitAlign, cumulative } = summaryConfig as { calc?: unknown; unit?: unknown; unitAlign?: unknown; cumulative?: unknown };
       updateData.summaryConfig = {
         calc: typeof calc === 'string' ? calc : 'none',
         unit: typeof unit === 'string' ? unit : '',
         unitAlign: unitAlign === 'right' ? 'right' : 'left',
+        cumulative: cumulative === true,
       };
     }
 

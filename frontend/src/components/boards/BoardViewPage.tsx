@@ -373,7 +373,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
               ) : (
                 <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat}>
                   <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
-                    {localGroups.map((group) => (
+                    {localGroups.map((group, groupIdx) => (
                       <GroupSection
                         key={group.id}
                         group={group}
@@ -381,6 +381,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                         workspaceId={board.workspaceId}
                         canManage={canManage && !board.isArchived}
                         items={displayItemsByGroup[group.id] ?? []}
+                        itemsAbove={localGroups.slice(0, groupIdx).flatMap((g) => displayItemsByGroup[g.id] ?? [])}
                         onOpenDetail={setDetailItem}
                         pageSize={pageSize}
                         onPageItemsChange={onPageItemsChange}
