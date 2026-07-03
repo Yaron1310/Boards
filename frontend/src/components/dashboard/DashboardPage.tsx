@@ -1,4 +1,4 @@
-import React, { useReducer, useState, useMemo } from 'react';
+import React, { useReducer, useState, useMemo, useImperativeHandle, forwardRef } from 'react';
 import { FiArchive, FiEdit2, FiTrash2, FiPlusCircle, FiX, FiTrello, FiLock, FiEye } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useOrgSnapshot } from '../../hooks/useOrgSnapshot';
@@ -8,7 +8,7 @@ import DashboardFilterBar, {
   INITIAL_FILTER_STATE,
   DateRangePresetPicker,
 } from './DashboardFilterBar';
-import type { DashboardActiveFilter } from './DashboardFilterBar';
+import type { DashboardActiveFilter, FilterState, FilterAction } from './DashboardFilterBar';
 import WidgetCard from './WidgetCard';
 import { useDashboardSummary } from '../../hooks/queries/useDashboardQueries';
 import {
@@ -112,13 +112,33 @@ interface DashboardPageProps {
    * the hub owner so they can manage their own dashboards regardless of role.
    */
   canManage?: boolean;
+  /**
+   * Embedded mode (Personal Hub): hides this page's own header row and org-wide
+   * summary stats, since the host page renders the filter controls and
+   * Add/Archived buttons in its own header. Filter state is supplied by the host
+   * and the create/archived modals are opened via the forwarded ref.
+   */
+  embedded?: boolean;
+  filters?: FilterState;
+  dispatch?: React.Dispatch<FilterAction>;
 }
 
-const DashboardPage: React.FC<DashboardPageProps> = ({ canManage: canManageProp }) => {
+/** Lets an embedding host (Personal Hub) open the create/archived modals from its own header. */
+export interface DashboardPageHandle {
+  openCreate: () => void;
+  openArchived: () => void;
+}
+
+const DashboardPage = forwardRef<DashboardPageHandle, DashboardPageProps>(({
+  canManage: canManageProp, embedded = false, filters: filtersProp, dispatch: dispatchProp,
+}, ref) => {
   const { selectedWorkspace, user } = useAuthSession();
   useOrgSnapshot(selectedWorkspace?.orgId);
 
-  const [filters, dispatch] = useReducer(filterReducer, INITIAL_FILTER_STATE);
+  // In embedded mode the host owns the filter state (its controls live in the host header).
+  const internal = useReducer(filterReducer, INITIAL_FILTER_STATE);
+  const filters = filtersProp ?? internal[0];
+  const dispatch = dispatchProp ?? internal[1];
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDashboard, setEditingDashboard] = useState<CustomDashboard | undefined>(undefined);
@@ -148,6 +168,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ canManage: canManageProp 
   const openCreate = () => { setEditingDashboard(undefined); setModalOpen(true); };
   const openEdit = (d: CustomDashboard) => { setEditingDashboard(d); setModalOpen(true); };
   const closeModal = () => { setModalOpen(false); setEditingDashboard(undefined); };
+
+  useImperativeHandle(ref, () => ({
+    openCreate,
+    openArchived: () => setArchiveModalOpen(true),
+  }), []);
 
   // Board ID lookup map
   const boardNameById = useMemo<Record<string, string>>(() => {
@@ -277,7 +302,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ canManage: canManageProp 
 
   return (
     <div className="flex flex-col min-h-full bg-gray-100" aria-label="Dashboard page">
-      {/* Sticky header */}
+      {/* Sticky header — hidden when embedded (the host renders these controls in its own header). */}
+      {!embedded && (
       <div className="sticky top-0 z-10 bg-gray-100 px-6 pt-6 pb-4 shrink-0">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -354,12 +380,13 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ canManage: canManageProp 
           )}
         </div>
       </div>
+      )}
 
       {/* Scrollable content */}
-      <main className="px-6 pb-6 flex flex-col gap-6" aria-label="Dashboard">
+      <main className={`px-6 pb-6 flex flex-col gap-6 ${embedded ? 'pt-6' : ''}`} aria-label="Dashboard">
         <div className="max-w-7xl mx-auto w-full flex flex-col gap-6">
-          {/* Summary stats — org admins only */}
-          {isOrgAdmin && (
+          {/* Summary stats — org admins only; suppressed when embedded in a personal hub. */}
+          {isOrgAdmin && !embedded && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <WidgetCard
                 title="Summary"
@@ -455,6 +482,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ canManage: canManageProp 
       )}
     </div>
   );
-};
+});
+
+DashboardPage.displayName = 'DashboardPage';
 
 export default DashboardPage;

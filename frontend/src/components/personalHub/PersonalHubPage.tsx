@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useReducer, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiLoader, FiUser, FiUsers, FiPlus, FiSearch, FiX, FiUpload, FiList } from 'react-icons/fi';
+import { FiLoader, FiUser, FiUsers, FiPlus, FiPlusCircle, FiSearch, FiX, FiUpload, FiList, FiArchive } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { useItems } from '../../hooks/queries/useItemQueries';
@@ -18,7 +18,9 @@ import PersonalHubBoardGroup from './PersonalHubBoardGroup';
 import PersonalHubFilterDropdown from './PersonalHubFilterDropdown';
 import type { PersonalHubActiveFilter } from './PersonalHubFilterDropdown';
 import GanttView from '../boards/GanttView';
-import DashboardPage from '../dashboard/DashboardPage';
+import DashboardPage, { type DashboardPageHandle } from '../dashboard/DashboardPage';
+import DashboardFilterBar, { DateRangePresetPicker, filterReducer, INITIAL_FILTER_STATE } from '../dashboard/DashboardFilterBar';
+import { DashboardFilterChip } from '../boards/BoardDashboardView';
 import ItemDetailPanel from '../boards/ItemDetailPanel';
 import ItemChatModal from '../boards/ItemChatModal';
 import UndoButton from '../boards/UndoButton';
@@ -113,6 +115,12 @@ const PersonalHubPageInner: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<PersonalHubActiveFilter[]>([]);
   const [isExporting, setIsExporting] = useState(false);
   const [boardNames, setBoardNames] = useState<Record<string, string>>({});
+
+  // Dashboard-view filter state, lifted here so its controls live in this page's
+  // header (the embedded DashboardPage renders only the widgets).
+  const [dashFilters, dashDispatch] = useReducer(filterReducer, INITIAL_FILTER_STATE);
+  const dashboardRef = useRef<DashboardPageHandle>(null);
+  const dashChips = dashFilters.filters.filter((f) => f.type !== 'timerange');
 
   const registerBoardName = React.useCallback((boardId: string, name: string) => {
     setBoardNames((prev) => (prev[boardId] === name ? prev : { ...prev, [boardId]: name }));
@@ -210,38 +218,68 @@ const PersonalHubPageInner: React.FC = () => {
 
         {/* Search + filter row */}
         <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
-          <div className="relative">
-            <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
-            <input
-              type="text"
-              placeholder="Search items…"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              className="w-44 pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              aria-label="Search items by name"
-            />
-          </div>
+          {viewMode === 'dashboard' ? (
+            <>
+              {/* Dashboard filter button, then the fixed-duration date dropdown to its right */}
+              <DashboardFilterBar filters={dashFilters} dispatch={dashDispatch} boardIds={allBoardIds} />
+              <DateRangePresetPicker filters={dashFilters} dispatch={dashDispatch} />
 
-          <PersonalHubFilterDropdown items={items} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
+              {dashChips.map((f, i) => (
+                <DashboardFilterChip
+                  key={`${f.type}-${i}`}
+                  filter={f}
+                  onRemove={() => dashDispatch({ type: 'REMOVE_FILTER', filter: f })}
+                />
+              ))}
 
-          {activeFilters.map((f, i) => (
-            <FilterChip
-              key={`${f.type}-${i}`}
-              filter={f}
-              onRemove={() => setActiveFilters((prev) => prev.filter((x) => x !== f))}
-            />
-          ))}
+              {dashChips.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => dashDispatch({ type: 'CLEAR' })}
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
+                  aria-label="Clear all dashboard filters"
+                >
+                  <FiX size={11} aria-hidden="true" />
+                  Clear
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="relative">
+                <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+                <input
+                  type="text"
+                  placeholder="Search items…"
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  className="w-44 pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  aria-label="Search items by name"
+                />
+              </div>
 
-          {(searchText.trim() !== '' || activeFilters.length > 0) && (
-            <button
-              type="button"
-              onClick={() => { setSearchText(''); setActiveFilters([]); }}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
-              aria-label="Clear all filters and search"
-            >
-              <FiX size={11} aria-hidden="true" />
-              Clear
-            </button>
+              <PersonalHubFilterDropdown items={items} activeFilters={activeFilters} onFilterChange={setActiveFilters} />
+
+              {activeFilters.map((f, i) => (
+                <FilterChip
+                  key={`${f.type}-${i}`}
+                  filter={f}
+                  onRemove={() => setActiveFilters((prev) => prev.filter((x) => x !== f))}
+                />
+              ))}
+
+              {(searchText.trim() !== '' || activeFilters.length > 0) && (
+                <button
+                  type="button"
+                  onClick={() => { setSearchText(''); setActiveFilters([]); }}
+                  className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
+                  aria-label="Clear all filters and search"
+                >
+                  <FiX size={11} aria-hidden="true" />
+                  Clear
+                </button>
+              )}
+            </>
           )}
         </div>
 
@@ -303,16 +341,43 @@ const PersonalHubPageInner: React.FC = () => {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void handleExport()}
-            disabled={isExporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            aria-label="Export Personal Hub items to Excel file"
-          >
-            <FiUpload size={13} aria-hidden="true" />
-            {isExporting ? 'Exporting…' : 'Export'}
-          </button>
+          {viewMode === 'dashboard' ? (
+            // Export is for the item grid; in dashboard view its slot holds the
+            // dashboard management actions (same as a board's dashboard header).
+            isOwn && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => dashboardRef.current?.openArchived()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  aria-label="View archived dashboards"
+                >
+                  <FiArchive size={13} aria-hidden="true" />
+                  Archived
+                </button>
+                <button
+                  type="button"
+                  onClick={() => dashboardRef.current?.openCreate()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                  aria-label="Add dashboard widget"
+                >
+                  <FiPlusCircle size={14} aria-hidden="true" />
+                  Add Dashboard
+                </button>
+              </>
+            )
+          ) : (
+            <button
+              type="button"
+              onClick={() => void handleExport()}
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Export Personal Hub items to Excel file"
+            >
+              <FiUpload size={13} aria-hidden="true" />
+              {isExporting ? 'Exporting…' : 'Export'}
+            </button>
+          )}
 
           <UndoButton />
         </div>
@@ -407,7 +472,13 @@ const PersonalHubPageInner: React.FC = () => {
         // Full custom-dashboard experience — no board pre-filter; boards are chosen
         // per-widget inside the Add Dashboard modal, same as the main Dashboards page.
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <DashboardPage canManage={isOwn} />
+          <DashboardPage
+            ref={dashboardRef}
+            embedded
+            canManage={isOwn}
+            filters={dashFilters}
+            dispatch={dashDispatch}
+          />
         </div>
       )}
       </div>
