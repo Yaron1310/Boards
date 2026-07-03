@@ -323,7 +323,11 @@ const PersonalHubPageInner: React.FC = () => {
       </div>
 
       <div className="flex-1 relative min-h-0 flex flex-col">
-      <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
+      {/* Left-edge scroll fade only makes sense for the horizontally scrolling
+          table/rows grids — the dashboard has no such grid to mask. */}
+      {viewMode !== 'dashboard' && (
+        <div className="absolute inset-y-0 left-0 w-4 bg-gray-100 z-[20] pointer-events-none" aria-hidden="true" />
+      )}
 
       {isLoading ? (
         <div className="flex justify-center items-center h-64" role="status" aria-label="Loading assigned items">
