@@ -287,8 +287,14 @@ export interface DBPersonalColumn {
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
+  summaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
   scope: 'board' | 'all';
   boardId?: string; // required when scope === 'board'
+  width?: number;
   order: number;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;

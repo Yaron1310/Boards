@@ -41,6 +41,11 @@ export interface UpdatePersonalColumnData {
   name?: string;
   settings?: ColumnSettings;
   width?: number;
+  summaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
 }
 
 export const listPersonalColumns = (): Promise<PersonalColumn[]> =>

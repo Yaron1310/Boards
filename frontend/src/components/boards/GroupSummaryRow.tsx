@@ -12,7 +12,7 @@ import { ITEM_COL_ID } from './ColumnHeader';
 
 type CalcMode = 'none' | 'sum' | 'avg' | 'median' | 'min' | 'max' | 'count';
 
-interface CellConfig {
+export interface CellConfig {
   calc: CalcMode;
   unit: string;
   unitAlign: 'left' | 'right';
@@ -39,7 +39,7 @@ function median(vals: number[]): number {
 }
 
 
-function configFromColumn(col: Column, defaultCalc: CalcMode = 'sum'): CellConfig {
+function configFromColumn(col: { summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' } }, defaultCalc: CalcMode = 'sum'): CellConfig {
   if (col.summaryConfig) {
     return {
       calc: (col.summaryConfig.calc as CalcMode) || defaultCalc,
@@ -234,14 +234,44 @@ const SummaryPopover: React.FC<PopoverProps> = ({
 
 // ─── SummaryCell ─────────────────────────────────────────────────────────────
 
+/**
+ * Minimal column shape the summary cell needs — satisfied by both a real board
+ * `Column` and a Personal Hub `PersonalColumn`, so the exact same cell (and its
+ * popover, aggregation math, and formatting) can be reused for personal columns.
+ */
+export interface SummaryColumn {
+  id: string;
+  name: string;
+  type: ColumnType;
+  settings: unknown;
+  boardId?: string;
+  width?: number;
+  summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' };
+}
+
 interface SummaryCellProps {
-  col: Column;
+  col: SummaryColumn;
   items: Item[];
   numberCols: Column[];
   isFirst?: boolean;
+  /** Personal Hub: fixed width instead of resolving from board column widths. */
+  widthOverride?: number;
+  /** Personal Hub: read a value from the personal store instead of item.values. */
+  getValue?: (item: Item, colId: string) => unknown;
+  /**
+   * Personal Hub: pre-evaluated numeric results for a SIMPLE_FORMULA column
+   * (personal formulas use {Letter}{Row} grid addressing, not the board's
+   * name-based per-row evaluation), fed straight into numeric aggregation.
+   */
+  formulaValsOverride?: number[];
+  /** Personal Hub: persist summaryConfig to the personal column instead of the board column. */
+  onPersist?: (config: CellConfig) => void;
 }
 
-const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFirst }) => {
+export const SummaryCell: React.FC<SummaryCellProps> = ({
+  col, items, numberCols, isFirst, widthOverride, getValue, formulaValsOverride, onPersist,
+}) => {
+  const getVal = getValue ?? ((i: Item, colId: string) => i.values[colId]);
   const isCheckbox = col.type === ColumnType.CHECKBOX;
   const isTimeType = col.type === ColumnType.TIME || col.type === ColumnType.TIME_RANGE;
   const isCountOnly = COUNT_ONLY_TYPES.has(col.type);
@@ -250,12 +280,12 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
   const [config, setConfig] = useState<CellConfig>(() => configFromColumn(col, defaultCalc));
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const { mutate: updateColumn } = useUpdateColumn(col.boardId);
+  const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
   const { columnWidths } = useBoardRender();
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
   const isInteractive = isAggregatable || isCountOnly;
-  const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
+  const colWidth = widthOverride ?? columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
 
   // Keep local state in sync if the column data is refreshed from the server
   useEffect(() => {
@@ -265,8 +295,9 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
 
   const handleChange = useCallback((c: CellConfig) => {
     setConfig(c);
-    updateColumn({ id: col.id, patch: { summaryConfig: c } });
-  }, [col.id, updateColumn]);
+    if (onPersist) onPersist(c);
+    else updateColumn({ id: col.id, patch: { summaryConfig: c } });
+  }, [col.id, updateColumn, onPersist]);
 
   const handleOpen = () => {
     if (btnRef.current) {
@@ -277,11 +308,14 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
   function computeNumberVals(): number[] {
     if (col.type === ColumnType.NUMBER || col.type === ColumnType.SIMPLE_FORMULA) {
       if (col.type === ColumnType.SIMPLE_FORMULA) {
+        // Personal formula columns evaluate via {Letter}{Row} grid addressing; the
+        // caller pre-computes those numeric results and hands them in directly.
+        if (formulaValsOverride) return formulaValsOverride;
         const settings = col.settings as SimpleFormulaColumnSettings;
         const defaultFormula = settings?.defaultFormula ?? '';
         return items
           .map((i) => {
-            const stored = i.values[col.id];
+            const stored = getVal(i, col.id);
             const formula = typeof stored === 'string' ? stored : defaultFormula;
             if (!formula) return null;
             const colValues: Record<string, number | null | undefined> = {};
@@ -294,7 +328,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
           .filter((v): v is number => v !== null);
       }
       return items
-        .map((i) => i.values[col.id])
+        .map((i) => getVal(i, col.id))
         .filter((v) => v != null && v !== '')
         .map((v) => Number(v))
         .filter((v) => !isNaN(v));
@@ -305,7 +339,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
   function computeTimeRangeIntervals(): { s: Date; e: Date }[] {
     return items
       .map((i) => {
-        const v = i.values[col.id] as TimeRangeValue | null | undefined;
+        const v = getVal(i, col.id) as TimeRangeValue | null | undefined;
         if (!v?.start || !v?.end) return null;
         const s = new Date(v.start as string);
         const e = new Date(v.end as string);
@@ -340,7 +374,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
   function computeTimeVals(): number[] {
     if (col.type === ColumnType.TIME) {
       return items
-        .map((i) => parseTimeToMinutes((i.values[col.id] as string) ?? ''))
+        .map((i) => parseTimeToMinutes((getVal(i, col.id) as string) ?? ''))
         .filter((m): m is number => m !== null);
     }
     if (col.type === ColumnType.TIME_RANGE) {
@@ -358,7 +392,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
     if (isCountOnly) {
       if (calc === 'count') {
         const filled = items.filter((i) => {
-          const v = i.values[col.id];
+          const v = getVal(i, col.id);
           if (v == null || v === '') return false;
           if (Array.isArray(v)) return v.length > 0;
           return true;
@@ -370,7 +404,7 @@ const SummaryCell: React.FC<SummaryCellProps> = ({ col, items, numberCols, isFir
 
     if (isCheckbox) {
       if (calc === 'count') {
-        const checked = items.filter((i) => Boolean(i.values[col.id])).length;
+        const checked = items.filter((i) => Boolean(getVal(i, col.id))).length;
         return String(checked);
       }
       return null;

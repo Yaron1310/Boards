@@ -594,6 +594,11 @@ export interface PersonalColumn {
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
+  summaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
   scope: PersonalColumnScope;
   boardId?: string;
   width?: number;

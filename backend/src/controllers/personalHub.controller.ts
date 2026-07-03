@@ -157,7 +157,7 @@ export const reorderPersonalColumns = async (req: Request, res: Response) => {
 export const updatePersonalColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { id } = req.params;
-  const { name, settings, width } = req.body;
+  const { name, settings, width, summaryConfig } = req.body;
 
   try {
     const doc = await personalColumnsCollection(user.orgId).doc(id).get();
@@ -173,6 +173,14 @@ export const updatePersonalColumn = async (req: Request, res: Response) => {
     if (settings !== undefined) updateData.settings = settings;
     if (width !== undefined && typeof width === 'number' && width >= 50 && width <= 1000) {
       updateData.width = Math.round(width);
+    }
+    if (summaryConfig !== undefined && summaryConfig !== null && typeof summaryConfig === 'object') {
+      const { calc, unit, unitAlign } = summaryConfig as { calc?: unknown; unit?: unknown; unitAlign?: unknown };
+      updateData.summaryConfig = {
+        calc: typeof calc === 'string' ? calc : 'none',
+        unit: typeof unit === 'string' ? unit : '',
+        unitAlign: unitAlign === 'right' ? 'right' : 'left',
+      };
     }
 
     await personalColumnsCollection(user.orgId).doc(id).update(updateData);

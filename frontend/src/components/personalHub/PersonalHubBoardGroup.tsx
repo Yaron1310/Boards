@@ -6,20 +6,24 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { FiLoader, FiExternalLink } from 'react-icons/fi';
 import { useBoard } from '../../hooks/queries/useBoardQueries';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
-import { usePersonalColumns, usePersonalItemValues } from '../../hooks/queries/usePersonalHubQueries';
+import { usePersonalColumns, usePersonalItemValues, useUpdatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import * as wm from '../../services/workManagementService';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import { DependencyProvider } from '../../contexts/DependencyContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
+import { evaluateFormula } from '../../utils/formulaEngine';
+import type { FormulaRow } from '../../utils/formulaEngine';
 import ItemRow from '../boards/ItemRow';
-import GroupSummaryRow from '../boards/GroupSummaryRow';
+import GroupSummaryRow, { SummaryCell } from '../boards/GroupSummaryRow';
+import type { SummaryColumn, CellConfig } from '../boards/GroupSummaryRow';
 import PersonalColumnCell from './PersonalColumnCell';
 import { PERSONAL_COL_WIDTH } from './constants';
+import { ColumnType } from '../../types';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import type { PersonalGridContext } from './cells/types';
-import type { Item, PersonalColumn } from '../../types';
+import type { Item, PersonalColumn, SimpleFormulaColumnSettings } from '../../types';
 
 interface Props {
   boardId: string;
@@ -45,6 +49,26 @@ interface Props {
    */
   subitemAssigneeFilterId?: string;
 }
+
+/**
+ * Evaluate a personal Simple Formula column for every row in its grid, using the
+ * same {Letter}{Row} addressing the cells use, and return the numeric results so
+ * the summary row can aggregate them (sum/avg/…), same as a board formula column.
+ */
+const computePersonalFormulaVals = (col: PersonalColumn, gridContext: PersonalGridContext): number[] => {
+  const settings = col.settings as SimpleFormulaColumnSettings;
+  const defaultFormula = settings?.defaultFormula ?? '';
+  const allRows: FormulaRow[] = gridContext.rowOrder.map((id) => ({ values: gridContext.valuesByItem[id] ?? {} }));
+  const results: number[] = [];
+  gridContext.rowOrder.forEach((id, idx) => {
+    const stored = gridContext.valuesByItem[id]?.[col.id];
+    const formula = typeof stored === 'string' ? stored : defaultFormula;
+    if (!formula) return;
+    const r = evaluateFormula(formula, {}, { allItems: allRows, columns: gridContext.columns, currentRowIndex: idx });
+    if (r !== null && !isNaN(r)) results.push(r);
+  });
+  return results;
+};
 
 /** Always plain — the interactive rename/settings/delete menu lives only in the page-level header. */
 const PersonalColumnHeaderLabel: React.FC<{ col: PersonalColumn }> = ({ col }) => (
@@ -106,6 +130,7 @@ const renderPersonalCells = (
  */
 const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId }) => {
   const navigate = useNavigate();
+  const { mutate: updatePersonalColumn } = useUpdatePersonalColumn();
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
 
   React.useEffect(() => {
@@ -295,33 +320,44 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
           </DndContext>
 
           {/* Sum / average summary row — same component, same per-column config, as a
-              normal board group. summaryConfig lives on the (real, shared) Column doc,
-              so setting it here reflects on the source board too, same as any other edit.
-              Leading/trailing spacers reserve the exact width of the personal columns
-              woven around the source columns in the data rows, so every source-column
-              summary lines up with its column. */}
+              normal board group. The source-column summaries persist to the shared
+              Column doc (reflecting on the source board, like any other edit here);
+              the personal cross-group / board-only column summaries are woven in
+              around them with the same SummaryCell, computed client-side over the
+              personal values and persisted to the personal column. */}
           {!stillResolving && (
             <GroupSummaryRow
               items={displayItems}
               columns={columns}
-              leadingExtraCells={crossGroupColumns.length > 0 ? crossGroupColumns.map((col) => (
-                <div
-                  key={col.id}
-                  role="gridcell"
-                  aria-hidden="true"
-                  style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-                  className="flex-shrink-0 border-r border-[#d2d2d4] bg-white"
-                />
-              )) : undefined}
-              trailingExtraCells={boardOnlyColumns.length > 0 ? boardOnlyColumns.map((col) => (
-                <div
-                  key={col.id}
-                  role="gridcell"
-                  aria-hidden="true"
-                  style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-                  className="flex-shrink-0 border-r border-[#d2d2d4] last:border-r-0 bg-white"
-                />
-              )) : undefined}
+              leadingExtraCells={crossGroupColumns.length > 0
+                ? crossGroupColumns.map((col, idx) => (
+                    <SummaryCell
+                      key={col.id}
+                      col={col as unknown as SummaryColumn}
+                      items={displayItems}
+                      numberCols={[]}
+                      isFirst={idx === 0}
+                      widthOverride={PERSONAL_COL_WIDTH}
+                      getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
+                      formulaValsOverride={col.type === ColumnType.SIMPLE_FORMULA ? computePersonalFormulaVals(col, crossGroupGridContext) : undefined}
+                      onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
+                    />
+                  ))
+                : undefined}
+              trailingExtraCells={boardOnlyColumns.length > 0
+                ? boardOnlyColumns.map((col) => (
+                    <SummaryCell
+                      key={col.id}
+                      col={col as unknown as SummaryColumn}
+                      items={displayItems}
+                      numberCols={[]}
+                      widthOverride={PERSONAL_COL_WIDTH}
+                      getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
+                      formulaValsOverride={col.type === ColumnType.SIMPLE_FORMULA ? computePersonalFormulaVals(col, boardOnlyGridContext) : undefined}
+                      onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
+                    />
+                  ))
+                : undefined}
             />
           )}
           </DependencyProvider>
