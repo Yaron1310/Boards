@@ -253,7 +253,6 @@ interface SummaryCellProps {
   col: SummaryColumn;
   items: Item[];
   numberCols: Column[];
-  isFirst?: boolean;
   /** Personal Hub: fixed width instead of resolving from board column widths. */
   widthOverride?: number;
   /** Personal Hub: read a value from the personal store instead of item.values. */
@@ -269,7 +268,7 @@ interface SummaryCellProps {
 }
 
 export const SummaryCell: React.FC<SummaryCellProps> = ({
-  col, items, numberCols, isFirst, widthOverride, getValue, formulaValsOverride, onPersist,
+  col, items, numberCols, widthOverride, getValue, formulaValsOverride, onPersist,
 }) => {
   const getVal = getValue ?? ((i: Item, colId: string) => i.values[colId]);
   const isCheckbox = col.type === ColumnType.CHECKBOX;
@@ -467,7 +466,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       role="gridcell"
       aria-label={`${col.name} ${config.calc}: ${value ?? 'none'}`}
       style={{ width: `${colWidth}px` }}
-      className={`group relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2${isFirst ? ' border-l border-[#d2d2d4]' : ''}`}
+      className="group relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2"
     >
       {showActive && (
         <button
@@ -553,18 +552,17 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, leadingExtraCells, t
       className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] w-max rounded-bl-xl bg-white"
     >
       <div
-        className="flex-shrink-0 sticky left-4 z-[1] bg-white"
+        className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4]"
         style={{ width: `${itemSectionWidth}px`, borderBottomLeftRadius: '6px' }}
         aria-hidden="true"
       />
       {leadingExtraCells}
-      {columns.map((col, index) => (
+      {columns.map((col) => (
         <SummaryCell
           key={col.id}
           col={col}
           items={nonArchived}
           numberCols={numberCols}
-          isFirst={index === 0 && !leadingExtraCells}
         />
       ))}
       {trailingExtraCells}

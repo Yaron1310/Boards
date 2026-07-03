@@ -330,13 +330,12 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
               items={displayItems}
               columns={columns}
               leadingExtraCells={crossGroupColumns.length > 0
-                ? crossGroupColumns.map((col, idx) => (
+                ? crossGroupColumns.map((col) => (
                     <SummaryCell
                       key={col.id}
                       col={col as unknown as SummaryColumn}
                       items={displayItems}
                       numberCols={[]}
-                      isFirst={idx === 0}
                       widthOverride={PERSONAL_COL_WIDTH}
                       getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
                       formulaValsOverride={col.type === ColumnType.SIMPLE_FORMULA ? computePersonalFormulaVals(col, crossGroupGridContext) : undefined}
