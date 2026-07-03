@@ -18,7 +18,7 @@ import PersonalHubBoardGroup from './PersonalHubBoardGroup';
 import PersonalHubFilterDropdown from './PersonalHubFilterDropdown';
 import type { PersonalHubActiveFilter } from './PersonalHubFilterDropdown';
 import GanttView from '../boards/GanttView';
-import BoardDashboardView from '../boards/BoardDashboardView';
+import DashboardPage from '../dashboard/DashboardPage';
 import ItemDetailPanel from '../boards/ItemDetailPanel';
 import ItemChatModal from '../boards/ItemChatModal';
 import UndoButton from '../boards/UndoButton';
@@ -108,7 +108,6 @@ const PersonalHubPageInner: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [chatItem, setChatItem] = useState<Item | null>(null);
-  const [dashboardBoardId, setDashboardBoardId] = useState<string>('');
   const [showAddCrossGroupColumn, setShowAddCrossGroupColumn] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [activeFilters, setActiveFilters] = useState<PersonalHubActiveFilter[]>([]);
@@ -175,9 +174,6 @@ const PersonalHubPageInner: React.FC = () => {
     return { rowOrder, columns: crossGroupColumns, valuesByItem };
   }, [boardIds, rowsByBoard, valuesByBoard, crossGroupColumns]);
 
-  React.useEffect(() => {
-    if (!dashboardBoardId && boardIds.length > 0) setDashboardBoardId(boardIds[0]);
-  }, [boardIds, dashboardBoardId]);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -408,26 +404,10 @@ const PersonalHubPageInner: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex-shrink-0 px-6 py-2 border-b border-gray-100 bg-white flex items-center gap-2">
-            <label htmlFor="personal-hub-dashboard-board" className="text-sm text-gray-500">
-              Board:
-            </label>
-            <select
-              id="personal-hub-dashboard-board"
-              value={dashboardBoardId}
-              onChange={(e) => setDashboardBoardId(e.target.value)}
-              className="text-sm border border-gray-300 rounded-lg px-2 py-1"
-              aria-label="Select board for dashboard widgets"
-            >
-              {boardIds.map((boardId) => (
-                <option key={boardId} value={boardId}>{boardNames[boardId] ?? boardId}</option>
-              ))}
-            </select>
-          </div>
-          {dashboardBoardId && (
-            <BoardDashboardView boardId={dashboardBoardId} boardName="" isAdmin={isOwn} />
-          )}
+        // Full custom-dashboard experience — no board pre-filter; boards are chosen
+        // per-widget inside the Add Dashboard modal, same as the main Dashboards page.
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <DashboardPage />
         </div>
       )}
       </div>
