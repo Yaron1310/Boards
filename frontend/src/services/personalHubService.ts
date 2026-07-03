@@ -47,6 +47,7 @@ export interface UpdatePersonalColumnData {
     unitAlign: 'left' | 'right';
     cumulative?: boolean;
   };
+  summaryCumulativeByBoard?: Record<string, boolean>;
 }
 
 export const listPersonalColumns = (): Promise<PersonalColumn[]> =>

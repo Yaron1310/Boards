@@ -216,7 +216,7 @@ export const reorderGroups = async (req: Request, res: Response) => {
 export const updateGroup = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId, groupId } = req.params;
-  const { name, color, isCollapsed, order } = req.body;
+  const { name, color, isCollapsed, order, summaryCumulative } = req.body;
 
   try {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
@@ -238,6 +238,13 @@ export const updateGroup = async (req: Request, res: Response) => {
     if (color !== undefined) updateData.color = color;
     if (isCollapsed !== undefined) updateData.isCollapsed = Boolean(isCollapsed);
     if (order !== undefined) updateData.order = Number(order);
+    if (summaryCumulative !== undefined && summaryCumulative !== null && typeof summaryCumulative === 'object' && !Array.isArray(summaryCumulative)) {
+      const sanitized: Record<string, boolean> = {};
+      for (const [colId, val] of Object.entries(summaryCumulative as Record<string, unknown>)) {
+        sanitized[colId] = val === true;
+      }
+      updateData.summaryCumulative = sanitized;
+    }
 
     await groupsCollection(user.orgId, boardId).doc(groupId).update(updateData);
     touchBoardVersion(user.orgId, boardId);

@@ -334,6 +334,8 @@ export interface Group {
   isCollapsed?: boolean;
   isArchived?: boolean;
   parentItemId?: string;
+  /** Per-column cumulative summary scope (columnId -> include groups above), independent per group. */
+  summaryCumulative?: Record<string, boolean>;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -606,6 +608,8 @@ export interface PersonalColumn {
   scope: PersonalColumnScope;
   boardId?: string;
   width?: number;
+  /** Per-board cumulative summary scope (boardId -> include board groups above), independent per board group. */
+  summaryCumulativeByBoard?: Record<string, boolean>;
   order: number;
   createdAt: Date | string;
   updatedAt: Date | string;

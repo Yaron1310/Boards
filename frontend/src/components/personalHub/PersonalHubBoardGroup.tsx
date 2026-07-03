@@ -358,6 +358,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
                       getValue={(item) => crossGroupGridContext.valuesByItem[item.id]?.[col.id]}
                       evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, crossGroupGridContext) : undefined}
                       onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
+                      cumulative={col.summaryCumulativeByBoard?.[boardId] ?? false}
+                      onCumulativeChange={isOwn ? (b) => updatePersonalColumn({ id: col.id, patch: { summaryCumulativeByBoard: { ...(col.summaryCumulativeByBoard ?? {}), [boardId]: b } } }) : undefined}
                     />
                   ))
                 : undefined}
@@ -372,6 +374,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
                       getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
                       evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, boardOnlyGridContext) : undefined}
                       onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
+                      cumulative={col.summaryCumulativeByBoard?.[boardId] ?? false}
+                      onCumulativeChange={isOwn ? (b) => updatePersonalColumn({ id: col.id, patch: { summaryCumulativeByBoard: { ...(col.summaryCumulativeByBoard ?? {}), [boardId]: b } } }) : undefined}
                     />
                   ))
                 : undefined}

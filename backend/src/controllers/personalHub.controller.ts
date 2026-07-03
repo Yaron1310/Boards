@@ -157,7 +157,7 @@ export const reorderPersonalColumns = async (req: Request, res: Response) => {
 export const updatePersonalColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { id } = req.params;
-  const { name, settings, width, summaryConfig } = req.body;
+  const { name, settings, width, summaryConfig, summaryCumulativeByBoard } = req.body;
 
   try {
     const doc = await personalColumnsCollection(user.orgId).doc(id).get();
@@ -182,6 +182,13 @@ export const updatePersonalColumn = async (req: Request, res: Response) => {
         unitAlign: unitAlign === 'right' ? 'right' : 'left',
         cumulative: cumulative === true,
       };
+    }
+    if (summaryCumulativeByBoard !== undefined && summaryCumulativeByBoard !== null && typeof summaryCumulativeByBoard === 'object' && !Array.isArray(summaryCumulativeByBoard)) {
+      const sanitized: Record<string, boolean> = {};
+      for (const [bId, val] of Object.entries(summaryCumulativeByBoard as Record<string, unknown>)) {
+        sanitized[bId] = val === true;
+      }
+      updateData.summaryCumulativeByBoard = sanitized;
     }
 
     await personalColumnsCollection(user.orgId).doc(id).update(updateData);

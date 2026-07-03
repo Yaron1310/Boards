@@ -718,7 +718,19 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             )}
 
             {/* Sum / average summary row */}
-            <GroupSummaryRow items={items} columns={columns} itemsAbove={itemsAbove} />
+            <GroupSummaryRow
+              items={items}
+              columns={columns}
+              itemsAbove={itemsAbove}
+              cumulativeByColumn={group.summaryCumulative}
+              onSetCumulative={(columnId, cumulative) => {
+                void updateGroup({
+                  boardId,
+                  groupId: group.id,
+                  patch: { summaryCumulative: { ...(group.summaryCumulative ?? {}), [columnId]: cumulative } },
+                });
+              }}
+            />
           </div>
         )}
 

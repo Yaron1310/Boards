@@ -297,6 +297,8 @@ export interface DBPersonalColumn {
   scope: 'board' | 'all';
   boardId?: string; // required when scope === 'board'
   width?: number;
+  /** Per-board cumulative summary scope (boardId -> include board groups above), independent per board group. */
+  summaryCumulativeByBoard?: Record<string, boolean>;
   order: number;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
@@ -379,6 +381,8 @@ export interface DBGroup {
   isCollapsed?: boolean;
   isArchived?: boolean;
   parentItemId?: string | null;
+  /** Per-column cumulative summary scope (columnId -> include groups above), independent per group. */
+  summaryCumulative?: Record<string, boolean>;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }

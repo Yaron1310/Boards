@@ -294,12 +294,21 @@ interface SummaryCellProps {
    * per-row evaluation). Called per item so it composes with cumulative scope.
    */
   evalFormula?: (item: Item) => number | null;
-  /** Personal Hub: persist summaryConfig to the personal column instead of the board column. */
+  /** Persist column-level summaryConfig (calc/unit/align) to the personal column. Board default persists to the board column. */
   onPersist?: (config: CellConfig) => void;
+  /**
+   * Cumulative scope is PER-GROUP, not per-column — the calc/unit are shared
+   * across a column's groups, but "include groups above" is a property of this
+   * one group's cell. So it comes in as a prop and is persisted separately
+   * (per group on the board; per board in Personal Hub) via onCumulativeChange.
+   */
+  cumulative?: boolean;
+  onCumulativeChange?: (cumulative: boolean) => void;
 }
 
 export const SummaryCell: React.FC<SummaryCellProps> = ({
   col, items, numberCols, itemsAbove, widthOverride, getValue, evalFormula, onPersist,
+  cumulative = false, onCumulativeChange,
 }) => {
   const getVal = getValue ?? ((i: Item, colId: string) => i.values[colId]);
   const isCheckbox = col.type === ColumnType.CHECKBOX;
@@ -307,7 +316,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const isCountOnly = COUNT_ONLY_TYPES.has(col.type);
   const defaultCalc: CalcMode = isCheckbox ? 'count' : isCountOnly ? 'none' : 'sum';
 
-  const [config, setConfig] = useState<CellConfig>(() => configFromColumn(col, defaultCalc));
+  const [colConfig, setColConfig] = useState<CellConfig>(() => configFromColumn(col, defaultCalc));
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
@@ -317,20 +326,26 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const isInteractive = isAggregatable || isCountOnly;
   const colWidth = widthOverride ?? columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
 
+  // The popover shows the column-shared calc/unit plus this group's own cumulative flag.
+  const config: CellConfig = { ...colConfig, cumulative };
+
   // Cumulative scope aggregates this group's items plus every group above it.
-  const effectiveItems = config.cumulative && itemsAbove?.length ? [...itemsAbove, ...items] : items;
+  const effectiveItems = cumulative && itemsAbove?.length ? [...itemsAbove, ...items] : items;
 
   // Keep local state in sync if the column data is refreshed from the server
   useEffect(() => {
-    setConfig(configFromColumn(col, defaultCalc));
+    setColConfig(configFromColumn(col, defaultCalc));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [col.summaryConfig]);
 
   const handleChange = useCallback((c: CellConfig) => {
-    setConfig(c);
-    if (onPersist) onPersist(c);
-    else updateColumn({ id: col.id, patch: { summaryConfig: c } });
-  }, [col.id, updateColumn, onPersist]);
+    // Cumulative is per-group — route it separately; never store it on the shared column.
+    if (c.cumulative !== cumulative) onCumulativeChange?.(c.cumulative);
+    const colPart: CellConfig = { calc: c.calc, unit: c.unit, unitAlign: c.unitAlign, cumulative: false };
+    setColConfig(colPart);
+    if (onPersist) onPersist(colPart);
+    else updateColumn({ id: col.id, patch: { summaryConfig: { calc: colPart.calc, unit: colPart.unit, unitAlign: colPart.unitAlign } } });
+  }, [col.id, updateColumn, onPersist, cumulative, onCumulativeChange]);
 
   const handleOpen = () => {
     if (btnRef.current) {
@@ -559,6 +574,10 @@ interface Props {
   columns: Column[];
   /** Items from every group above this one (for cumulative "this + groups above" summaries). */
   itemsAbove?: Item[];
+  /** Per-group cumulative flags keyed by column id (independent of the shared column config). */
+  cumulativeByColumn?: Record<string, boolean>;
+  /** Persist a per-group cumulative toggle for a source column. */
+  onSetCumulative?: (columnId: string, cumulative: boolean) => void;
   /**
    * Cells (or spacers) rendered between the sticky item section and the first
    * summarized column — used by Personal Hub to reserve the exact width of its
@@ -571,7 +590,7 @@ interface Props {
   trailingExtraCells?: React.ReactNode;
 }
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, leadingExtraCells, trailingExtraCells }) => {
+const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulativeByColumn, onSetCumulative, leadingExtraCells, trailingExtraCells }) => {
   const { columnWidths } = useBoardRender();
 
   const hasSummaryColumns = columns.some(
@@ -605,6 +624,8 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, leadingE
           items={nonArchived}
           itemsAbove={nonArchivedAbove}
           numberCols={numberCols}
+          cumulative={cumulativeByColumn?.[col.id] ?? false}
+          onCumulativeChange={onSetCumulative ? (b) => onSetCumulative(col.id, b) : undefined}
         />
       ))}
       {trailingExtraCells}

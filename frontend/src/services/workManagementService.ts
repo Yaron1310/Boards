@@ -138,6 +138,7 @@ export interface UpdateGroupData {
   color?: string;
   isCollapsed?: boolean;
   order?: number;
+  summaryCumulative?: Record<string, boolean>;
 }
 
 export interface ReorderGroupItem {
