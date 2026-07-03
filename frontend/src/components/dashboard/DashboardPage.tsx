@@ -105,7 +105,16 @@ const SortableWidget: React.FC<SortableWidgetProps> = ({ id, children }) => {
 // DashboardPage
 // ---------------------------------------------------------------------------
 
-const DashboardPage: React.FC = () => {
+interface DashboardPageProps {
+  /**
+   * Overrides who can create/edit/archive/delete dashboards. Defaults to
+   * org-admin only (the main Dashboards route). Personal Hub passes `true` for
+   * the hub owner so they can manage their own dashboards regardless of role.
+   */
+  canManage?: boolean;
+}
+
+const DashboardPage: React.FC<DashboardPageProps> = ({ canManage: canManageProp }) => {
   const { selectedWorkspace, user } = useAuthSession();
   useOrgSnapshot(selectedWorkspace?.orgId);
 
@@ -119,6 +128,9 @@ const DashboardPage: React.FC = () => {
 
   const isOrgAdmin =
     user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN;
+  // Who can add/edit/archive/delete dashboards. Summary stats stay org-admin-only
+  // (org-wide aggregate data) regardless of this override.
+  const canManage = canManageProp ?? isOrgAdmin;
 
   const params = toDashboardParams(filters);
   const { data: summary, isLoading } = useDashboardSummary(params);
@@ -199,7 +211,7 @@ const DashboardPage: React.FC = () => {
   const dateTo = timeRangeFilter?.end;
 
   const buildWidgetActions = (d: CustomDashboard) => {
-    if (!isOrgAdmin) return undefined;
+    if (!canManage) return undefined;
 
     return (
       <>
@@ -294,7 +306,7 @@ const DashboardPage: React.FC = () => {
                   Results capped at 1,000 items — apply filters to narrow down
                 </span>
               )}
-              {isOrgAdmin && (
+              {canManage && (
                 <>
                   <button
                     type="button"
@@ -366,8 +378,8 @@ const DashboardPage: React.FC = () => {
             </div>
           )}
 
-          {/* No dashboards message for non-admins with nothing visible */}
-          {!isOrgAdmin && !customDashboardsLoading && orderedDashboards.length === 0 && (
+          {/* No dashboards message for viewers who can't create any */}
+          {!canManage && !customDashboardsLoading && orderedDashboards.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 text-gray-400">
               <FiTrello size={40} className="mb-4 opacity-30" style={{ transform: 'rotate(180deg)' }} aria-hidden="true" />
               <p className="text-lg font-medium">You have no available dashboards</p>
@@ -428,7 +440,7 @@ const DashboardPage: React.FC = () => {
         />
       )}
 
-      {isOrgAdmin && (
+      {canManage && (
         <ArchiveRestoreModal
           isOpen={archiveModalOpen}
           onClose={() => setArchiveModalOpen(false)}

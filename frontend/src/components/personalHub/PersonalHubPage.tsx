@@ -407,7 +407,7 @@ const PersonalHubPageInner: React.FC = () => {
         // Full custom-dashboard experience — no board pre-filter; boards are chosen
         // per-widget inside the Add Dashboard modal, same as the main Dashboards page.
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <DashboardPage />
+          <DashboardPage canManage={isOwn} />
         </div>
       )}
       </div>
