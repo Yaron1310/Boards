@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback, useReducer } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -27,13 +27,14 @@ import { useBoardMembers } from '../../hooks/queries/useBoardMemberQueries';
 import { UserRole, BoardRole, ColumnType } from '../../types';
 import type { Group, Item } from '../../types';
 import type { ReorderItemUpdate } from '../../services/workManagementService';
-import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiList, FiMoreVertical } from 'react-icons/fi';
+import { FiLoader, FiArchive, FiChevronLeft, FiPlus, FiPlusCircle, FiMenu, FiSearch, FiUserPlus, FiX, FiUpload, FiList, FiMoreVertical } from 'react-icons/fi';
 import { UndoProvider } from '../../contexts/UndoContext';
 import UndoButton from './UndoButton';
 import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader, { ITEM_COL_ID } from './ColumnHeader';
 import GanttView from './GanttView';
-import BoardDashboardView from './BoardDashboardView';
+import BoardDashboardView, { DashboardFilterChip, type BoardDashboardHandle } from './BoardDashboardView';
+import DashboardFilterBar, { DateRangePresetPicker, filterReducer, INITIAL_FILTER_STATE } from '../dashboard/DashboardFilterBar';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
@@ -614,6 +615,13 @@ const BoardViewPage: React.FC = () => {
 
   const [isExporting, setIsExporting] = useState(false);
 
+  // Dashboard-view filter state, lifted here so its controls live in the main header
+  // row (no separate sub-header). Passed down to BoardDashboardView, which renders
+  // only the widgets; its "Add Dashboard" modal is opened via this ref.
+  const [dashFilters, dashDispatch] = useReducer(filterReducer, INITIAL_FILTER_STATE);
+  const dashboardRef = useRef<BoardDashboardHandle>(null);
+  const dashChips = dashFilters.filters.filter((f) => f.type !== 'timerange');
+
   const handleExport = useCallback(async () => {
     if (!board) return;
     setIsExporting(true);
@@ -881,53 +889,83 @@ const BoardViewPage: React.FC = () => {
 
           {/* Search + filter row */}
           <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
-            <div className="relative">
-              <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
-              <input
-                type="text"
-                placeholder="Search items…"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                className="w-44 pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                aria-label="Search items by any field value"
-              />
-            </div>
+            {boardView === 'dashboard' ? (
+              <>
+                {/* Filter button, then the fixed-duration date dropdown to its right */}
+                <DashboardFilterBar filters={dashFilters} dispatch={dashDispatch} boardIds={[boardId ?? '']} />
+                <DateRangePresetPicker filters={dashFilters} dispatch={dashDispatch} />
 
-            <BoardFilterDropdown
-              boardId={boardId ?? ''}
-              allItems={allItems}
-              activeFilters={activeFilters}
-              onFilterChange={setActiveFilters}
-              isReadOnly={isBoardReadOnly}
-            />
+                {dashChips.map((f, i) => (
+                  <DashboardFilterChip
+                    key={`${f.type}-${i}`}
+                    filter={f}
+                    onRemove={() => dashDispatch({ type: 'REMOVE_FILTER', filter: f })}
+                  />
+                ))}
 
-            {/* Active filter chips */}
-            {activeFilters.map((f, i) => (
-              <FilterChip
-                key={`${f.type}-${i}`}
-                filter={f}
-                onRemove={() => {
-                  if (f.type === 'timerange') {
-                    setActiveFilters((prev) => prev.filter((x) => x.type !== 'timerange'));
-                  } else {
-                    const val = (f as { value: string }).value;
-                    setActiveFilters((prev) => prev.filter((x) => !(x.type === f.type && (x as { value?: string }).value === val)));
-                  }
-                }}
-              />
-            ))}
+                {dashChips.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => dashDispatch({ type: 'CLEAR' })}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
+                    aria-label="Clear all dashboard filters"
+                  >
+                    <FiX size={11} aria-hidden="true" />
+                    Clear
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="relative">
+                  <FiSearch size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
+                  <input
+                    type="text"
+                    placeholder="Search items…"
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    className="w-44 pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    aria-label="Search items by any field value"
+                  />
+                </div>
 
-            {/* Clear all */}
-            {(searchText.trim() !== '' || activeFilters.length > 0) && (
-              <button
-                type="button"
-                onClick={() => { setSearchText(''); setActiveFilters([]); }}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
-                aria-label="Clear all filters and search"
-              >
-                <FiX size={11} aria-hidden="true" />
-                Clear
-              </button>
+                <BoardFilterDropdown
+                  boardId={boardId ?? ''}
+                  allItems={allItems}
+                  activeFilters={activeFilters}
+                  onFilterChange={setActiveFilters}
+                  isReadOnly={isBoardReadOnly}
+                />
+
+                {/* Active filter chips */}
+                {activeFilters.map((f, i) => (
+                  <FilterChip
+                    key={`${f.type}-${i}`}
+                    filter={f}
+                    onRemove={() => {
+                      if (f.type === 'timerange') {
+                        setActiveFilters((prev) => prev.filter((x) => x.type !== 'timerange'));
+                      } else {
+                        const val = (f as { value: string }).value;
+                        setActiveFilters((prev) => prev.filter((x) => !(x.type === f.type && (x as { value?: string }).value === val)));
+                      }
+                    }}
+                  />
+                ))}
+
+                {/* Clear all */}
+                {(searchText.trim() !== '' || activeFilters.length > 0) && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchText(''); setActiveFilters([]); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors flex-shrink-0"
+                    aria-label="Clear all filters and search"
+                  >
+                    <FiX size={11} aria-hidden="true" />
+                    Clear
+                  </button>
+                )}
+              </>
             )}
           </div>
 
@@ -1020,17 +1058,32 @@ const BoardViewPage: React.FC = () => {
                 Archived
               </button>
             )}
-            {!isBoardReadOnly && (
-              <button
-                type="button"
-                onClick={() => void handleExport()}
-                disabled={isExporting}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Export board to Excel file"
-              >
-                <FiUpload size={13} aria-hidden="true" />
-                {isExporting ? 'Exporting…' : 'Export'}
-              </button>
+            {boardView === 'dashboard' ? (
+              // Export is board-only; in dashboard view its slot becomes Add Dashboard.
+              canManage && (
+                <button
+                  type="button"
+                  onClick={() => dashboardRef.current?.openCreate()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                  aria-label="Add dashboard widget"
+                >
+                  <FiPlusCircle size={14} aria-hidden="true" />
+                  Add Dashboard
+                </button>
+              )
+            ) : (
+              !isBoardReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => void handleExport()}
+                  disabled={isExporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded-lg hover:bg-green-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Export board to Excel file"
+                >
+                  <FiUpload size={13} aria-hidden="true" />
+                  {isExporting ? 'Exporting…' : 'Export'}
+                </button>
+              )
             )}
             {!isBoardReadOnly && <UndoButton />}
           </div>
@@ -1039,9 +1092,12 @@ const BoardViewPage: React.FC = () => {
         {/* Board content area */}
         {boardView === 'dashboard' ? (
           <BoardDashboardView
+            ref={dashboardRef}
             boardId={boardId ?? ''}
             boardName={board.name}
             isAdmin={canManage}
+            filters={dashFilters}
+            dispatch={dashDispatch}
           />
         ) : (
           <FormulaEditProvider>

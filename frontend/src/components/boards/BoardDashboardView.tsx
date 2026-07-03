@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useReducer } from 'react';
-import { FiPlusCircle, FiEdit2, FiArchive, FiTrash2, FiLock, FiEye, FiX } from 'react-icons/fi';
+import React, { useState, useMemo, useImperativeHandle, forwardRef } from 'react';
+import { FiEdit2, FiArchive, FiTrash2, FiLock, FiEye, FiX } from 'react-icons/fi';
 import {
   useCustomDashboards,
   useDeleteCustomDashboard,
@@ -8,21 +8,25 @@ import {
 import WidgetCard from '../dashboard/WidgetCard';
 import CustomDashboardWidget from '../dashboard/widgets/CustomDashboardWidget';
 import AddCustomDashboardModal from '../dashboard/AddCustomDashboardModal';
-import DashboardFilterBar, {
-  filterReducer,
-  INITIAL_FILTER_STATE,
-  DateRangePresetPicker,
-} from '../dashboard/DashboardFilterBar';
-import type { DashboardActiveFilter } from '../dashboard/DashboardFilterBar';
+import type { DashboardActiveFilter, FilterState, FilterAction } from '../dashboard/DashboardFilterBar';
 import type { CustomDashboard } from '../../types';
 
 interface Props {
   boardId: string;
   boardName: string;
   isAdmin: boolean;
+  /** Dashboard filter state — lifted to the parent so its controls can live in the main header. */
+  filters: FilterState;
+  dispatch: React.Dispatch<FilterAction>;
 }
 
-const FilterChip: React.FC<{ filter: DashboardActiveFilter; onRemove: () => void }> = ({ filter, onRemove }) => {
+/** Imperative handle so the "Add Dashboard" button (in the board's main header) can open the create modal here. */
+export interface BoardDashboardHandle {
+  openCreate: () => void;
+}
+
+/** Exported so the board's main header can render dashboard-filter chips alongside its own controls. */
+export const DashboardFilterChip: React.FC<{ filter: DashboardActiveFilter; onRemove: () => void }> = ({ filter, onRemove }) => {
   const label =
     filter.type === 'date'      ? filter.value :
     filter.type === 'user'      ? filter.label :
@@ -48,11 +52,13 @@ const FilterChip: React.FC<{ filter: DashboardActiveFilter; onRemove: () => void
   );
 };
 
-const BoardDashboardView: React.FC<Props> = ({ boardId, boardName, isAdmin }) => {
+const BoardDashboardView = forwardRef<BoardDashboardHandle, Props>(({ boardId, boardName, isAdmin, filters }, ref) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDashboard, setEditingDashboard] = useState<CustomDashboard | undefined>();
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const [filters, dispatch] = useReducer(filterReducer, INITIAL_FILTER_STATE);
+
+  const openCreate = () => { setEditingDashboard(undefined); setModalOpen(true); };
+  useImperativeHandle(ref, () => ({ openCreate }), []);
 
   const { data: allDashboards = [] } = useCustomDashboards(false);
   const deleteMutation = useDeleteCustomDashboard();
@@ -76,7 +82,6 @@ const BoardDashboardView: React.FC<Props> = ({ boardId, boardName, isAdmin }) =>
   const dateFrom = timeRangeFilter?.start ?? dateFilterValue;
   const dateTo = timeRangeFilter?.end;
 
-  const openCreate = () => { setEditingDashboard(undefined); setModalOpen(true); };
   const openEdit = (d: CustomDashboard) => { setEditingDashboard(d); setModalOpen(true); };
   const closeModal = () => { setModalOpen(false); setEditingDashboard(undefined); };
 
@@ -135,48 +140,8 @@ const BoardDashboardView: React.FC<Props> = ({ boardId, boardName, isAdmin }) =>
 
   return (
     <div className="flex flex-col h-full bg-gray-50 overflow-y-auto">
-      {/* Header bar */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-6 py-4 border-b border-gray-200 bg-white flex-shrink-0">
-        <div className="flex items-center gap-3 min-w-0 flex-wrap">
-          <DateRangePresetPicker filters={filters} dispatch={dispatch} />
-          <DashboardFilterBar filters={filters} dispatch={dispatch} boardIds={[boardId]} />
-        </div>
-        {isAdmin && (
-          <button
-            type="button"
-            onClick={openCreate}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
-            aria-label="Add dashboard widget"
-          >
-            <FiPlusCircle size={15} aria-hidden="true" />
-            Add Dashboard
-          </button>
-        )}
-      </div>
-
-      {/* Active filter chips */}
-      {filters.filters.some(f => f.type !== 'timerange') && (
-        <div className="flex flex-wrap items-center gap-1.5 px-6 py-2 bg-white border-b border-gray-200">
-          {filters.filters.filter(f => f.type !== 'timerange').map((f, i) => (
-            <FilterChip
-              key={`${f.type}-${i}`}
-              filter={f}
-              onRemove={() => dispatch({ type: 'REMOVE_FILTER', filter: f })}
-            />
-          ))}
-          <button
-            type="button"
-            onClick={() => dispatch({ type: 'CLEAR' })}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-red-500 border border-red-200 bg-red-50 rounded-lg hover:bg-red-100 hover:border-red-300 transition-colors"
-            aria-label="Clear all filters"
-          >
-            <FiX size={11} aria-hidden="true" />
-            Clear
-          </button>
-        </div>
-      )}
-
-      {/* Content */}
+      {/* Filter controls and the Add Dashboard button now live in the board's main
+          header row (see BoardViewPage) — this view renders only the widgets. */}
       <main className="flex-1 px-6 py-6" aria-label={`${boardName} dashboards`}>
         {boardDashboards.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 text-gray-400">
@@ -230,6 +195,8 @@ const BoardDashboardView: React.FC<Props> = ({ boardId, boardName, isAdmin }) =>
       )}
     </div>
   );
-};
+});
+
+BoardDashboardView.displayName = 'BoardDashboardView';
 
 export default BoardDashboardView;
