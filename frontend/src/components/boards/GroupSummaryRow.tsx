@@ -512,8 +512,8 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
           type="button"
           onClick={handleOpen}
           className="absolute left-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-normal leading-none transition-colors select-none flex-shrink-0 hover:opacity-80"
-          style={{ backgroundColor: '#3b82f6cf', color: 'white' }}
-          aria-label={`Open summary settings for ${col.name}`}
+          style={{ backgroundColor: config.cumulative ? '#fdba74' : '#3b82f6cf', color: 'white' }}
+          aria-label={`Open summary settings for ${col.name}${config.cumulative ? ' (includes groups above)' : ''}`}
           aria-haspopup="dialog"
           title="Click to configure summary"
         >
