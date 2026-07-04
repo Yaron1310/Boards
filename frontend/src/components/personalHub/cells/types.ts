@@ -22,4 +22,7 @@ export interface PersonalGridContext {
   columns: PersonalColumn[];
   /** itemId -> (columnId -> value) for every row in rowOrder. */
   valuesByItem: Record<string, Record<string, unknown>>;
+  /** Board this personal table belongs to; used to build stable cross-board formula refs.
+   *  May be empty for page-wide (cross-group) contexts that span multiple boards. */
+  boardId?: string;
 }

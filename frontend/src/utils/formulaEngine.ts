@@ -180,8 +180,9 @@ class FormulaParser {
    *  else is delegated to context.resolveRef. Unresolved refs contribute 0 and are reported. */
   private resolveStructuredRef(ref: CellRef): number {
     const ctx = this.context;
-    const isHome =
-      ref.kind === 'b' && !!ctx?.homeBoardId && ref.boardId === ctx.homeBoardId;
+    // Same-board refs (either kind) resolve from local context: on a regular board `allItems`
+    // carry item.values; in the Personal Hub the pseudo-rows carry personalItemValues.
+    const isHome = !!ctx?.homeBoardId && ref.boardId === ctx.homeBoardId;
 
     if (isHome) {
       const local = this.resolveLocalById(ref);
@@ -292,7 +293,60 @@ export function extractRefs(formula: string): CellRef[] {
 
 /** Foreign (cross-board) references only — those the local board context cannot resolve. */
 export function extractForeignRefs(formula: string, homeBoardId: string): CellRef[] {
-  return extractRefs(formula).filter((r) => !(r.kind === 'b' && r.boardId === homeBoardId));
+  return extractRefs(formula).filter((r) => r.boardId !== homeBoardId);
+}
+
+/** Convert a legacy positional formula ({C3}/{C}) into stable-ID refs. Runs on the origin
+ *  board at edit-start, where column order + item order are known. Idempotent: existing
+ *  {ref:...} tokens, numeric literals, and unconvertible tokens are left untouched.
+ *  Column letters map A=Name, B=columns[0], C=columns[1], …; row numbers are 1-based into `items`. */
+export function convertLegacyToIdRefs(
+  formula: string,
+  opts: { boardId: string; kind?: 'b' | 'p'; columns: { id: string }[]; items: { id: string }[] },
+): string {
+  const { boardId, kind = 'b', columns, items } = opts;
+  const colIdForLetter = (letter: string): string | null => {
+    let idx = 0;
+    for (let i = 0; i < letter.length; i++) idx = idx * 26 + (letter.toUpperCase().charCodeAt(i) - 64);
+    // idx is 1-based (A=1). Column A is the Name; B(=2)→columns[0], so columns[idx-2].
+    const colArrIndex = idx - 2;
+    if (colArrIndex < 0 || colArrIndex >= columns.length) return null;
+    return columns[colArrIndex].id;
+  };
+
+  return formula.replace(/\{([^}]*)\}/g, (whole, inner: string) => {
+    const t = inner.trim();
+    if (t.startsWith('ref:')) return whole; // already an ID ref
+    if (t !== '' && !isNaN(Number(t))) return whole; // numeric literal
+
+    const abs = t.match(/^([A-Za-z]+)(\d+)$/); // {C3}
+    if (abs) {
+      const colId = colIdForLetter(abs[1]);
+      const item = items[parseInt(abs[2], 10) - 1];
+      if (colId && item) return serializeRef({ kind, boardId, columnId: colId, itemId: item.id });
+      return whole;
+    }
+    const rel = t.match(/^([A-Za-z]+)$/); // {C} — relative to current row
+    if (rel) {
+      const colId = colIdForLetter(rel[1]);
+      if (colId) return serializeRef({ kind, boardId, columnId: colId, itemId: null });
+      return whole;
+    }
+    return whole;
+  });
+}
+
+/** Relativize same-board refs (itemId → '@') so a formula can serve as a column-wide default,
+ *  matching the legacy makeRelativeFormula behavior. Foreign refs stay absolute. */
+export function makeRelativeIdFormula(formula: string, homeBoardId: string): string {
+  return formula.replace(/\{(ref:[^}]*)\}/g, (whole, inner: string) => {
+    const ref = parseRefToken(inner);
+    if (!ref) return whole;
+    if (ref.kind === 'b' && ref.boardId === homeBoardId) {
+      return serializeRef({ ...ref, itemId: null });
+    }
+    return whole;
+  });
 }
 
 export function extractColumnRefs(formula: string): string[] {

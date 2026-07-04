@@ -214,13 +214,13 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
   // behavior. The page assembles this across all groups; fall back to this group's own
   // rows only if the page hasn't wired it up.
   const localCrossGroupGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem }),
-    [displayItemIds, crossGroupColumns, personalValuesByItem],
+    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem, boardId }),
+    [displayItemIds, crossGroupColumns, personalValuesByItem, boardId],
   );
   const crossGroupGridContext = pageCrossGroupGridContext ?? localCrossGroupGridContext;
   const boardOnlyGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem }),
-    [displayItemIds, boardOnlyColumns, personalValuesByItem],
+    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem, boardId }),
+    [displayItemIds, boardOnlyColumns, personalValuesByItem, boardId],
   );
 
   // For cumulative cross-group summaries: rows from every board group above this one.

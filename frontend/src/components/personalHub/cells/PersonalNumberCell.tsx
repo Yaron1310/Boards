@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useUpdatePersonalItemValue } from '../../../hooks/queries/usePersonalHubQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
+import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import CellWrapper from '../../boards/cells/CellWrapper';
 import { colIndexToLetter } from './cellAddress';
 import type { NumberColumnSettings, Column } from '../../../types';
@@ -17,6 +18,7 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
   const { mutate } = useUpdatePersonalItemValue();
   const { push: pushUndo } = useUndo();
   const { isFormulaEditing, insertCellAddress } = useFormulaEdit();
+  const { isRecording, insertRef } = useFormulaRecording();
   const [draft, setDraft] = useState<string>(rawValue != null ? String(rawValue) : '');
 
   useEffect(() => { setDraft(rawValue != null ? String(rawValue) : ''); }, [rawValue]);
@@ -37,6 +39,28 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
     const formatted = Number.isInteger(rawValue) ? String(rawValue) : rawValue.toFixed(precision);
     return settings?.unit ? `${formatted} ${settings.unit}` : formatted;
   };
+
+  // A cross-board formula is recording (started from any board): clicks add this cell as a
+  // stable-ID reference. Personal-hub values are keyed by itemId+columnId, so the board id is
+  // only used to tell same-table refs from foreign ones.
+  if (isRecording) {
+    const display = formatDisplay();
+    return (
+      <div
+        role="gridcell"
+        className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-100/60 transition-colors"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          insertRef({ kind: 'p', boardId: gridContext?.boardId ?? '', columnId: column.id, itemId });
+        }}
+        title="Add this cell to the formula"
+        aria-label={`Add ${column.name} for ${itemName} to the formula`}
+        data-formula-insertable="true"
+      >
+        {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
+      </div>
+    );
+  }
 
   // When a formula cell (in the same personal-columns table) is being edited,
   // intercept clicks to insert this cell's {ColumnLetter}{RowNumber} address
