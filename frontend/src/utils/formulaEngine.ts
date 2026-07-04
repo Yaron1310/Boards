@@ -1,9 +1,15 @@
 /**
  * Safe arithmetic formula evaluator.
- * Supports: numeric literals, cell references like {C3}, +, -, *, /, ()
+ * Supports:
+ *   - numeric literals, +, -, *, /, ()
+ *   - legacy positional cell references: {C3} (absolute), {C} (row-relative), {42} (literal)
+ *   - stable ID references: {ref:<kind>:<boardId>:<columnId>:<row>}
+ *       kind = 'b' (board item.values) | 'p' (personal-hub value store)
+ *       row  = '@'        → relative to the current row (same board only)
+ *            = <itemId>   → a specific item (required for cross-board references)
  * No eval() — uses a recursive-descent parser.
  *
- * Example: "{B2} * {C2} + 10"
+ * Examples: "{B2} * {C2} + 10", "{ref:b:brd_1:col_9:@} * {ref:b:brd_2:col_3:itm_7}"
  */
 
 import { ColumnType } from '../types';
@@ -11,15 +17,53 @@ import { ColumnType } from '../types';
 export type ColumnValues = Record<string, number | null | undefined>;
 
 /** Minimal shapes — real board Item[]/Column[] satisfy these structurally, and so do
- *  Personal Hub's pseudo-rows (items backed by personalItemValues instead of item.values). */
-export interface FormulaRow { values: Record<string, unknown> }
+ *  Personal Hub's pseudo-rows (items backed by personalItemValues instead of item.values).
+ *  `id` is optional but required to resolve absolute ID refs ({ref:...:<itemId>}) locally. */
+export interface FormulaRow { id?: string; values: Record<string, unknown> }
 export interface FormulaColumn { id: string; type: ColumnType }
+
+/** A structured, stable-ID cell reference. */
+export interface CellRef {
+  /** Value source: board item.values ('b') or personal-hub value store ('p'). */
+  kind: 'b' | 'p';
+  boardId: string;
+  columnId: string;
+  /** null → relative to the current row (only valid for same-board refs); otherwise a specific item id. */
+  itemId: string | null;
+}
 
 export interface FormulaContext {
   allItems: FormulaRow[];
   columns: FormulaColumn[];
-  /** 0-based index of the current item in allItems — required for relative {C} refs */
+  /** 0-based index of the current item in allItems — required for relative {C}/{ref:...:@} refs */
   currentRowIndex?: number;
+  /** Board the formula lives on — lets the engine resolve same-board ID refs from `allItems`/`columns`
+   *  directly and tell same-board refs apart from foreign ones. */
+  homeBoardId?: string;
+  /** Resolver for refs the engine cannot satisfy locally (foreign boards, personal-hub, etc.).
+   *  Return a number, `null` if the target is known but empty/non-numeric (contributes 0), or
+   *  `undefined` if it cannot be resolved yet (data still loading, or the target no longer exists). */
+  resolveRef?: (ref: CellRef) => number | null | undefined;
+  /** Called for every ref the engine could not resolve — lets the caller drive loading/error UI. */
+  onUnresolvedRef?: (ref: CellRef) => void;
+}
+
+/** Parse the inner text of a `{ref:...}` token into a CellRef, or null if malformed.
+ *  boardId/columnId/itemId are generated IDs (UUIDs / Firestore auto-ids) and never contain ':'. */
+export function parseRefToken(inner: string): CellRef | null {
+  const trimmed = inner.trim();
+  if (!trimmed.startsWith('ref:')) return null;
+  const parts = trimmed.split(':');
+  if (parts.length !== 5) return null;
+  const [, kind, boardId, columnId, row] = parts;
+  if (kind !== 'b' && kind !== 'p') return null;
+  if (!boardId || !columnId || !row) return null;
+  return { kind, boardId, columnId, itemId: row === '@' ? null : row };
+}
+
+/** Serialize a CellRef back into its `{ref:...}` token form. */
+export function serializeRef(ref: CellRef): string {
+  return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${ref.itemId ?? '@'}}`;
 }
 
 class FormulaParser {
@@ -91,7 +135,7 @@ class FormulaParser {
       return val;
     }
 
-    // {…} — cell reference like {C3}, numeric literal like {42}
+    // {…} — ID ref like {ref:b:...}, positional cell ref like {C3}, or numeric literal like {42}
     if (this.input[this.pos] === '{') {
       this.pos++;
       const start = this.pos;
@@ -101,16 +145,23 @@ class FormulaParser {
 
       const trimmed = name.trim();
 
-      // Try to parse as numeric literal
+      // Stable ID reference: {ref:<kind>:<boardId>:<columnId>:<row>}
+      if (trimmed.startsWith('ref:')) {
+        const ref = parseRefToken(trimmed);
+        if (!ref) return 0;
+        return this.resolveStructuredRef(ref);
+      }
+
+      // Numeric literal: {42}
       const asNum = Number(trimmed);
       if (trimmed !== '' && !isNaN(asNum)) return asNum;
 
-      // Try to parse as cell reference: {C3} (absolute) or {C} (relative to current row)
+      // Legacy positional cell reference: {C3} (absolute) or {C} (relative to current row)
       if (this.context && /^[A-Z]+\d*$/i.test(trimmed)) {
         return this.resolveCellRef(trimmed);
       }
 
-      // Fall back: treat as column name (for backward compat, though we're not using this now)
+      // Fall back: treat as column name (legacy, no longer emitted)
       const v = this.values[trimmed];
       return v != null && !isNaN(Number(v)) ? Number(v) : 0;
     }
@@ -123,6 +174,49 @@ class FormulaParser {
     }
 
     return 0;
+  }
+
+  /** Resolve a stable-ID ref: same-board refs are satisfied from local context; anything
+   *  else is delegated to context.resolveRef. Unresolved refs contribute 0 and are reported. */
+  private resolveStructuredRef(ref: CellRef): number {
+    const ctx = this.context;
+    const isHome =
+      ref.kind === 'b' && !!ctx?.homeBoardId && ref.boardId === ctx.homeBoardId;
+
+    if (isHome) {
+      const local = this.resolveLocalById(ref);
+      if (local !== undefined) return local;
+    }
+
+    if (ctx?.resolveRef) {
+      const v = ctx.resolveRef(ref);
+      if (v !== undefined) return v ?? 0;
+    }
+
+    ctx?.onUnresolvedRef?.(ref);
+    return 0;
+  }
+
+  /** Resolve a same-board ID ref from allItems/columns. Returns undefined when it cannot be
+   *  satisfied locally (unknown column/item, non-number column, or missing row id for absolute refs). */
+  private resolveLocalById(ref: CellRef): number | undefined {
+    const ctx = this.context;
+    if (!ctx) return undefined;
+
+    const col = ctx.columns.find((c) => c.id === ref.columnId);
+    if (!col || col.type !== ColumnType.NUMBER) return undefined;
+
+    let item: FormulaRow | undefined;
+    if (ref.itemId === null) {
+      if (ctx.currentRowIndex === undefined) return undefined;
+      item = ctx.allItems[ctx.currentRowIndex];
+    } else {
+      item = ctx.allItems.find((it) => it.id === ref.itemId);
+    }
+    if (!item) return undefined;
+
+    const val = item.values[col.id];
+    return val != null && !isNaN(Number(val)) ? Number(val) : 0;
   }
 
   private resolveCellRef(cellRef: string): number {
@@ -181,6 +275,24 @@ export function evaluateFormula(
   } catch {
     return null;
   }
+}
+
+/** All stable-ID references in a formula (legacy positional refs are not returned — they carry
+ *  no board/column/item identity). Used for foreign-data loading and dependency tracking. */
+export function extractRefs(formula: string): CellRef[] {
+  const refs: CellRef[] = [];
+  const re = /\{(ref:[^}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(formula)) !== null) {
+    const ref = parseRefToken(m[1]);
+    if (ref) refs.push(ref);
+  }
+  return refs;
+}
+
+/** Foreign (cross-board) references only — those the local board context cannot resolve. */
+export function extractForeignRefs(formula: string, homeBoardId: string): CellRef[] {
+  return extractRefs(formula).filter((r) => !(r.kind === 'b' && r.boardId === homeBoardId));
 }
 
 export function extractColumnRefs(formula: string): string[] {
