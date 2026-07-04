@@ -10,7 +10,6 @@ import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import { DependencyProvider } from '../../contexts/DependencyContext';
-import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { UndoProvider } from '../../contexts/UndoContext';
 import { UserRole, ColumnType } from '../../types';
 import type { Item, Group } from '../../types';
@@ -443,23 +442,21 @@ const PersonalHubPageInner: React.FC = () => {
           </div>
 
           <div className="px-4 pb-4 space-y-4">
-            <FormulaEditProvider>
-              {boardIds.map((boardId) => (
-                <PersonalHubBoardGroup
-                  key={boardId}
-                  boardId={boardId}
-                  items={itemsByBoard[boardId]}
-                  isOwn={isOwn}
-                  boardView={viewMode as BoardView}
-                  onOpenDetail={setDetailItem}
-                  onOpenChat={setChatItem}
-                  onBoardResolved={registerBoardName}
-                  crossGroupGridContext={pageCrossGroupGridContext}
-                  onRowsResolved={handleRowsResolved}
-                  subitemAssigneeFilterId={targetUserId}
-                />
-              ))}
-            </FormulaEditProvider>
+            {boardIds.map((boardId) => (
+              <PersonalHubBoardGroup
+                key={boardId}
+                boardId={boardId}
+                items={itemsByBoard[boardId]}
+                isOwn={isOwn}
+                boardView={viewMode as BoardView}
+                onOpenDetail={setDetailItem}
+                onOpenChat={setChatItem}
+                onBoardResolved={registerBoardName}
+                crossGroupGridContext={pageCrossGroupGridContext}
+                onRowsResolved={handleRowsResolved}
+                subitemAssigneeFilterId={targetUserId}
+              />
+            ))}
           </div>
         </div>
       ) : viewMode === 'gantt' ? (

@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useUpdatePersonalItemValue } from '../../../hooks/queries/usePersonalHubQueries';
 import { useUndo } from '../../../contexts/UndoContext';
-import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
 import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import CellWrapper from '../../boards/cells/CellWrapper';
-import { colIndexToLetter } from './cellAddress';
 import type { NumberColumnSettings, Column } from '../../../types';
 import type { PersonalCellProps, PersonalGridContext } from './types';
 
@@ -17,7 +15,6 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
   const settings = column.settings as NumberColumnSettings;
   const { mutate } = useUpdatePersonalItemValue();
   const { push: pushUndo } = useUndo();
-  const { isFormulaEditing, insertCellAddress } = useFormulaEdit();
   const { isRecording, insertRef } = useFormulaRecording();
   const [draft, setDraft] = useState<string>(rawValue != null ? String(rawValue) : '');
 
@@ -56,29 +53,6 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
         title="Add this cell to the formula"
         aria-label={`Add ${column.name} for ${itemName} to the formula`}
         data-formula-insertable="true"
-      >
-        {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
-      </div>
-    );
-  }
-
-  // When a formula cell (in the same personal-columns table) is being edited,
-  // intercept clicks to insert this cell's {ColumnLetter}{RowNumber} address
-  // into the formula instead of entering edit mode — same as the real board,
-  // any row in this table, not just the row the formula lives on.
-  if (isFormulaEditing) {
-    const display = formatDisplay();
-    const rowIndex = gridContext?.rowOrder.indexOf(itemId) ?? -1;
-    const colIndex = gridContext?.columns.findIndex((c) => c.id === column.id) ?? -1;
-    const cellAddress = rowIndex >= 0 && colIndex >= 0 ? `${colIndexToLetter(colIndex + 2)}${rowIndex + 1}` : null;
-    return (
-      <div
-        role="gridcell"
-        className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-100/60 transition-colors"
-        onMouseDown={(e) => { e.preventDefault(); if (cellAddress) insertCellAddress(cellAddress); }}
-        title={cellAddress ? `Insert {${cellAddress}} into formula` : undefined}
-        aria-label={cellAddress ? `Insert cell ${cellAddress} into formula` : column.name}
-        data-cell-address={cellAddress ?? undefined}
       >
         {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
       </div>

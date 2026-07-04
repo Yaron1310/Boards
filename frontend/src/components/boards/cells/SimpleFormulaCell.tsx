@@ -68,10 +68,15 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
     [visibleItems, boardColumns, rowIndex, homeBoardId, resolveForeign, item.id],
   );
 
-  const result = useMemo(
-    () => (cellFormula ? evaluateFormula(cellFormula, {}, formulaContext) : null),
-    [cellFormula, formulaContext],
-  );
+  const { result, hasUnresolved } = useMemo(() => {
+    if (!cellFormula) return { result: null as number | null, hasUnresolved: false };
+    let missing = false;
+    const v = evaluateFormula(cellFormula, {}, {
+      ...formulaContext,
+      onUnresolvedRef: () => { missing = true; },
+    });
+    return { result: v, hasUnresolved: missing };
+  }, [cellFormula, formulaContext]);
 
   const formatNumber = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
@@ -201,11 +206,13 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
         title={active ? 'Recording — click cells on any board, then Save' : cellFormula ? '= (formula)' : 'Click to enter formula'}
       >
         <span className="text-sm text-gray-600 truncate px-3 text-center">
-          {result != null
-            ? formatNumber(result)
-            : foreignLoading && cellFormula
-              ? <span className="text-gray-300 text-xs">…</span>
-              : <span className="text-gray-300 text-xs">—</span>}
+          {hasUnresolved && foreignLoading
+            ? <span className="text-gray-300 text-xs">…</span>
+            : hasUnresolved
+              ? <span className="text-amber-500 text-xs" title="A referenced cell is unavailable or no longer exists">#ref</span>
+              : result != null
+                ? formatNumber(result)
+                : <span className="text-gray-300 text-xs">—</span>}
         </span>
         {hasOverride && !active && (
           <button

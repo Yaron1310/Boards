@@ -48,7 +48,6 @@ import BoardContextMenu from './BoardContextMenu';
 import EditBoardModal from './EditBoardModal';
 import DuplicateOptionsModal from './DuplicateOptionsModal';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
-import { FormulaEditProvider } from '../../contexts/FormulaEditContext';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import { DependencyProvider, useDependency } from '../../contexts/DependencyContext';
@@ -1100,7 +1099,6 @@ const BoardViewPage: React.FC = () => {
             dispatch={dashDispatch}
           />
         ) : (
-          <FormulaEditProvider>
           <DependencyProvider items={allItems}>
             <BoardContent
               boardId={boardId ?? ''}
@@ -1134,18 +1132,15 @@ const BoardViewPage: React.FC = () => {
               isBoardReadOnly={isBoardReadOnly}
             />
           </DependencyProvider>
-          </FormulaEditProvider>
         )}
       </div>
 
       {detailItem && (
-        <FormulaEditProvider>
-          <DependencyProvider items={allItems}>
-            <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem}>
-              <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
-            </BoardRenderProvider>
-          </DependencyProvider>
-        </FormulaEditProvider>
+        <DependencyProvider items={allItems}>
+          <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem}>
+            <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
+          </BoardRenderProvider>
+        </DependencyProvider>
       )}
 
       {showAddColumn && boardId && (

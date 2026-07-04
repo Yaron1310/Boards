@@ -1,9 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
+import { FiX } from 'react-icons/fi';
 import { useUpdatePersonalItemValue, useUpdatePersonalColumn } from '../../../hooks/queries/usePersonalHubQueries';
 import { useUndo } from '../../../contexts/UndoContext';
-import { useFormulaEdit } from '../../../contexts/FormulaEditContext';
-import { evaluateFormula } from '../../../utils/formulaEngine';
-import type { FormulaRow } from '../../../utils/formulaEngine';
+import { useAuth } from '../../../hooks/useAuth';
+import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
+import { useForeignCellValues } from '../../../hooks/queries/useForeignCellValues';
+import {
+  convertLegacyToIdRefs,
+  evaluateFormula,
+  extractForeignRefs,
+  makeRelativeIdFormula,
+  type FormulaRow,
+} from '../../../utils/formulaEngine';
 import type { SimpleFormulaColumnSettings } from '../../../types';
 import type { PersonalCellProps, PersonalGridContext } from './types';
 
@@ -12,16 +21,18 @@ interface Props extends PersonalCellProps {
 }
 
 /**
- * Same UX as the real board's Simple Formula cell (click to type a formula,
- * live preview, "apply to all cells" vs "just this cell"), and the same
- * {ColumnLetter}{RowNumber} addressing — any cell in this table, any row,
- * not just the formula's own row.
+ * Personal Hub formula cell. Same cross-board recording flow as the real board's
+ * SimpleFormulaCell: clicking enters record mode (a global session shown in the sticky bar),
+ * cells on any board can be clicked to add references, and Save returns here to commit.
+ * Personal-hub values are stored via personalItemValues; references to them use kind 'p'.
  */
 const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext }) => {
   const { mutate: mutateItemValue } = useUpdatePersonalItemValue();
   const { mutateAsync: updateColumn } = useUpdatePersonalColumn();
   const { push: pushUndo } = useUndo();
-  const { setInsertHandler } = useFormulaEdit();
+  const { user, selectedWorkspace } = useAuth();
+  const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
+  const { begin, endSession, isRecording, session } = useFormulaRecording();
 
   const settings = column.settings as SimpleFormulaColumnSettings;
   const defaultFormula: string = settings?.defaultFormula ?? '';
@@ -29,109 +40,132 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
   const storedValue: string | null = typeof value === 'string' ? value : null;
   const cellFormula: string = storedValue === null ? defaultFormula : storedValue;
 
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState(cellFormula);
-  const [pendingFormula, setPendingFormula] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const cursorRef = useRef<number>(0);
-
-  useEffect(() => { if (!isEditing) setDraft(cellFormula); }, [cellFormula, isEditing]);
-
-  // Registered once per edit session (see effect below), so this closure must never read
-  // `draft` directly — it would capture the value from when editing started and every
-  // subsequent insert would overwrite prior inserts instead of appending. Use the
-  // functional setState form to always build on the latest draft.
-  const insertCellRef = (cellAddress: string) => {
-    const input = inputRef.current;
-    const ref = `{${cellAddress}}`;
-    setDraft((prevDraft) => {
-      const pos = input ? (input.selectionStart ?? prevDraft.length) : prevDraft.length;
-      cursorRef.current = pos + ref.length;
-      return prevDraft.slice(0, pos) + ref + prevDraft.slice(pos);
-    });
-    requestAnimationFrame(() => {
-      if (inputRef.current) {
-        inputRef.current.focus();
-        inputRef.current.setSelectionRange(cursorRef.current, cursorRef.current);
-      }
-    });
-  };
-
-  useEffect(() => {
-    if (!isEditing) return;
-    setInsertHandler(insertCellRef);
-    return () => setInsertHandler(null);
-  }, [isEditing, setInsertHandler]);
-
+  const homeBoardId = gridContext.boardId ?? '';
   const rowIndex = gridContext.rowOrder.indexOf(itemId);
-  const allRows: FormulaRow[] = React.useMemo(
-    () => gridContext.rowOrder.map((id) => ({ values: gridContext.valuesByItem[id] ?? {} })),
+
+  const isOrigin = session?.origin.itemId === itemId && session?.origin.columnId === column.id;
+  const isRecordingHere = isRecording && isOrigin && session?.phase === 'recording';
+  const awaitingHere = isOrigin && session?.phase === 'awaiting-origin';
+
+  const [pendingFormula, setPendingFormula] = useState<string | null>(null);
+  const finishGuard = useRef(false);
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
+  const allItems: FormulaRow[] = useMemo(
+    () => gridContext.rowOrder.map((id) => ({ id, values: gridContext.valuesByItem[id] ?? {} })),
     [gridContext],
   );
-  const formulaContext = React.useMemo(
-    () => ({ allItems: allRows, columns: gridContext.columns, currentRowIndex: rowIndex >= 0 ? rowIndex : undefined }),
-    [allRows, gridContext.columns, rowIndex],
+
+  const foreignRefs = useMemo(
+    () => extractForeignRefs(cellFormula, homeBoardId),
+    [cellFormula, homeBoardId],
+  );
+  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId);
+
+  const formulaContext = useMemo(
+    () => ({
+      allItems,
+      columns: gridContext.columns,
+      currentRowIndex: rowIndex >= 0 ? rowIndex : undefined,
+      homeBoardId,
+      resolveRef: (ref: Parameters<typeof resolveForeign>[0]) => resolveForeign(ref, itemId),
+    }),
+    [allItems, gridContext.columns, rowIndex, homeBoardId, resolveForeign, itemId],
   );
 
-  const result = React.useMemo(() => (cellFormula ? evaluateFormula(cellFormula, {}, formulaContext) : null), [cellFormula, formulaContext]);
-  const previewResult = React.useMemo(() => (isEditing ? evaluateFormula(draft, {}, formulaContext) : null), [isEditing, draft, formulaContext]);
+  const { result, hasUnresolved } = useMemo(() => {
+    if (!cellFormula) return { result: null as number | null, hasUnresolved: false };
+    let missing = false;
+    const v = evaluateFormula(cellFormula, {}, { ...formulaContext, onUnresolvedRef: () => { missing = true; } });
+    return { result: v, hasUnresolved: missing };
+  }, [cellFormula, formulaContext]);
 
   const formatNumber = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
 
-  const startEdit = (e: React.MouseEvent | React.KeyboardEvent) => {
-    if (!editable) return;
-    e.stopPropagation();
-    setDraft(cellFormula);
-    setIsEditing(true);
-  };
-
   const persistValue = (newValue: string | null) => {
     if (newValue !== storedValue) {
-      pushUndo({ label: `Changed "${column.name}" on "${itemName}"`, undo: () => mutateItemValue({ itemId, columnId: column.id, value: storedValue }) });
+      pushUndo({
+        label: `Changed "${column.name}" on "${itemName}"`,
+        undo: () => mutateItemValue({ itemId, columnId: column.id, value: storedValue }),
+      });
       mutateItemValue({ itemId, columnId: column.id, value: newValue });
     }
   };
 
-  const commit = () => {
+  const commitDraft = (draft: string) => {
     const trimmed = draft.trim();
-    setIsEditing(false);
-
     if (!defaultFormula && trimmed) {
       setPendingFormula(trimmed);
       return;
     }
-
     let newValue: string | null;
     if (!trimmed) newValue = defaultFormula ? '' : null;
     else if (trimmed === defaultFormula.trim()) newValue = null;
     else newValue = trimmed;
-
     persistValue(newValue);
   };
 
-  const clearToEmpty = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsEditing(false);
-    persistValue(defaultFormula ? '' : null);
+  const finish = () => {
+    if (finishGuard.current) return;
+    const draft = sessionRef.current?.draft ?? '';
+    finishGuard.current = true;
+    endSession();
+    commitDraft(draft);
   };
 
-  const discard = () => { setDraft(cellFormula); setIsEditing(false); };
-  const clearOverride = (e: React.MouseEvent) => { e.stopPropagation(); persistValue(null); };
+  const startRecording = (e: React.MouseEvent | React.KeyboardEvent) => {
+    if (!editable) return;
+    e.stopPropagation();
+    finishGuard.current = false;
+    const idFormula = convertLegacyToIdRefs(cellFormula, {
+      boardId: homeBoardId,
+      kind: 'p',
+      columns: gridContext.columns,
+      items: gridContext.rowOrder.map((id) => ({ id })),
+    });
+    begin(
+      {
+        boardId: homeBoardId,
+        itemId,
+        columnId: column.id,
+        columnName: column.name,
+        itemName,
+        isPersonal: true,
+      },
+      idFormula,
+    );
+  };
 
   useEffect(() => {
-    if (isEditing) requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.select(); });
-  }, [isEditing]);
+    if (awaitingHere) finish();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [awaitingHere]);
+
+  useEffect(() => {
+    if (!isRecordingHere) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.closest('[data-formula-insertable]')) return;
+      if (t.closest('[data-formula-bar]')) return;
+      if (t.closest('[data-formula-origin]')) return;
+      finish();
+    };
+    const id = window.setTimeout(() => document.addEventListener('mousedown', onDown), 0);
+    return () => {
+      window.clearTimeout(id);
+      document.removeEventListener('mousedown', onDown);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRecordingHere]);
 
   const hasOverride = storedValue !== null;
-
-  /** Strip row numbers so the default formula is row-relative: {C3} → {C} */
-  const makeRelativeFormula = (formula: string): string =>
-    formula.replace(/\{([A-Za-z]+)\d+\}/g, (_, col: string) => `{${col.toUpperCase()}}`);
+  const active = isRecordingHere || awaitingHere;
 
   const handleApplyToAll = async () => {
     if (pendingFormula === null) return;
-    const relativeFormula = makeRelativeFormula(pendingFormula);
+    const relativeFormula = makeRelativeIdFormula(pendingFormula, homeBoardId);
     setPendingFormula(null);
     try {
       await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula } } });
@@ -147,87 +181,52 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     setPendingFormula(null);
   };
 
-  if (isEditing) {
-    return (
-      <div
-        role="gridcell"
-        aria-label={`${column.name} formula editor`}
-        className="relative flex flex-shrink-0 flex-col w-full border-r border-[#d2d2d4] z-20 ring-1 ring-inset ring-indigo-400 bg-white"
-      >
-        <div className="flex items-center px-2 py-1 gap-1">
-          <span className="text-xs font-mono text-indigo-500 select-none">=</span>
-          <input
-            ref={inputRef}
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); commit(); }
-              if (e.key === 'Escape') { e.preventDefault(); discard(); }
-            }}
-            className="flex-1 text-xs font-mono text-gray-800 bg-transparent outline-none min-w-0"
-            placeholder={defaultFormula || 'e.g. {B2} * {C2}'}
-            aria-label={`Formula for ${column.name}`}
-            spellCheck={false}
-          />
-          <button
-            type="button"
-            onMouseDown={clearToEmpty}
-            className="flex-shrink-0 text-gray-300 hover:text-red-400 transition-colors"
-            title="Clear formula (make cell empty)"
-            aria-label="Clear formula and make cell empty"
-          >
-            ×
-          </button>
-        </div>
-        <div className="px-2 pb-1 flex items-center gap-1">
-          <span className="text-[10px] text-gray-400">= </span>
-          <span className={`text-[10px] font-medium ${previewResult != null ? 'text-indigo-600' : 'text-gray-300'}`}>
-            {previewResult != null ? formatNumber(previewResult) : '…'}
-          </span>
-        </div>
-        <div className="px-2 pb-1.5 text-[10px] text-gray-400">
-          Click any Number cell in this table to insert its address
-        </div>
-      </div>
-    );
-  }
-
   return (
     <>
       <div
         role="gridcell"
-        aria-label={`${column.name}: ${result != null ? formatNumber(result) : storedValue === '' ? 'empty' : 'no value'}`}
-        className={`relative flex flex-shrink-0 items-center justify-center w-full border-r border-[#d2d2d4] last:border-r-0 bg-gray-50/60 group/formula ${editable ? 'hover:bg-indigo-50/30 cursor-pointer' : ''}`}
-        onClick={startEdit}
+        data-formula-origin={active ? 'true' : undefined}
+        aria-label={`${column.name}: ${result != null && !hasUnresolved ? formatNumber(result) : storedValue === '' ? 'empty' : 'no value'}`}
+        className={`relative flex flex-shrink-0 items-center justify-center w-full border-r border-[#d2d2d4] last:border-r-0 group/formula ${
+          active ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : `bg-gray-50/60 ${editable ? 'hover:bg-indigo-50/30 cursor-pointer' : ''}`
+        }`}
+        onClick={active ? undefined : startRecording}
         tabIndex={editable ? 0 : -1}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') startEdit(e); }}
-        title={cellFormula ? `= ${cellFormula}` : 'Click to enter formula'}
+        onKeyDown={(e) => { if (!active && (e.key === 'Enter' || e.key === ' ')) startRecording(e); }}
+        title={active ? 'Recording — click cells on any board, then Save' : cellFormula ? '= (formula)' : 'Click to enter formula'}
       >
         <span className="text-sm text-gray-600 truncate px-3 text-center">
-          {result != null ? formatNumber(result) : <span className="text-gray-300 text-xs">—</span>}
+          {hasUnresolved && foreignLoading
+            ? <span className="text-gray-300 text-xs">…</span>
+            : hasUnresolved
+              ? <span className="text-amber-500 text-xs" title="A referenced cell is unavailable or no longer exists">#ref</span>
+              : result != null
+                ? formatNumber(result)
+                : <span className="text-gray-300 text-xs">—</span>}
         </span>
-        {hasOverride && editable && (
+        {hasOverride && editable && !active && (
           <button
             type="button"
-            onClick={clearOverride}
+            onClick={(e) => { e.stopPropagation(); persistValue(null); }}
             className="absolute right-1 opacity-0 group-hover/formula:opacity-100 transition-opacity text-gray-400 hover:text-red-500"
             aria-label={storedValue === '' ? `Restore default formula for ${column.name}` : `Reset ${column.name} to column default formula`}
             title={storedValue === '' ? 'Restore default formula' : 'Reset to column default formula'}
           >
-            ×
+            <FiX size={11} aria-hidden="true" />
           </button>
         )}
       </div>
 
-      {pendingFormula !== null && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" role="dialog" aria-modal="true" aria-labelledby="personal-formula-modal-title">
+      {pendingFormula !== null && ReactDOM.createPortal(
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-[70]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="personal-formula-modal-title"
+        >
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6 space-y-4">
             <h2 id="personal-formula-modal-title" className="text-base font-semibold text-gray-800">Apply formula</h2>
-            <p className="text-sm text-gray-600">
-              Apply <code className="bg-gray-100 rounded px-1 font-mono text-xs">= {pendingFormula}</code> to:
-            </p>
+            <p className="text-sm text-gray-600">Apply this formula to:</p>
             <div className="flex flex-col gap-2">
               <button
                 type="button"
@@ -245,17 +244,10 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
               >
                 Just this cell
               </button>
-              <button
-                type="button"
-                onClick={() => setPendingFormula(null)}
-                className="w-full px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                aria-label="Cancel"
-              >
-                Cancel
-              </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
