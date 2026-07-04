@@ -894,9 +894,11 @@ interface Props {
   existing?: CustomDashboard;
   lockedBoardId?: string;
   lockedBoardName?: string;
+  /** When set, a newly created dashboard is personal, owned by that user (Personal Hub). */
+  ownerUserId?: string;
 }
 
-const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing, lockedBoardId, lockedBoardName }) => {
+const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing, lockedBoardId, lockedBoardName, ownerUserId }) => {
   const headingId = useId();
   const isEditing = !!existing;
 
@@ -1007,7 +1009,7 @@ const AddCustomDashboardModal: React.FC<Props> = ({ onClose, existing, lockedBoa
       if (isEditing) {
         await updateMutation.mutateAsync({ id: existing!.id, patch: payload });
       } else {
-        await createMutation.mutateAsync(payload);
+        await createMutation.mutateAsync(ownerUserId ? { ...payload, ownerUserId } : payload);
       }
       onClose();
     } catch (err: unknown) {

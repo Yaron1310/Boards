@@ -42,6 +42,15 @@ function isAdmin(user: JwtUserPayload): boolean {
   return ADMIN_ROLES.includes(user.role as UserRole);
 }
 
+/**
+ * Personal dashboards (ownerUserId set) can be managed by their owner or any
+ * admin; org dashboards (no owner) can be managed by admins only.
+ */
+function canManageDashboard(user: JwtUserPayload, dash: Pick<DBCustomDashboard, 'ownerUserId'>): boolean {
+  if (dash.ownerUserId) return dash.ownerUserId === user.id || isAdmin(user);
+  return isAdmin(user);
+}
+
 function resolveItemValue(item: DBItem, columnId: string): unknown {
   return columnId === ITEM_NAME_COLUMN_ID ? item.name : item.values?.[columnId];
 }
@@ -334,12 +343,28 @@ function sanitizeConfig(config: Record<string, unknown>, chartType: CustomDashbo
 export const listCustomDashboards = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const includeArchived = req.query.includeArchived === 'true';
+  const ownerUserId = typeof req.query.ownerUserId === 'string' ? req.query.ownerUserId : undefined;
+
+  // Personal scope: only the owner or an admin may list a given user's personal dashboards.
+  if (ownerUserId && ownerUserId !== user.id && !isAdmin(user)) {
+    return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+  }
+
   try {
     const snap = await customDashboardsCollection(user.orgId).orderBy('createdAt', 'asc').get();
     const all = querySnapshotToArray<DBCustomDashboard>(snap);
     const byArchive = includeArchived ? all.filter(d => d.isArchived) : all.filter(d => !d.isArchived);
-    const visible = isAdmin(user) ? byArchive : byArchive.filter(d => d.visibility === 'all');
-    res.json(visible);
+
+    let scoped: DBCustomDashboard[];
+    if (ownerUserId) {
+      // A user's Personal Hub dashboards — owner (or admin) sees all of them.
+      scoped = byArchive.filter(d => d.ownerUserId === ownerUserId);
+    } else {
+      // Org-wide dashboards only — personal ones never leak into /dashboard.
+      const orgOnly = byArchive.filter(d => !d.ownerUserId);
+      scoped = isAdmin(user) ? orgOnly : orgOnly.filter(d => d.visibility === 'all');
+    }
+    res.json(scoped);
   } catch (err) {
     logger.error('listCustomDashboards error:', err);
     res.status(500).json({ message: 'Failed to list custom dashboards.' });
@@ -351,9 +376,15 @@ export const listCustomDashboards = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 export const createCustomDashboard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  if (!isAdmin(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
-  const { name, chartType, config, visibility } = req.body as Record<string, unknown>;
+  const { name, chartType, config, visibility, ownerUserId: rawOwner } = req.body as Record<string, unknown>;
+  const ownerUserId = typeof rawOwner === 'string' && rawOwner ? rawOwner : undefined;
+
+  // Org dashboards are admin-only; personal dashboards may be created by their
+  // owner or by an admin (e.g. an admin setting one up in a user's hub).
+  if (!canManageDashboard(user, { ownerUserId })) {
+    return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+  }
 
   if (!name || typeof name !== 'string' || !String(name).trim())
     return res.status(400).json({ message: 'name is required.' });
@@ -373,6 +404,7 @@ export const createCustomDashboard = async (req: Request, res: Response) => {
       chartType: chartType as CustomDashboardChartType,
       config: sanitizeConfig(config as Record<string, unknown>, chartType as CustomDashboardChartType),
       visibility: visibility as CustomDashboardVisibility,
+      ...(ownerUserId ? { ownerUserId } : {}),
       createdBy: user.id,
       createdAt: now,
       updatedAt: now,
@@ -398,7 +430,6 @@ export const createCustomDashboard = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 export const updateCustomDashboard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  if (!isAdmin(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
   const { id } = req.params;
   const docRef = customDashboardsCollection(user.orgId).doc(id);
@@ -406,6 +437,7 @@ export const updateCustomDashboard = async (req: Request, res: Response) => {
   if (!snap.exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
 
   const existing = snap.data() as DBCustomDashboard;
+  if (!canManageDashboard(user, existing)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
   const { name, chartType, config, visibility } = req.body as Record<string, unknown>;
 
   const patch: Record<string, unknown> = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
@@ -451,11 +483,12 @@ export const updateCustomDashboard = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 export const archiveCustomDashboard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  if (!isAdmin(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
   const { id } = req.params;
   const docRef = customDashboardsCollection(user.orgId).doc(id);
-  if (!(await docRef.get()).exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
+  const snap = await docRef.get();
+  if (!snap.exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
+  if (!canManageDashboard(user, snap.data() as DBCustomDashboard)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
   try {
     await docRef.update({ isArchived: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -477,12 +510,12 @@ export const archiveCustomDashboard = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 export const restoreCustomDashboard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  if (!isAdmin(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
   const { id } = req.params;
   const docRef = customDashboardsCollection(user.orgId).doc(id);
   const snap = await docRef.get();
   if (!snap.exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
+  if (!canManageDashboard(user, snap.data() as DBCustomDashboard)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
   try {
     await docRef.update({ isArchived: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
@@ -504,11 +537,12 @@ export const restoreCustomDashboard = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 export const deleteCustomDashboard = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
-  if (!isAdmin(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
   const { id } = req.params;
   const docRef = customDashboardsCollection(user.orgId).doc(id);
-  if (!(await docRef.get()).exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
+  const snap = await docRef.get();
+  if (!snap.exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
+  if (!canManageDashboard(user, snap.data() as DBCustomDashboard)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
 
   try {
     await docRef.delete();
@@ -727,8 +761,13 @@ export const getCustomDashboardData = async (req: Request, res: Response) => {
     if (!dashSnap.exists) return res.status(404).json({ message: 'Custom dashboard not found.' });
 
     const dashboard = dashSnap.data() as DBCustomDashboard;
-    if (dashboard.visibility === 'admins_only' && !isAdmin(user))
+    if (dashboard.ownerUserId) {
+      // Personal dashboard — only its owner or an admin may read it.
+      if (dashboard.ownerUserId !== user.id && !isAdmin(user))
+        return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+    } else if (dashboard.visibility === 'admins_only' && !isAdmin(user)) {
       return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+    }
 
     let results: { label: string; value: number; [key: string]: number | string }[];
     const { config } = dashboard;

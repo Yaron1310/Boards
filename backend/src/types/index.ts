@@ -513,6 +513,12 @@ export interface DBCustomDashboard {
   chartType: CustomDashboardChartType;
   config: DBCustomDashboardConfig;
   visibility: CustomDashboardVisibility;
+  /**
+   * When set, this is a PERSONAL dashboard owned by that user — shown only in
+   * that user's Personal Hub (to the owner and to admins viewing their hub),
+   * never on the org-wide /dashboard. When absent, it's an org dashboard.
+   */
+  ownerUserId?: string;
   createdBy: string;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;

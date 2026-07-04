@@ -3,10 +3,10 @@ import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import type { CreateCustomDashboardData, UpdateCustomDashboardData } from '@/services/workManagementService';
 
-export const useCustomDashboards = (includeArchived = false) =>
+export const useCustomDashboards = (includeArchived = false, ownerUserId?: string) =>
   useQuery({
-    queryKey: [...queryKeys.customDashboards.all, { includeArchived }],
-    queryFn: () => wm.listCustomDashboards(includeArchived),
+    queryKey: [...queryKeys.customDashboards.all, { includeArchived, ownerUserId: ownerUserId ?? null }],
+    queryFn: () => wm.listCustomDashboards(includeArchived, ownerUserId),
     staleTime: 0,
   });
 

@@ -538,6 +538,8 @@ export interface CustomDashboard {
   chartType: ChartType;
   config: CustomDashboardConfig;
   visibility: DashboardVisibility;
+  /** When set, a personal dashboard owned by that user (shown only in their Personal Hub). */
+  ownerUserId?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

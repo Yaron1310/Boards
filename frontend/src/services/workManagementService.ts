@@ -466,6 +466,8 @@ export interface CreateCustomDashboardData {
   chartType: CustomDashboard['chartType'];
   config: CustomDashboard['config'];
   visibility: CustomDashboard['visibility'];
+  /** When set, creates a personal dashboard owned by that user (Personal Hub). */
+  ownerUserId?: string;
 }
 
 export interface UpdateCustomDashboardData {
@@ -475,8 +477,11 @@ export interface UpdateCustomDashboardData {
   visibility?: CustomDashboard['visibility'];
 }
 
-export const listCustomDashboards = (includeArchived = false): Promise<CustomDashboard[]> => {
-  const qs = includeArchived ? '?includeArchived=true' : '';
+export const listCustomDashboards = (includeArchived = false, ownerUserId?: string): Promise<CustomDashboard[]> => {
+  const params = new URLSearchParams();
+  if (includeArchived) params.set('includeArchived', 'true');
+  if (ownerUserId) params.set('ownerUserId', ownerUserId);
+  const qs = params.toString() ? `?${params.toString()}` : '';
   return fetchWithAuth(`/api/custom-dashboards${qs}`);
 };
 

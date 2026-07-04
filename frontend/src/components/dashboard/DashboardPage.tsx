@@ -121,6 +121,12 @@ interface DashboardPageProps {
   embedded?: boolean;
   filters?: FilterState;
   dispatch?: React.Dispatch<FilterAction>;
+  /**
+   * When set, this page shows PERSONAL dashboards owned by that user (Personal
+   * Hub) and creates new dashboards under that owner. When omitted, it shows the
+   * org-wide dashboards.
+   */
+  ownerUserId?: string;
 }
 
 /** Lets an embedding host (Personal Hub) open the create/archived modals from its own header. */
@@ -130,7 +136,7 @@ export interface DashboardPageHandle {
 }
 
 const DashboardPage = forwardRef<DashboardPageHandle, DashboardPageProps>(({
-  canManage: canManageProp, embedded = false, filters: filtersProp, dispatch: dispatchProp,
+  canManage: canManageProp, embedded = false, filters: filtersProp, dispatch: dispatchProp, ownerUserId,
 }, ref) => {
   const { selectedWorkspace, user } = useAuthSession();
   useOrgSnapshot(selectedWorkspace?.orgId);
@@ -154,9 +160,9 @@ const DashboardPage = forwardRef<DashboardPageHandle, DashboardPageProps>(({
 
   const params = toDashboardParams(filters);
   const { data: summary, isLoading } = useDashboardSummary(params);
-  const { data: customDashboards, isLoading: customDashboardsLoading } = useCustomDashboards(false);
+  const { data: customDashboards, isLoading: customDashboardsLoading } = useCustomDashboards(false, ownerUserId);
   const customDashboardsList = customDashboards ?? [];
-  const { data: archivedDashboards = [] } = useCustomDashboards(true);
+  const { data: archivedDashboards = [] } = useCustomDashboards(true, ownerUserId);
   const { data: allBoards = [] } = useBoards(undefined, false, customDashboardsList.length > 0);
 
   const deleteMutation = useDeleteCustomDashboard();
@@ -466,6 +472,7 @@ const DashboardPage = forwardRef<DashboardPageHandle, DashboardPageProps>(({
         <AddCustomDashboardModal
           onClose={closeModal}
           existing={editingDashboard}
+          ownerUserId={ownerUserId}
         />
       )}
 

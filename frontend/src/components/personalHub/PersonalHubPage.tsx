@@ -344,7 +344,7 @@ const PersonalHubPageInner: React.FC = () => {
           {viewMode === 'dashboard' ? (
             // Export is for the item grid; in dashboard view its slot holds the
             // dashboard management actions (same as a board's dashboard header).
-            isOwn && (
+            (isOwn || isOrgAdmin) && (
               <>
                 <button
                   type="button"
@@ -475,7 +475,8 @@ const PersonalHubPageInner: React.FC = () => {
           <DashboardPage
             ref={dashboardRef}
             embedded
-            canManage={isOwn}
+            canManage={isOwn || isOrgAdmin}
+            ownerUserId={targetUserId}
             filters={dashFilters}
             dispatch={dashDispatch}
           />
