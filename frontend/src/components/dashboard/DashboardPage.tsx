@@ -301,7 +301,9 @@ const DashboardPage = forwardRef<DashboardPageHandle, DashboardPageProps>(({
   };
 
   return (
-    <div className="flex flex-col min-h-full bg-gray-100" aria-label="Dashboard page">
+    // Embedded: fill the host's bounded area and scroll internally, so the host's
+    // header stays fixed. Standalone route: grow with content (the route <main> scrolls).
+    <div className={`flex flex-col bg-gray-100 ${embedded ? 'h-full overflow-y-auto' : 'min-h-full'}`} aria-label="Dashboard page">
       {/* Sticky header — hidden when embedded (the host renders these controls in its own header). */}
       {!embedded && (
       <div className="sticky top-0 z-10 bg-gray-100 px-6 pt-6 pb-4 shrink-0">
