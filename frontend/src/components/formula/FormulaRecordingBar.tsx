@@ -76,22 +76,24 @@ const FormulaRecordingBar: React.FC = () => {
       <div className="flex items-center gap-3 px-4 py-2">
         <div className="flex flex-col min-w-0">
           <span className="text-[10px] uppercase tracking-wide text-indigo-500 font-semibold">
-            Editing formula
+            Recording formula for
           </span>
-          <span className="text-xs text-indigo-700 truncate" title={`${origin.columnName} · ${origin.itemName}`}>
-            {origin.columnName} · {origin.itemName}
+          <span className="text-xs text-indigo-700 truncate" title={`Item "${origin.itemName}", column "${origin.columnName}"`}>
+            “{origin.itemName}” · {origin.columnName}
           </span>
         </div>
 
         <span className="text-sm font-mono text-indigo-500 select-none">=</span>
         <div
-          className="flex-1 min-w-0 text-sm font-mono text-gray-800 bg-white/80 rounded px-2 py-1 ring-1 ring-inset ring-indigo-200 truncate"
+          className="flex-1 min-w-0 flex items-center text-sm font-mono text-gray-800 bg-white/80 rounded px-2 py-1 ring-1 ring-inset ring-indigo-200 overflow-hidden"
           aria-label="Formula being recorded"
           title={pretty}
         >
-          {pretty
-            ? pretty
-            : <span className="text-gray-400">Click cells on any board and type operators (+ − × ÷)…</span>}
+          <span className="truncate">
+            {pretty || <span className="text-gray-400">Click cells on any board and type operators (+ − × ÷)…</span>}
+          </span>
+          {/* Blinking caret signals the field is capturing input (digits/operators typed anywhere). */}
+          <span className="inline-block w-[2px] h-4 bg-indigo-500 ml-0.5 flex-shrink-0 animate-pulse" aria-hidden="true" />
         </div>
 
         <span className="text-xs text-gray-500 whitespace-nowrap">

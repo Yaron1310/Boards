@@ -6,8 +6,9 @@ import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
-import { aggregateSummary, type CellRef } from '@/utils/formulaEngine';
-import type { Item, PaginatedResponse } from '@/types';
+import { computeSummaryNumeric, type CellRef } from '@/utils/formulaEngine';
+import { ColumnType } from '@/types';
+import type { Column, Item, PaginatedResponse } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
 
@@ -59,6 +60,33 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
       },
     ],
   });
+
+  // Board group-summary refs need the referenced column's type to aggregate correctly.
+  const summaryBoardIds = useMemo(
+    () => Array.from(new Set(refs.filter((r) => r.kind === 'b' && r.agg).map((r) => r.boardId))).sort(),
+    [refs],
+  );
+  const summaryKey = summaryBoardIds.join(',');
+  const columnQueries = useQueries({
+    queries: summaryBoardIds.map((boardId) => ({
+      queryKey: queryKeys.columns.board(boardId),
+      queryFn: () => wm.listColumns(boardId),
+      enabled: !!boardId,
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+  const boardColumnTypes = useMemo(() => {
+    const m = new Map<string, Map<string, ColumnType>>();
+    summaryBoardIds.forEach((boardId, i) => {
+      const cols = columnQueries[i]?.data as Column[] | undefined;
+      if (!cols) return;
+      const cm = new Map<string, ColumnType>();
+      cols.forEach((c) => cm.set(c.id, c.type));
+      m.set(boardId, cm);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryKey, columnQueries]);
 
   // Live recompute: subscribe to each referenced board's items collection and invalidate its
   // cached list so the queries above refetch. Waits for Firebase Auth (same reason as useBoardSnapshot).
@@ -140,22 +168,22 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
   );
 
   const isLoading =
-    boardQueries.some((q) => q.isLoading) || (personalQueries[0]?.isLoading ?? false);
+    boardQueries.some((q) => q.isLoading) ||
+    columnQueries.some((q) => q.isLoading) ||
+    (personalQueries[0]?.isLoading ?? false);
 
   const resolve = useCallback(
     (ref: CellRef, currentItemId?: string | null): number | null | undefined => {
-      // Group-summary reference: aggregate a NUMBER column across a group (board columns only).
+      // Group-summary reference: aggregate a column across a group. Board columns only —
+      // personal-hub summaries are resolved locally on the Personal Hub, not cross-context.
       if (ref.agg) {
         if (ref.kind !== 'b') return undefined;
         const items = boardItemsList.get(ref.boardId);
-        if (!items) return undefined; // board not loaded yet
-        const vals = items
-          .filter((i) => i.groupId === ref.groupId)
-          .map((i) => i.values?.[ref.columnId])
-          .filter((v) => v != null && v !== '')
-          .map((v) => Number(v))
-          .filter((n) => !isNaN(n));
-        return aggregateSummary(vals, ref.agg);
+        const colType = boardColumnTypes.get(ref.boardId)?.get(ref.columnId);
+        if (!items || !colType) return undefined; // board items/columns not loaded yet
+        if (colType === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
+        const rows = items.filter((i) => i.groupId === ref.groupId);
+        return computeSummaryNumeric(rows, colType, ref.columnId, ref.agg);
       }
 
       const itemId = ref.itemId ?? currentItemId ?? null;
@@ -175,7 +203,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
       const n = Number(raw);
       return isNaN(n) ? null : n;
     },
-    [boardItemMap, boardItemsList, personalValues],
+    [boardItemMap, boardItemsList, boardColumnTypes, personalValues],
   );
 
   return { resolve, isLoading };

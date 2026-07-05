@@ -516,20 +516,19 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const showActive = isInteractive && config.calc !== 'none';
   const showHoverTrigger = isCountOnly && config.calc === 'none';
 
-  // While a formula is recording, a board NUMBER-column summary can be clicked to add its
-  // live group aggregate to the formula. Restricted to NUMBER columns so a summary never
-  // aggregates a formula column — this is the data-loop guard (a NUMBER cell references
-  // nothing, so no formula → summary → formula cycle can form). Personal summaries (getValue)
-  // are not supported as sources.
+  // While a formula is recording, a summary cell can be clicked to add its live aggregate to
+  // the formula — for any column type except SIMPLE_FORMULA. Excluding formula columns is the
+  // data-loop guard: a summary never aggregates a formula column, so no formula → summary →
+  // formula cycle can form. Personal-hub summaries (getValue) insert kind 'p' refs.
   const canInsertSummary =
-    isRecording && !getValue && col.type === ColumnType.NUMBER &&
+    isRecording && col.type !== ColumnType.SIMPLE_FORMULA &&
     config.calc !== 'none' && value != null && items.length > 0;
 
   const insertSummary = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     insertRef({
-      kind: 'b',
+      kind: getValue ? 'p' : 'b',
       boardId: col.boardId ?? items[0]?.boardId ?? '',
       columnId: col.id,
       itemId: null,

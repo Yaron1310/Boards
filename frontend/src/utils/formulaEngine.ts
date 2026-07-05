@@ -39,6 +39,87 @@ export interface CellRef {
   groupId?: string;
 }
 
+function parseTimeToMinutes(time: string): number | null {
+  const m = time.match(/^(\d+):(\d{2})$/);
+  return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+}
+
+function timeRangeIntervals(
+  rows: FormulaRow[],
+  columnId: string,
+  getVal: (r: FormulaRow, c: string) => unknown,
+): { s: number; e: number }[] {
+  return rows
+    .map((r) => {
+      const v = getVal(r, columnId) as { start?: string; end?: string } | null | undefined;
+      if (!v?.start || !v?.end) return null;
+      const s = new Date(v.start).getTime();
+      const e = new Date(v.end).getTime();
+      return isNaN(s) || isNaN(e) ? null : { s, e };
+    })
+    .filter((x): x is { s: number; e: number } => x !== null);
+}
+
+/** Total unique calendar days covered by a set of intervals (union). */
+function mergedDays(intervals: { s: number; e: number }[]): number {
+  if (intervals.length === 0) return 0;
+  const sorted = [...intervals].sort((a, b) => a.s - b.s);
+  let total = 0;
+  let curS = sorted[0].s;
+  let curE = sorted[0].e;
+  for (let i = 1; i < sorted.length; i++) {
+    const { s, e } = sorted[i];
+    if (s <= curE) { if (e > curE) curE = e; }
+    else { total += Math.round((curE - curS) / 86_400_000) + 1; curS = s; curE = e; }
+  }
+  return total + Math.round((curE - curS) / 86_400_000) + 1;
+}
+
+/**
+ * Numeric group-summary matching GroupSummaryRow's aggregation, for any column type:
+ * count works for every type; NUMBER/TIME/TIME_RANGE produce numeric aggregates. Returns null
+ * for combinations with no numeric meaning (e.g. avg of a text column). SIMPLE_FORMULA is not
+ * summarizable here — callers exclude it as the formula→summary→formula data-loop guard.
+ */
+export function computeSummaryNumeric(
+  rows: FormulaRow[],
+  type: ColumnType,
+  columnId: string,
+  calc: SummaryCalc,
+  getVal: (r: FormulaRow, c: string) => unknown = (r, c) => r.values[c],
+): number | null {
+  if (calc === 'count') {
+    if (type === ColumnType.CHECKBOX) return rows.filter((r) => Boolean(getVal(r, columnId))).length;
+    return rows.filter((r) => {
+      const v = getVal(r, columnId);
+      if (v == null || v === '') return false;
+      if (Array.isArray(v)) return v.length > 0;
+      return true;
+    }).length;
+  }
+  if (type === ColumnType.NUMBER) {
+    const vals = rows
+      .map((r) => getVal(r, columnId))
+      .filter((v) => v != null && v !== '')
+      .map((v) => Number(v))
+      .filter((n) => !isNaN(n));
+    return aggregateSummary(vals, calc);
+  }
+  if (type === ColumnType.TIME) {
+    const vals = rows
+      .map((r) => parseTimeToMinutes((getVal(r, columnId) as string) ?? ''))
+      .filter((n): n is number => n !== null);
+    return aggregateSummary(vals, calc);
+  }
+  if (type === ColumnType.TIME_RANGE) {
+    const iv = timeRangeIntervals(rows, columnId, getVal);
+    if (calc === 'sum') return iv.length ? mergedDays(iv) : null;
+    const days = iv.map(({ s, e }) => Math.max(1, Math.round((e - s) / 86_400_000) + 1));
+    return aggregateSummary(days, calc);
+  }
+  return null;
+}
+
 /** Aggregate a list of numbers. Returns null when there is nothing to aggregate (except count → 0). */
 export function aggregateSummary(vals: number[], calc: SummaryCalc): number | null {
   if (calc === 'count') return vals.length;
@@ -83,7 +164,9 @@ export function parseRefToken(inner: string): CellRef | null {
   if (parts.length !== 5) return null;
   const [, kind, boardId, columnId, row] = parts;
   if (kind !== 'b' && kind !== 'p') return null;
-  if (!boardId || !columnId || !row) return null;
+  // boardId may be empty for Personal Hub "all-groups" columns (no single owning board);
+  // 'p' refs resolve by itemId+columnId regardless of board, so an empty boardId is valid.
+  if (!columnId || !row) return null;
   // Group-summary refs encode the row slot as `sum#<agg>#<groupId>` (Firestore ids carry no ':'/'#').
   if (row.startsWith('sum#')) {
     const [, agg, groupId] = row.split('#');
@@ -261,14 +344,11 @@ class FormulaParser {
     const ctx = this.context;
     if (!ctx || !ref.agg) return undefined;
     const col = ctx.columns.find((c) => c.id === ref.columnId);
-    if (!col || col.type !== ColumnType.NUMBER) return undefined;
-    const vals = ctx.allItems
-      .filter((it) => it.groupId === ref.groupId)
-      .map((it) => it.values[col.id])
-      .filter((v) => v != null && v !== '')
-      .map((v) => Number(v))
-      .filter((n) => !isNaN(n));
-    return aggregateSummary(vals, ref.agg) ?? 0;
+    if (!col || col.type === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
+    // Board summaries aggregate one group; Personal Hub summaries aggregate the whole table
+    // (its rows are already the one board's items — personal rows carry no board groupId).
+    const rows = ref.kind === 'p' ? ctx.allItems : ctx.allItems.filter((it) => it.groupId === ref.groupId);
+    return computeSummaryNumeric(rows, col.type, col.id, ref.agg) ?? 0;
   }
 
   private resolveCellRef(cellRef: string): number {
