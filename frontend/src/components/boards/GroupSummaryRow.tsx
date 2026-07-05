@@ -322,7 +322,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
   const { columnWidths } = useBoardRender();
-  const { isRecording, insertRef } = useFormulaRecording();
+  const { isRecording, insertRef, session } = useFormulaRecording();
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
   const isInteractive = isAggregatable || isCountOnly;
@@ -519,10 +519,15 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   // While a formula is recording, a summary cell can be clicked to add its live aggregate to
   // the formula — for any column type except SIMPLE_FORMULA. Excluding formula columns is the
   // data-loop guard: a summary never aggregates a formula column, so no formula → summary →
-  // formula cycle can form. Personal-hub summaries (getValue) insert kind 'p' refs.
+  // formula cycle can form. Personal-hub summaries (getValue) insert kind 'p' refs, and are only
+  // offered when the formula itself lives in the Personal Hub — a personal summary can't be
+  // recomputed from a regular board (it depends on the owner's private, assignee-filtered rows),
+  // so it must not be referenced there.
+  const isPersonalSummary = !!getValue;
   const canInsertSummary =
     isRecording && col.type !== ColumnType.SIMPLE_FORMULA &&
-    config.calc !== 'none' && value != null && items.length > 0;
+    config.calc !== 'none' && value != null && items.length > 0 &&
+    (!isPersonalSummary || !!session?.origin.isPersonal);
 
   const insertSummary = (e: React.MouseEvent) => {
     e.preventDefault();
