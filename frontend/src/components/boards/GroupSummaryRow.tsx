@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { evaluateFormula } from '../../utils/formulaEngine';
+import { evaluateFormula, type SummaryCalc } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
+import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { ITEM_COL_ID } from './ColumnHeader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -321,6 +322,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
   const { columnWidths } = useBoardRender();
+  const { isRecording, insertRef } = useFormulaRecording();
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
   const isInteractive = isAggregatable || isCountOnly;
@@ -514,14 +516,40 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const showActive = isInteractive && config.calc !== 'none';
   const showHoverTrigger = isCountOnly && config.calc === 'none';
 
+  // While a formula is recording, a board NUMBER-column summary can be clicked to add its
+  // live group aggregate to the formula. Restricted to NUMBER columns so a summary never
+  // aggregates a formula column — this is the data-loop guard (a NUMBER cell references
+  // nothing, so no formula → summary → formula cycle can form). Personal summaries (getValue)
+  // are not supported as sources.
+  const canInsertSummary =
+    isRecording && !getValue && col.type === ColumnType.NUMBER &&
+    config.calc !== 'none' && value != null && items.length > 0;
+
+  const insertSummary = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    insertRef({
+      kind: 'b',
+      boardId: col.boardId ?? items[0]?.boardId ?? '',
+      columnId: col.id,
+      itemId: null,
+      agg: config.calc as SummaryCalc,
+      groupId: items[0]?.groupId,
+    });
+  };
+
   return (
     <div
       role="gridcell"
-      aria-label={`${col.name} ${config.calc}: ${value ?? 'none'}`}
+      aria-label={canInsertSummary
+        ? `Add ${col.name} ${config.calc} to the formula`
+        : `${col.name} ${config.calc}: ${value ?? 'none'}`}
       style={{ width: `${colWidth}px` }}
-      className="group relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2"
+      onMouseDown={canInsertSummary ? insertSummary : undefined}
+      data-formula-insertable={canInsertSummary ? 'true' : undefined}
+      className={`group relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2 ${canInsertSummary ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : ''}`}
     >
-      {showActive && (
+      {!canInsertSummary && showActive && (
         <button
           ref={btnRef}
           type="button"

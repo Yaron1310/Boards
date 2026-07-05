@@ -7,6 +7,7 @@ import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevrons
 import { useTranslation } from 'react-i18next';
 import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
+import FormulaRecordingBar from '../formula/FormulaRecordingBar';
 import BoardContextMenu from '../boards/BoardContextMenu';
 import EditBoardModal from '../boards/EditBoardModal';
 import DuplicateOptionsModal from '../boards/DuplicateOptionsModal';
@@ -1159,6 +1160,7 @@ const MainLayout: React.FC = () => {
 
           <Link to="/profile"><img src={userImageHeader} alt="User" className="h-8 w-8 rounded-full object-cover flex-shrink-0" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} /></Link>
         </header>
+        <FormulaRecordingBar />
         <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><Outlet /></Suspense></main>
       </div>
     </div>

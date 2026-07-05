@@ -6,7 +6,7 @@ import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
-import type { CellRef } from '@/utils/formulaEngine';
+import { aggregateSummary, type CellRef } from '@/utils/formulaEngine';
 import type { Item, PaginatedResponse } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
@@ -122,6 +122,17 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardKey, boardQueries]);
 
+  // Full item lists per board, kept for group-summary aggregation (needs groupId).
+  const boardItemsList = useMemo(() => {
+    const m = new Map<string, Item[]>();
+    boardIds.forEach((boardId, i) => {
+      const data = boardQueries[i]?.data as PaginatedResponse<Item> | undefined;
+      if (data) m.set(boardId, data.data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardKey, boardQueries]);
+
   const personalData = personalQueries[0]?.data;
   const personalValues = useMemo(
     () => (personalData ?? {}) as Record<string, Record<string, unknown>>,
@@ -133,6 +144,20 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
 
   const resolve = useCallback(
     (ref: CellRef, currentItemId?: string | null): number | null | undefined => {
+      // Group-summary reference: aggregate a NUMBER column across a group (board columns only).
+      if (ref.agg) {
+        if (ref.kind !== 'b') return undefined;
+        const items = boardItemsList.get(ref.boardId);
+        if (!items) return undefined; // board not loaded yet
+        const vals = items
+          .filter((i) => i.groupId === ref.groupId)
+          .map((i) => i.values?.[ref.columnId])
+          .filter((v) => v != null && v !== '')
+          .map((v) => Number(v))
+          .filter((n) => !isNaN(n));
+        return aggregateSummary(vals, ref.agg);
+      }
+
       const itemId = ref.itemId ?? currentItemId ?? null;
       if (!itemId) return undefined;
 
@@ -150,7 +175,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
       const n = Number(raw);
       return isNaN(n) ? null : n;
     },
-    [boardItemMap, personalValues],
+    [boardItemMap, boardItemsList, personalValues],
   );
 
   return { resolve, isLoading };

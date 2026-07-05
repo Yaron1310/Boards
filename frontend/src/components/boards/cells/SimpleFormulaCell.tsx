@@ -138,31 +138,13 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
     );
   };
 
-  // Save pressed elsewhere → navigated back here → finish now that the origin cell is mounted.
+  // Save pressed (here or on another board) → navigated back here → finish now that the origin
+  // cell is mounted. Saving is explicit (Save button / Enter); clicking elsewhere never saves,
+  // so the user can freely navigate to other boards to pick cells.
   useEffect(() => {
     if (awaitingHere) finish();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [awaitingHere]);
-
-  // While recording on this board, a click that is not a number cell, the bar, or this cell
-  // finishes the formula — the "navigate back and click outside" flow.
-  useEffect(() => {
-    if (!isRecordingHere) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (!t) return;
-      if (t.closest('[data-formula-insertable]')) return;
-      if (t.closest('[data-formula-bar]')) return;
-      if (t.closest('[data-formula-origin]')) return;
-      finish();
-    };
-    const id = window.setTimeout(() => document.addEventListener('mousedown', onDown), 0);
-    return () => {
-      window.clearTimeout(id);
-      document.removeEventListener('mousedown', onDown);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecordingHere]);
 
   const hasOverride = storedValue !== null;
   const active = isRecordingHere || awaitingHere;

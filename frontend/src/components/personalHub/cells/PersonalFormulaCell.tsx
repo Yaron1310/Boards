@@ -137,28 +137,11 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     );
   };
 
+  // Saving is explicit (Save button / Enter). Navigated back here after Save → finish.
   useEffect(() => {
     if (awaitingHere) finish();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [awaitingHere]);
-
-  useEffect(() => {
-    if (!isRecordingHere) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (!t) return;
-      if (t.closest('[data-formula-insertable]')) return;
-      if (t.closest('[data-formula-bar]')) return;
-      if (t.closest('[data-formula-origin]')) return;
-      finish();
-    };
-    const id = window.setTimeout(() => document.addEventListener('mousedown', onDown), 0);
-    return () => {
-      window.clearTimeout(id);
-      document.removeEventListener('mousedown', onDown);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRecordingHere]);
 
   const hasOverride = storedValue !== null;
   const active = isRecordingHere || awaitingHere;

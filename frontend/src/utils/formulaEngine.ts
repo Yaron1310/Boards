@@ -18,9 +18,13 @@ export type ColumnValues = Record<string, number | null | undefined>;
 
 /** Minimal shapes — real board Item[]/Column[] satisfy these structurally, and so do
  *  Personal Hub's pseudo-rows (items backed by personalItemValues instead of item.values).
- *  `id` is optional but required to resolve absolute ID refs ({ref:...:<itemId>}) locally. */
-export interface FormulaRow { id?: string; values: Record<string, unknown> }
+ *  `id` is optional but required to resolve absolute ID refs ({ref:...:<itemId>}) locally;
+ *  `groupId` is required to resolve group-summary refs. */
+export interface FormulaRow { id?: string; groupId?: string; values: Record<string, unknown> }
 export interface FormulaColumn { id: string; type: ColumnType }
+
+/** Aggregate functions supported by group-summary references. */
+export type SummaryCalc = 'sum' | 'avg' | 'median' | 'min' | 'max' | 'count';
 
 /** A structured, stable-ID cell reference. */
 export interface CellRef {
@@ -30,6 +34,28 @@ export interface CellRef {
   columnId: string;
   /** null → relative to the current row (only valid for same-board refs); otherwise a specific item id. */
   itemId: string | null;
+  /** When set, this is a group-summary reference: aggregate `columnId` across `groupId` with `agg`. */
+  agg?: SummaryCalc;
+  groupId?: string;
+}
+
+/** Aggregate a list of numbers. Returns null when there is nothing to aggregate (except count → 0). */
+export function aggregateSummary(vals: number[], calc: SummaryCalc): number | null {
+  if (calc === 'count') return vals.length;
+  if (vals.length === 0) return null;
+  const sum = vals.reduce((a, b) => a + b, 0);
+  switch (calc) {
+    case 'sum': return sum;
+    case 'avg': return sum / vals.length;
+    case 'min': return Math.min(...vals);
+    case 'max': return Math.max(...vals);
+    case 'median': {
+      const s = [...vals].sort((a, b) => a - b);
+      const m = Math.floor(s.length / 2);
+      return s.length % 2 !== 0 ? s[m] : (s[m - 1] + s[m]) / 2;
+    }
+    default: return null;
+  }
 }
 
 export interface FormulaContext {
@@ -58,12 +84,18 @@ export function parseRefToken(inner: string): CellRef | null {
   const [, kind, boardId, columnId, row] = parts;
   if (kind !== 'b' && kind !== 'p') return null;
   if (!boardId || !columnId || !row) return null;
+  // Group-summary refs encode the row slot as `sum#<agg>#<groupId>` (Firestore ids carry no ':'/'#').
+  if (row.startsWith('sum#')) {
+    const [, agg, groupId] = row.split('#');
+    return { kind, boardId, columnId, itemId: null, agg: agg as SummaryCalc, groupId: groupId || undefined };
+  }
   return { kind, boardId, columnId, itemId: row === '@' ? null : row };
 }
 
 /** Serialize a CellRef back into its `{ref:...}` token form. */
 export function serializeRef(ref: CellRef): string {
-  return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${ref.itemId ?? '@'}}`;
+  const row = ref.agg ? `sum#${ref.agg}#${ref.groupId ?? ''}` : (ref.itemId ?? '@');
+  return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}}`;
 }
 
 class FormulaParser {
@@ -204,6 +236,8 @@ class FormulaParser {
     const ctx = this.context;
     if (!ctx) return undefined;
 
+    if (ref.agg) return this.resolveLocalSummary(ref);
+
     const col = ctx.columns.find((c) => c.id === ref.columnId);
     if (!col || col.type !== ColumnType.NUMBER) return undefined;
 
@@ -218,6 +252,23 @@ class FormulaParser {
 
     const val = item.values[col.id];
     return val != null && !isNaN(Number(val)) ? Number(val) : 0;
+  }
+
+  /** Aggregate a NUMBER column across one group from local context. Only NUMBER columns are
+   *  summarizable — this is the data-loop guard: a summary never aggregates a formula column,
+   *  so a formula → summary → formula cycle cannot form. */
+  private resolveLocalSummary(ref: CellRef): number | undefined {
+    const ctx = this.context;
+    if (!ctx || !ref.agg) return undefined;
+    const col = ctx.columns.find((c) => c.id === ref.columnId);
+    if (!col || col.type !== ColumnType.NUMBER) return undefined;
+    const vals = ctx.allItems
+      .filter((it) => it.groupId === ref.groupId)
+      .map((it) => it.values[col.id])
+      .filter((v) => v != null && v !== '')
+      .map((v) => Number(v))
+      .filter((n) => !isNaN(n));
+    return aggregateSummary(vals, ref.agg) ?? 0;
   }
 
   private resolveCellRef(cellRef: string): number {

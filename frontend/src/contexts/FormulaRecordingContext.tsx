@@ -74,10 +74,42 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
     setSession((s) => (s ? { ...s, phase: 'awaiting-origin' } : s));
   }, []);
 
-  // Global Esc cancels an active recording session.
+  // Global keyboard while recording: Esc cancels; Enter saves; digits/operators/parens build the
+  // formula from anywhere (no need to focus a field); Backspace deletes the last token or char.
+  // Ignored when the user is typing into a real input/textarea/select so normal typing still works.
   useEffect(() => {
     if (!session) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') setSession(null); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setSession(null); return; }
+      if (session.phase !== 'recording') return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return;
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        setSession((s) => (s ? { ...s, phase: 'awaiting-origin' } : s));
+        return;
+      }
+      if (e.key === 'Backspace') {
+        e.preventDefault();
+        setSession((s) => {
+          if (!s) return s;
+          const d = s.draft;
+          if (d.endsWith('}')) {
+            const i = d.lastIndexOf('{');
+            return { ...s, draft: i >= 0 ? d.slice(0, i) : d.slice(0, -1) };
+          }
+          return { ...s, draft: d.slice(0, -1) };
+        });
+        return;
+      }
+      if (e.key.length === 1 && /[0-9.+\-*/()%\s]/.test(e.key)) {
+        e.preventDefault();
+        setSession((s) => (s ? { ...s, draft: s.draft + e.key } : s));
+      }
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [session]);

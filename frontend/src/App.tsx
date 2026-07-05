@@ -22,7 +22,6 @@ import LandingPage from './components/public/LandingPage';
 import LegalPage from './components/legal/LegalPage';
 import AccessibilityPage from './components/legal/AccessibilityPage';
 import DemoBoardPage from './components/demo/DemoBoardPage';
-import FormulaRecordingBar from './components/formula/FormulaRecordingBar';
 
 // -- Lazy imports only for the authenticated area (code-split by user role) --
 const MainLayout = React.lazy(() => import('./components/layout/MainLayout'));
@@ -339,7 +338,6 @@ const App: React.FC = () => {
         {/* Catch-all */}
         <Route path="*" element={user ? <Navigate to={redirectPath} /> : <Navigate to="/" />} />
       </Routes>
-      <FormulaRecordingBar />
     </BrowserRouter>
     </>
   );
