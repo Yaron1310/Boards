@@ -2,6 +2,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import type { CreateCustomDashboardData, UpdateCustomDashboardData } from '@/services/workManagementService';
+import type { CustomDashboard } from '@/types';
+
+/** Dashboards that surface on a given board's dashboard view (a widget references this board). */
+export const selectBoardDashboards = (dashboards: CustomDashboard[], boardId: string): CustomDashboard[] =>
+  dashboards.filter((d) => {
+    if (d.config.type === 'metric') return d.config.metrics.some((m) => m.boardId === boardId);
+    if (d.config.type === 'timeseries') {
+      const cfg = d.config;
+      return cfg.boardId === boardId || (cfg.series ?? []).some((s) => s.boardId === boardId);
+    }
+    return (d.config as { boardId: string }).boardId === boardId;
+  });
 
 export const useCustomDashboards = (includeArchived = false, ownerUserId?: string) =>
   useQuery({

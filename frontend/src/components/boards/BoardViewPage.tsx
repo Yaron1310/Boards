@@ -34,6 +34,7 @@ import { exportBoardToXlsx } from '../../utils/exportBoardToXlsx';
 import ColumnHeader, { ITEM_COL_ID } from './ColumnHeader';
 import GanttView from './GanttView';
 import BoardDashboardView, { DashboardFilterChip, type BoardDashboardHandle } from './BoardDashboardView';
+import { useCustomDashboards, selectBoardDashboards } from '../../hooks/queries/useCustomDashboardQueries';
 import DashboardFilterBar, { DateRangePresetPicker, filterReducer, INITIAL_FILTER_STATE } from '../dashboard/DashboardFilterBar';
 import GroupSection from './GroupSection';
 import AddGroupForm from './AddGroupForm';
@@ -519,6 +520,20 @@ const BoardViewPage: React.FC = () => {
     localStorage.setItem(key, view);
     setBoardView(view);
   };
+
+  // If the remembered view is the dashboard but this board has no dashboard widgets yet,
+  // don't drop the user onto an empty dashboard — fall back to the table view. This runs
+  // only for the initial restore (guarded by a ref), so a user who deliberately opens the
+  // still-empty dashboard to add their first widget is not bounced back out.
+  const { data: allDashboards } = useCustomDashboards(false);
+  const didInitialDashboardCheck = useRef(false);
+  useEffect(() => {
+    if (didInitialDashboardCheck.current || allDashboards === undefined) return;
+    didInitialDashboardCheck.current = true;
+    if (boardView === 'dashboard' && selectBoardDashboards(allDashboards, boardId ?? '').length === 0) {
+      setBoardView('table');
+    }
+  }, [allDashboards, boardView, boardId]);
 
   // Local optimistic state for DnD
   const [localGroups, setLocalGroups] = useState<Group[]>([]);

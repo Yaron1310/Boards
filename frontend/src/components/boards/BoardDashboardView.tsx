@@ -4,6 +4,7 @@ import {
   useCustomDashboards,
   useDeleteCustomDashboard,
   useArchiveCustomDashboard,
+  selectBoardDashboards,
 } from '../../hooks/queries/useCustomDashboardQueries';
 import WidgetCard from '../dashboard/WidgetCard';
 import CustomDashboardWidget from '../dashboard/widgets/CustomDashboardWidget';
@@ -64,14 +65,10 @@ const BoardDashboardView = forwardRef<BoardDashboardHandle, Props>(({ boardId, b
   const deleteMutation = useDeleteCustomDashboard();
   const archiveMutation = useArchiveCustomDashboard();
 
-  const boardDashboards = useMemo(() => allDashboards.filter(d => {
-    if (d.config.type === 'metric') return d.config.metrics.some(m => m.boardId === boardId);
-    if (d.config.type === 'timeseries') {
-      const cfg = d.config;
-      return cfg.boardId === boardId || (cfg.series ?? []).some(s => s.boardId === boardId);
-    }
-    return (d.config as { boardId: string }).boardId === boardId;
-  }), [allDashboards, boardId]);
+  const boardDashboards = useMemo(
+    () => selectBoardDashboards(allDashboards, boardId),
+    [allDashboards, boardId],
+  );
 
   const timeRangeFilter = filters.filters.find(
     (f): f is { type: 'timerange'; start: string; end: string } => f.type === 'timerange',

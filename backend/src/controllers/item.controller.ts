@@ -14,6 +14,7 @@ import {
 import { validateColumnValue } from '../utils/columnValidator.js';
 import { parsePaginationParams, applyPagination, buildPaginatedResult } from '../utils/pagination.js';
 import { touchBoardVersion } from '../services/boardVersion.service.js';
+import { sendItemAssignmentEmail } from '../services/email.service.js';
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
@@ -140,6 +141,19 @@ function triggerItemNotifications(
       workspaceId: orgId,
       createdAt: timestamp,
     }).catch((err) => logger.warn('Failed to create assignment notification:', err));
+
+    // Email the newly assigned user (fire-and-forget; does not block the response)
+    void (async () => {
+      try {
+        const userDoc = await usersCollection.doc(recipientId).get();
+        if (!userDoc.exists) return;
+        const recipient = userDoc.data() as DBUser;
+        if (!recipient.email) return;
+        await sendItemAssignmentEmail(recipient.email, recipient.name ?? recipient.email, actorName, item.name, boardName);
+      } catch (err) {
+        logger.warn('Failed to send assignment email:', err);
+      }
+    })();
   }
 
   // Mention notifications: @userId patterns in name and text column values

@@ -500,6 +500,34 @@ export const sendChatMentionEmail = async (
 
 // ---------------------------------------------------------------------------
 
+export const sendItemAssignmentEmail = async (
+    toEmail: string,
+    toName: string,
+    actorName: string,
+    itemName: string,
+    boardName: string,
+): Promise<void> => {
+    await ensureTransporter();
+    if (!isEmailServiceAvailable()) return;
+
+    const esc = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromEmail = process.env.SMTP_USER!;
+    const subject = `You've been assigned to "${itemName}"`;
+    const onBoard = boardName ? ` on <strong>${esc(boardName)}</strong>` : '';
+    const html = `<p>Hello ${esc(toName)},</p>
+<p><strong>${esc(actorName)}</strong> assigned you to <strong>${esc(itemName)}</strong>${onBoard}.</p>
+<p>Thanks,<br/>The Logyx Team</p>`;
+
+    try {
+        await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to: toEmail, subject, html });
+    } catch (error) {
+        logger.error(`Failed to send assignment email to ${toEmail}`, error);
+    }
+};
+
+// ---------------------------------------------------------------------------
+
 export const sendUserInvitationEmail = async (
     userEmail: string,
     orgName: string,
