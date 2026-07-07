@@ -139,7 +139,7 @@ const FormulaRecordingBar: React.FC = () => {
       data-formula-bar="true"
       className="relative z-40 w-full border-b border-indigo-300 bg-indigo-50/95 shadow-sm"
     >
-      <div className="flex items-center gap-3 px-4 py-2">
+      <div className="flex items-center gap-3 px-4 py-4">
         <div className="flex flex-col min-w-0">
           <span className="text-[10px] uppercase tracking-wide text-indigo-500 font-semibold">
             Recording formula for
@@ -151,7 +151,8 @@ const FormulaRecordingBar: React.FC = () => {
 
         <span className="text-sm font-mono text-indigo-500 select-none">=</span>
         <div
-          className="flex-1 min-w-0 flex items-center text-sm font-mono text-gray-800 bg-white/80 rounded px-2 py-1 ring-1 ring-inset ring-indigo-200 overflow-hidden"
+          className="flex-1 min-w-0 flex items-center font-mono text-gray-800 bg-white/80 rounded px-2 py-1 ring-1 ring-inset ring-indigo-200 overflow-hidden"
+          style={{ fontSize: '1rem', lineHeight: '2em' }}
           aria-label="Formula being recorded"
         >
           <span className="truncate">

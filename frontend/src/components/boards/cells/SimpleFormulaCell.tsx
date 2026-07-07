@@ -189,13 +189,15 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
         title={active ? 'Recording — click cells on any board, then Save' : cellFormula ? '= (formula)' : 'Click to enter formula'}
       >
         <span className="text-sm text-gray-600 truncate px-3 text-center">
-          {hasUnresolved && foreignLoading
-            ? <span className="text-gray-300 text-xs">…</span>
-            : hasUnresolved
-              ? <span className="text-amber-500 text-xs" title="A referenced cell is unavailable or no longer exists">#ref</span>
-              : result != null
-                ? formatNumber(result)
-                : <span className="text-gray-300 text-xs">—</span>}
+          {active
+            ? <span className="text-xs text-indigo-500 font-medium">Formula top row enabled</span>
+            : hasUnresolved && foreignLoading
+              ? <span className="text-gray-300 text-xs">…</span>
+              : hasUnresolved
+                ? <span className="text-amber-500 text-xs" title="A referenced cell is unavailable or no longer exists">#ref</span>
+                : result != null
+                  ? formatNumber(result)
+                  : <span className="text-gray-300 text-xs">—</span>}
         </span>
         {hasOverride && !active && (
           <button
