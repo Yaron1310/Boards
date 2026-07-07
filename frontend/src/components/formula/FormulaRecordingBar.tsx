@@ -13,6 +13,9 @@ const formatNumber = (n: number) => formatGroupedNumber(n, 2);
 
 const REF_TOKEN_RE = /(\{ref:[^}]*\})/g;
 
+/** The draft stores the parser's ASCII operators (`*`, `/`); show them as their math glyphs. */
+const displayOperators = (text: string): string => text.replace(/\*/g, '×').replace(/\//g, '÷');
+
 const AGG_LABEL: Record<string, string> = {
   sum: 'Sum', avg: 'Average', median: 'Median', min: 'Min', max: 'Max', count: 'Count',
 };
@@ -164,7 +167,7 @@ const FormulaRecordingBar: React.FC = () => {
               : segments.map((seg) =>
                   seg.ref
                     ? <RefToken key={seg.key} cellRef={seg.ref} currentItemId={currentItemId} resolve={resolve} resolveMeta={resolveMeta} />
-                    : <span key={seg.key}>{seg.text}</span>,
+                    : <span key={seg.key}>{displayOperators(seg.text ?? '')}</span>,
                 )}
           </span>
           {/* Blinking caret signals the field is capturing input (digits/operators typed anywhere). */}

@@ -43,6 +43,10 @@ interface FormulaRecordingContextValue {
   endSession: () => void;
 }
 
+/** The draft's last meaningful char completes an operand — a number, a ref token close `}`,
+ *  or a closing paren — meaning a newly appended value must be joined with an explicit `*`. */
+const endsWithOperand = (draft: string): boolean => /[0-9)}.]$/.test(draft.trimEnd());
+
 const FormulaRecordingContext = createContext<FormulaRecordingContextValue | null>(null);
 
 export const useFormulaRecording = (): FormulaRecordingContextValue => {
@@ -65,7 +69,12 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
   }, []);
 
   const insertRef = useCallback((ref: CellRef) => {
-    setSession((s) => (s ? { ...s, draft: s.draft + serializeRef(ref) } : s));
+    setSession((s) => {
+      if (!s) return s;
+      // A clicked cell placed right after another value auto-multiplies — {20} then {3} → {20}*{3}.
+      const sep = endsWithOperand(s.draft) ? '*' : '';
+      return { ...s, draft: s.draft + sep + serializeRef(ref) };
+    });
   }, []);
 
   const cancel = useCallback(() => setSession(null), []);
@@ -107,7 +116,18 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
       }
       if (e.key.length === 1 && /[0-9.+\-*/()%\s]/.test(e.key)) {
         e.preventDefault();
-        setSession((s) => (s ? { ...s, draft: s.draft + e.key } : s));
+        setSession((s) => {
+          if (!s) return s;
+          const d = s.draft.trimEnd();
+          // Auto-insert `*` when a new value abuts a completed operand with no operator between:
+          //  • a digit/`.` right after a ref `}` or `)` starts a NEW operand (a digit after a
+          //    digit just continues the same number, so no `*` there);
+          //  • a `(` right after any operand (number, `}`, `)`).
+          let sep = '';
+          if (/[0-9.]/.test(e.key)) { if (/[)}]$/.test(d)) sep = '*'; }
+          else if (e.key === '(') { if (/[0-9)}.]$/.test(d)) sep = '*'; }
+          return { ...s, draft: s.draft + sep + e.key };
+        });
       }
     };
     window.addEventListener('keydown', handler);
