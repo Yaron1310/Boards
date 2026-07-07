@@ -19,13 +19,13 @@ const AGG_LABEL: Record<string, string> = {
 
 function metaToTooltip(meta: RefMeta | undefined): string {
   if (!meta) return 'Loading…';
-  if (meta.isPersonal) return 'Personal Hub';
   const board = meta.boardName ?? '—';
   const group = meta.groupName ?? '—';
-  if (meta.agg) {
-    return `${board} › ${group} › ${AGG_LABEL[meta.agg] ?? meta.agg} of ${meta.columnName ?? '—'}`;
-  }
-  return `${board} › ${group} › ${meta.itemName ?? '—'} › ${meta.columnName ?? '—'}`;
+  const root = meta.isPersonal ? (meta.userName ? `${meta.userName}’s Personal Hub` : 'Personal Hub') : null;
+  const path = meta.agg
+    ? `${board} › ${group} › ${AGG_LABEL[meta.agg] ?? meta.agg} of ${meta.columnName ?? '—'}`
+    : `${board} › ${group} › ${meta.itemName ?? '—'} › ${meta.columnName ?? '—'}`;
+  return root ? `${root} › ${path}` : path;
 }
 
 interface RefTokenProps {
@@ -91,9 +91,8 @@ const FormulaRecordingBar: React.FC = () => {
   const draft = session?.draft ?? '';
   const refs = useMemo(() => extractRefs(draft), [draft]);
   const { resolve, isLoading } = useForeignCellValues(refs, orgId);
-  const { resolveMeta } = useFormulaRefMeta(refs);
-
   const currentItemId = session?.origin.itemId ?? null;
+  const { resolveMeta } = useFormulaRefMeta(refs, currentItemId);
 
   // Split into literal text and {ref:...} tokens so each resolved value can be rendered as its
   // own hoverable element (a plain string replace, like before, can't attach per-value hover).
