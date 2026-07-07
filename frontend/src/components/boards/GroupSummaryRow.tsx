@@ -4,6 +4,7 @@ import { evaluateFormula, type SummaryCalc } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
+import { formatGroupedNumber } from '../../utils/numberFormat';
 import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
@@ -451,7 +452,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
           if (Array.isArray(v)) return v.length > 0;
           return true;
         }).length;
-        return String(filled);
+        return formatGroupedNumber(filled, 0);
       }
       return null;
     }
@@ -459,7 +460,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
     if (isCheckbox) {
       if (calc === 'count') {
         const checked = effectiveItems.filter((i) => Boolean(getVal(i, col.id))).length;
-        return String(checked);
+        return formatGroupedNumber(checked, 0);
       }
       return null;
     }
@@ -467,7 +468,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
     if (isTimeType) {
       const mins = computeTimeVals();
       if (mins.length === 0) return null;
-      if (calc === 'count') return String(mins.length);
+      if (calc === 'count') return formatGroupedNumber(mins.length, 0);
       if (calc === 'sum') {
         if (col.type === ColumnType.TIME_RANGE) {
           const merged = mergedDays(computeTimeRangeIntervals());
@@ -497,7 +498,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
 
     const vals = computeNumberVals();
     if (vals.length === 0) return null;
-    if (calc === 'count') return String(vals.length);
+    if (calc === 'count') return formatGroupedNumber(vals.length, 0);
     const total = vals.reduce((a, b) => a + b, 0);
     let result: number;
     if (calc === 'sum') result = total;
@@ -507,7 +508,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
     else if (calc === 'max') result = Math.max(...vals);
     else return null;
 
-    const formatted = Number.isInteger(result) ? String(result) : result.toFixed(2);
+    const formatted = formatGroupedNumber(result, 2);
     return applyUnit(formatted, config.unit, config.unitAlign);
   }
 

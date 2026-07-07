@@ -16,6 +16,7 @@ import {
 } from '../../../utils/formulaEngine';
 import type { Item, Column, SimpleFormulaColumnSettings } from '../../../types';
 import { calculateColumnWidth } from '../../../utils/columnWidths';
+import { formatGroupedNumber } from '../../../utils/numberFormat';
 
 interface Props { item: Item; column: Column }
 
@@ -78,7 +79,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
     return { result: v, hasUnresolved: missing };
   }, [cellFormula, formulaContext]);
 
-  const formatNumber = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+  const formatNumber = (n: number) => formatGroupedNumber(n, 2);
 
   const persistValue = (newValue: string | null) => {
     if (newValue !== storedValue) {

@@ -5,6 +5,7 @@ import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import CellWrapper from '../../boards/cells/CellWrapper';
 import type { NumberColumnSettings, Column } from '../../../types';
 import type { PersonalCellProps, PersonalGridContext } from './types';
+import { formatGroupedNumber } from '../../../utils/numberFormat';
 
 interface Props extends PersonalCellProps {
   gridContext?: PersonalGridContext;
@@ -33,7 +34,7 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
   const formatDisplay = () => {
     if (rawValue == null) return null;
     const precision = settings?.precision ?? 2;
-    const formatted = Number.isInteger(rawValue) ? String(rawValue) : rawValue.toFixed(precision);
+    const formatted = formatGroupedNumber(rawValue, precision);
     return settings?.unit ? `${formatted} ${settings.unit}` : formatted;
   };
 

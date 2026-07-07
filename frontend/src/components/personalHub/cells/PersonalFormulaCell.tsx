@@ -15,6 +15,7 @@ import {
 } from '../../../utils/formulaEngine';
 import type { SimpleFormulaColumnSettings } from '../../../types';
 import type { PersonalCellProps, PersonalGridContext } from './types';
+import { formatGroupedNumber } from '../../../utils/numberFormat';
 
 interface Props extends PersonalCellProps {
   gridContext: PersonalGridContext;
@@ -81,7 +82,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     return { result: v, hasUnresolved: missing };
   }, [cellFormula, formulaContext]);
 
-  const formatNumber = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+  const formatNumber = (n: number) => formatGroupedNumber(n, 2);
 
   const persistValue = (newValue: string | null) => {
     if (newValue !== storedValue) {

@@ -5,8 +5,9 @@ import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
 import { evaluateFormula, extractRefs, parseRefToken } from '../../utils/formulaEngine';
+import { formatGroupedNumber } from '../../utils/numberFormat';
 
-const formatNumber = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(2));
+const formatNumber = (n: number) => formatGroupedNumber(n, 2);
 
 /**
  * Bar shown while a formula cell is recording. It lives inside the page's content column (not

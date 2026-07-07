@@ -3,6 +3,7 @@ import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import type { Item, Column, NumberColumnSettings } from '../../../types';
+import { formatGroupedNumber } from '../../../utils/numberFormat';
 import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
@@ -33,7 +34,7 @@ const NumberCellInner: React.FC<Props> = ({ item, column }) => {
   const formatDisplay = () => {
     if (rawValue == null) return null;
     const precision = settings?.precision ?? 2;
-    const formatted = Number.isInteger(rawValue) ? String(rawValue) : rawValue.toFixed(precision);
+    const formatted = formatGroupedNumber(rawValue, precision);
     return settings?.unit ? `${formatted} ${settings.unit}` : formatted;
   };
 
