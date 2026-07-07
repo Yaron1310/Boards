@@ -48,16 +48,19 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
 
   return (
     <>
+      {/* Fetched cell values are wrapped in braces so they read as a single unit distinct from
+          typed numbers — e.g. {20}2 is unambiguously 20 × 2, not the literal 202. The braces are
+          display-only; the underlying draft still holds the full {ref:…} token. */}
       <span
         ref={spanRef}
-        className="rounded px-0.5 -mx-0.5 hover:bg-blue-100 transition-colors"
+        className="rounded px-0.5 -mx-0.5 text-blue-700 hover:bg-blue-100 transition-colors"
         onMouseEnter={() => {
           const rect = spanRef.current?.getBoundingClientRect();
           if (rect) setHoverPos({ top: rect.bottom, left: rect.left + rect.width / 2 });
         }}
         onMouseLeave={() => setHoverPos(null)}
       >
-        {display}
+        <span className="text-blue-300">{'{'}</span>{display}<span className="text-blue-300">{'}'}</span>
       </span>
       {hoverPos && ReactDOM.createPortal(
         <div

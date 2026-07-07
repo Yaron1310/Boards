@@ -220,10 +220,22 @@ class FormulaParser {
   private parseTerm(): number {
     let left = this.parseUnary();
     this.skipWs();
-    while (this.pos < this.input.length && (this.input[this.pos] === '*' || this.input[this.pos] === '/')) {
-      const op = this.input[this.pos++];
-      const right = this.parseUnary();
-      left = op === '*' ? left * right : right !== 0 ? left / right : 0;
+    while (this.pos < this.input.length) {
+      const ch = this.input[this.pos];
+      if (ch === '*' || ch === '/') {
+        this.pos++;
+        const right = this.parseUnary();
+        left = ch === '*' ? left * right : right !== 0 ? left / right : 0;
+      } else if (ch === '{' || ch === '(' || /[\d.]/.test(ch)) {
+        // Implicit multiplication: two operands adjacent with no operator between them mean ×
+        // (e.g. a clicked cell value {20} immediately followed by a typed 2 → 20 × 2 = 40).
+        // A bare number like "202" is still a single literal — the boundary only appears at a
+        // `{…}` token or parenthesis, never inside a run of digits.
+        const right = this.parseUnary();
+        left = left * right;
+      } else {
+        break;
+      }
       this.skipWs();
     }
     return left;
