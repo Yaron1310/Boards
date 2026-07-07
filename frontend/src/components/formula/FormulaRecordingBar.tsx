@@ -53,7 +53,7 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
         className="rounded px-0.5 -mx-0.5 hover:bg-blue-100 transition-colors"
         onMouseEnter={() => {
           const rect = spanRef.current?.getBoundingClientRect();
-          if (rect) setHoverPos({ top: rect.top, left: rect.left + rect.width / 2 });
+          if (rect) setHoverPos({ top: rect.bottom, left: rect.left + rect.width / 2 });
         }}
         onMouseLeave={() => setHoverPos(null)}
       >
@@ -61,13 +61,13 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
       </span>
       {hoverPos && ReactDOM.createPortal(
         <div
-          className="fixed z-[9999] pointer-events-none -translate-x-1/2 -translate-y-full"
-          style={{ top: hoverPos.top - 6, left: hoverPos.left }}
+          className="fixed z-[9999] pointer-events-none -translate-x-1/2"
+          style={{ top: hoverPos.top + 6, left: hoverPos.left }}
         >
+          <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mb-1" />
           <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
             {tooltip}
           </div>
-          <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mt-1" />
         </div>,
         document.body,
       )}
@@ -157,7 +157,7 @@ const FormulaRecordingBar: React.FC = () => {
         >
           <span className="truncate">
             {segments.length === 0
-              ? <span className="text-gray-400">Click cells on any board and type operators (+ − × ÷)…</span>
+              ? <span className="text-gray-400">Click number cells on any board or type numbers and operators (+ − × ÷)…</span>
               : segments.map((seg) =>
                   seg.ref
                     ? <RefToken key={seg.key} cellRef={seg.ref} currentItemId={currentItemId} resolve={resolve} resolveMeta={resolveMeta} />
@@ -165,7 +165,7 @@ const FormulaRecordingBar: React.FC = () => {
                 )}
           </span>
           {/* Blinking caret signals the field is capturing input (digits/operators typed anywhere). */}
-          <span className="inline-block w-[2px] h-4 bg-indigo-500 ml-0.5 flex-shrink-0 animate-pulse" aria-hidden="true" />
+          <span className="inline-block w-[2px] h-4 bg-indigo-500 ml-0.5 flex-shrink-0 animate-caret-blink" aria-hidden="true" />
         </div>
 
         <span className="text-xs text-gray-500 whitespace-nowrap">

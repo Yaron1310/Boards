@@ -179,9 +179,9 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
         onKeyDown={(e) => { if (!active && (e.key === 'Enter' || e.key === ' ')) startRecording(e); }}
         title={active ? 'Recording — click cells on any board, then Save' : cellFormula ? '= (formula)' : 'Click to enter formula'}
       >
-        <span className="text-sm text-gray-600 truncate px-3 text-center">
+        <span className={`text-sm text-gray-600 px-3 text-center ${active ? 'whitespace-normal break-words leading-tight' : 'truncate'}`}>
           {active
-            ? <span className="text-xs text-indigo-500 font-medium">Formula top row enabled</span>
+            ? <span className="text-xs text-indigo-500 font-medium">Formula top row enabled ⬆️</span>
             : hasUnresolved && foreignLoading
               ? <span className="text-gray-300 text-xs">…</span>
               : hasUnresolved

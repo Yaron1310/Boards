@@ -203,3 +203,13 @@ html.dark-contrast .auth-page-no-contrast canvas {
 [dir="rtl"] th {
   unicode-bidi: plaintext;
 }
+
+/* Text-caret blink (full on/off), unlike Tailwind's animate-pulse which only
+   dims to 50% opacity on a slow 2s cycle — too subtle to read as a blinking cursor. */
+@keyframes caret-blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+.animate-caret-blink {
+  animation: caret-blink 1s steps(1, end) infinite;
+}
