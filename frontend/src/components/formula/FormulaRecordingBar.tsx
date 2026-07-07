@@ -1,13 +1,79 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { FiCheck, FiX } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
-import { evaluateFormula, extractRefs, parseRefToken } from '../../utils/formulaEngine';
+import { useFormulaRefMeta, type RefMeta } from '../../hooks/queries/useFormulaRefMeta';
+import { evaluateFormula, extractRefs, parseRefToken, type CellRef } from '../../utils/formulaEngine';
 import { formatGroupedNumber } from '../../utils/numberFormat';
 
 const formatNumber = (n: number) => formatGroupedNumber(n, 2);
+
+const REF_TOKEN_RE = /(\{ref:[^}]*\})/g;
+
+const AGG_LABEL: Record<string, string> = {
+  sum: 'Sum', avg: 'Average', median: 'Median', min: 'Min', max: 'Max', count: 'Count',
+};
+
+function metaToTooltip(meta: RefMeta | undefined): string {
+  if (!meta) return 'Loading…';
+  if (meta.isPersonal) return 'Personal Hub';
+  const board = meta.boardName ?? '—';
+  const group = meta.groupName ?? '—';
+  if (meta.agg) {
+    return `${board} › ${group} › ${AGG_LABEL[meta.agg] ?? meta.agg} of ${meta.columnName ?? '—'}`;
+  }
+  return `${board} › ${group} › ${meta.itemName ?? '—'} › ${meta.columnName ?? '—'}`;
+}
+
+interface RefTokenProps {
+  cellRef: CellRef;
+  currentItemId: string | null;
+  resolve: (ref: CellRef, currentItemId?: string | null) => number | null | undefined;
+  resolveMeta: (ref: CellRef, currentItemId?: string | null) => RefMeta | undefined;
+}
+
+/** One resolved value inside the formula preview — hover shows a light-blue highlight
+ *  plus an instant (no-delay) tooltip naming the value's source, since the native
+ *  `title` attribute both has a delay and can't be styled. */
+const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, resolveMeta }) => {
+  const spanRef = useRef<HTMLSpanElement>(null);
+  const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
+
+  const v = resolve(cellRef, currentItemId);
+  const display = v === undefined ? '…' : v === null ? '0' : formatNumber(v);
+  const tooltip = metaToTooltip(resolveMeta(cellRef, currentItemId));
+
+  return (
+    <>
+      <span
+        ref={spanRef}
+        className="rounded px-0.5 -mx-0.5 hover:bg-blue-100 transition-colors"
+        onMouseEnter={() => {
+          const rect = spanRef.current?.getBoundingClientRect();
+          if (rect) setHoverPos({ top: rect.top, left: rect.left + rect.width / 2 });
+        }}
+        onMouseLeave={() => setHoverPos(null)}
+      >
+        {display}
+      </span>
+      {hoverPos && ReactDOM.createPortal(
+        <div
+          className="fixed z-[9999] pointer-events-none -translate-x-1/2 -translate-y-full"
+          style={{ top: hoverPos.top - 6, left: hoverPos.left }}
+        >
+          <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+            {tooltip}
+          </div>
+          <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mt-1" />
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+};
 
 /**
  * Bar shown while a formula cell is recording. It lives inside the page's content column (not
@@ -25,22 +91,22 @@ const FormulaRecordingBar: React.FC = () => {
   const draft = session?.draft ?? '';
   const refs = useMemo(() => extractRefs(draft), [draft]);
   const { resolve, isLoading } = useForeignCellValues(refs, orgId);
+  const { resolveMeta } = useFormulaRefMeta(refs);
 
   const currentItemId = session?.origin.itemId ?? null;
 
-  // Human-readable formula: each {ref:...} token replaced by its resolved value.
-  const pretty = useMemo(
-    () =>
-      draft.replace(/\{ref:[^}]*\}/g, (tok) => {
-        const ref = parseRefToken(tok.slice(1, -1));
-        if (!ref) return tok;
-        const v = resolve(ref, currentItemId);
-        if (v === undefined) return '…';
-        if (v === null) return '0';
-        return formatNumber(v);
-      }),
-    [draft, resolve, currentItemId],
-  );
+  // Split into literal text and {ref:...} tokens so each resolved value can be rendered as its
+  // own hoverable element (a plain string replace, like before, can't attach per-value hover).
+  const segments = useMemo(() => {
+    return draft
+      .split(REF_TOKEN_RE)
+      .filter((part) => part !== '')
+      .map((part, idx) => {
+        const isToken = /^\{ref:[^}]*\}$/.test(part);
+        const ref = isToken ? parseRefToken(part.slice(1, -1)) : null;
+        return ref ? { key: idx, ref } : { key: idx, text: part };
+      });
+  }, [draft]);
 
   const preview = useMemo(
     () =>
@@ -88,10 +154,15 @@ const FormulaRecordingBar: React.FC = () => {
         <div
           className="flex-1 min-w-0 flex items-center text-sm font-mono text-gray-800 bg-white/80 rounded px-2 py-1 ring-1 ring-inset ring-indigo-200 overflow-hidden"
           aria-label="Formula being recorded"
-          title={pretty}
         >
           <span className="truncate">
-            {pretty || <span className="text-gray-400">Click cells on any board and type operators (+ − × ÷)…</span>}
+            {segments.length === 0
+              ? <span className="text-gray-400">Click cells on any board and type operators (+ − × ÷)…</span>
+              : segments.map((seg) =>
+                  seg.ref
+                    ? <RefToken key={seg.key} cellRef={seg.ref} currentItemId={currentItemId} resolve={resolve} resolveMeta={resolveMeta} />
+                    : <span key={seg.key}>{seg.text}</span>,
+                )}
           </span>
           {/* Blinking caret signals the field is capturing input (digits/operators typed anywhere). */}
           <span className="inline-block w-[2px] h-4 bg-indigo-500 ml-0.5 flex-shrink-0 animate-pulse" aria-hidden="true" />
