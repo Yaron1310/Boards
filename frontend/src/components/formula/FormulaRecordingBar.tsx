@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FiCheck, FiX } from 'react-icons/fi';
+import { FiCheck, FiX, FiEdit2 } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
@@ -89,7 +89,7 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
  * Save navigates back to the origin board so the origin cell commits.
  */
 const FormulaRecordingBar: React.FC = () => {
-  const { session, requestSave, cancel } = useFormulaRecording();
+  const { session, requestSave, requestSaveWithScopeChoice, cancel } = useFormulaRecording();
   const { user, selectedWorkspace } = useAuth();
   const navigate = useNavigate();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
@@ -196,6 +196,15 @@ const FormulaRecordingBar: React.FC = () => {
           aria-label="Cancel formula recording"
         >
           <FiX size={13} aria-hidden="true" /> Cancel
+        </button>
+        <button
+          type="button"
+          onClick={requestSaveWithScopeChoice}
+          className="ml-1 p-1.5 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 rounded transition-colors"
+          aria-label="Save and choose which cells this formula applies to (all cells or just this one)"
+          title="Choose where to apply: all cells in the column or just this cell"
+        >
+          <FiEdit2 size={14} aria-hidden="true" />
         </button>
       </div>
     </div>

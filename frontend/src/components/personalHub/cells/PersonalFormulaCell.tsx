@@ -94,9 +94,13 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     }
   };
 
-  const commitDraft = (draft: string) => {
+  const commitDraft = (draft: string, forceScopeChoice = false) => {
     const trimmed = draft.trim();
-    if (!defaultFormula && trimmed) {
+    // Ask "all cells / just this cell" only the first time this column gets a formula in this
+    // cell (no column default yet AND this cell has no override), or when the user explicitly
+    // reopens the choice via the recording bar's edit icon. Otherwise reuse the prior decision.
+    const isFirstFormula = !defaultFormula && storedValue === null;
+    if (trimmed && (isFirstFormula || forceScopeChoice)) {
       setPendingFormula(trimmed);
       return;
     }
@@ -110,9 +114,10 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
   const finish = () => {
     if (finishGuard.current) return;
     const draft = sessionRef.current?.draft ?? '';
+    const forceScopeChoice = sessionRef.current?.chooseScopeOnSave ?? false;
     finishGuard.current = true;
     endSession();
-    commitDraft(draft);
+    commitDraft(draft, forceScopeChoice);
   };
 
   const startRecording = (e: React.MouseEvent | React.KeyboardEvent) => {

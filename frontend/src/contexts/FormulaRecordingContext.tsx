@@ -24,6 +24,9 @@ export interface RecordingSession {
   origin: RecordingOrigin;
   draft: string;
   phase: RecordingPhase;
+  /** Set when the user saved via the "choose where to apply" control — forces the origin cell
+   *  to re-show the all-cells / just-this chooser even if it normally wouldn't. */
+  chooseScopeOnSave?: boolean;
 }
 
 interface FormulaRecordingContextValue {
@@ -39,6 +42,8 @@ interface FormulaRecordingContextValue {
   cancel: () => void;
   /** User pressed Save: switch to 'awaiting-origin' so the origin cell finishes on its board. */
   requestSave: () => void;
+  /** Save, but force the origin cell to re-show the all-cells / just-this-cell scope chooser. */
+  requestSaveWithScopeChoice: () => void;
   /** Called by the origin cell once it has committed (or the user cancelled the finish). */
   endSession: () => void;
 }
@@ -81,6 +86,10 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
 
   const requestSave = useCallback(() => {
     setSession((s) => (s ? { ...s, phase: 'awaiting-origin' } : s));
+  }, []);
+
+  const requestSaveWithScopeChoice = useCallback(() => {
+    setSession((s) => (s ? { ...s, phase: 'awaiting-origin', chooseScopeOnSave: true } : s));
   }, []);
 
   // Global keyboard while recording: Esc cancels; Enter saves; digits/operators/parens build the
@@ -143,9 +152,10 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
       insertRef,
       cancel,
       requestSave,
+      requestSaveWithScopeChoice,
       endSession,
     }),
-    [session, begin, setDraft, insertRef, cancel, requestSave, endSession],
+    [session, begin, setDraft, insertRef, cancel, requestSave, requestSaveWithScopeChoice, endSession],
   );
 
   return <FormulaRecordingContext.Provider value={value}>{children}</FormulaRecordingContext.Provider>;
