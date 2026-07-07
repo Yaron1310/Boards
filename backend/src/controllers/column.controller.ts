@@ -170,6 +170,30 @@ export const createColumn = async (req: Request, res: Response) => {
     };
     assertColumnAccess(user, provisionalColumn, 'create');
 
+    // Guard against duplicate columns from a retried/resent request (e.g. a dropped
+    // response causing the client to resend): if an identical column was created on
+    // this board in the last few seconds, return it instead of creating another.
+    const normalizedName = sanitizeText(name);
+    const recentSnapshot = await columnsCollection(user.orgId, boardId)
+      .orderBy('createdAt', 'desc')
+      .limit(5)
+      .get();
+    const dedupWindowMs = 5000;
+    const now = Date.now();
+    const duplicateDoc = recentSnapshot.docs.find((doc) => {
+      const data = doc.data() as DBColumn & { createdAt?: admin.firestore.Timestamp };
+      const createdAtMs = data.createdAt?.toMillis?.() ?? 0;
+      return (
+        data.name === normalizedName &&
+        data.type === type &&
+        (data.parentGroupId ?? null) === (parentGroupId ?? null) &&
+        now - createdAtMs < dedupWindowMs
+      );
+    });
+    if (duplicateDoc) {
+      return res.status(200).json(snapshotToData<DBColumn>(duplicateDoc));
+    }
+
     const docRef = columnsCollection(user.orgId, boardId).doc();
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     await docRef.set({
