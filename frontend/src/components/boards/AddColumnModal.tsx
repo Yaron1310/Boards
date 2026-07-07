@@ -213,6 +213,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const trackedColumns = isPersonal ? personalAllScopeColumns : allColumns;
   const previousColumnsRef = useRef<string[]>([]);
   const hasSubmittedRef = useRef(false);
+  const isSubmittingRef = useRef(false);
 
   // Keep tracking the "before" snapshot up until submit — if the column list hadn't
   // finished loading yet when this modal mounted, a one-time snapshot would freeze at
@@ -311,6 +312,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmittingRef.current || isPending) return;
     const trimmedName = name.trim();
     if (!trimmedName) {
       setError('Column name is required.');
@@ -323,9 +325,10 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
     setError('');
     hasSubmittedRef.current = true;
+    isSubmittingRef.current = true;
 
     if (isPersonal) {
-      if (!personalScope || (personalScope === 'board' && !boardId)) return;
+      if (!personalScope || (personalScope === 'board' && !boardId)) { isSubmittingRef.current = false; return; }
       try {
         await createPersonalColumn({
           name: trimmedName,
@@ -383,11 +386,13 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
         onClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to create column.');
+      } finally {
+        isSubmittingRef.current = false;
       }
       return;
     }
 
-    if (!boardId) return;
+    if (!boardId) { isSubmittingRef.current = false; return; }
     const scopedQueryKey = parentGroupId
       ? queryKeys.columns.subitem(boardId, parentGroupId)
       : queryKeys.columns.board(boardId);
@@ -452,6 +457,8 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create column.');
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 

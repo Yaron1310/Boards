@@ -135,7 +135,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
           className="fixed z-[9999] pointer-events-none -translate-x-1/2 -translate-y-full"
           style={{ top: tooltipPos.top, left: tooltipPos.left }}
         >
-          <div className="bg-gray-800 text-white text-xs rounded-lg px-3 py-2 shadow-xl max-w-[260px] break-words leading-relaxed">
+          <div dir={getTextDir(rawValue)} className="bg-gray-800 text-white text-xs rounded-lg px-3 py-2 shadow-xl max-w-[260px] break-words leading-relaxed">
             {rawValue}
           </div>
           <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mt-1" />
