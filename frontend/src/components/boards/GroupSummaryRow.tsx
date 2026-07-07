@@ -1,11 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { evaluateFormula, type SummaryCalc } from '../../utils/formulaEngine';
+import { evaluateFormula, extractForeignRefs, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import { formatGroupedNumber } from '../../utils/numberFormat';
 import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
+import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
+import { useAuth } from '../../hooks/useAuth';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { ITEM_COL_ID } from './ColumnHeader';
@@ -322,8 +324,10 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
-  const { columnWidths } = useBoardRender();
+  const { columnWidths, visibleItems, columns: boardColumns } = useBoardRender();
   const { isRecording, insertRef, session } = useFormulaRecording();
+  const { user, selectedWorkspace } = useAuth();
+  const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
 
   const isAggregatable = AGGREGATABLE_TYPES.has(col.type);
   const isInteractive = isAggregatable || isCountOnly;
@@ -334,6 +338,29 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
 
   // Cumulative scope aggregates this group's items plus every group above it.
   const effectiveItems = cumulative && itemsAbove?.length ? [...itemsAbove, ...items] : items;
+
+  // A board (non-personal) SIMPLE_FORMULA column needs to evaluate each row's formula with a real
+  // context to aggregate it — otherwise its `{ref:…}` tokens resolve to 0. Gather the foreign
+  // (cross-board) refs across the rows so their values are loaded; same-board refs resolve locally
+  // from the board's own items. Personal formula columns use `evalFormula` instead (grid-addressed).
+  const isBoardFormula = col.type === ColumnType.SIMPLE_FORMULA && !evalFormula;
+  const formulaHomeBoardId = col.boardId ?? '';
+  const foreignRefs: CellRef[] = [];
+  if (isBoardFormula) {
+    const settings = col.settings as SimpleFormulaColumnSettings;
+    const defaultFormula = settings?.defaultFormula ?? '';
+    const seen = new Set<string>();
+    for (const i of effectiveItems) {
+      const stored = getVal(i, col.id);
+      const formula = typeof stored === 'string' ? stored : defaultFormula;
+      if (!formula) continue;
+      for (const r of extractForeignRefs(formula, formulaHomeBoardId)) {
+        const key = serializeRef(r);
+        if (!seen.has(key)) { seen.add(key); foreignRefs.push(r); }
+      }
+    }
+  }
+  const { resolve: resolveForeign } = useForeignCellValues(foreignRefs, orgId);
 
   // Keep local state in sync if the column data is refreshed from the server
   useEffect(() => {
@@ -373,12 +400,23 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
             const stored = getVal(i, col.id);
             const formula = typeof stored === 'string' ? stored : defaultFormula;
             if (!formula) return null;
+            // Legacy name-keyed values (for old {ColumnName} refs) plus a full ID-ref context:
+            // same-board refs resolve from the board's items via currentRowIndex; foreign refs
+            // go through resolveForeign. This mirrors how the formula cell itself evaluates, so
+            // the footer total matches the values shown in the column.
             const colValues: Record<string, number | null | undefined> = {};
             for (const nc of numberCols) {
               const v = i.values[nc.id];
               colValues[nc.name] = v != null ? Number(v) : undefined;
             }
-            return evaluateFormula(formula, colValues);
+            const rowIndex = visibleItems.findIndex((v) => v.id === i.id);
+            return evaluateFormula(formula, colValues, {
+              allItems: visibleItems,
+              columns: boardColumns,
+              currentRowIndex: rowIndex >= 0 ? rowIndex : undefined,
+              homeBoardId: formulaHomeBoardId,
+              resolveRef: (ref) => resolveForeign(ref, i.id),
+            });
           })
           .filter((v): v is number => v !== null);
       }

@@ -485,7 +485,12 @@ export function makeRelativeIdFormula(formula: string, homeBoardId: string): str
   return formula.replace(/\{(ref:[^}]*)\}/g, (whole, inner: string) => {
     const ref = parseRefToken(inner);
     if (!ref) return whole;
-    if (ref.kind === 'b' && ref.boardId === homeBoardId) {
+    // Make same-table references row-relative so the formula fills down correctly. This applies
+    // to board ('b') and Personal Hub ('p') cells alike — a personal same-table ref is home when
+    // its boardId matches. Cross-board/foreign refs (different boardId) and group-summary refs
+    // (already row-agnostic) are left untouched. resolveLocalById handles relative refs of either
+    // kind identically via currentRowIndex, so this is safe.
+    if (!ref.agg && ref.boardId === homeBoardId) {
       return serializeRef({ ...ref, itemId: null });
     }
     return whole;
