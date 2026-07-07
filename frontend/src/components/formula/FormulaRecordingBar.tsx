@@ -165,7 +165,7 @@ const FormulaRecordingBar: React.FC = () => {
                 )}
           </span>
           {/* Blinking caret signals the field is capturing input (digits/operators typed anywhere). */}
-          <span className="inline-block w-[2px] h-4 bg-indigo-500 ml-0.5 flex-shrink-0 animate-caret-blink" aria-hidden="true" />
+          <span className="inline-block w-px h-4 bg-indigo-500 ml-0.5 flex-shrink-0 animate-caret-blink" aria-hidden="true" />
         </div>
 
         <span className="text-xs text-gray-500 whitespace-nowrap">

@@ -190,7 +190,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
       >
         <span className={`text-sm text-gray-600 px-3 text-center ${active ? 'whitespace-normal break-words leading-tight' : 'truncate'}`}>
           {active
-            ? <span className="text-xs text-indigo-500 font-medium">Formula top row enabled ⭡</span>
+            ? <span className="text-xs text-indigo-500 font-medium">Formula top row enabled <span className="text-sm">🠉</span></span>
             : hasUnresolved && foreignLoading
               ? <span className="text-gray-300 text-xs">…</span>
               : hasUnresolved
