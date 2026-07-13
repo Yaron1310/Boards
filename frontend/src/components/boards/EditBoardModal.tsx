@@ -55,7 +55,11 @@ const EditBoardModal: React.FC<EditBoardModalProps> = ({ board, onClose }) => {
     try {
       const patch: { name: string; description?: string; workspaceId?: string } = {
         name: buildName(),
-        description: description.trim() || undefined,
+        // Always send the trimmed value (including an empty string) so clearing
+        // the description reaches the backend, which converts '' → null. Using
+        // `|| undefined` here dropped the field from the request, so a cleared
+        // description was never persisted.
+        description: description.trim(),
       };
       if (targetWorkspaceId !== board.workspaceId) {
         patch.workspaceId = targetWorkspaceId;
