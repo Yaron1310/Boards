@@ -6,7 +6,7 @@ import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
-import { computeSummaryNumeric, type CellRef } from '@/utils/formulaEngine';
+import { computeSummaryNumeric, evaluateFormula, type CellRef } from '@/utils/formulaEngine';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
 
@@ -61,32 +61,26 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
     ],
   });
 
-  // Board group-summary refs need the referenced column's type to aggregate correctly.
-  const summaryBoardIds = useMemo(
-    () => Array.from(new Set(refs.filter((r) => r.kind === 'b' && r.agg).map((r) => r.boardId))).sort(),
-    [refs],
-  );
-  const summaryKey = summaryBoardIds.join(',');
+  // Columns for every referenced board — needed to (a) type group-summary aggregation and
+  // (b) detect when a ref points to a SIMPLE_FORMULA cell so it can be evaluated to its value
+  // (a foreign board exposes only the stored formula text, so we must compute it ourselves).
   const columnQueries = useQueries({
-    queries: summaryBoardIds.map((boardId) => ({
+    queries: boardIds.map((boardId) => ({
       queryKey: queryKeys.columns.board(boardId),
       queryFn: () => wm.listColumns(boardId),
       enabled: !!boardId,
       staleTime: 5 * 60 * 1000,
     })),
   });
-  const boardColumnTypes = useMemo(() => {
-    const m = new Map<string, Map<string, ColumnType>>();
-    summaryBoardIds.forEach((boardId, i) => {
+  const boardColumnsMap = useMemo(() => {
+    const m = new Map<string, Column[]>();
+    boardIds.forEach((boardId, i) => {
       const cols = columnQueries[i]?.data as Column[] | undefined;
-      if (!cols) return;
-      const cm = new Map<string, ColumnType>();
-      cols.forEach((c) => cm.set(c.id, c.type));
-      m.set(boardId, cm);
+      if (cols) m.set(boardId, cols);
     });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summaryKey, columnQueries]);
+  }, [boardKey, columnQueries]);
 
   // Live recompute: subscribe to each referenced board's items collection and invalidate its
   // cached list so the queries above refetch. Waits for Firebase Auth (same reason as useBoardSnapshot).
@@ -174,36 +168,73 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
 
   const resolve = useCallback(
     (ref: CellRef, currentItemId?: string | null): number | null | undefined => {
-      // Group-summary reference: aggregate a column across a group. Board columns only —
-      // personal-hub summaries are resolved locally on the Personal Hub, not cross-context.
-      if (ref.agg) {
-        if (ref.kind !== 'b') return undefined;
-        const items = boardItemsList.get(ref.boardId);
-        const colType = boardColumnTypes.get(ref.boardId)?.get(ref.columnId);
-        if (!items || !colType) return undefined; // board items/columns not loaded yet
-        if (colType === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
-        const rows = items.filter((i) => i.groupId === ref.groupId);
-        return computeSummaryNumeric(rows, colType, ref.columnId, ref.agg);
-      }
+      // `visited` keys the formula cells already on the resolution stack (across boards) so a
+      // cross-board reference cycle (A → B → A) terminates by contributing 0 where it closes.
+      const inner = (r: CellRef, cid: string | null | undefined, visited: Set<string>): number | null | undefined => {
+        // Group-summary reference: aggregate a column across a group. Board columns only —
+        // personal-hub summaries are resolved locally on the Personal Hub, not cross-context.
+        if (r.agg) {
+          if (r.kind !== 'b') return undefined;
+          const items = boardItemsList.get(r.boardId);
+          const colType = boardColumnsMap.get(r.boardId)?.find((c) => c.id === r.columnId)?.type;
+          if (!items || !colType) return undefined; // board items/columns not loaded yet
+          if (colType === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
+          const rows = items.filter((i) => i.groupId === r.groupId);
+          return computeSummaryNumeric(rows, colType, r.columnId, r.agg);
+        }
 
-      const itemId = ref.itemId ?? currentItemId ?? null;
-      if (!itemId) return undefined;
+        const itemId = r.itemId ?? cid ?? null;
+        if (!itemId) return undefined;
 
-      let raw: unknown;
-      if (ref.kind === 'b') {
-        const inner = boardItemMap.get(ref.boardId);
-        if (!inner || !inner.has(itemId)) return undefined; // not loaded yet, or deleted
-        raw = inner.get(itemId)![ref.columnId];
-      } else {
+        if (r.kind === 'b') {
+          const cols = boardColumnsMap.get(r.boardId);
+          if (!cols) return undefined; // columns not loaded yet — can't tell formula from plain value
+          const col = cols.find((c) => c.id === r.columnId);
+
+          // A reference to a formula cell on another board: evaluate its formula to its live value,
+          // in that board's own row/column context. Same-board refs inside it resolve locally;
+          // any further foreign refs recurse through `inner` (carrying the cycle guard).
+          if (col?.type === ColumnType.SIMPLE_FORMULA) {
+            const items = boardItemsList.get(r.boardId);
+            if (!items) return undefined;
+            const idx = items.findIndex((it) => it.id === itemId);
+            if (idx < 0) return undefined;
+            const key = `${r.boardId}:${r.columnId}:${itemId}`;
+            if (visited.has(key)) return null; // cross-board cycle → contributes 0
+            const nextVisited = new Set(visited);
+            nextVisited.add(key);
+            const stored = items[idx].values[r.columnId];
+            const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
+            const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
+            if (!formula.trim()) return null;
+            return evaluateFormula(formula, {}, {
+              allItems: items,
+              columns: cols,
+              currentRowIndex: idx,
+              homeBoardId: r.boardId,
+              resolveRef: (rr) => inner(rr, items[idx].id, nextVisited),
+            });
+          }
+
+          const map = boardItemMap.get(r.boardId);
+          if (!map || !map.has(itemId)) return undefined; // not loaded yet, or deleted
+          const raw = map.get(itemId)![r.columnId];
+          if (raw == null || raw === '') return null;
+          const n = Number(raw);
+          return isNaN(n) ? null : n;
+        }
+
         const row = personalValues[itemId];
         if (!row) return undefined;
-        raw = row[ref.columnId];
-      }
-      if (raw == null || raw === '') return null;
-      const n = Number(raw);
-      return isNaN(n) ? null : n;
+        const raw = row[r.columnId];
+        if (raw == null || raw === '') return null;
+        const n = Number(raw);
+        return isNaN(n) ? null : n;
+      };
+
+      return inner(ref, currentItemId, new Set<string>());
     },
-    [boardItemMap, boardItemsList, boardColumnTypes, personalValues],
+    [boardItemMap, boardItemsList, boardColumnsMap, personalValues],
   );
 
   return { resolve, isLoading };
