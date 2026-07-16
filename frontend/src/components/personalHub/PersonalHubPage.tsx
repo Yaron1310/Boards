@@ -404,7 +404,7 @@ const PersonalHubPageInner: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 relative min-h-0 flex flex-col isolate">
+      <div className="flex-1 relative min-h-0 flex flex-col">
       {/* Left-edge scroll fade only makes sense for the horizontally scrolling
           table/rows grids — the dashboard has no such grid to mask. */}
       {viewMode !== 'dashboard' && (
