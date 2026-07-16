@@ -440,7 +440,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
               every column across ALL groups (so groups added later are included
               automatically), using each column's own summary calc. */}
           {!groupsLoading && localGroups.length > 0 && hasSummarizableColumns(columns) && (
-            <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pb-3 pt-1">
+            <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pt-1">
               <BoardRenderProvider visibleItems={allItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat}>
                 <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max overflow-hidden">
                   <BoardSummaryRow items={allItems} columns={columns} />

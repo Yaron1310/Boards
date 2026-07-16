@@ -489,7 +489,7 @@ const PersonalHubPageInner: React.FC = () => {
           {crossGroupColumns.length > 0 && crossGroupTotalItems.length > 0 && (
             <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem}>
               <div
-                className="sticky bottom-0 z-[21] flex items-stretch w-max bg-white border-t-2 border-[#c7c7cc] shadow-[0_-2px_8px_rgba(0,0,0,0.07)]"
+                className="sticky bottom-0 z-[21] flex items-stretch w-max bg-white border-t-2 border-black shadow-[0_-2px_8px_rgba(0,0,0,0.07)]"
                 role="row"
                 aria-label="Total across all groups"
               >

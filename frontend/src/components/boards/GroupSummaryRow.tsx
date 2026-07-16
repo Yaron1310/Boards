@@ -775,10 +775,10 @@ export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
     <div
       role="row"
       aria-label={label}
-      className="flex flex-nowrap items-stretch border-t-2 border-[#c7c7cc] w-max bg-white"
+      className="flex flex-nowrap items-stretch border-t-2 border-black w-max bg-white"
     >
       <div
-        className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4] flex items-center px-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
+        className="flex-shrink-0 sticky z-[1] bg-white border-r border-[#d2d2d4] flex items-center pl-7 pr-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
         style={{ width: `${itemSectionWidth}px` }}
       >
         {label}
