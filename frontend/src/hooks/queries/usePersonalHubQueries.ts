@@ -3,10 +3,10 @@ import { queryKeys } from './queryKeys';
 import * as ph from '@/services/personalHubService';
 import type { CreatePersonalColumnData, UpdatePersonalColumnData, ReorderPersonalColumnItem } from '@/services/personalHubService';
 
-export const usePersonalColumns = (enabled = true) =>
+export const usePersonalColumns = (userId?: string, enabled = true) =>
   useQuery({
-    queryKey: queryKeys.personalHub.columns,
-    queryFn: () => ph.listPersonalColumns(),
+    queryKey: queryKeys.personalHub.columns(userId),
+    queryFn: () => ph.listPersonalColumns(userId),
     enabled,
     staleTime: 60 * 1000,
   });
@@ -16,7 +16,7 @@ export const useCreatePersonalColumn = () => {
   return useMutation({
     mutationFn: (data: CreatePersonalColumnData) => ph.createPersonalColumn(data),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columns });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columnsRoot });
     },
   });
 };
@@ -26,7 +26,7 @@ export const useUpdatePersonalColumn = () => {
   return useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdatePersonalColumnData }) => ph.updatePersonalColumn(id, patch),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columns });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columnsRoot });
     },
   });
 };
@@ -36,7 +36,7 @@ export const useReorderPersonalColumns = () => {
   return useMutation({
     mutationFn: (order: ReorderPersonalColumnItem[]) => ph.reorderPersonalColumns(order),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columns });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columnsRoot });
     },
   });
 };
@@ -46,16 +46,16 @@ export const useDeletePersonalColumn = () => {
   return useMutation({
     mutationFn: (id: string) => ph.deletePersonalColumn(id),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columns });
-      void qc.invalidateQueries({ queryKey: ['personalHub', 'itemValues'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columnsRoot });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.itemValuesRoot });
     },
   });
 };
 
-export const usePersonalItemValues = (itemIds: string[], enabled = true) =>
+export const usePersonalItemValues = (itemIds: string[], userId?: string, enabled = true) =>
   useQuery({
-    queryKey: queryKeys.personalHub.itemValues(itemIds),
-    queryFn: () => ph.getPersonalItemValues(itemIds),
+    queryKey: queryKeys.personalHub.itemValues(itemIds, userId),
+    queryFn: () => ph.getPersonalItemValues(itemIds, userId),
     enabled: enabled && itemIds.length > 0,
     staleTime: 30 * 1000,
   });
@@ -66,7 +66,7 @@ export const useUpdatePersonalItemValue = () => {
     mutationFn: ({ itemId, columnId, value }: { itemId: string; columnId: string; value: unknown }) =>
       ph.updatePersonalItemValue(itemId, columnId, value),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['personalHub', 'itemValues'] });
+      void qc.invalidateQueries({ queryKey: queryKeys.personalHub.itemValuesRoot });
     },
   });
 };

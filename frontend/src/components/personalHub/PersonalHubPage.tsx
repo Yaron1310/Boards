@@ -99,11 +99,15 @@ const PersonalHubPageInner: React.FC = () => {
   const targetUserId = routeUserId || authUser?.id || '';
   const isOwn = !routeUserId || targetUserId === authUser?.id;
   const isOrgAdmin = authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN;
+  // Whose personal columns/values to load. `undefined` on your own hub so every
+  // self-consumer (this page, the board groups, formula-ref meta, the add-column
+  // modal) shares one cache entry; an admin viewing someone else loads that owner's.
+  const hubOwnerId = isOwn ? undefined : targetUserId;
 
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
   const targetUser = isOwn ? authUser : allUsers.find((u) => u.id === targetUserId);
 
-  const { data: allPersonalColumns = [] } = usePersonalColumns();
+  const { data: allPersonalColumns = [] } = usePersonalColumns(hubOwnerId);
   const crossGroupColumns = useMemo(() => allPersonalColumns.filter((c) => c.scope === 'all'), [allPersonalColumns]);
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
@@ -448,6 +452,7 @@ const PersonalHubPageInner: React.FC = () => {
                 boardId={boardId}
                 items={itemsByBoard[boardId]}
                 isOwn={isOwn}
+                ownerUserId={hubOwnerId}
                 boardView={viewMode as BoardView}
                 onOpenDetail={setDetailItem}
                 onOpenChat={setChatItem}

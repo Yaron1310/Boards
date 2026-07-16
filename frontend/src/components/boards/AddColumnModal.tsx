@@ -205,7 +205,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const allColumns = parentGroupId ? subitemColumns : boardColumns;
   const { mutateAsync: reorderColumns } = useReorderColumns(boardId ?? '');
 
-  const { data: allPersonalColumns = [] } = usePersonalColumns(isPersonal);
+  const { data: allPersonalColumns = [] } = usePersonalColumns(undefined, isPersonal);
   const personalAllScopeColumns = allPersonalColumns.filter((c: PersonalColumn) => c.scope === 'all');
   const { mutateAsync: reorderPersonalColumns } = useReorderPersonalColumns();
   const { mutateAsync: deletePersonalColumnMutation } = useDeletePersonalColumn();
@@ -339,8 +339,8 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
         });
 
         if (personalScope === 'all') {
-          await qc.refetchQueries({ queryKey: queryKeys.personalHub.columns });
-          const rawColumns = (qc.getQueryData(queryKeys.personalHub.columns) as PersonalColumn[] | undefined) ?? [];
+          await qc.refetchQueries({ queryKey: queryKeys.personalHub.columnsRoot });
+          const rawColumns = (qc.getQueryData(queryKeys.personalHub.columns()) as PersonalColumn[] | undefined) ?? [];
           const updatedColumns = [...rawColumns]
             .filter((c) => c.scope === 'all')
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));

@@ -40,7 +40,7 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
   const userName = (user as { name?: string } | null | undefined)?.name;
 
   const hasPersonalRefs = useMemo(() => refs.some((r) => r.kind === 'p'), [refs]);
-  const { data: personalColumns } = usePersonalColumns(hasPersonalRefs);
+  const { data: personalColumns } = usePersonalColumns(undefined, hasPersonalRefs);
   const personalColumnNameMap = useMemo(() => {
     const m = new Map<string, string>();
     (personalColumns ?? []).forEach((c) => m.set(c.id, c.name));

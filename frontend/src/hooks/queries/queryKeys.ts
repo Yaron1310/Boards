@@ -54,7 +54,14 @@ export const queryKeys = {
     messages: (itemId: string) => ['chat', itemId, 'messages'] as const,
   },
   personalHub: {
-    columns: ['personalHub', 'columns'] as const,
-    itemValues: (itemIds: string[]) => ['personalHub', 'itemValues', [...itemIds].sort()] as const,
+    // Prefixes for broad invalidation (match every user variant below).
+    columnsRoot: ['personalHub', 'columns'] as const,
+    itemValuesRoot: ['personalHub', 'itemValues'] as const,
+    // Scoped by hub owner so an admin viewing another user's hub caches separately
+    // from the viewer's own — without the owner in the key they'd collide and the
+    // wrong user's columns/values would show. `undefined` = the requester's own hub.
+    columns: (userId?: string) => ['personalHub', 'columns', userId ?? 'self'] as const,
+    itemValues: (itemIds: string[], userId?: string) =>
+      ['personalHub', 'itemValues', userId ?? 'self', [...itemIds].sort()] as const,
   },
 };

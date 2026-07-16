@@ -29,6 +29,12 @@ interface Props {
   boardId: string;
   items: Item[];
   isOwn: boolean;
+  /**
+   * Whose personal columns/values to load. `undefined` = the logged-in user's own
+   * hub; set to another user's id when an admin is viewing their hub (read-only —
+   * `isOwn` stays false, so cells and summary controls remain non-editable).
+   */
+  ownerUserId?: string;
   boardView: BoardView;
   onOpenDetail: (item: Item) => void;
   onOpenChat: (item: Item) => void;
@@ -132,7 +138,7 @@ const renderPersonalCells = (
  * board, and the user expands its chevron to reach the assigned subitem via
  * the real SubitemGroup panel (same one the source board uses).
  */
-const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId }) => {
+const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId }) => {
   const navigate = useNavigate();
   const { mutate: updatePersonalColumn } = useUpdatePersonalColumn();
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
@@ -146,7 +152,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
   // this group renders nothing anyway, so there's no point also firing (and
   // console-logging) doomed columns/groups requests for it.
   const { data: columns = [] } = useColumns(boardId, !!board);
-  const { data: allPersonalColumns = [] } = usePersonalColumns();
+  const { data: allPersonalColumns = [] } = usePersonalColumns(ownerUserId);
 
   const crossGroupColumns = useMemo(
     () => allPersonalColumns.filter((c) => c.scope === 'all'),
@@ -207,7 +213,9 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, boardVi
   const displayItemIds = useMemo(() => displayItems.map((i) => i.id), [displayItems]);
   // Personal-column values are keyed by item — fetch for both the directly assigned
   // items and any hosting items we promoted into view.
-  const { data: personalValuesByItem = {} } = usePersonalItemValues([...new Set([...itemIds, ...displayItemIds])], isOwn);
+  // Load for the hub's owner (self, or the user an admin is viewing). Fetch in both
+  // cases — the admin needs to see the owner's values; `editable={isOwn}` keeps it read-only.
+  const { data: personalValuesByItem = {} } = usePersonalItemValues([...new Set([...itemIds, ...displayItemIds])], ownerUserId);
 
   // Cross-group columns get a real spreadsheet-style grid — every displayed row across
   // EVERY board group is addressable ({B3} etc.), matching the real board's formula

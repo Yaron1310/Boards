@@ -3,13 +3,35 @@ import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
 import { personalColumnsCollection, personalItemValuesCollection } from '../db/collections.js';
-import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, ColumnType } from '../types/index.js';
+import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, ColumnType, UserRole } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 
 const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
+const ADMIN_ROLES = new Set<string>([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]);
 
 function personalValueDocId(userId: string, itemId: string): string {
   return `${userId}_${itemId}`;
+}
+
+/**
+ * Resolve whose personal-hub data a read request should serve. Defaults to the
+ * requester. An org/system admin may read another user's hub (their own personal
+ * columns + values) by passing ?userId= — this is the sanctioned, read-only path
+ * behind /admin/users. A personal column belongs to its owner, so a non-admin
+ * asking for someone else's is rejected. Org isolation is automatic: every query
+ * is scoped to the requester's orgId, so a foreign-org userId simply yields nothing.
+ *
+ * The write endpoints stay owner-gated (they compare column.userId to the caller),
+ * so admin viewing is view-only.
+ */
+function resolveTargetUserId(req: Request): { userId: string } | { status: number; message: string } {
+  const user = req.user as JwtUserPayload;
+  const requested = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
+  if (!requested || requested === user.id) return { userId: user.id };
+  if (!ADMIN_ROLES.has(user.role)) {
+    return { status: 403, message: "Forbidden: only admins may view another user's personal hub." };
+  }
+  return { userId: requested };
 }
 
 // ---------------------------------------------------------------------------
@@ -18,9 +40,12 @@ function personalValueDocId(userId: string, itemId: string): string {
 export const listPersonalColumns = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
 
+  const target = resolveTargetUserId(req);
+  if ('status' in target) return res.status(target.status).json({ message: target.message });
+
   try {
     const snapshot = await personalColumnsCollection(user.orgId)
-      .where('userId', '==', user.id)
+      .where('userId', '==', target.userId)
       .get();
     const columns = querySnapshotToArray<DBPersonalColumn>(snapshot)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -239,8 +264,11 @@ export const getPersonalItemValues = async (req: Request, res: Response) => {
   const ids = itemIds.split(',').map((s) => s.trim()).filter(Boolean);
   if (ids.length === 0) return res.json({});
 
+  const target = resolveTargetUserId(req);
+  if ('status' in target) return res.status(target.status).json({ message: target.message });
+
   try {
-    const refs = ids.map((itemId) => personalItemValuesCollection(user.orgId).doc(personalValueDocId(user.id, itemId)));
+    const refs = ids.map((itemId) => personalItemValuesCollection(user.orgId).doc(personalValueDocId(target.userId, itemId)));
     const docs = await personalItemValuesCollection(user.orgId).firestore.getAll(...refs);
 
     const result: Record<string, Record<string, unknown>> = {};

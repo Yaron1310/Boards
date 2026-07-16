@@ -50,8 +50,8 @@ export interface UpdatePersonalColumnData {
   summaryCumulativeByBoard?: Record<string, boolean>;
 }
 
-export const listPersonalColumns = (): Promise<PersonalColumn[]> =>
-  fetchWithAuth('/api/personal-hub/columns');
+export const listPersonalColumns = (userId?: string): Promise<PersonalColumn[]> =>
+  fetchWithAuth(`/api/personal-hub/columns${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
 
 export const createPersonalColumn = (data: CreatePersonalColumnData): Promise<PersonalColumn> =>
   fetchWithAuth('/api/personal-hub/columns', { method: 'POST', body: JSON.stringify(data) });
@@ -70,9 +70,10 @@ export interface ReorderPersonalColumnItem {
 export const reorderPersonalColumns = (order: ReorderPersonalColumnItem[]): Promise<void> =>
   fetchWithAuth('/api/personal-hub/columns/reorder', { method: 'PATCH', body: JSON.stringify({ order }) });
 
-export const getPersonalItemValues = (itemIds: string[]): Promise<Record<string, Record<string, unknown>>> => {
+export const getPersonalItemValues = (itemIds: string[], userId?: string): Promise<Record<string, Record<string, unknown>>> => {
   if (itemIds.length === 0) return Promise.resolve({});
-  return fetchWithAuth(`/api/personal-hub/item-values?itemIds=${itemIds.map(encodeURIComponent).join(',')}`);
+  const query = `itemIds=${itemIds.map(encodeURIComponent).join(',')}${userId ? `&userId=${encodeURIComponent(userId)}` : ''}`;
+  return fetchWithAuth(`/api/personal-hub/item-values?${query}`);
 };
 
 export const updatePersonalItemValue = (itemId: string, columnId: string, value: unknown): Promise<{ values: Record<string, unknown> }> =>
