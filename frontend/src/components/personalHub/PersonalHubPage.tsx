@@ -14,7 +14,7 @@ import { UndoProvider } from '../../contexts/UndoContext';
 import { UserRole, ColumnType } from '../../types';
 import type { Item, Group } from '../../types';
 import PersonalHubBoardGroup, { makePersonalFormulaEvaluator } from './PersonalHubBoardGroup';
-import { SummaryCell, type SummaryColumn } from '../boards/GroupSummaryRow';
+import { SummaryCell, BoardSummaryRow, type SummaryColumn } from '../boards/GroupSummaryRow';
 import PersonalHubFilterDropdown from './PersonalHubFilterDropdown';
 import type { PersonalHubActiveFilter } from './PersonalHubFilterDropdown';
 import GanttView from '../boards/GanttView';
@@ -487,34 +487,35 @@ const PersonalHubPageInner: React.FC = () => {
           <div className="flex-1 min-h-0" aria-hidden="true" />
 
           {/* Page-level total across ALL board groups for each cross-group personal
-              column — pinned to the bottom. Sums the whole column regardless of how
-              many groups exist, so tasks in future boards are included automatically.
-              Uses the column's own summary calc (shared with the per-group rows). */}
-          {crossGroupColumns.length > 0 && crossGroupTotalItems.length > 0 && (
-            <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem}>
-              <div
-                className="sticky bottom-0 z-[21] flex items-stretch w-max bg-white border-t-2 border-black shadow-[0_-2px_8px_rgba(0,0,0,0.07)]"
-                role="row"
-                aria-label="Total across all groups"
-              >
-                <div className="w-[298px] flex-shrink-0 px-4 py-2 border-r border-[#d2d2d4] text-xs font-semibold uppercase tracking-wide text-gray-500 sticky left-0 z-[1] bg-white flex items-center">
-                  Total (all groups)
-                </div>
-                {crossGroupColumns.map((col) => (
-                  <SummaryCell
-                    key={col.id}
-                    col={col as unknown as SummaryColumn}
-                    items={crossGroupTotalItems}
-                    numberCols={[]}
-                    widthOverride={PERSONAL_COL_WIDTH}
-                    getValue={(item) => pageCrossGroupGridContext.valuesByItem[item.id]?.[col.id]}
-                    evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, pageCrossGroupGridContext) : undefined}
-                    boardTotal
-                    onPersist={(c) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { boardSummaryConfig: c } }); }}
+              column — same BoardSummaryRow + wrapper as the normal board, so the design
+              matches exactly. Sums the whole column regardless of how many groups exist,
+              so tasks in future boards are included automatically. Gated on the columns
+              only (not row count) so it shows for any hub — including another user's when
+              viewed by an admin — the same way the normal board's total always shows. */}
+          {crossGroupColumns.length > 0 && (
+            <div className="sticky bottom-0 z-[21] w-max pl-4 pr-4 pt-1">
+              <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem}>
+                <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max overflow-hidden">
+                  <BoardSummaryRow
+                    items={[]}
+                    columns={[]}
+                    leadingExtraCells={crossGroupColumns.map((col) => (
+                      <SummaryCell
+                        key={col.id}
+                        col={col as unknown as SummaryColumn}
+                        items={crossGroupTotalItems}
+                        numberCols={[]}
+                        widthOverride={PERSONAL_COL_WIDTH}
+                        getValue={(item) => pageCrossGroupGridContext.valuesByItem[item.id]?.[col.id]}
+                        evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, pageCrossGroupGridContext) : undefined}
+                        boardTotal
+                        onPersist={(c) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { boardSummaryConfig: c } }); }}
+                      />
+                    ))}
                   />
-                ))}
-              </div>
-            </BoardRenderProvider>
+                </div>
+              </BoardRenderProvider>
+            </div>
           )}
         </div>
       ) : viewMode === 'gantt' ? (
