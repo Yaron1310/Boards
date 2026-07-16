@@ -495,7 +495,7 @@ const PersonalHubPageInner: React.FC = () => {
           {crossGroupColumns.length > 0 && (
             <div className="sticky bottom-0 z-[21] w-max pl-4 pr-4 pt-1">
               <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem}>
-                <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max overflow-hidden">
+                <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max">
                   <BoardSummaryRow
                     items={[]}
                     columns={[]}
