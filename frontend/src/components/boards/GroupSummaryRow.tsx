@@ -45,13 +45,16 @@ function median(vals: number[]): number {
 }
 
 
-function configFromColumn(col: { summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right'; cumulative?: boolean } }, defaultCalc: CalcMode = 'sum'): CellConfig {
-  if (col.summaryConfig) {
+function configFromSummary(
+  sc: { calc: string; unit: string; unitAlign: 'left' | 'right'; cumulative?: boolean } | undefined,
+  defaultCalc: CalcMode = 'sum',
+): CellConfig {
+  if (sc) {
     return {
-      calc: (col.summaryConfig.calc as CalcMode) || defaultCalc,
-      unit: col.summaryConfig.unit ?? '',
-      unitAlign: col.summaryConfig.unitAlign ?? 'left',
-      cumulative: col.summaryConfig.cumulative ?? false,
+      calc: (sc.calc as CalcMode) || defaultCalc,
+      unit: sc.unit ?? '',
+      unitAlign: sc.unitAlign ?? 'left',
+      cumulative: sc.cumulative ?? false,
     };
   }
   return { calc: defaultCalc, unit: '', unitAlign: 'left', cumulative: false };
@@ -108,10 +111,12 @@ interface PopoverProps {
   isCheckbox: boolean;
   isTimeType: boolean;
   isCountOnly: boolean;
+  /** Hide the per-group cumulative "Scope" toggle (board-total footer spans every group). */
+  hideScope?: boolean;
 }
 
 const SummaryPopover: React.FC<PopoverProps> = ({
-  anchorRect, config, onChange, onClose, isCheckbox, isTimeType, isCountOnly,
+  anchorRect, config, onChange, onClose, isCheckbox, isTimeType, isCountOnly, hideScope = false,
 }) => {
   const popoverRef = useRef<HTMLDivElement>(null);
   const [customUnit, setCustomUnit] = useState<string>(
@@ -181,6 +186,8 @@ const SummaryPopover: React.FC<PopoverProps> = ({
       </div>
 
       {/* Scope — this group only vs. this group + all groups above it (running total) */}
+      {!hideScope && (
+      <>
       <p className="text-sm font-semibold text-gray-700 mb-2">Scope</p>
       <div className="flex items-center gap-1.5 mb-4">
         <button
@@ -201,6 +208,8 @@ const SummaryPopover: React.FC<PopoverProps> = ({
           This + groups above
         </button>
       </div>
+      </>
+      )}
 
       {/* Unit — hidden for time/checkbox/count-only columns */}
       {!isTimeType && !isCheckbox && !isCountOnly && (
@@ -277,6 +286,8 @@ export interface SummaryColumn {
   boardId?: string;
   width?: number;
   summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right'; cumulative?: boolean };
+  /** Independent config for the board-wide total footer, used when `boardTotal` is set. */
+  boardSummaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' };
 }
 
 interface SummaryCellProps {
@@ -308,11 +319,18 @@ interface SummaryCellProps {
    */
   cumulative?: boolean;
   onCumulativeChange?: (cumulative: boolean) => void;
+  /**
+   * Board-wide total footer cell: read/write the column's independent
+   * `boardSummaryConfig` instead of the per-group `summaryConfig`, so the footer's
+   * calc/unit is configured separately from the group rows. Cumulative scope is
+   * hidden (the footer already spans every group).
+   */
+  boardTotal?: boolean;
 }
 
 export const SummaryCell: React.FC<SummaryCellProps> = ({
   col, items, numberCols, itemsAbove, widthOverride, getValue, evalFormula, onPersist,
-  cumulative = false, onCumulativeChange,
+  cumulative = false, onCumulativeChange, boardTotal = false,
 }) => {
   const getVal = getValue ?? ((i: Item, colId: string) => i.values[colId]);
   const isCheckbox = col.type === ColumnType.CHECKBOX;
@@ -320,7 +338,9 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const isCountOnly = COUNT_ONLY_TYPES.has(col.type);
   const defaultCalc: CalcMode = isCheckbox ? 'count' : isCountOnly ? 'none' : 'sum';
 
-  const [colConfig, setColConfig] = useState<CellConfig>(() => configFromColumn(col, defaultCalc));
+  // Board-total cells read/write an independent config; group cells use the shared one.
+  const summarySource = boardTotal ? col.boardSummaryConfig : col.summaryConfig;
+  const [colConfig, setColConfig] = useState<CellConfig>(() => configFromSummary(summarySource, defaultCalc));
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
@@ -364,18 +384,21 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
 
   // Keep local state in sync if the column data is refreshed from the server
   useEffect(() => {
-    setColConfig(configFromColumn(col, defaultCalc));
+    setColConfig(configFromSummary(summarySource, defaultCalc));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [col.summaryConfig]);
+  }, [summarySource]);
 
   const handleChange = useCallback((c: CellConfig) => {
     // Cumulative is per-group — route it separately; never store it on the shared column.
     if (c.cumulative !== cumulative) onCumulativeChange?.(c.cumulative);
     const colPart: CellConfig = { calc: c.calc, unit: c.unit, unitAlign: c.unitAlign, cumulative: false };
     setColConfig(colPart);
+    const persisted = { calc: colPart.calc, unit: colPart.unit, unitAlign: colPart.unitAlign };
     if (onPersist) onPersist(colPart);
-    else updateColumn({ id: col.id, patch: { summaryConfig: { calc: colPart.calc, unit: colPart.unit, unitAlign: colPart.unitAlign } } });
-  }, [col.id, updateColumn, onPersist, cumulative, onCumulativeChange]);
+    // Board-total cells persist to the column's independent boardSummaryConfig; group cells to summaryConfig.
+    else if (boardTotal) updateColumn({ id: col.id, patch: { boardSummaryConfig: persisted } });
+    else updateColumn({ id: col.id, patch: { summaryConfig: persisted } });
+  }, [col.id, updateColumn, onPersist, cumulative, onCumulativeChange, boardTotal]);
 
   const handleOpen = () => {
     if (btnRef.current) {
@@ -632,6 +655,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
           isCheckbox={isCheckbox}
           isTimeType={isTimeType}
           isCountOnly={isCountOnly}
+          hideScope={boardTotal}
         />
       )}
     </div>
@@ -767,6 +791,7 @@ export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
           items={nonArchived}
           numberCols={numberCols}
           cumulative={false}
+          boardTotal
         />
       ))}
       {trailingExtraCells}

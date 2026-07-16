@@ -277,6 +277,7 @@ export interface UpdateColumnData {
   name?: string;
   settings?: ColumnSettings;
   summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' } | null;
+  boardSummaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' } | null;
   width?: number;
 }
 

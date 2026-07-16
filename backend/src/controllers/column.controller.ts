@@ -278,7 +278,7 @@ export const reorderColumns = async (req: Request, res: Response) => {
 export const updateColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId, id } = req.params;
-  const { name, settings, summaryConfig, width } = req.body;
+  const { name, settings, summaryConfig, boardSummaryConfig, width } = req.body;
 
   try {
     const doc = await columnsCollection(user.orgId, boardId).doc(id).get();
@@ -299,6 +299,14 @@ export const updateColumn = async (req: Request, res: Response) => {
     if (name !== undefined) updateData.name = sanitizeText(String(name));
     if (settings !== undefined) updateData.settings = settings;
     if (summaryConfig !== undefined) updateData.summaryConfig = summaryConfig;
+    if (boardSummaryConfig !== undefined && boardSummaryConfig !== null && typeof boardSummaryConfig === 'object') {
+      const { calc, unit, unitAlign } = boardSummaryConfig as { calc?: unknown; unit?: unknown; unitAlign?: unknown };
+      updateData.boardSummaryConfig = {
+        calc: typeof calc === 'string' ? calc : 'none',
+        unit: typeof unit === 'string' ? unit : '',
+        unitAlign: unitAlign === 'right' ? 'right' : 'left',
+      };
+    }
     if (width !== undefined && typeof width === 'number' && width >= 50 && width <= 1000) {
       updateData.width = Math.round(width);
     }

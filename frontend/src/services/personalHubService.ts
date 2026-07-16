@@ -47,6 +47,11 @@ export interface UpdatePersonalColumnData {
     unitAlign: 'left' | 'right';
     cumulative?: boolean;
   };
+  boardSummaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
   summaryCumulativeByBoard?: Record<string, boolean>;
 }
 

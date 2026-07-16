@@ -270,6 +270,12 @@ export interface DBColumn {
     unitAlign: 'left' | 'right';
     cumulative?: boolean;
   };
+  /** Independent config for the board-wide total footer (separate from the per-group summaryConfig). */
+  boardSummaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
   width?: number;
   parentGroupId?: string | null;
   createdAt: admin.firestore.Timestamp | Date | any;
@@ -293,6 +299,12 @@ export interface DBPersonalColumn {
     unit: string;
     unitAlign: 'left' | 'right';
     cumulative?: boolean;
+  };
+  /** Independent config for the page-wide total footer (separate from the per-group summaryConfig). */
+  boardSummaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
   };
   scope: 'board' | 'all';
   boardId?: string; // required when scope === 'board'

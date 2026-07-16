@@ -255,6 +255,12 @@ export interface Column {
     /** When true, each group's summary includes items from all groups above it (running total). */
     cumulative?: boolean;
   };
+  /** Independent config for the board-wide total footer (separate from the per-group summaryConfig). */
+  boardSummaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
+  };
   width?: number;
   parentGroupId?: string;
   createdAt: Date | string;
@@ -606,6 +612,12 @@ export interface PersonalColumn {
     unitAlign: 'left' | 'right';
     /** When true, each group's summary includes items from all groups above it (running total). */
     cumulative?: boolean;
+  };
+  /** Independent config for the page-wide total footer (separate from the per-group summaryConfig). */
+  boardSummaryConfig?: {
+    calc: string;
+    unit: string;
+    unitAlign: 'left' | 'right';
   };
   scope: PersonalColumnScope;
   boardId?: string;

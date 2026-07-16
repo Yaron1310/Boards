@@ -505,7 +505,8 @@ const PersonalHubPageInner: React.FC = () => {
                     widthOverride={PERSONAL_COL_WIDTH}
                     getValue={(item) => pageCrossGroupGridContext.valuesByItem[item.id]?.[col.id]}
                     evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, pageCrossGroupGridContext) : undefined}
-                    onPersist={(c) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
+                    boardTotal
+                    onPersist={(c) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { boardSummaryConfig: c } }); }}
                   />
                 ))}
               </div>
