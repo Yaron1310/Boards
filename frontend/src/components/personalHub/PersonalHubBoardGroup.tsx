@@ -62,7 +62,7 @@ interface Props {
  * row can aggregate over exactly the items it's scoped to (this group, or this
  * group plus every group above it when cumulative), same as a board formula.
  */
-const makePersonalFormulaEvaluator = (col: PersonalColumn, gridContext: PersonalGridContext) => {
+export const makePersonalFormulaEvaluator = (col: PersonalColumn, gridContext: PersonalGridContext) => {
   const settings = col.settings as SimpleFormulaColumnSettings;
   const defaultFormula = settings?.defaultFormula ?? '';
   const allRows: FormulaRow[] = gridContext.rowOrder.map((id) => ({ values: gridContext.valuesByItem[id] ?? {} }));

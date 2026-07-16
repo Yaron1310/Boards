@@ -705,3 +705,71 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulati
 };
 
 export default GroupSummaryRow;
+
+/** True when at least one column can show a summary — used to gate the board-total footer. */
+export const hasSummarizableColumns = (columns: { type: ColumnType }[]): boolean =>
+  columns.some((c) => AGGREGATABLE_TYPES.has(c.type) || COUNT_ONLY_TYPES.has(c.type));
+
+// ─── BoardSummaryRow ──────────────────────────────────────────────────────────
+
+interface BoardSummaryRowProps {
+  /** Every item on the board (all groups) — the row totals the whole column. */
+  items: Item[];
+  columns: Column[];
+  /** Leading cells/spacers before the summarized columns (Personal Hub cross-group columns). */
+  leadingExtraCells?: React.ReactNode;
+  /** Trailing cells/spacers after the summarized columns. */
+  trailingExtraCells?: React.ReactNode;
+  /** Sticky-left label shown in the item section. */
+  label?: string;
+}
+
+/**
+ * A board-wide total row: the same SummaryCell (calc/unit/formatting) as a group
+ * summary, but aggregating EVERY item across ALL groups — so it always reflects the
+ * whole column, including groups added later, with no per-cell wiring. It reuses each
+ * column's own summaryConfig (shared with the group rows), so a column set to "Sum"
+ * shows group sums per group and the grand sum here. Meant to be placed in a
+ * sticky-to-bottom footer by the caller. Cumulative scope doesn't apply (it already
+ * spans everything).
+ */
+export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
+  items, columns, leadingExtraCells, trailingExtraCells, label = 'Board total',
+}) => {
+  const { columnWidths } = useBoardRender();
+
+  const hasSummaryColumns = columns.some(
+    (c) => AGGREGATABLE_TYPES.has(c.type) || COUNT_ONLY_TYPES.has(c.type),
+  );
+  if (!hasSummaryColumns && !leadingExtraCells && !trailingExtraCells) return null;
+
+  const nonArchived = items.filter((i) => !i.isArchived);
+  const numberCols = columns.filter((c) => c.type === ColumnType.NUMBER);
+  const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
+
+  return (
+    <div
+      role="row"
+      aria-label={label}
+      className="flex flex-nowrap items-stretch border-t-2 border-[#c7c7cc] w-max bg-white"
+    >
+      <div
+        className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4] flex items-center px-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
+        style={{ width: `${itemSectionWidth}px` }}
+      >
+        {label}
+      </div>
+      {leadingExtraCells}
+      {columns.map((col) => (
+        <SummaryCell
+          key={col.id}
+          col={col}
+          items={nonArchived}
+          numberCols={numberCols}
+          cumulative={false}
+        />
+      ))}
+      {trailingExtraCells}
+    </div>
+  );
+};

@@ -13,7 +13,8 @@ import { DependencyProvider } from '../../contexts/DependencyContext';
 import { UndoProvider } from '../../contexts/UndoContext';
 import { UserRole, ColumnType } from '../../types';
 import type { Item, Group } from '../../types';
-import PersonalHubBoardGroup from './PersonalHubBoardGroup';
+import PersonalHubBoardGroup, { makePersonalFormulaEvaluator } from './PersonalHubBoardGroup';
+import { SummaryCell, type SummaryColumn } from '../boards/GroupSummaryRow';
 import PersonalHubFilterDropdown from './PersonalHubFilterDropdown';
 import type { PersonalHubActiveFilter } from './PersonalHubFilterDropdown';
 import GanttView from '../boards/GanttView';
@@ -26,7 +27,7 @@ import UndoButton from '../boards/UndoButton';
 import AddColumnModal from '../boards/AddColumnModal';
 import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
-import { usePersonalColumns } from '../../hooks/queries/usePersonalHubQueries';
+import { usePersonalColumns, useUpdatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
 import { PERSONAL_COL_WIDTH } from './constants';
 import { exportPersonalHubToXlsx } from '../../utils/exportPersonalHubToXlsx';
 import type { PersonalGridContext } from './cells/types';
@@ -184,6 +185,23 @@ const PersonalHubPageInner: React.FC = () => {
     }, {});
     return { rowOrder, columns: crossGroupColumns, valuesByItem };
   }, [boardIds, rowsByBoard, valuesByBoard, crossGroupColumns]);
+
+  // Rows for the page-level cross-group total. The SummaryCell reads values by id
+  // from the page-wide grid, so an {id}-only pseudo-item suffices — but resolve to
+  // the real item when known so we can drop archived rows and match the per-group
+  // summaries (which exclude archived).
+  const itemById = useMemo(() => {
+    const m = new Map<string, Item>();
+    for (const it of items) m.set(it.id, it);
+    return m;
+  }, [items]);
+  const crossGroupTotalItems = useMemo<Item[]>(
+    () => pageCrossGroupGridContext.rowOrder
+      .map((id) => itemById.get(id) ?? ({ id } as Item))
+      .filter((it) => !it.isArchived),
+    [pageCrossGroupGridContext.rowOrder, itemById],
+  );
+  const { mutate: updatePersonalColumn } = useUpdatePersonalColumn();
 
 
   const handleExport = async () => {
@@ -463,6 +481,36 @@ const PersonalHubPageInner: React.FC = () => {
               />
             ))}
           </div>
+
+          {/* Page-level total across ALL board groups for each cross-group personal
+              column — sticky to the bottom. Sums the whole column regardless of how
+              many groups exist, so tasks in future boards are included automatically.
+              Uses the column's own summary calc (shared with the per-group rows). */}
+          {crossGroupColumns.length > 0 && crossGroupTotalItems.length > 0 && (
+            <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem}>
+              <div
+                className="sticky bottom-0 z-[21] flex items-stretch w-max bg-white border-t-2 border-[#c7c7cc] shadow-[0_-2px_8px_rgba(0,0,0,0.07)]"
+                role="row"
+                aria-label="Total across all groups"
+              >
+                <div className="w-[298px] flex-shrink-0 px-4 py-2 border-r border-[#d2d2d4] text-xs font-semibold uppercase tracking-wide text-gray-500 sticky left-0 z-[1] bg-white flex items-center">
+                  Total (all groups)
+                </div>
+                {crossGroupColumns.map((col) => (
+                  <SummaryCell
+                    key={col.id}
+                    col={col as unknown as SummaryColumn}
+                    items={crossGroupTotalItems}
+                    numberCols={[]}
+                    widthOverride={PERSONAL_COL_WIDTH}
+                    getValue={(item) => pageCrossGroupGridContext.valuesByItem[item.id]?.[col.id]}
+                    evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, pageCrossGroupGridContext) : undefined}
+                    onPersist={(c) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
+                  />
+                ))}
+              </div>
+            </BoardRenderProvider>
+          )}
         </div>
       ) : viewMode === 'gantt' ? (
         <div className="flex-1 overflow-x-auto overflow-y-auto" role="region" aria-label="Assigned items timeline">

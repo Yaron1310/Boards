@@ -37,6 +37,7 @@ import BoardDashboardView, { DashboardFilterChip, type BoardDashboardHandle } fr
 import { useCustomDashboards, selectBoardDashboards } from '../../hooks/queries/useCustomDashboardQueries';
 import DashboardFilterBar, { DateRangePresetPicker, filterReducer, INITIAL_FILTER_STATE } from '../dashboard/DashboardFilterBar';
 import GroupSection from './GroupSection';
+import { BoardSummaryRow, hasSummarizableColumns } from './GroupSummaryRow';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
 import ItemChatModal from './ItemChatModal';
@@ -432,6 +433,19 @@ const BoardContent: React.FC<BoardContentProps> = ({
                   Add Group
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Board-wide total row — sticky to the bottom of the scroll area. Totals
+              every column across ALL groups (so groups added later are included
+              automatically), using each column's own summary calc. */}
+          {!groupsLoading && localGroups.length > 0 && hasSummarizableColumns(columns) && (
+            <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pb-3 pt-1">
+              <BoardRenderProvider visibleItems={allItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat}>
+                <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max overflow-hidden">
+                  <BoardSummaryRow items={allItems} columns={columns} />
+                </div>
+              </BoardRenderProvider>
             </div>
           )}
         </div>
