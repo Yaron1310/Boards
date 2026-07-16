@@ -26,7 +26,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   const { push: pushUndo } = useUndo();
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
-  const { begin, endSession, isRecording, session } = useFormulaRecording();
+  const { begin, endSession, isRecording, insertRef, session } = useFormulaRecording();
   const { visibleItems, columns: boardColumns } = useBoardRender();
   const colWidth = calculateColumnWidth(column.name, column.type);
 
@@ -177,6 +177,34 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
     persistValue(pendingFormula);
     setPendingFormula(null);
   };
+
+  // While another cell is recording, this formula cell (any cell except the recording origin)
+  // is selectable — clicking inserts a reference to it, resolving to its live computed value.
+  // Without this, a click would start a new recording session instead of feeding the current one.
+  // Only same-board formula cells are selectable: a cross-board formula reference can't be
+  // evaluated remotely (the foreign board exposes only the stored formula text, not its value),
+  // so those cells are shown inert rather than inserting a silently-zero reference.
+  if (isRecording && !isOrigin) {
+    const sameBoard = session?.origin.boardId === homeBoardId;
+    return (
+      <div
+        role="gridcell"
+        style={{ width: `${colWidth}px` }}
+        className={`flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0 bg-gray-50/60 ${sameBoard ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : 'cursor-default opacity-60'}`}
+        onMouseDown={sameBoard ? (e) => {
+          e.preventDefault();
+          insertRef({ kind: 'b', boardId: homeBoardId, columnId: column.id, itemId: item.id });
+        } : undefined}
+        title={sameBoard ? "Add this formula's value to the formula" : 'A formula cell can only be referenced by a formula on the same board'}
+        aria-label={sameBoard ? `Add ${column.name} for ${item.name} to the formula` : undefined}
+        data-formula-insertable={sameBoard ? 'true' : undefined}
+      >
+        <span className="text-sm text-gray-600 px-3 text-center truncate">
+          {result != null ? formatNumber(result) : <span className="text-gray-300 text-xs">—</span>}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <>

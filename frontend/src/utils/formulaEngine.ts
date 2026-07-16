@@ -21,7 +21,9 @@ export type ColumnValues = Record<string, number | null | undefined>;
  *  `id` is optional but required to resolve absolute ID refs ({ref:...:<itemId>}) locally;
  *  `groupId` is required to resolve group-summary refs. */
 export interface FormulaRow { id?: string; groupId?: string; values: Record<string, unknown> }
-export interface FormulaColumn { id: string; type: ColumnType }
+/** `settings` carries a SIMPLE_FORMULA column's `defaultFormula` so a reference to another
+ *  formula cell can be evaluated to its live value. Real Column objects satisfy this. */
+export interface FormulaColumn { id: string; type: ColumnType; settings?: unknown }
 
 /** Aggregate functions supported by group-summary references. */
 export type SummaryCalc = 'sum' | 'avg' | 'median' | 'min' | 'max' | 'count';
@@ -153,6 +155,9 @@ export interface FormulaContext {
   resolveRef?: (ref: CellRef) => number | null | undefined;
   /** Called for every ref the engine could not resolve — lets the caller drive loading/error UI. */
   onUnresolvedRef?: (ref: CellRef) => void;
+  /** Formula cells currently being evaluated (keyed `columnId@itemId`) — breaks reference cycles
+   *  when one formula references another. Managed by the engine; callers leave it unset. */
+  evaluating?: Set<string>;
 }
 
 /** Parse the inner text of a `{ref:...}` token into a CellRef, or null if malformed.
@@ -334,7 +339,10 @@ class FormulaParser {
     if (ref.agg) return this.resolveLocalSummary(ref);
 
     const col = ctx.columns.find((c) => c.id === ref.columnId);
-    if (!col || col.type !== ColumnType.NUMBER) return undefined;
+    if (!col) return undefined;
+    // A reference to another formula cell resolves to its live computed value.
+    if (col.type === ColumnType.SIMPLE_FORMULA) return this.resolveLocalFormula(ref, col);
+    if (col.type !== ColumnType.NUMBER) return undefined;
 
     let item: FormulaRow | undefined;
     if (ref.itemId === null) {
@@ -347,6 +355,41 @@ class FormulaParser {
 
     const val = item.values[col.id];
     return val != null && !isNaN(Number(val)) ? Number(val) : 0;
+  }
+
+  /** Resolve a reference to another SIMPLE_FORMULA cell to its live value by evaluating that
+   *  cell's formula in the referenced row's context. `context.evaluating` tracks the formula
+   *  cells on the current evaluation stack so a reference cycle (A → B → A) is broken by
+   *  contributing 0 at the point it closes, instead of recursing forever. */
+  private resolveLocalFormula(ref: CellRef, col: FormulaColumn): number | undefined {
+    const ctx = this.context;
+    if (!ctx) return undefined;
+
+    let idx: number;
+    if (ref.itemId === null) {
+      if (ctx.currentRowIndex === undefined) return undefined;
+      idx = ctx.currentRowIndex;
+    } else {
+      idx = ctx.allItems.findIndex((it) => it.id === ref.itemId);
+      if (idx < 0) return undefined;
+    }
+    const item = ctx.allItems[idx];
+    if (!item) return undefined;
+
+    // The cell's own override formula (a string in values) or the column's default.
+    const stored = item.values[col.id];
+    const settings = col.settings as { defaultFormula?: string } | undefined;
+    const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
+    if (!formula.trim()) return 0;
+
+    const key = `${col.id}@${item.id ?? idx}`;
+    const evaluating = ctx.evaluating ?? new Set<string>();
+    if (evaluating.has(key)) return 0; // cycle — stop here
+    const nextEvaluating = new Set(evaluating);
+    nextEvaluating.add(key);
+
+    const r = evaluateFormula(formula, {}, { ...ctx, currentRowIndex: idx, evaluating: nextEvaluating });
+    return r ?? 0;
   }
 
   /** Aggregate a NUMBER column across one group from local context. Only NUMBER columns are
