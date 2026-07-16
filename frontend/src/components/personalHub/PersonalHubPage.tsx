@@ -493,7 +493,7 @@ const PersonalHubPageInner: React.FC = () => {
               only (not row count) so it shows for any hub — including another user's when
               viewed by an admin — the same way the normal board's total always shows. */}
           {crossGroupColumns.length > 0 && (
-            <div className="sticky bottom-0 z-[22] w-max pl-4 pr-4 pt-1">
+            <div className="sticky bottom-0 z-[21] w-max pl-4 pr-4 pt-1">
               <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem}>
                 <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max">
                   <BoardSummaryRow
