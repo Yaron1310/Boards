@@ -425,7 +425,7 @@ const PersonalHubPageInner: React.FC = () => {
           </p>
         </div>
       ) : viewMode === 'table' || viewMode === 'rows' ? (
-        <div className="flex-1 overflow-x-auto overflow-y-auto" role="region" aria-label="Assigned items by board">
+        <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col" role="region" aria-label="Assigned items by board">
           {/* Page-level header — this is the ONLY place cross-group personal columns are
               managed (rename/settings/reorder/delete); each group below shows their
               names too for alignment, but read-only — their own source-board columns
@@ -482,8 +482,12 @@ const PersonalHubPageInner: React.FC = () => {
             ))}
           </div>
 
+          {/* Growing spacer so the total row sits at the very bottom of the screen even
+              when the content is shorter than the viewport (collapses when it overflows). */}
+          <div className="flex-1 min-h-0" aria-hidden="true" />
+
           {/* Page-level total across ALL board groups for each cross-group personal
-              column — sticky to the bottom. Sums the whole column regardless of how
+              column — pinned to the bottom. Sums the whole column regardless of how
               many groups exist, so tasks in future boards are included automatically.
               Uses the column's own summary calc (shared with the per-group rows). */}
           {crossGroupColumns.length > 0 && crossGroupTotalItems.length > 0 && (

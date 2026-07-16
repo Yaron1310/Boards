@@ -319,7 +319,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
       ) : (
         <div
           ref={boardContainerRef as React.RefObject<HTMLDivElement>}
-          className="h-full overflow-x-auto overflow-y-auto"
+          className="h-full overflow-x-auto overflow-y-auto flex flex-col"
           role="grid"
           aria-label={`Board: ${board.name}`}
           onMouseMove={handleMouseMove}
@@ -436,7 +436,12 @@ const BoardContent: React.FC<BoardContentProps> = ({
             </div>
           )}
 
-          {/* Board-wide total row — sticky to the bottom of the scroll area. Totals
+          {/* Growing spacer: when the board is shorter than the viewport, this fills the
+              gap so the flex column pushes the total row to the very bottom of the screen.
+              When the board overflows, it collapses and `sticky bottom-0` takes over. */}
+          <div className="flex-1 min-h-0" aria-hidden="true" />
+
+          {/* Board-wide total row — pinned to the bottom of the scroll area. Totals
               every column across ALL groups (so groups added later are included
               automatically), using each column's own summary calc. */}
           {!groupsLoading && localGroups.length > 0 && hasSummarizableColumns(columns) && (
