@@ -404,7 +404,7 @@ const PersonalHubPageInner: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex-1 relative min-h-0 flex flex-col">
+      <div className="flex-1 relative min-h-0">
       {/* Left-edge scroll fade only makes sense for the horizontally scrolling
           table/rows grids — the dashboard has no such grid to mask. */}
       {viewMode !== 'dashboard' && (
@@ -425,7 +425,7 @@ const PersonalHubPageInner: React.FC = () => {
           </p>
         </div>
       ) : viewMode === 'table' || viewMode === 'rows' ? (
-        <div className="flex-1 overflow-x-auto overflow-y-auto flex flex-col" role="region" aria-label="Assigned items by board">
+        <div className="h-full overflow-x-auto overflow-y-auto flex flex-col" role="region" aria-label="Assigned items by board">
           {/* Page-level header — this is the ONLY place cross-group personal columns are
               managed (rename/settings/reorder/delete); each group below shows their
               names too for alignment, but read-only — their own source-board columns
@@ -519,7 +519,7 @@ const PersonalHubPageInner: React.FC = () => {
           )}
         </div>
       ) : viewMode === 'gantt' ? (
-        <div className="flex-1 overflow-x-auto overflow-y-auto" role="region" aria-label="Assigned items timeline">
+        <div className="h-full overflow-x-auto overflow-y-auto" role="region" aria-label="Assigned items timeline">
           {boardIds.map((boardId) => (
             <PersonalHubGanttBoard key={boardId} boardId={boardId} items={itemsByBoard[boardId]} />
           ))}
@@ -527,7 +527,7 @@ const PersonalHubPageInner: React.FC = () => {
       ) : (
         // Full custom-dashboard experience — no board pre-filter; boards are chosen
         // per-widget inside the Add Dashboard modal, same as the main Dashboards page.
-        <div className="flex-1 min-h-0">
+        <div className="h-full min-h-0">
           <DashboardPage
             ref={dashboardRef}
             embedded
