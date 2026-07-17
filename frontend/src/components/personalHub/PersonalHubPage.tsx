@@ -131,7 +131,13 @@ const PersonalHubPageInner: React.FC = () => {
   // columns are involved. Stretch the row to the full scrollable content width so its
   // sticky-left label cell has room to stay pinned all the way across, instead of
   // scrolling away once the row's own (narrower) box has scrolled past view.
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  //
+  // Measured from the board-groups wrapper ONLY, never from the footer itself (or an
+  // ancestor that contains the footer) — feeding the footer's own (now-stretched) width
+  // back into its own size measurement is a runaway loop: each resize would measure a
+  // slightly larger width (the footer's padding), re-apply it as an even larger
+  // minWidth, resize again, and so on, growing the scrollbar to infinity.
+  const boardGroupsRef = useRef<HTMLDivElement>(null);
   const [footerRowMinWidth, setFooterRowMinWidth] = useState<number | undefined>(undefined);
 
   const registerBoardName = React.useCallback((boardId: string, name: string) => {
@@ -187,13 +193,12 @@ const PersonalHubPageInner: React.FC = () => {
   const allBoardIds = useMemo(() => [...new Set(items.map((i) => i.boardId))], [items]);
 
   useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const measure = () => setFooterRowMinWidth(container.scrollWidth);
+    const el = boardGroupsRef.current;
+    if (!el) return;
+    const measure = () => setFooterRowMinWidth(el.scrollWidth);
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(container);
-    Array.from(container.children).forEach((child) => ro.observe(child));
+    ro.observe(el);
     return () => ro.disconnect();
   }, [boardIdsKey]);
 
@@ -445,7 +450,7 @@ const PersonalHubPageInner: React.FC = () => {
           </p>
         </div>
       ) : viewMode === 'table' || viewMode === 'rows' ? (
-        <div ref={scrollContainerRef} className="h-full overflow-x-auto overflow-y-auto flex flex-col" role="region" aria-label="Assigned items by board">
+        <div className="h-full overflow-x-auto overflow-y-auto flex flex-col" role="region" aria-label="Assigned items by board">
           {/* Page-level header — this is the ONLY place cross-group personal columns are
               managed (rename/settings/reorder/delete); each group below shows their
               names too for alignment, but read-only — their own source-board columns
@@ -483,7 +488,7 @@ const PersonalHubPageInner: React.FC = () => {
             )}
           </div>
 
-          <div className="px-4 pb-4 space-y-4">
+          <div ref={boardGroupsRef} className="px-4 pb-4 space-y-4">
             {boardIds.map((boardId) => (
               <PersonalHubBoardGroup
                 key={boardId}
