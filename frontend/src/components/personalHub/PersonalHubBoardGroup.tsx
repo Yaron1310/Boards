@@ -271,7 +271,14 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   const stillResolving = !groupsSettled || !parentItemsSettled;
 
   return (
-    <div className="flex flex-col pt-8" aria-label={`Board group: ${board.name}`}>
+    <div
+      className="flex flex-col pt-8"
+      aria-label={`Board group: ${board.name}`}
+      // Match the board's uniform width so the sticky board-name below has room to stay
+      // pinned across the full scroll. Without this the group root is only viewport-wide
+      // (the table overflows it), so the name scrolls away once you pass that width.
+      style={groupMinWidth ? { minWidth: `${groupMinWidth}px` } : undefined}
+    >
       <div className="sticky left-4 w-fit flex items-center gap-2 pb-2 z-[2]">
         <h2 className="text-xl font-bold truncate max-w-[280px] text-indigo-700">{board.name}</h2>
         <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${items.length} items`}>

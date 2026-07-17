@@ -471,7 +471,15 @@ const PersonalHubPageInner: React.FC = () => {
               managed (rename/settings/reorder/delete); each group below shows their
               names too for alignment, but read-only — their own source-board columns
               are never editable here. */}
-          <div className="sticky top-0 z-[21] flex items-center bg-gray-50/95 backdrop-blur-sm border-b border-[#d2d2d4]" role="row" aria-label="Personal Hub column controls">
+          <div
+            className="sticky top-0 z-[21] flex items-center bg-gray-50/95 backdrop-blur-sm border-b border-[#d2d2d4]"
+            role="row"
+            aria-label="Personal Hub column controls"
+            // Stretch to the full scroll width so the sticky "Item" cell stays pinned all
+            // the way across, instead of scrolling off once this header's own (narrower)
+            // content has scrolled past — same reason the board rows carry a uniform width.
+            style={footerRowMinWidth ? { minWidth: `${footerRowMinWidth}px` } : undefined}
+          >
             <div className="w-[298px] flex-shrink-0 px-4 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 sticky left-0 z-[1] bg-gray-50">
               Item
             </div>
