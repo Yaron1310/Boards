@@ -613,7 +613,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       style={{ width: `${colWidth}px` }}
       onMouseDown={canInsertSummary ? insertSummary : undefined}
       data-formula-insertable={canInsertSummary ? 'true' : undefined}
-      className={`group relative flex flex-shrink-0 items-center border-r border-[#d2d2d4] last:border-r-0 py-2 px-2 ${canInsertSummary ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : ''}`}
+      className={`group relative flex flex-shrink-0 items-center bg-white border-r border-[#d2d2d4] last:border-r-0 py-2 px-2 ${canInsertSummary ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : ''}`}
     >
       {!canInsertSummary && showActive && (
         <button
@@ -746,6 +746,15 @@ interface BoardSummaryRowProps {
   trailingExtraCells?: React.ReactNode;
   /** Sticky-left label shown in the item section. */
   label?: string;
+  /**
+   * Stretches the row's own box to at least this width so the sticky label cell
+   * has room to stay pinned across the full horizontal scroll range, even when
+   * the row's own cells (e.g. Personal Hub's cross-group columns) don't span
+   * nearly as wide as the content next to it (fetched board columns). The row
+   * itself has no background, so the extra space is transparent, not a white
+   * strip — only the label and summary cells paint their own white background.
+   */
+  minWidth?: number;
 }
 
 /**
@@ -758,7 +767,7 @@ interface BoardSummaryRowProps {
  * spans everything).
  */
 export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
-  items, columns, leadingExtraCells, trailingExtraCells, label = 'Board total',
+  items, columns, leadingExtraCells, trailingExtraCells, label = 'Board total', minWidth,
 }) => {
   const { columnWidths } = useBoardRender();
 
@@ -775,7 +784,8 @@ export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
     <div
       role="row"
       aria-label={label}
-      className="flex flex-nowrap items-stretch border-t-2 border-black w-max bg-white"
+      className="flex flex-nowrap items-stretch border-t-2 border-black w-max"
+      style={minWidth ? { minWidth: `${minWidth}px` } : undefined}
     >
       <div
         className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4] flex items-center pl-7 pr-3 text-xs font-semibold uppercase tracking-wide text-gray-500"

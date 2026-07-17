@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useReducer, useRef } from 'react';
+import React, { useMemo, useState, useReducer, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiLoader, FiUser, FiUsers, FiPlus, FiPlusCircle, FiSearch, FiX, FiUpload, FiList, FiArchive } from 'react-icons/fi';
@@ -126,6 +126,14 @@ const PersonalHubPageInner: React.FC = () => {
   const dashboardRef = useRef<DashboardPageHandle>(null);
   const dashChips = dashFilters.filters.filter((f) => f.type !== 'timerange');
 
+  // The page-level "Board total" footer's own row is only as wide as its cross-group
+  // columns — much narrower than the widest board group once fetched (source-board)
+  // columns are involved. Stretch the row to the full scrollable content width so its
+  // sticky-left label cell has room to stay pinned all the way across, instead of
+  // scrolling away once the row's own (narrower) box has scrolled past view.
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [footerRowMinWidth, setFooterRowMinWidth] = useState<number | undefined>(undefined);
+
   const registerBoardName = React.useCallback((boardId: string, name: string) => {
     setBoardNames((prev) => (prev[boardId] === name ? prev : { ...prev, [boardId]: name }));
   }, []);
@@ -175,7 +183,19 @@ const PersonalHubPageInner: React.FC = () => {
   }, [displayItems]);
 
   const boardIds = Object.keys(itemsByBoard);
+  const boardIdsKey = boardIds.join(',');
   const allBoardIds = useMemo(() => [...new Set(items.map((i) => i.boardId))], [items]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const measure = () => setFooterRowMinWidth(container.scrollWidth);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(container);
+    Array.from(container.children).forEach((child) => ro.observe(child));
+    return () => ro.disconnect();
+  }, [boardIdsKey]);
 
   const pageCrossGroupGridContext = useMemo<PersonalGridContext>(() => {
     const rowOrder = boardIds.flatMap((id) => rowsByBoard[id] ?? []);
@@ -425,7 +445,7 @@ const PersonalHubPageInner: React.FC = () => {
           </p>
         </div>
       ) : viewMode === 'table' || viewMode === 'rows' ? (
-        <div className="h-full overflow-x-auto overflow-y-auto flex flex-col" role="region" aria-label="Assigned items by board">
+        <div ref={scrollContainerRef} className="h-full overflow-x-auto overflow-y-auto flex flex-col" role="region" aria-label="Assigned items by board">
           {/* Page-level header — this is the ONLY place cross-group personal columns are
               managed (rename/settings/reorder/delete); each group below shows their
               names too for alignment, but read-only — their own source-board columns
@@ -495,25 +515,30 @@ const PersonalHubPageInner: React.FC = () => {
           {crossGroupColumns.length > 0 && (
             <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pt-1">
               <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem}>
-                <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max">
-                  <BoardSummaryRow
-                    items={[]}
-                    columns={[]}
-                    leadingExtraCells={crossGroupColumns.map((col) => (
-                      <SummaryCell
-                        key={col.id}
-                        col={col as unknown as SummaryColumn}
-                        items={crossGroupTotalItems}
-                        numberCols={[]}
-                        widthOverride={PERSONAL_COL_WIDTH}
-                        getValue={(item) => pageCrossGroupGridContext.valuesByItem[item.id]?.[col.id]}
-                        evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, pageCrossGroupGridContext) : undefined}
-                        boardTotal
-                        onPersist={(c) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { boardSummaryConfig: c } }); }}
-                      />
-                    ))}
-                  />
-                </div>
+                {/* No outer "card" wrapper here (unlike the real board's footer) — this
+                    row's minWidth stretches it to the full scroll width so its sticky
+                    label stays pinned past the fetched columns, and a width:max-content
+                    wrapper would stretch right along with it, turning any bg/border/shadow
+                    on it into an oversized box spanning that same transparent stretch.
+                    Each cell (label, totals) paints its own white background instead. */}
+                <BoardSummaryRow
+                  items={[]}
+                  columns={[]}
+                  minWidth={footerRowMinWidth}
+                  leadingExtraCells={crossGroupColumns.map((col) => (
+                    <SummaryCell
+                      key={col.id}
+                      col={col as unknown as SummaryColumn}
+                      items={crossGroupTotalItems}
+                      numberCols={[]}
+                      widthOverride={PERSONAL_COL_WIDTH}
+                      getValue={(item) => pageCrossGroupGridContext.valuesByItem[item.id]?.[col.id]}
+                      evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, pageCrossGroupGridContext) : undefined}
+                      boardTotal
+                      onPersist={(c) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { boardSummaryConfig: c } }); }}
+                    />
+                  ))}
+                />
               </BoardRenderProvider>
             </div>
           )}
