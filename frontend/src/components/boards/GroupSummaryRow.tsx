@@ -683,9 +683,15 @@ interface Props {
   leadingExtraCells?: React.ReactNode;
   /** Cells (or spacers) rendered after the summarized columns (Personal Hub board-only columns). */
   trailingExtraCells?: React.ReactNode;
+  /**
+   * Personal Hub only: stretch the summary row to this width (the page's uniform board
+   * width) and fill the space past its own cells with a grey spacer, matching the item
+   * rows above so the sticky item section stays pinned across the full scroll.
+   */
+  minWidth?: number;
 }
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulativeByColumn, onSetCumulative, leadingExtraCells, trailingExtraCells }) => {
+const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulativeByColumn, onSetCumulative, leadingExtraCells, trailingExtraCells, minWidth }) => {
   const { columnWidths } = useBoardRender();
 
   const hasSummaryColumns = columns.some(
@@ -705,6 +711,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulati
       role="row"
       aria-label="Group summary row"
       className="flex flex-nowrap items-stretch border-t border-[#d2d2d4] w-max rounded-bl-xl bg-white"
+      style={minWidth ? { minWidth: `${minWidth}px` } : undefined}
     >
       <div
         className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4]"
@@ -724,6 +731,8 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulati
         />
       ))}
       {trailingExtraCells}
+      {/* Grey filler to the page's uniform board width — see ItemRow's groupMinWidth. */}
+      {minWidth ? <div className="flex-1 bg-gray-100 rounded-br-lg" aria-hidden="true" /> : null}
     </div>
   );
 };

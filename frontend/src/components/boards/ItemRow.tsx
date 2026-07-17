@@ -28,9 +28,17 @@ interface ItemRowProps {
   extraCells?: React.ReactNode;
   /** Personal Hub only: when expanding subitems, only show ones this user is assigned to. */
   subitemAssigneeFilterId?: string;
+  /**
+   * Personal Hub only: stretch the row to this width so its sticky item cell stays
+   * pinned across the full horizontal scroll range even when this board has fewer
+   * columns than the widest board on the page. The extra space past this row's own
+   * cells is filled with a grey spacer. Omitted on a normal board, where every group
+   * shares the same columns and the rows are already uniform width.
+   */
+  groupMinWidth?: number;
 }
 
-const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId }) => {
+const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, groupMinWidth }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const { boardView, columnWidths, openChat } = useBoardRender();
@@ -88,6 +96,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
+    ...(groupMinWidth ? { minWidth: `${groupMinWidth}px` } : {}),
   };
 
   const myBoardRole = boardMembers.find((m) => m.userId === user?.id)?.role;
@@ -308,6 +317,10 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
       ))}
 
       {extraCells}
+
+      {/* Grey filler so this row reaches the page's uniform board width — keeps the
+          sticky item cell pinned across the full scroll even on narrow boards. */}
+      {groupMinWidth ? <div className="flex-1 bg-gray-100" aria-hidden="true" /> : null}
 
     </div>
     {subitemsOpen && (

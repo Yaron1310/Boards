@@ -54,6 +54,13 @@ interface Props {
    * board's SubitemGroup shows by default.
    */
   subitemAssigneeFilterId?: string;
+  /**
+   * The page's uniform board width — the widest board group on the page. Every group's
+   * rows are stretched to this so their sticky item cell stays pinned across the full
+   * horizontal scroll even when this board has fewer columns; the space past this
+   * board's own cells is filled grey. Undefined until measured (first paint).
+   */
+  groupMinWidth?: number;
 }
 
 /**
@@ -138,7 +145,7 @@ const renderPersonalCells = (
  * board, and the user expands its chevron to reach the assigned subitem via
  * the real SubitemGroup panel (same one the source board uses).
  */
-const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId }) => {
+const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId, groupMinWidth }) => {
   const navigate = useNavigate();
   const { mutate: updatePersonalColumn } = useUpdatePersonalColumn();
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
@@ -286,9 +293,11 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
         aria-label={`Items assigned to you on board ${board.name}`}
       >
         <div
+          data-phub-row=""
           className="flex flex-nowrap items-stretch border-b border-[#d2d2d4] bg-gray-50 w-max rounded-t-lg"
           role="row"
           aria-label={`Column headers for ${board.name}`}
+          style={groupMinWidth ? { minWidth: `${groupMinWidth}px` } : undefined}
         >
           <div
             className="flex-shrink-0 border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1] rounded-tl-lg"
@@ -312,6 +321,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
           {boardOnlyColumns.map((col) => (
             <PersonalColumnHeaderLabel key={col.id} col={col} />
           ))}
+          {/* Grey filler to the page's uniform board width — see ItemRow's groupMinWidth. */}
+          {groupMinWidth ? <div className="flex-1 bg-gray-100 rounded-tr-lg" aria-hidden="true" /> : null}
         </div>
 
         <BoardRenderProvider visibleItems={displayItems} columns={columns} boardView={boardView} openChat={onOpenChat}>
@@ -335,6 +346,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext)}
                       extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext)}
                       subitemAssigneeFilterId={subitemAssigneeFilterId}
+                      groupMinWidth={groupMinWidth}
                     />
                   ))}
                 </SortableContext>
@@ -352,6 +364,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
             <GroupSummaryRow
               items={displayItems}
               columns={columns}
+              minWidth={groupMinWidth}
               leadingExtraCells={crossGroupColumns.length > 0
                 ? crossGroupColumns.map((col) => (
                     <SummaryCell

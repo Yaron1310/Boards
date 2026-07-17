@@ -139,6 +139,11 @@ const PersonalHubPageInner: React.FC = () => {
   // minWidth, resize again, and so on, growing the scrollbar to infinity.
   const boardGroupsRef = useRef<HTMLDivElement>(null);
   const [footerRowMinWidth, setFooterRowMinWidth] = useState<number | undefined>(undefined);
+  // The widest board group's row width. Every group stretches its rows to this so a
+  // narrow board's sticky item cell stays pinned across the full scroll (the space past
+  // its own columns is filled grey). Measured from the header rows — which carry no
+  // left/right border — so feeding this back as their own minWidth can't creep the value.
+  const [uniformBoardWidth, setUniformBoardWidth] = useState<number | undefined>(undefined);
 
   const registerBoardName = React.useCallback((boardId: string, name: string) => {
     setBoardNames((prev) => (prev[boardId] === name ? prev : { ...prev, [boardId]: name }));
@@ -195,10 +200,21 @@ const PersonalHubPageInner: React.FC = () => {
   useEffect(() => {
     const el = boardGroupsRef.current;
     if (!el) return;
-    const measure = () => setFooterRowMinWidth(el.scrollWidth);
+    const measure = () => {
+      setFooterRowMinWidth(el.scrollWidth);
+      // Widest header row = widest board group's natural width. Header rows have no
+      // left/right border, so max(offsetWidth) applied back as their minWidth is a
+      // fixed point (the widest board is never stretched past its own width).
+      let max = 0;
+      el.querySelectorAll<HTMLElement>('[data-phub-row]').forEach((row) => {
+        if (row.offsetWidth > max) max = row.offsetWidth;
+      });
+      setUniformBoardWidth((prev) => (max > 0 && prev !== max ? max : prev));
+    };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
+    Array.from(el.children).forEach((child) => ro.observe(child));
     return () => ro.disconnect();
   }, [boardIdsKey]);
 
@@ -503,6 +519,7 @@ const PersonalHubPageInner: React.FC = () => {
                 crossGroupGridContext={pageCrossGroupGridContext}
                 onRowsResolved={handleRowsResolved}
                 subitemAssigneeFilterId={targetUserId}
+                groupMinWidth={uniformBoardWidth}
               />
             ))}
           </div>
