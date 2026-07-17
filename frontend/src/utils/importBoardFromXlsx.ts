@@ -68,6 +68,30 @@ function argbToHex(argb: string | undefined): string | undefined {
   return `#${argb.slice(2).toLowerCase()}`;
 }
 
+// Header row background color used by the source app (the row directly below
+// a group name, containing "Name" + column headers).
+const HEADER_GRAY_HEX = 'D6D6D6';
+
+// Returns true if the cell has a solid fill matching the header gray used to
+// mark the header row (the row right below a group name).
+function isHeaderGrayCell(cell: ExcelJS.Cell): boolean {
+  const fill = cell.fill;
+  if (!fill || fill.type !== 'pattern' || fill.pattern === 'none') return false;
+  const argb = (fill as ExcelJS.FillPattern).fgColor?.argb;
+  if (!argb || argb.length < 8) return false;
+  return argb.slice(2).toUpperCase() === HEADER_GRAY_HEX;
+}
+
+// Scans column A starting at `fromRowIndex` (0-based, into `rows`) for the
+// first gray header cell. Returns its row index, or -1 if none found.
+function findFirstHeaderGrayRow(sheet: ExcelJS.Worksheet, fromRowIndex: number, maxRowIndex: number): number {
+  for (let r = fromRowIndex; r <= maxRowIndex; r++) {
+    // rows array is 0-indexed; sheet rows are 1-indexed.
+    if (isHeaderGrayCell(sheet.getRow(r + 1).getCell(1))) return r;
+  }
+  return -1;
+}
+
 // Returns the ARGB string if the cell has a solid colored fill that looks like
 // a status indicator (excludes white, near-white, light-gray row stripes, and
 // the light header background used by this app's export).
@@ -181,12 +205,20 @@ export async function importBoardFromXlsx(
   // Row 1: board name
   const boardName = cellToText(rows[0]?.[0]).trim() || 'Imported Board';
 
-  // Row 2: optional description; row 3 (or 2 if no description) is the spacer
+  // Detect whether a description exists by locating the first group's header
+  // row (the gray row directly below the first group name) in column A. The
+  // row directly above that gray header row is always the first group name —
+  // its position varies depending on whether a description row is present.
+  const firstHeaderRow = findFirstHeaderGrayRow(sheet, 1, rows.length - 1);
+  const firstGroupNameRow = firstHeaderRow >= 0 ? firstHeaderRow - 1 : 1;
+
   let cursor = 1;
   let description: string | undefined;
-  const possibleDesc = cellToText(rows[cursor]?.[0]).trim();
-  if (possibleDesc) { description = possibleDesc; cursor++; }
-  cursor++; // skip spacer
+  if (firstGroupNameRow > 1) {
+    const possibleDesc = cellToText(rows[cursor]?.[0]).trim();
+    if (possibleDesc) description = possibleDesc;
+    cursor = firstGroupNameRow;
+  }
 
   // ── Parse group blocks ─────────────────────────────────────────────────────
 
