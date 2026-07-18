@@ -165,6 +165,11 @@ export interface FormulaContext {
   evaluating?: Set<string>;
 }
 
+/** Sentinel `groupId` for a board-total (footer) summary ref — aggregates every item on the
+ *  board rather than one group. Kept distinct from `undefined` (which means "no group ref at
+ *  all") so a board-total ref round-trips through `serializeRef`/`parseRefToken` like any other. */
+export const BOARD_TOTAL_GROUP_ID = '*';
+
 /** Parse the inner text of a `{ref:...}` token into a CellRef, or null if malformed.
  *  boardId/columnId/itemId are generated IDs (UUIDs / Firestore auto-ids) and never contain ':'. */
 export function parseRefToken(inner: string): CellRef | null {
@@ -405,9 +410,13 @@ class FormulaParser {
     if (!ctx || !ref.agg) return undefined;
     const col = ctx.columns.find((c) => c.id === ref.columnId);
     if (!col || col.type === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
-    // Board summaries aggregate one group; Personal Hub summaries aggregate the whole table
-    // (its rows are already the one board's items — personal rows carry no board groupId).
-    const rows = ref.kind === 'p' ? ctx.allItems : ctx.allItems.filter((it) => it.groupId === ref.groupId);
+    // Board summaries aggregate one group; a board-total ref (BOARD_TOTAL_GROUP_ID) aggregates
+    // every item on the board; Personal Hub summaries aggregate the whole table (its rows are
+    // already the one board's items — personal rows carry no board groupId).
+    const rows =
+      ref.kind === 'p' || ref.groupId === BOARD_TOTAL_GROUP_ID
+        ? ctx.allItems
+        : ctx.allItems.filter((it) => it.groupId === ref.groupId);
     return computeSummaryNumeric(rows, col.type, col.id, ref.agg) ?? 0;
   }
 

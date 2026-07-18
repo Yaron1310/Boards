@@ -6,7 +6,7 @@ import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
-import { computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
+import { BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
 
@@ -248,7 +248,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
           const colType = boardColumnsMap.get(r.boardId)?.find((c) => c.id === r.columnId)?.type;
           if (!items || !colType) return undefined; // board items/columns not loaded yet
           if (colType === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
-          const rows = items.filter((i) => i.groupId === r.groupId);
+          const rows = r.groupId === BOARD_TOTAL_GROUP_ID ? items : items.filter((i) => i.groupId === r.groupId);
           return computeSummaryNumeric(rows, colType, r.columnId, r.agg);
         }
 

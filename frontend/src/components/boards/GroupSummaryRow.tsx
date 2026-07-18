@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { evaluateFormula, extractForeignRefs, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
+import { BOARD_TOTAL_GROUP_ID, evaluateFormula, extractForeignRefs, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
@@ -598,7 +598,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       columnId: col.id,
       itemId: null,
       agg: config.calc as SummaryCalc,
-      groupId: items[0]?.groupId,
+      groupId: boardTotal ? BOARD_TOTAL_GROUP_ID : items[0]?.groupId,
     });
   };
 
