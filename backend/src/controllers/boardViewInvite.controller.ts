@@ -191,6 +191,16 @@ export const getPublicBoardView = async (req: Request, res: Response) => {
 
     const groups = querySnapshotToArray<DBGroup>(groupsSnap).filter((g) => !g.isArchived && !g.parentItemId);
     const columns = querySnapshotToArray<DBColumn>(columnsSnap).filter((c) => !c.parentGroupId);
+    // Firestore doesn't guarantee insertion order without an explicit orderBy, and columns
+    // aren't queried with one here — sort the same way the authenticated getColumns does.
+    (columns as (DBColumn & { order?: number; createdAt?: Date })[]).sort((a, b) => {
+      const aOrder = typeof a.order === 'number' ? a.order : Infinity;
+      const bOrder = typeof b.order === 'number' ? b.order : Infinity;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      const aTime = a.createdAt instanceof Date ? a.createdAt.getTime() : 0;
+      const bTime = b.createdAt instanceof Date ? b.createdAt.getTime() : 0;
+      return aTime - bTime;
+    });
     const items = querySnapshotToArray<DBItem>(itemsSnap);
 
     res.json({

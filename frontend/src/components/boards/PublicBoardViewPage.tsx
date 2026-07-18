@@ -38,23 +38,36 @@ function installFetchInterceptor(payload: PublicBoardPayload): () => void {
     const apiIdx = url.indexOf('/api/');
     if (apiIdx === -1) return original(input, init);
 
-    const [path] = url.slice(apiIdx).split('?');
+    const [path, qs = ''] = url.slice(apiIdx).split('?');
     const segments = path.split('/').filter(Boolean); // ['api', resource, ...]
     const resource = segments[1];
+    const search = new URLSearchParams(qs);
 
     if (method !== 'GET') return jsonResp({ message: 'This is a read-only view.' }, 403);
 
     if (resource === 'boards' && segments[2] === board.id) {
       const subRes = segments[3];
       if (!subRes) return jsonResp({ ...board, userBoardRole: 'viewer' });
-      if (subRes === 'groups') return jsonResp(groups);
+      if (subRes === 'groups') {
+        const parentItemId = search.get('parentItemId');
+        // Mirrors the real GET /boards/:boardId/groups: top-level groups by default,
+        // or a specific item's subitem-groups when parentItemId is given.
+        const scoped = parentItemId
+          ? groups.filter((g) => g.parentItemId === parentItemId)
+          : groups.filter((g) => !g.parentItemId);
+        return jsonResp(scoped);
+      }
       if (subRes === 'columns') return jsonResp(columns);
       if (subRes === 'version') return jsonResp({ version: 0 });
       if (subRes === 'members' || subRes === 'participants') return jsonResp([]);
       return jsonResp({});
     }
 
-    if (resource === 'items') return paginated(items);
+    if (resource === 'items') {
+      const groupId = search.get('groupId');
+      const scoped = groupId ? items.filter((i) => i.groupId === groupId) : items;
+      return paginated(scoped);
+    }
 
     // Anything else (users, custom dashboards, notifications, chat, personal hub…)
     // gets a benign empty response so the read-only view never hard-crashes.
