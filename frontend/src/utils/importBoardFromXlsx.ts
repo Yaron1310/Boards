@@ -337,6 +337,10 @@ export async function importBoardFromXlsx(
       argbToOptionId.set(argb, id);
     }
 
+    // A column flagged by white text but with no surviving colored options
+    // (e.g. only blank/placeholder-colored cells) isn't a real STATUS column.
+    if (!options.length) return null;
+
     return { options, argbToOptionId };
   });
 
