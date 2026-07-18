@@ -5,6 +5,7 @@ import {
   FiArchive, FiTrash2, FiChevronRight, FiSettings,
 } from 'react-icons/fi';
 import type { WorkHub } from '../../types';
+import { useFlippedPosition } from '../../hooks/useFlippedPosition';
 
 interface BoardContextMenuProps {
   boardId: string;
@@ -42,12 +43,13 @@ const BoardContextMenu: React.FC<BoardContextMenuProps> = ({
   onArchive,
   onDelete,
 }) => {
-  const menuRef = useRef<HTMLDivElement>(null);
   const [showMoveSubmenu, setShowMoveSubmenu] = useState(false);
   const moveTargets = workspaces.filter((w) => !w.isPersonal && w.id !== currentWorkspaceId);
 
-  const top = Math.min(triggerRect.bottom + 4, window.innerHeight - 280);
-  const left = Math.max(8, Math.min(triggerRect.right - 192, window.innerWidth - 200));
+  const MENU_W = 192; // w-48
+  // Menu is right-aligned to the trigger, so anchor its "left" at the trigger's right edge minus the menu width.
+  const anchorRect = DOMRect.fromRect({ x: triggerRect.right - MENU_W, y: triggerRect.top, width: MENU_W, height: triggerRect.height });
+  const { ref: menuRef, style: { top, left } } = useFlippedPosition<HTMLDivElement>(anchorRect, MENU_W);
 
   useEffect(() => {
     const onMouse = (e: MouseEvent) => {

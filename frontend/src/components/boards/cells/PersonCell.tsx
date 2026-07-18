@@ -10,6 +10,7 @@ import { UserRole } from '../../../types';
 import type { Item, Column, PersonColumnSettings, User } from '../../../types';
 import CellWrapper from './CellWrapper';
 import { FiUser } from 'react-icons/fi';
+import { useFlippedPosition } from '../../../hooks/useFlippedPosition';
 
 interface Props { item: Item; column: Column }
 
@@ -140,6 +141,78 @@ const ProfileTooltip: React.FC<{
   );
 };
 
+interface PersonPickerMenuProps {
+  anchorEl: HTMLElement | null;
+  column: Column;
+  search: string;
+  setSearch: (v: string) => void;
+  filtered: User[];
+  selected: string[];
+  multiple: boolean;
+  toggle: (userId: string) => void;
+  onClose: () => void;
+}
+
+const PICKER_W = 224; // w-56
+
+const PersonPickerMenu: React.FC<PersonPickerMenuProps> = ({
+  anchorEl, column, search, setSearch, filtered, selected, multiple, toggle, onClose,
+}) => {
+  const anchorRect = anchorEl?.getBoundingClientRect() ?? null;
+  const { ref: menuRef, style: menuPos } = useFlippedPosition<HTMLDivElement>(anchorRect, PICKER_W);
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-[9998]" onClick={onClose} aria-hidden="true" />
+      <div
+        ref={menuRef}
+        style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, zIndex: 9999 }}
+        className="bg-white border border-gray-200 rounded shadow-lg w-56"
+        role="listbox"
+        aria-label={`Select ${column.name}`}
+        aria-multiselectable={multiple}
+      >
+        <div className="p-2 border-b border-gray-100">
+          <input
+            type="search"
+            value={search}
+            autoFocus
+            placeholder="Search people..."
+            className="w-full px-2 py-1 text-sm border border-gray-200 rounded outline-none focus:border-indigo-400"
+            onChange={(e) => setSearch(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Search people"
+          />
+        </div>
+        <ul className="max-h-48 overflow-y-auto py-1">
+          {filtered.map((u) => {
+            const isChecked = selected.includes(u.id);
+            return (
+              <li key={u.id}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={isChecked}
+                  className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-gray-50 ${isChecked ? 'bg-indigo-50' : ''}`}
+                  onClick={(e) => { e.stopPropagation(); toggle(u.id); }}
+                >
+                  <Avatar user={u} size="h-6 w-6" textSize="text-xs" />
+                  <span className="truncate flex-1">{u.name}</span>
+                  {isChecked && <span className="text-indigo-600 text-xs">✓</span>}
+                </button>
+              </li>
+            );
+          })}
+          {filtered.length === 0 && (
+            <li className="px-3 py-2 text-xs text-gray-400">No users found</li>
+          )}
+        </ul>
+      </div>
+    </>,
+    document.body,
+  );
+};
+
 const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   const selected = (item.values[column.id] ?? []) as string[];
   const settings = column.settings as PersonColumnSettings;
@@ -241,59 +314,18 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
               )}
             </div>
 
-            {isEditing && createPortal(
-              <>
-                <div className="fixed inset-0 z-[9998]" onClick={stopEdit} aria-hidden="true" />
-                <div
-                  style={{
-                    position: 'fixed',
-                    top: (anchorRef.current?.getBoundingClientRect().bottom ?? 0) + 2,
-                    left: anchorRef.current?.getBoundingClientRect().left ?? 0,
-                    zIndex: 9999,
-                  }}
-                  className="bg-white border border-gray-200 rounded shadow-lg w-56"
-                  role="listbox"
-                  aria-label={`Select ${column.name}`}
-                  aria-multiselectable={multiple}
-                >
-                  <div className="p-2 border-b border-gray-100">
-                    <input
-                      type="search"
-                      value={search}
-                      autoFocus
-                      placeholder="Search people..."
-                      className="w-full px-2 py-1 text-sm border border-gray-200 rounded outline-none focus:border-indigo-400"
-                      onChange={(e) => setSearch(e.target.value)}
-                      onClick={(e) => e.stopPropagation()}
-                      aria-label="Search people"
-                    />
-                  </div>
-                  <ul className="max-h-48 overflow-y-auto py-1">
-                    {filtered.map((u) => {
-                      const isChecked = selected.includes(u.id);
-                      return (
-                        <li key={u.id}>
-                          <button
-                            type="button"
-                            role="option"
-                            aria-selected={isChecked}
-                            className={`flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-gray-50 ${isChecked ? 'bg-indigo-50' : ''}`}
-                            onClick={(e) => { e.stopPropagation(); toggle(u.id, stopEdit); }}
-                          >
-                            <Avatar user={u} size="h-6 w-6" textSize="text-xs" />
-                            <span className="truncate flex-1">{u.name}</span>
-                            {isChecked && <span className="text-indigo-600 text-xs">✓</span>}
-                          </button>
-                        </li>
-                      );
-                    })}
-                    {filtered.length === 0 && (
-                      <li className="px-3 py-2 text-xs text-gray-400">No users found</li>
-                    )}
-                  </ul>
-                </div>
-              </>,
-              document.body
+            {isEditing && (
+              <PersonPickerMenu
+                anchorEl={anchorRef.current}
+                column={column}
+                search={search}
+                setSearch={setSearch}
+                filtered={filtered}
+                selected={selected}
+                multiple={multiple}
+                toggle={(userId) => toggle(userId, stopEdit)}
+                onClose={stopEdit}
+              />
             )}
           </>
         )}

@@ -17,6 +17,7 @@ import { COLUMN_TYPE_ICONS } from './ColumnHeader';
 import { ColumnCell } from './cells';
 import { getUnreadCount } from './ItemChatModal';
 import { calculateColumnWidth } from '../../utils/columnWidths';
+import FlippedMenu from '../common/FlippedMenu';
 
 const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN];
 
@@ -71,15 +72,6 @@ const SubitemColumnHeader: React.FC<{
 
   useEffect(() => { setNewName(col.name); }, [col.name]);
   useEffect(() => { if (isRenaming) renameInputRef.current?.select(); }, [isRenaming]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handle = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [menuOpen]);
 
   const handleRename = async () => {
     const trimmed = newName.trim();
@@ -163,9 +155,12 @@ const SubitemColumnHeader: React.FC<{
         </button>
 
         {menuOpen && (
-          <div
+          <FlippedMenu
+            anchorEl={menuRef.current}
+            width={160}
+            onClose={() => setMenuOpen(false)}
             role="menu"
-            className="absolute right-0 top-full mt-1 w-40 bg-white border border-gray-200 rounded-lg shadow-lg z-[9995] py-1"
+            className="w-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
             aria-label="Column actions"
           >
             {isRenaming ? (
@@ -226,7 +221,7 @@ const SubitemColumnHeader: React.FC<{
                 </button>
               </>
             )}
-          </div>
+          </FlippedMenu>
         )}
       </div>
 
