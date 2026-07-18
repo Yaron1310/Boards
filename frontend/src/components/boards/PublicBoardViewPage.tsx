@@ -5,6 +5,7 @@ import { FiEye, FiAlertTriangle, FiLoader } from 'react-icons/fi';
 import { AuthSessionContext } from '../../contexts/AuthContext';
 import type { AuthSessionContextType } from '../../contexts/AuthContext';
 import BoardViewPage from './BoardViewPage';
+import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 import { BACKEND_API_URL } from '../../constants';
 import type { Board, Group, Item, Column } from '../../types';
 
@@ -99,6 +100,10 @@ function buildMockAuth(board: Board): AuthSessionContextType {
 }
 
 const PublicBoardViewPage: React.FC = () => {
+  // A public link can be opened from any browser, including one that has an admin's
+  // Hebrew/RTL preference cached — always render this page LTR/English regardless.
+  useForceDocumentLang();
+
   const { token } = useParams<{ token: string }>();
   const [state, setState] = useState<
     | { status: 'loading' }
@@ -165,7 +170,7 @@ const PublicBoardViewPage: React.FC = () => {
         <div className="flex flex-col h-screen overflow-hidden" aria-label="Read-only board view">
           <div className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs flex-shrink-0" role="note">
             <FiEye size={13} aria-hidden="true" />
-            <span>Read-only view — no login required. This link expires on {new Date(expiresAt).toLocaleDateString()}.</span>
+            <span>Read-only view - expires on {new Date(expiresAt).toLocaleDateString()}.</span>
           </div>
           <div className="flex-1 overflow-hidden">
             <Routes>
