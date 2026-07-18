@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { evaluateFormula, extractForeignRefs, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
@@ -123,10 +123,24 @@ const SummaryPopover: React.FC<PopoverProps> = ({
     config.unit && !PRESET_UNITS.includes(config.unit) ? config.unit : '',
   );
 
-  // Compute position: try to open below, clamp to viewport
+  // Compute position: prefer opening below, clamp horizontally to viewport.
   const POPOVER_W = 340;
   const left = Math.min(anchorRect.left, window.innerWidth - POPOVER_W - 8);
-  const top = anchorRect.bottom + 6;
+  const [top, setTop] = useState(anchorRect.bottom + 6);
+
+  // Once the popover has a real height, flip it above the trigger if it would
+  // otherwise overflow the bottom of the viewport (and there's more room above).
+  useLayoutEffect(() => {
+    const height = popoverRef.current?.getBoundingClientRect().height ?? 0;
+    if (!height) return;
+    const fitsBelow = anchorRect.bottom + 6 + height <= window.innerHeight - 8;
+    if (!fitsBelow && anchorRect.top - 6 - height >= 8) {
+      setTop(anchorRect.top - 6 - height);
+    } else {
+      setTop(anchorRect.bottom + 6);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

@@ -341,7 +341,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="p-4 space-y-4" role="region" aria-label="Board groups">
+            <div className="p-4" role="region" aria-label="Board groups">
               {canManage && !board.isArchived && !groupsLoading && localGroups.length > 0 && (
                 showAddGroupTop && boardId ? (
                   <AddGroupForm
