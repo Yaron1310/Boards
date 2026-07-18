@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode, CustomDashboard, CustomDashboardDataPoint } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, ColumnVisibility, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode, CustomDashboard, CustomDashboardDataPoint } from '../types';
 import { fetchWithAuth } from './authFetch';
 
 // ─── BOARDS ──────────────────────────────────────────────────────────────────
@@ -210,6 +210,8 @@ export interface CreateColumnData {
   type: ColumnType;
   settings?: ColumnSettings;
   parentGroupId?: string;
+  width?: number;
+  visibility?: ColumnVisibility;
 }
 
 export interface UpdateColumnData {
@@ -218,6 +220,7 @@ export interface UpdateColumnData {
   summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' } | null;
   boardSummaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right' } | null;
   width?: number;
+  visibility?: ColumnVisibility;
 }
 
 export interface ReorderColumnItem {

@@ -243,12 +243,22 @@ export type ColumnSettings =
 
 // --- Column definition ---
 
+/**
+ * Who can see a column (header + cells) in the board grid, ordered most → least restrictive.
+ * Purely a client-side render gate — it never affects formula evaluation, which always resolves
+ * refs against every column regardless of the viewer's tier. Missing/undefined means
+ * 'view_users' (visible to everyone, including public view-link viewers) for backward
+ * compatibility with columns created before this field existed.
+ */
+export type ColumnVisibility = 'org_admins' | 'edit_members' | 'org_users' | 'view_users';
+
 export interface Column {
   id: string;
   boardId: string;
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
+  visibility?: ColumnVisibility;
   summaryConfig?: {
     calc: string;
     unit: string;

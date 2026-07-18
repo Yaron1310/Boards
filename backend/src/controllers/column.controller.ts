@@ -3,7 +3,7 @@ import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { columnsCollection, boardsCollection } from '../db/collections.js';
-import { JwtUserPayload, DBColumn, ColumnType, StatusColumnSettings, DropdownColumnSettings, SimpleFormulaColumnSettings } from '../types/index.js';
+import { JwtUserPayload, DBColumn, ColumnType, ColumnVisibility, StatusColumnSettings, DropdownColumnSettings, SimpleFormulaColumnSettings } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, getClientIp } from '../services/audit.service.js';
 import { assertColumnAccess, canAccessColumn } from '../utils/workManagementAuth.js';
@@ -22,6 +22,7 @@ function asDBColumn(data: unknown): DBColumn {
 }
 
 const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
+const VALID_COLUMN_VISIBILITIES = new Set<string>(['org_admins', 'edit_members', 'org_users', 'view_users']);
 
 function validateColumnSettings(type: ColumnType, settings: unknown): string | null {
   switch (type) {
@@ -139,7 +140,7 @@ export const getColumnById = async (req: Request, res: Response) => {
 export const createColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
-  const { name, type, settings, parentGroupId } = req.body;
+  const { name, type, settings, parentGroupId, visibility } = req.body;
 
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ message: 'Column name is required.' });
@@ -147,6 +148,11 @@ export const createColumn = async (req: Request, res: Response) => {
   if (!type || !VALID_COLUMN_TYPES.has(type)) {
     return res.status(400).json({
       message: `Invalid column type. Valid types: ${[...VALID_COLUMN_TYPES].join(', ')}.`,
+    });
+  }
+  if (visibility !== undefined && !VALID_COLUMN_VISIBILITIES.has(visibility)) {
+    return res.status(400).json({
+      message: `Invalid column visibility. Valid values: ${[...VALID_COLUMN_VISIBILITIES].join(', ')}.`,
     });
   }
 
@@ -165,6 +171,7 @@ export const createColumn = async (req: Request, res: Response) => {
       type: type as ColumnType,
       settings: settings ?? {},
       ...(parentGroupId ? { parentGroupId } : {}),
+      ...(visibility ? { visibility: visibility as ColumnVisibility } : {}),
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -203,6 +210,7 @@ export const createColumn = async (req: Request, res: Response) => {
       type: type as ColumnType,
       settings: settings ?? {},
       ...(parentGroupId ? { parentGroupId } : {}),
+      ...(visibility ? { visibility: visibility as ColumnVisibility } : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
     });
@@ -278,7 +286,7 @@ export const reorderColumns = async (req: Request, res: Response) => {
 export const updateColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId, id } = req.params;
-  const { name, settings, summaryConfig, boardSummaryConfig, width } = req.body;
+  const { name, settings, summaryConfig, boardSummaryConfig, width, visibility } = req.body;
 
   try {
     const doc = await columnsCollection(user.orgId, boardId).doc(id).get();
@@ -291,6 +299,11 @@ export const updateColumn = async (req: Request, res: Response) => {
     if (settings !== undefined) {
       const settingsError = validateColumnSettings(column.type, settings);
       if (settingsError) return res.status(400).json({ message: settingsError });
+    }
+    if (visibility !== undefined && !VALID_COLUMN_VISIBILITIES.has(visibility)) {
+      return res.status(400).json({
+        message: `Invalid column visibility. Valid values: ${[...VALID_COLUMN_VISIBILITIES].join(', ')}.`,
+      });
     }
 
     const updateData: Record<string, unknown> = {
@@ -310,6 +323,7 @@ export const updateColumn = async (req: Request, res: Response) => {
     if (width !== undefined && typeof width === 'number' && width >= 50 && width <= 1000) {
       updateData.width = Math.round(width);
     }
+    if (visibility !== undefined) updateData.visibility = visibility as ColumnVisibility;
 
     await columnsCollection(user.orgId, boardId).doc(id).update(updateData);
     const updated = snapshotToData<DBColumn>(await columnsCollection(user.orgId, boardId).doc(id).get());

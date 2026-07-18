@@ -289,12 +289,21 @@ export type ColumnSettings =
   | SimpleFormulaColumnSettings
   | Record<string, never>; // for types with no settings (checkbox, email, phone, location, time, time_range)
 
+/**
+ * Who can see a column client-side, most → least restrictive. Purely a render gate the frontend
+ * enforces — never affects formula evaluation (which always resolves refs against every column
+ * regardless of viewer). Missing/undefined means 'view_users' (visible to everyone) for backward
+ * compatibility with columns created before this field existed.
+ */
+export type ColumnVisibility = 'org_admins' | 'edit_members' | 'org_users' | 'view_users';
+
 export interface DBColumn {
   id: string;
   boardId: string;
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
+  visibility?: ColumnVisibility;
   summaryConfig?: {
     calc: string;
     unit: string;

@@ -12,6 +12,7 @@ import { useFlippedPosition } from '../../hooks/useFlippedPosition';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { ITEM_COL_ID } from './ColumnHeader';
+import { useColumnVisibilityTier, canSeeColumn } from '../../hooks/useColumnVisibility';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -691,8 +692,14 @@ interface Props {
 
 const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulativeByColumn, onSetCumulative, leadingExtraCells, trailingExtraCells, minWidth }) => {
   const { columnWidths } = useBoardRender();
+  const boardId = columns[0]?.boardId ?? items[0]?.boardId;
+  const viewerTier = useColumnVisibilityTier(boardId);
+  // Rendered footer cells respect column visibility, but `numberCols` below (fed into every
+  // SummaryCell as its formula-evaluation context) stays the FULL column list — a formula must
+  // still be able to aggregate a hidden NUMBER column.
+  const visibleColumns = columns.filter((c) => canSeeColumn(c, viewerTier));
 
-  const hasSummaryColumns = columns.some(
+  const hasSummaryColumns = visibleColumns.some(
     (c) => AGGREGATABLE_TYPES.has(c.type) || COUNT_ONLY_TYPES.has(c.type),
   );
   // Still render (for alignment) when the caller supplies its own leading/trailing
@@ -717,7 +724,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulati
         aria-hidden="true"
       />
       {leadingExtraCells}
-      {columns.map((col) => (
+      {visibleColumns.map((col) => (
         <SummaryCell
           key={col.id}
           col={col}
@@ -777,8 +784,11 @@ export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
   items, columns, leadingExtraCells, trailingExtraCells, label = 'Board total', minWidth,
 }) => {
   const { columnWidths } = useBoardRender();
+  const boardId = columns[0]?.boardId ?? items[0]?.boardId;
+  const viewerTier = useColumnVisibilityTier(boardId);
+  const visibleColumns = columns.filter((c) => canSeeColumn(c, viewerTier));
 
-  const hasSummaryColumns = columns.some(
+  const hasSummaryColumns = visibleColumns.some(
     (c) => AGGREGATABLE_TYPES.has(c.type) || COUNT_ONLY_TYPES.has(c.type),
   );
   if (!hasSummaryColumns && !leadingExtraCells && !trailingExtraCells) return null;
@@ -801,7 +811,7 @@ export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
         {label}
       </div>
       {leadingExtraCells}
-      {columns.map((col) => (
+      {visibleColumns.map((col) => (
         <SummaryCell
           key={col.id}
           col={col}

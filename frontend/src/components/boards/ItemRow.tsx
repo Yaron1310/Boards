@@ -17,6 +17,7 @@ import { DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 import { ITEM_COL_ID } from './ColumnHeader';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { getUnreadCount } from './ItemChatModal';
+import { useColumnVisibilityTier, canSeeColumn } from '../../hooks/useColumnVisibility';
 
 interface ItemRowProps {
   item: Item;
@@ -41,6 +42,8 @@ interface ItemRowProps {
 const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, groupMinWidth }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
+  const viewerTier = useColumnVisibilityTier(item.boardId);
+  const visibleColumns = columns.filter((col) => canSeeColumn(col, viewerTier));
   const { boardView, columnWidths, openChat } = useBoardRender();
   const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
@@ -312,7 +315,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
       {leadingExtraCells}
 
       {/* Dynamic column cells */}
-      {columns.map((col) => (
+      {visibleColumns.map((col) => (
         <ColumnCell key={col.id} item={item} column={col} groupColor={groupColor} />
       ))}
 

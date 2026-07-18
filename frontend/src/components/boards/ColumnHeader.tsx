@@ -26,6 +26,7 @@ import {
   FiZap, FiLink, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings, FiEdit2, FiRefreshCw,
 } from 'react-icons/fi';
 import { calculateColumnWidth, COLUMN_TYPE_MIN_WIDTHS } from '../../utils/columnWidths';
+import { useColumnVisibilityTier, canSeeColumn } from '../../hooks/useColumnVisibility';
 import AddColumnModal from './AddColumnModal';
 import EditColumnConfigModal from './EditColumnConfigModal';
 import type { BoardView } from '../../contexts/BoardRenderContext';
@@ -148,9 +149,9 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
   const [showSwapWarning, setShowSwapWarning] = useState(false);
 
-  const isConfigurable = [
-    ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.SIMPLE_FORMULA,
-  ].includes(column.type);
+  // Every board column type is configurable now — at minimum it always has the Visibility
+  // control, plus type-specific settings (unit, options, etc.) where applicable.
+  const isConfigurable = true;
   // Number columns with a configured unit show it next to the name, e.g. "Income %".
   const numberUnit = column.type === ColumnType.NUMBER
     ? (column.settings as NumberColumnSettings)?.unit
@@ -553,6 +554,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
   boardId, canManage, onSortChange, onAddColumn, boardView, columnWidths, onWidthChange,
 }) => {
   const { data: columns = [], isLoading } = useColumns(boardId);
+  const viewerTier = useColumnVisibilityTier(boardId);
   const { mutateAsync: reorderColumns } = useReorderColumns(boardId);
   const [sort, setSort] = useState<SortState | null>(null);
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
@@ -658,7 +660,10 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
     document.addEventListener('mouseup', onMouseUp);
   }, [columnWidths, onWidthChange]);
 
-  const columnIds = localColumns.map((c) => c.id);
+  // Hidden columns stay in localColumns (needed for correct drag-reorder index math and the
+  // reorder mutation payload) but are excluded from what's actually rendered/draggable.
+  const visibleColumns = localColumns.filter((col) => canSeeColumn(col, viewerTier));
+  const columnIds = visibleColumns.map((c) => c.id);
 
   const itemColWidth = itemResizingWidth ?? (columnWidths[ITEM_COL_ID] ?? DEFAULT_ITEM_COL_WIDTH);
   const isItemSortActive = sort?.columnId === ITEM_COL_ID;
@@ -722,7 +727,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
 
         {/* Dynamic sortable columns */}
         <SortableContext items={columnIds} strategy={horizontalListSortingStrategy}>
-          {localColumns.map((col) => {
+          {visibleColumns.map((col) => {
             const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
             return (
               <ColumnHeaderCell

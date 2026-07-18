@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { FiX, FiSettings, FiPlus, FiTrash2, FiMenu } from 'react-icons/fi';
+import { FiX, FiSettings, FiPlus, FiTrash2, FiMenu, FiShield } from 'react-icons/fi';
 import ColorPickerPopover, { PRESET_COLORS } from './ColorPickerPopover';
 import {
   DndContext,
@@ -30,7 +30,9 @@ import type {
   StatusColumnSettings,
   DropdownColumnSettings,
   SimpleFormulaColumnSettings,
+  ColumnVisibility,
 } from '../../types';
+import { COLUMN_VISIBILITY_OPTIONS, DEFAULT_COLUMN_VISIBILITY } from '../../utils/columnVisibilityOptions';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface EditColumnConfigModalProps {
@@ -130,6 +132,13 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
   const { mutateAsync: updatePersonalColumn, isPending: isPendingPersonal } = useUpdatePersonalColumn();
   const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
   const [error, setError] = useState('');
+
+  // VISIBILITY (top-level board columns only — personal/subitem columns don't carry it)
+  const isSubitemColumn = !isPersonal && !!(column as Column).parentGroupId;
+  const showVisibility = !isPersonal && !isSubitemColumn;
+  const [visibility, setVisibility] = useState<ColumnVisibility>(
+    (column as Column).visibility ?? DEFAULT_COLUMN_VISIBILITY,
+  );
 
   // TEXT
   const textSettings = column.settings as TextColumnSettings;
@@ -248,7 +257,10 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
       if (isPersonal) {
         await updatePersonalColumn({ id: column.id, patch: { settings: buildSettings() } });
       } else {
-        await updateBoardColumn({ id: column.id, patch: { settings: buildSettings() } });
+        await updateBoardColumn({
+          id: column.id,
+          patch: { settings: buildSettings(), ...(showVisibility ? { visibility } : {}) },
+        });
       }
       onClose();
     } catch (err) {
@@ -285,7 +297,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
               <h2 id="edit-col-config-title" className="text-base font-semibold text-gray-800">
                 Settings
               </h2>
-              <p className="text-xs text-gray-400">{column.name} · {TITLES[column.type]}</p>
+              <p className="text-xs text-gray-400">{column.name} · {TITLES[column.type] ?? 'Column Settings'}</p>
             </div>
           </div>
           <button
@@ -301,6 +313,30 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
 
         <form onSubmit={(e) => void handleSubmit(e)} noValidate className="flex flex-col min-h-0 flex-1">
           <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
+
+            {/* VISIBILITY */}
+            {showVisibility && (
+              <div className="space-y-2">
+                <label htmlFor="edit-col-visibility" className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <FiShield size={12} className="text-gray-400" aria-hidden="true" />
+                  Visibility
+                </label>
+                <select
+                  id="edit-col-visibility"
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value as ColumnVisibility)}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {COLUMN_VISIBILITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500">
+                  {COLUMN_VISIBILITY_OPTIONS.find((o) => o.value === visibility)?.desc}
+                  {' — hidden from viewers without access, but formulas can still reference this column.'}
+                </p>
+              </div>
+            )}
 
             {/* TEXT */}
             {column.type === ColumnType.TEXT && (

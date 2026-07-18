@@ -4,7 +4,7 @@ import {
   FiX, FiColumns, FiPlus, FiTrash2,
   FiType, FiHash, FiCalendar, FiClock,
   FiFlag, FiUser, FiChevronDown, FiCheckSquare, FiTag,
-  FiMail, FiPhone, FiMapPin, FiZap, FiLink,
+  FiMail, FiPhone, FiMapPin, FiZap, FiLink, FiShield,
 } from 'react-icons/fi';
 import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
 import { useCreatePersonalColumn, usePersonalColumns, useReorderPersonalColumns, useDeletePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
@@ -12,7 +12,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
-import type { StatusOption, DropdownOption, PersonalColumnScope, PersonalColumn } from '../../types';
+import type { StatusOption, DropdownOption, PersonalColumnScope, PersonalColumn, ColumnVisibility } from '../../types';
+import { COLUMN_VISIBILITY_OPTIONS, DEFAULT_COLUMN_VISIBILITY } from '../../utils/columnVisibilityOptions';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
 interface AddColumnModalProps {
@@ -260,6 +261,9 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   // TAGS
   const [allowCustom, setAllowCustom] = useState(true);
 
+  // VISIBILITY (board columns only)
+  const [visibility, setVisibility] = useState<ColumnVisibility>(DEFAULT_COLUMN_VISIBILITY);
+
   const addStatusOption = () => {
     const id = `opt_${Date.now()}`;
     const color = STATUS_PALETTE[statusOptions.length % STATUS_PALETTE.length];
@@ -397,7 +401,14 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       ? queryKeys.columns.subitem(boardId, parentGroupId)
       : queryKeys.columns.board(boardId);
     try {
-      await createColumn({ name: trimmedName, type, settings: buildSettings(), width: calculateColumnWidth(trimmedName, type), ...(parentGroupId ? { parentGroupId } : {}) });
+      await createColumn({
+        name: trimmedName,
+        type,
+        settings: buildSettings(),
+        width: calculateColumnWidth(trimmedName, type),
+        visibility,
+        ...(parentGroupId ? { parentGroupId } : {}),
+      });
 
       await qc.refetchQueries({ queryKey: scopedQueryKey });
       const rawColumns = qc.getQueryData(scopedQueryKey) as any[] ?? [];
@@ -791,6 +802,31 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                   />
                   Allow custom tags
                 </label>
+              </div>
+            )}
+
+            {/* VISIBILITY (board columns only — personal columns and subitem columns are always
+                private/scoped to their owner, so the setting wouldn't mean anything there) */}
+            {!isPersonal && !parentGroupId && (
+              <div className="pt-1 border-t border-gray-100">
+                <label htmlFor="col-visibility" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-2">
+                  <FiShield size={14} className="text-gray-400" aria-hidden="true" />
+                  Visibility
+                </label>
+                <select
+                  id="col-visibility"
+                  value={visibility}
+                  onChange={(e) => setVisibility(e.target.value as ColumnVisibility)}
+                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  {COLUMN_VISIBILITY_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {COLUMN_VISIBILITY_OPTIONS.find((o) => o.value === visibility)?.desc}
+                  {' — hidden from viewers without access, but formulas can still reference this column.'}
+                </p>
               </div>
             )}
 
