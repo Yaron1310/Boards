@@ -22,6 +22,7 @@ import ColorPickerPopover from './ColorPickerPopover';
 import { COLUMN_TYPE_ICONS, ITEM_COL_ID } from './ColumnHeader';
 import { calculateColumnWidth, DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
+import FlippedMenu from '../common/FlippedMenu';
 
 interface GroupSectionProps {
   group: Group;
@@ -212,16 +213,6 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     if (addingItem) addItemInputRef.current?.focus();
   }, [addingItem]);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [menuOpen]);
 
   useEffect(() => {
     if (!colorPickerOpen) return;
@@ -485,10 +476,12 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             </button>
 
             {menuOpen && (
-              <div
+              <FlippedMenu
+                anchorEl={menuRef.current}
+                width={144}
+                onClose={() => setMenuOpen(false)}
                 role="menu"
-                className="absolute left-0 top-full mt-1 w-36 border border-gray-200 rounded-lg shadow-lg z-[50] py-1 select-text"
-                style={{ backgroundColor: 'white' }}
+                className="w-36 bg-white border border-gray-200 rounded-lg shadow-lg py-1 select-text"
                 aria-label="Group actions"
               >
                 <button
@@ -614,7 +607,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                   <FiLink size={13} aria-hidden="true" />
                   Webhook
                 </button>
-              </div>
+              </FlippedMenu>
             )}
           </div>
         )}
