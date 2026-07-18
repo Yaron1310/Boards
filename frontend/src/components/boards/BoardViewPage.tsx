@@ -873,14 +873,16 @@ const BoardViewPage: React.FC = () => {
       <div className="flex flex-col h-full min-h-0">
         {/* Board top bar */}
         <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 bg-white flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(board.isTemplate ? '/admin/templates' : `/WorkHubs/${board.workspaceId}/boards`)}
-            className="text-gray-400 hover:text-gray-600 transition-colors rounded p-1"
-            aria-label="Go back"
-          >
-            <FiChevronLeft size={18} aria-hidden="true" />
-          </button>
+          {!isPublicView && (
+            <button
+              type="button"
+              onClick={() => navigate(board.isTemplate ? '/admin/templates' : `/WorkHubs/${board.workspaceId}/boards`)}
+              className="text-gray-400 hover:text-gray-600 transition-colors rounded p-1"
+              aria-label="Go back"
+            >
+              <FiChevronLeft size={18} aria-hidden="true" />
+            </button>
+          )}
 
           <div className="flex-shrink-0 min-w-0 max-w-[260px]">
             {editingName && canManage ? (
@@ -914,19 +916,21 @@ const BoardViewPage: React.FC = () => {
           </div>
 
           {/* Board context menu trigger */}
-          <button
-            type="button"
-            onClick={(e) => {
-              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-              setBoardMenuTriggerRect((prev) => prev ? null : rect);
-            }}
-            className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-            aria-label="Board options"
-            aria-haspopup="true"
-            aria-expanded={!!boardMenuTriggerRect}
-          >
-            <FiMoreVertical size={16} aria-hidden="true" />
-          </button>
+          {!isPublicView && (
+            <button
+              type="button"
+              onClick={(e) => {
+                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                setBoardMenuTriggerRect((prev) => prev ? null : rect);
+              }}
+              className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+              aria-label="Board options"
+              aria-haspopup="true"
+              aria-expanded={!!boardMenuTriggerRect}
+            >
+              <FiMoreVertical size={16} aria-hidden="true" />
+            </button>
+          )}
 
           {/* Search + filter row */}
           <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
