@@ -12,6 +12,7 @@ export const membershipsCollection = db.collection('memberships');
 export const emailTemplatesCollection = db.collection('emailTemplates');
 export const auditLogsCollection = db.collection('auditLogs');
 export const refreshTokensCollection = db.collection('refreshTokens');
+export const boardViewInvitesCollection = db.collection('boardViewInvites');
 
 // --- PHASE 4: Work Management Collections ---
 // Boards: /organizations/{orgId}/boards/{boardId}

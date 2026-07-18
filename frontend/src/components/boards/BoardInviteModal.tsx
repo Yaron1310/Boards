@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
-import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle, FiUsers, FiShield, FiTrash2 } from 'react-icons/fi';
-import { useInviteUserToBoard, useBoardParticipants, useRemoveBoardMember } from '../../hooks/queries/useBoardMemberQueries';
+import { FiX, FiUserPlus, FiLoader, FiEdit2, FiLock, FiCheckCircle, FiAlertCircle, FiUsers, FiShield, FiTrash2, FiEye, FiSend, FiClock } from 'react-icons/fi';
+import {
+  useInviteUserToBoard, useBoardParticipants, useRemoveBoardMember,
+  useBoardViewInvites, useCreateBoardViewInvite, useRevokeBoardViewInvite,
+} from '../../hooks/queries/useBoardMemberQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole } from '../../types';
 import UserPermissionsModal from '../admin/UserPermissionsModal';
@@ -23,12 +26,21 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
   const [adminBlockUser, setAdminBlockUser] = useState<BoardParticipant | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
+  const [viewEmailInput, setViewEmailInput] = useState('');
+  const [viewEmails, setViewEmails] = useState<string[]>([]);
+  const [viewFeedback, setViewFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+
   const { user: authUser } = useAuthSession();
   const isAdmin = authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN;
 
   const { mutateAsync: inviteUser, isPending } = useInviteUserToBoard(boardId);
   const { data: participants = [], isLoading: participantsLoading } = useBoardParticipants(boardId);
   const { mutateAsync: removeMember } = useRemoveBoardMember(boardId);
+
+  const { data: viewInvites = [], isLoading: viewInvitesLoading } = useBoardViewInvites(boardId);
+  const { mutateAsync: createViewInvite, isPending: isSendingViewInvites } = useCreateBoardViewInvite(boardId);
+  const { mutateAsync: revokeViewInvite } = useRevokeBoardViewInvite(boardId);
 
   const handleSubmit = async () => {
     const trimmed = email.trim();
@@ -70,6 +82,70 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
     if (e.key === 'Enter') void handleSubmit();
   };
 
+  const addViewEmail = () => {
+    const trimmed = viewEmailInput.trim().replace(/,$/, '');
+    if (!trimmed) return;
+    if (!trimmed.includes('@')) {
+      setViewFeedback({ type: 'error', text: `"${trimmed}" is not a valid email address.` });
+      return;
+    }
+    const normalized = trimmed.toLowerCase();
+    if (!viewEmails.includes(normalized)) {
+      setViewEmails((prev) => [...prev, normalized]);
+    }
+    setViewEmailInput('');
+  };
+
+  const handleViewEmailKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addViewEmail();
+    } else if (e.key === 'Backspace' && !viewEmailInput && viewEmails.length > 0) {
+      setViewEmails((prev) => prev.slice(0, -1));
+    }
+  };
+
+  const removeViewEmail = (emailToRemove: string) => {
+    setViewEmails((prev) => prev.filter((e) => e !== emailToRemove));
+  };
+
+  const handleSendViewInvites = async () => {
+    addViewEmail(); // pick up whatever's still sitting in the input, unconfirmed
+    const emails = viewEmailInput.trim() && viewEmailInput.includes('@')
+      ? [...viewEmails, viewEmailInput.trim().toLowerCase()]
+      : viewEmails;
+    if (emails.length === 0) {
+      setViewFeedback({ type: 'error', text: 'Add at least one email address.' });
+      return;
+    }
+    setViewFeedback(null);
+    try {
+      const results = await Promise.allSettled(emails.map((e) => createViewInvite(e)));
+      const failed = results.filter((r) => r.status === 'rejected').length;
+      if (failed === 0) {
+        setViewFeedback({ type: 'success', text: `View-only link sent to ${emails.length} ${emails.length === 1 ? 'person' : 'people'}.` });
+        setViewEmails([]);
+        setViewEmailInput('');
+      } else {
+        setViewFeedback({ type: 'error', text: `${failed} of ${emails.length} invitations failed to send.` });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send view invitations.';
+      setViewFeedback({ type: 'error', text: msg });
+    }
+  };
+
+  const handleRevokeViewInvite = async (inviteId: string) => {
+    setRevokingInviteId(inviteId);
+    try {
+      await revokeViewInvite(inviteId);
+    } catch {
+      setViewFeedback({ type: 'error', text: 'Failed to revoke link.' });
+    } finally {
+      setRevokingInviteId(null);
+    }
+  };
+
   return (
     <>
     <div
@@ -78,7 +154,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
       aria-modal="true"
       aria-label="Invite user to board"
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
           <div>
@@ -109,6 +185,114 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
               <button onClick={() => setFeedback(null)} className="ml-auto font-semibold" aria-label="Dismiss">&times;</button>
             </div>
           )}
+
+          {/* View-only public share link, gated per invited email */}
+          <div className="border border-gray-200 rounded-lg p-3.5 bg-gray-50/60">
+            <div className="flex items-center gap-1.5 mb-1">
+              <FiEye size={13} className="text-gray-500" aria-hidden="true" />
+              <span className="text-xs font-medium text-gray-700">Share a view-only link</span>
+            </div>
+            <p className="text-[11px] text-gray-500 mb-3 leading-snug">
+              Send a personal, read-only link to specific people — no account or login required.
+              Each link only works for the email it was sent to, and expires automatically after <strong>7 days</strong>.
+            </p>
+
+            {viewFeedback && (
+              <div
+                role={viewFeedback.type === 'error' ? 'alert' : 'status'}
+                className={`p-2.5 rounded-md flex items-center text-xs mb-3 ${viewFeedback.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}
+              >
+                {viewFeedback.type === 'success'
+                  ? <FiCheckCircle className="mr-2 shrink-0" size={13} aria-hidden="true" />
+                  : <FiAlertCircle className="mr-2 shrink-0" size={13} aria-hidden="true" />}
+                {viewFeedback.text}
+                <button onClick={() => setViewFeedback(null)} className="ml-auto font-semibold" aria-label="Dismiss">&times;</button>
+              </div>
+            )}
+
+            <label htmlFor="board-view-invite-email" className="block text-xs font-medium text-gray-700 mb-1">
+              Recipient email addresses
+            </label>
+            <div className="flex flex-wrap items-center gap-1.5 w-full px-2.5 py-2 border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-indigo-500 bg-white">
+              {viewEmails.map((e) => (
+                <span key={e} className="flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs font-medium pl-2 pr-1 py-1 rounded-md">
+                  {e}
+                  <button
+                    type="button"
+                    onClick={() => removeViewEmail(e)}
+                    className="p-0.5 hover:bg-indigo-100 rounded"
+                    aria-label={`Remove ${e}`}
+                  >
+                    <FiX size={11} aria-hidden="true" />
+                  </button>
+                </span>
+              ))}
+              <input
+                id="board-view-invite-email"
+                type="email"
+                value={viewEmailInput}
+                onChange={(e) => setViewEmailInput(e.target.value)}
+                onKeyDown={handleViewEmailKeyDown}
+                onBlur={addViewEmail}
+                placeholder={viewEmails.length === 0 ? 'email1@example.com, email2@example.com' : 'Add another…'}
+                className="flex-1 min-w-[140px] text-sm outline-none py-0.5"
+                aria-label="Add recipient email address for view-only link"
+                disabled={isSendingViewInvites}
+              />
+            </div>
+
+            <div className="flex justify-end mt-2.5">
+              <button
+                type="button"
+                onClick={() => void handleSendViewInvites()}
+                disabled={isSendingViewInvites || (viewEmails.length === 0 && !viewEmailInput.trim())}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
+                aria-label="Send view-only link"
+              >
+                {isSendingViewInvites
+                  ? <FiLoader size={11} className="animate-spin" aria-hidden="true" />
+                  : <FiSend size={11} aria-hidden="true" />}
+                {isSendingViewInvites ? 'Sending…' : 'Send view-only link'}
+              </button>
+            </div>
+
+            {/* Existing view invites */}
+            {viewInvitesLoading ? (
+              <div className="flex items-center gap-2 py-2 mt-2 text-xs text-gray-400">
+                <FiLoader size={12} className="animate-spin" aria-hidden="true" /> Loading invitations…
+              </div>
+            ) : viewInvites.length > 0 && (
+              <ul className="space-y-1 mt-3 pt-3 border-t border-gray-200" aria-label="Sent view-only invitations">
+                {viewInvites.map((invite) => {
+                  const isRevoked = !!invite.revokedAt;
+                  const isExpired = !isRevoked && new Date(invite.expiresAt).getTime() < Date.now();
+                  return (
+                    <li key={invite.id} className="flex items-center gap-2 text-xs group">
+                      <FiClock size={11} className="text-gray-400 flex-shrink-0" aria-hidden="true" />
+                      <span className="truncate text-gray-700 flex-1">{invite.email}</span>
+                      <span className={`text-[10px] ${isRevoked || isExpired ? 'text-gray-400' : 'text-green-600'}`}>
+                        {isRevoked ? 'Revoked' : isExpired ? 'Expired' : `Expires ${new Date(invite.expiresAt).toLocaleDateString()}`}
+                      </span>
+                      {!isRevoked && !isExpired && (
+                        <button
+                          type="button"
+                          onClick={() => void handleRevokeViewInvite(invite.id)}
+                          disabled={revokingInviteId === invite.id}
+                          className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors flex-shrink-0 disabled:opacity-40"
+                          aria-label={`Revoke view-only link for ${invite.email}`}
+                          title="Revoke link"
+                        >
+                          {revokingInviteId === invite.id
+                            ? <FiLoader size={12} className="animate-spin" aria-hidden="true" />
+                            : <FiTrash2 size={12} aria-hidden="true" />}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
 
           {/* Current board members */}
           <div>

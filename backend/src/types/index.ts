@@ -159,6 +159,23 @@ export interface JwtPasswordResetPayload {
   action: 'reset_password';
 }
 
+// --- BOARD VIEW INVITES (public, read-only, per-email magic link) ---
+
+// Firestore doc ID is the sha256 hash of the plaintext invite token — mirrors
+// the webhook token pattern (backend/src/controllers/webhook.controller.ts):
+// only the hash is ever stored, the plaintext exists solely in the emailed link.
+export interface DBBoardViewInvite {
+  orgId: string;
+  boardId: string;
+  boardName: string;
+  workspaceId: string;
+  email: string;
+  invitedBy: string;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  expiresAt: admin.firestore.Timestamp | Date | any;
+  revokedAt: admin.firestore.Timestamp | Date | any | null;
+}
+
 // --- REFRESH TOKENS ---
 
 // Firestore doc ID is the sha256 hash of the plaintext refresh token — the

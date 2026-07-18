@@ -45,6 +45,29 @@ export const useInviteUserToBoard = (boardId: string) => {
   });
 };
 
+export const useBoardViewInvites = (boardId: string, enabled = true) =>
+  useQuery({
+    queryKey: ['boardViewInvites', boardId],
+    queryFn: () => wms.getBoardViewInvites(boardId),
+    enabled: enabled && !!boardId,
+  });
+
+export const useCreateBoardViewInvite = (boardId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (email: string) => wms.createBoardViewInvite(boardId, email),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['boardViewInvites', boardId] }),
+  });
+};
+
+export const useRevokeBoardViewInvite = (boardId: string) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (inviteId: string) => wms.revokeBoardViewInvite(boardId, inviteId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['boardViewInvites', boardId] }),
+  });
+};
+
 export const useUserBoardPermissions = (userId: string, enabled = true) =>
   useQuery({
     queryKey: ['userBoardPermissions', userId],

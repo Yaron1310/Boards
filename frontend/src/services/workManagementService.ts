@@ -299,6 +299,25 @@ export const addBoardMember = (boardId: string, userId: string, role: BoardRole)
 export const removeBoardMember = (boardId: string, userId: string): Promise<null> =>
   fetchWithAuth(`/api/boards/${boardId}/members/${userId}`, { method: 'DELETE' });
 
+// ─── BOARD VIEW INVITES (public read-only share links) ──────────────────────
+
+export interface BoardViewInvite {
+  id: string;
+  email: string;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+}
+
+export const getBoardViewInvites = (boardId: string): Promise<BoardViewInvite[]> =>
+  fetchWithAuth(`/api/boards/${boardId}/view-invites`);
+
+export const createBoardViewInvite = (boardId: string, email: string): Promise<{ message: string }> =>
+  fetchWithAuth(`/api/boards/${boardId}/view-invites`, { method: 'POST', body: JSON.stringify({ email }) });
+
+export const revokeBoardViewInvite = (boardId: string, inviteId: string): Promise<{ message: string }> =>
+  fetchWithAuth(`/api/boards/${boardId}/view-invites/${inviteId}`, { method: 'DELETE' });
+
 // ─── ITEM CHAT ────────────────────────────────────────────────────────────────
 
 export const listChatMessages = (itemId: string): Promise<ChatMessage[]> =>

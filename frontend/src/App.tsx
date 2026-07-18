@@ -22,6 +22,7 @@ import LandingPage from './components/public/LandingPage';
 import LegalPage from './components/legal/LegalPage';
 import AccessibilityPage from './components/legal/AccessibilityPage';
 import DemoBoardPage from './components/demo/DemoBoardPage';
+import PublicBoardViewPage from './components/boards/PublicBoardViewPage';
 
 // -- Lazy imports only for the authenticated area (code-split by user role) --
 const MainLayout = React.lazy(() => import('./components/layout/MainLayout'));
@@ -207,6 +208,7 @@ const App: React.FC = () => {
         <Route path="/legal" element={<LegalPage />} />
         <Route path="/accessibility" element={<AccessibilityPage />} />
         <Route path="/demo-board/*" element={<DemoBoardPage />} />
+        <Route path="/public/board-view/:token/*" element={<PublicBoardViewPage />} />
 
         {/* Authenticated routes */}
         <Route element={<Suspense fallback={<PageLoader />}><MainLayout /></Suspense>}>

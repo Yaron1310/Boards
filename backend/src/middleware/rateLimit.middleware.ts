@@ -68,6 +68,17 @@ export const authenticatedLimiter = rateLimit({
     message: { message: 'Too many requests, please try again later.' },
 });
 
+// ─── Tier 7b — Public board view ────────────────────────────────────────────
+// Per-token rate limit for the unauthenticated read-only board view link
+export const publicBoardViewLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 30,
+    keyGenerator: (req) => (req.params as Record<string, string>).token ?? ipKeyGenerator(req.ip ?? 'unknown'),
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { message: 'Too many requests, please try again later.' },
+});
+
 // ─── Tier 7 — Webhook receiver ──────────────────────────────────────────────
 // Per-webhookId rate limit to prevent flooding a single group
 export const webhookLimiter = rateLimit({
