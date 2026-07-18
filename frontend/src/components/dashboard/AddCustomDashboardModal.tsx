@@ -461,9 +461,9 @@ interface CategoryFormState {
 }
 
 const CATEGORY_AGG_OPTIONS: { fn: MetricAggregation; label: string; desc: string }[] = [
-  { fn: 'COUNT',   label: 'Count items',   desc: 'Number of items in each group' },
   { fn: 'SUM',     label: 'Sum',           desc: 'Total of a numeric column per group' },
   { fn: 'AVERAGE', label: 'Average',       desc: 'Mean of a numeric column per group' },
+  { fn: 'COUNT',   label: 'Count items',   desc: 'Number of items in each group' },
   { fn: 'MIN',     label: 'Min value',     desc: 'Smallest value in the group' },
   { fn: 'MAX',     label: 'Max value',     desc: 'Largest value in the group' },
 ];

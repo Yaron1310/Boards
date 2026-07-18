@@ -19,7 +19,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns, useReorderColumns, useDeleteColumn, useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
-import type { Column, Item, PaginatedResponse } from '../../types';
+import type { Column, Item, NumberColumnSettings, PaginatedResponse } from '../../types';
 import {
   FiType, FiHash, FiCalendar, FiFlag, FiUser, FiChevronDown,
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
@@ -151,6 +151,11 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const isConfigurable = [
     ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.SIMPLE_FORMULA,
   ].includes(column.type);
+  // Number columns with a configured unit show it next to the name, e.g. "Income %".
+  const numberUnit = column.type === ColumnType.NUMBER
+    ? (column.settings as NumberColumnSettings)?.unit
+    : undefined;
+  const displayName = numberUnit ? `${column.name} ${numberUnit}` : column.name;
   const [resizingWidth, setResizingWidth] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -318,7 +323,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
           {icon}
         </span>
         <span className="text-sm font-semibold text-gray-600 truncate">
-          {column.name}
+          {displayName}
         </span>
       </div>
 
