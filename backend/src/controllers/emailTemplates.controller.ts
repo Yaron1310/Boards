@@ -49,12 +49,12 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     },
     {
         id: 'invite_org_manager',
-        name: 'Organization Manager Invitation',
-        description: 'Sent when a new Organization Manager is invited to set up their account.',
-        subject: "You've been invited as an Organization Manager for {{entityName}}",
+        name: 'WorkHub Admin Invitation',
+        description: 'Sent when a new WorkHub Admin is invited to set up their account.',
+        subject: "You've been invited as a WorkHub Admin for {{entityName}}",
         variables: ['userName', 'entityName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
-<p>You've been invited to join <strong>{{entityName}}</strong> as an Organization Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
+<p>You've been invited to join <strong>{{entityName}}</strong> as a WorkHub Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
 <p>Thanks,<br/>The {{entityName}} Team</p>`,

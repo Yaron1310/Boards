@@ -178,7 +178,7 @@ export const sendAccountVerificationEmail = async (
 
 const buildFallbackVerificationSubject = (inviteRole?: string, organizationName?: string, orgName?: string): string => {
     if (inviteRole === 'org_admin' || inviteRole === 'org_admin_notify') return `You've been invited as an Organization Admin for ${organizationName}`;
-    if (inviteRole === 'org_manager') return `You've been invited as an Organization Manager for ${orgName || organizationName}`;
+    if (inviteRole === 'org_manager') return `You've been invited as a WorkHub Admin for ${orgName || organizationName}`;
     return `Verify Your Email for ${organizationName}`;
 };
 
@@ -198,7 +198,7 @@ const buildFallbackVerificationHtml = (
         return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Logyx Team</p>`;
     } else if (inviteRole === 'org_manager') {
         const entityName = orgName || organizationName;
-        introLine = `You've been invited to join <strong>${entityName}</strong> as an Organization Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+        introLine = `You've been invited to join <strong>${entityName}</strong> as a WorkHub Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
         return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The ${entityName} Team</p>`;
     }

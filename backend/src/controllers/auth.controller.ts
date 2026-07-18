@@ -644,8 +644,8 @@ export const registerOrganizationAdmin = async (req: Request, res: Response) => 
         const verificationToken = jwt.sign(verificationTokenPayload, env.JWT_SECRET, { expiresIn: '24h' });
         const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
         
-        // Since the workspace isn't created yet, we use a generic name.
-        await sendAccountVerificationEmail(email, name, verificationLink, "Your New Workspace");
+        // Since the organization isn't created yet, we use a generic name.
+        await sendAccountVerificationEmail(email, name, verificationLink, "Your New Organization");
 
         res.status(201).json({
             success: true,
