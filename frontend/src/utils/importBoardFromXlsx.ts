@@ -101,8 +101,8 @@ function getCellStatusArgb(cell: ExcelJS.Cell): string | null {
   const argb = (fill as ExcelJS.FillPattern).fgColor?.argb;
   if (!argb || argb.length < 8) return null;
   const hex = argb.slice(2).toUpperCase();
-  // Skip transparent / white / alternating-row gray / header gray
-  const excluded = new Set(['FFFFFF', 'EFEFEF', 'D9D9D9', '000000']);
+  // Skip transparent / white / alternating-row gray / header gray / empty-status placeholder gray
+  const excluded = new Set(['FFFFFF', 'EFEFEF', 'D9D9D9', 'C4C4C4', '000000']);
   if (excluded.has(hex)) return null;
   const r = parseInt(hex.slice(0, 2), 16);
   const g = parseInt(hex.slice(2, 4), 16);
@@ -292,7 +292,8 @@ export async function importBoardFromXlsx(
         const argb = cellArgbs[si];
         if (argb && !colorMap[si].has(argb)) {
           const label = cellToText(rawCells[spec.rawIndices[0] + 1]).trim();
-          colorMap[si].set(argb, label);
+          // A colored cell with no text is an unset/empty status, not a real option.
+          if (label) colorMap[si].set(argb, label);
         }
         if (spec.type === ColumnType.TEXT) {
           const text = cellToText(rawCells[spec.rawIndices[0] + 1]).trim();
