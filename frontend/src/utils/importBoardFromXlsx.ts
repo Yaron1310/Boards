@@ -143,6 +143,12 @@ function isUrlLike(text: string): boolean {
   return /^https?:\/\//i.test(text) || /^www\./i.test(text);
 }
 
+// Matches plain numbers, optionally negative, with an optional decimal part
+// and optional thousands separators (e.g. "1,234.5", "-42", "3.14").
+function isNumberLike(text: string): boolean {
+  return /^-?\d{1,3}(,\d{3})*(\.\d+)?$/.test(text) || /^-?\d+(\.\d+)?$/.test(text);
+}
+
 function buildColumnSpecs(headers: string[]): ColumnSpec[] {
   const specs: ColumnSpec[] = [];
   let i = 0;
@@ -247,6 +253,8 @@ export async function importBoardFromXlsx(
   let colHasWhiteText: boolean[] = [];
   // colAllValuesUrlLike[specIndex] — true if every non-empty TEXT cell in this column looks like a URL.
   let colAllValuesUrlLike: boolean[] = [];
+  // colAllValuesNumberLike[specIndex] — true if every non-empty TEXT cell in this column looks like a plain number.
+  let colAllValuesNumberLike: boolean[] = [];
   let colHasAnyValue: boolean[] = [];
 
   while (cursor < rows.length) {
@@ -265,6 +273,7 @@ export async function importBoardFromXlsx(
       colorMap = columnSpecs.map(() => new Map<string, string>());
       colHasWhiteText = columnSpecs.map(() => false);
       colAllValuesUrlLike = columnSpecs.map(() => true);
+      colAllValuesNumberLike = columnSpecs.map(() => true);
       colHasAnyValue = columnSpecs.map(() => false);
     }
 
@@ -300,6 +309,7 @@ export async function importBoardFromXlsx(
           if (text) {
             colHasAnyValue[si] = true;
             if (!isUrlLike(text)) colAllValuesUrlLike[si] = false;
+            if (!isNumberLike(text)) colAllValuesNumberLike[si] = false;
           }
         }
       });
@@ -348,6 +358,13 @@ export async function importBoardFromXlsx(
   columnSpecs.forEach((spec, si) => {
     if (spec.type === ColumnType.TEXT && colHasAnyValue[si] && colAllValuesUrlLike[si]) {
       columnSpecs[si] = { ...spec, type: ColumnType.LINK };
+    }
+  });
+
+  // Promote remaining TEXT columns whose every non-empty value looks like a plain number to NUMBER.
+  columnSpecs.forEach((spec, si) => {
+    if (spec.type === ColumnType.TEXT && colHasAnyValue[si] && colAllValuesNumberLike[si]) {
+      columnSpecs[si] = { ...spec, type: ColumnType.NUMBER };
     }
   });
 
@@ -417,6 +434,12 @@ export async function importBoardFromXlsx(
           if (text) {
             const ids = text.split(',').map((n) => userNameMap.get(n.toLowerCase().trim())).filter((id): id is string => !!id);
             if (ids.length) values[id] = ids;
+          }
+        } else if (spec.type === ColumnType.NUMBER) {
+          const text = cellToText(rawValues[spec.rawIndices[0]]).trim();
+          if (text) {
+            const num = Number(text.replace(/,/g, ''));
+            if (!isNaN(num)) values[id] = num;
           }
         } else {
           const text = cellToText(rawValues[spec.rawIndices[0]]).trim();
