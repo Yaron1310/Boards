@@ -27,7 +27,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
   const { begin, endSession, isRecording, insertRef, session } = useFormulaRecording();
-  const { visibleItems, columns: boardColumns } = useBoardRender();
+  const { visibleItems, columns: boardColumns, groupsComplete } = useBoardRender();
   const colWidth = calculateColumnWidth(column.name, column.type);
 
   const settings = column.settings as SimpleFormulaColumnSettings;
@@ -53,8 +53,8 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
 
   // Load cross-board values referenced by the saved formula so the result stays live.
   const foreignRefs = useMemo(
-    () => extractForeignRefs(cellFormula, homeBoardId),
-    [cellFormula, homeBoardId],
+    () => extractForeignRefs(cellFormula, homeBoardId, groupsComplete),
+    [cellFormula, homeBoardId, groupsComplete],
   );
   const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId);
 
@@ -64,9 +64,10 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
       columns: boardColumns,
       currentRowIndex: rowIndex,
       homeBoardId,
+      groupsComplete,
       resolveRef: (ref: Parameters<typeof resolveForeign>[0]) => resolveForeign(ref, item.id),
     }),
-    [visibleItems, boardColumns, rowIndex, homeBoardId, resolveForeign, item.id],
+    [visibleItems, boardColumns, rowIndex, homeBoardId, groupsComplete, resolveForeign, item.id],
   );
 
   const { result, hasUnresolved } = useMemo(() => {

@@ -332,7 +332,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
           {groupMinWidth ? <div className="flex-1 bg-gray-100 rounded-tr-lg" aria-hidden="true" /> : null}
         </div>
 
-        <BoardRenderProvider visibleItems={displayItems} columns={columns} boardView={boardView} openChat={onOpenChat}>
+        <BoardRenderProvider visibleItems={displayItems} columns={columns} boardView={boardView} openChat={onOpenChat} groupsComplete={false}>
           <DependencyProvider items={displayItems}>
           <DndContext onDragEnd={() => {}}>
             <div role="rowgroup" aria-label={`Items assigned to you in ${board.name}`} className="w-max">

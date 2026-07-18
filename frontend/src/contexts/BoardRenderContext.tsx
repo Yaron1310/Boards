@@ -13,6 +13,10 @@ interface BoardRenderContextValue {
   columnWidths: ColumnWidthMap;
   isBoardReadOnly: boolean;
   openChat: (item: Item) => void;
+  /** False when `visibleItems` is a filtered subset of a board's groups (e.g. Personal Hub's
+   *  assignee-scoped rows) — tells formula cells that a same-board group-summary reference
+   *  cannot be aggregated from `visibleItems` and must be resolved against the full source board. */
+  groupsComplete: boolean;
 }
 
 const BoardRenderContext = createContext<BoardRenderContextValue | null>(null);
@@ -24,10 +28,20 @@ export const BoardRenderProvider: React.FC<{
   columnWidths?: ColumnWidthMap;
   isBoardReadOnly?: boolean;
   openChat?: (item: Item) => void;
+  groupsComplete?: boolean;
   children: React.ReactNode;
-}> = ({ visibleItems, columns, boardView = 'table', columnWidths = {}, isBoardReadOnly = false, openChat = () => {}, children }) => {
+}> = ({
+  visibleItems,
+  columns,
+  boardView = 'table',
+  columnWidths = {},
+  isBoardReadOnly = false,
+  openChat = () => {},
+  groupsComplete = true,
+  children,
+}) => {
   return (
-    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView, columnWidths, isBoardReadOnly, openChat }}>
+    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView, columnWidths, isBoardReadOnly, openChat, groupsComplete }}>
       {children}
     </BoardRenderContext.Provider>
   );

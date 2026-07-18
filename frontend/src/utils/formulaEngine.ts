@@ -149,6 +149,11 @@ export interface FormulaContext {
   /** Board the formula lives on — lets the engine resolve same-board ID refs from `allItems`/`columns`
    *  directly and tell same-board refs apart from foreign ones. */
   homeBoardId?: string;
+  /** False when `allItems` is a filtered subset of the home board's groups (e.g. Personal Hub's
+   *  assignee-scoped rows) rather than the complete board. A same-board group-summary ref can't
+   *  be aggregated locally in that case — it must fall through to `resolveRef`, which loads the
+   *  full source board. Defaults to true (a regular board render always carries every item). */
+  groupsComplete?: boolean;
   /** Resolver for refs the engine cannot satisfy locally (foreign boards, personal-hub, etc.).
    *  Return a number, `null` if the target is known but empty/non-numeric (contributes 0), or
    *  `undefined` if it cannot be resolved yet (data still loading, or the target no longer exists). */
@@ -336,7 +341,7 @@ class FormulaParser {
     const ctx = this.context;
     if (!ctx) return undefined;
 
-    if (ref.agg) return this.resolveLocalSummary(ref);
+    if (ref.agg) return ctx.groupsComplete === false ? undefined : this.resolveLocalSummary(ref);
 
     const col = ctx.columns.find((c) => c.id === ref.columnId);
     if (!col) return undefined;
@@ -477,9 +482,11 @@ export function extractRefs(formula: string): CellRef[] {
   return refs;
 }
 
-/** Foreign (cross-board) references only — those the local board context cannot resolve. */
-export function extractForeignRefs(formula: string, homeBoardId: string): CellRef[] {
-  return extractRefs(formula).filter((r) => r.boardId !== homeBoardId);
+/** References the local board context cannot resolve on its own: always cross-board refs, plus
+ *  same-board group-summary refs when `groupsComplete` is false (the local item set is a filtered
+ *  subset — e.g. Personal Hub — so the summary must be aggregated from the full source board instead). */
+export function extractForeignRefs(formula: string, homeBoardId: string, groupsComplete = true): CellRef[] {
+  return extractRefs(formula).filter((r) => r.boardId !== homeBoardId || (r.agg != null && !groupsComplete));
 }
 
 /** Convert a legacy positional formula ({C3}/{C}) into stable-ID refs. Runs on the origin
