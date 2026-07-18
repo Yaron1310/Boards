@@ -224,6 +224,7 @@ export interface TagsColumnSettings {
 
 export interface SimpleFormulaColumnSettings {
   defaultFormula: string; // e.g. "{Price} * {Qty}" — evaluated client-side
+  unit?: string;
 }
 
 export type LinkColumnSettings = Record<string, never>;

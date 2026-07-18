@@ -29,6 +29,7 @@ import type {
   NumberColumnSettings,
   StatusColumnSettings,
   DropdownColumnSettings,
+  SimpleFormulaColumnSettings,
 } from '../../types';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
 
@@ -144,6 +145,10 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
     numSettings.precision != null ? String(numSettings.precision) : '',
   );
 
+  // SIMPLE_FORMULA
+  const formulaSettings = column.settings as SimpleFormulaColumnSettings;
+  const [formulaUnit, setFormulaUnit] = useState(formulaSettings.unit ?? '');
+
   // STATUS
   const statusSettings = column.settings as StatusColumnSettings;
   const [statusOptions, setStatusOptions] = useState<StatusOption[]>(
@@ -219,6 +224,10 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
         return { ...(maxLength ? { maxLength: parseInt(maxLength, 10) } : {}), multiline };
       case ColumnType.NUMBER:
         return { ...(unit ? { unit } : {}), ...(precision ? { precision: parseInt(precision, 10) } : {}) };
+      case ColumnType.SIMPLE_FORMULA:
+        return formulaUnit
+          ? { ...formulaSettings, unit: formulaUnit }
+          : { defaultFormula: formulaSettings.defaultFormula };
       case ColumnType.STATUS:
         return { options: statusOptions, ...(defaultStatusId ? { defaultStatusId } : {}) };
       case ColumnType.DROPDOWN:
@@ -252,6 +261,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
     [ColumnType.NUMBER]: 'Number Settings',
     [ColumnType.STATUS]: 'Status Settings',
     [ColumnType.DROPDOWN]: 'Dropdown Settings',
+    [ColumnType.SIMPLE_FORMULA]: 'Formula Settings',
   };
 
   const modalRoot = document.getElementById('modal-root');
@@ -356,6 +366,25 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
                       className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* SIMPLE_FORMULA */}
+            {column.type === ColumnType.SIMPLE_FORMULA && (
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="edit-formula-unit" className="block text-xs text-gray-600 mb-1">
+                    Unit
+                  </label>
+                  <input
+                    id="edit-formula-unit"
+                    type="text"
+                    value={formulaUnit}
+                    onChange={(e) => setFormulaUnit(e.target.value)}
+                    placeholder="e.g. $, %, kg"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
               </div>
             )}

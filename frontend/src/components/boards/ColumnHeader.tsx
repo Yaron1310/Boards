@@ -149,7 +149,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const [showSwapWarning, setShowSwapWarning] = useState(false);
 
   const isConfigurable = [
-    ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN,
+    ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.SIMPLE_FORMULA,
   ].includes(column.type);
   const [resizingWidth, setResizingWidth] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);

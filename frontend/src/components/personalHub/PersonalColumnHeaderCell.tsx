@@ -13,7 +13,7 @@ interface Props {
   column: PersonalColumn;
 }
 
-const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN];
+const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.SIMPLE_FORMULA];
 
 /**
  * Cross-group personal column header — same menu affordances as a real

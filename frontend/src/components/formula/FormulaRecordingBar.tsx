@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FiCheck, FiX, FiEdit2 } from 'react-icons/fi';
+import { FiCheck, FiX, FiEdit2, FiExternalLink } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
@@ -40,14 +40,24 @@ interface RefTokenProps {
 
 /** One resolved value inside the formula preview — hover shows a light-blue highlight
  *  plus an instant (no-delay) tooltip naming the value's source, since the native
- *  `title` attribute both has a delay and can't be styled. */
+ *  `title` attribute both has a delay and can't be styled. The tooltip also offers a button
+ *  that navigates straight to the source board, when the ref resolves to a real board. */
 const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, resolveMeta }) => {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
+  const navigate = useNavigate();
 
   const v = resolve(cellRef, currentItemId);
   const display = v === undefined ? '…' : v === null ? '0' : formatNumber(v);
-  const tooltip = metaToTooltip(resolveMeta(cellRef, currentItemId));
+  const meta = resolveMeta(cellRef, currentItemId);
+  const tooltip = metaToTooltip(meta);
+  const sourceBoardId = meta?.boardId;
+
+  const show = () => {
+    const rect = spanRef.current?.getBoundingClientRect();
+    if (rect) setHoverPos({ top: rect.bottom, left: rect.left + rect.width / 2 });
+  };
+  const hide = () => setHoverPos(null);
 
   return (
     <>
@@ -57,22 +67,36 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
       <span
         ref={spanRef}
         className="rounded px-0.5 -mx-0.5 text-blue-700 hover:bg-blue-100 transition-colors"
-        onMouseEnter={() => {
-          const rect = spanRef.current?.getBoundingClientRect();
-          if (rect) setHoverPos({ top: rect.bottom, left: rect.left + rect.width / 2 });
-        }}
-        onMouseLeave={() => setHoverPos(null)}
+        onMouseEnter={show}
+        onMouseLeave={hide}
       >
         <span className="text-blue-300">{'{'}</span>{display}<span className="text-blue-300">{'}'}</span>
       </span>
       {hoverPos && ReactDOM.createPortal(
+        // No pointer-events-none here (unlike a plain label tooltip) — the "go to board" button
+        // needs to be clickable, and onMouseEnter/Leave on this wrapper keep it open while the
+        // cursor crosses the gap from the token to the tooltip.
         <div
-          className="fixed z-[9999] pointer-events-none -translate-x-1/2"
+          className="fixed z-[9999] -translate-x-1/2"
           style={{ top: hoverPos.top + 6, left: hoverPos.left }}
+          onMouseEnter={show}
+          onMouseLeave={hide}
         >
           <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mb-1" />
-          <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
-            {tooltip}
+          <div className="flex items-center gap-1.5 bg-gray-800 text-white text-xs rounded-lg pl-2.5 pr-1.5 py-1.5 shadow-xl whitespace-nowrap">
+            <span>{tooltip}</span>
+            {sourceBoardId && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={() => navigate(`/boards/${sourceBoardId}`)}
+                className="flex-shrink-0 p-1 -mr-0.5 rounded hover:bg-white/20 transition-colors"
+                aria-label={`Go to source board${meta?.boardName ? ` "${meta.boardName}"` : ''}`}
+                title="Go to source board"
+              >
+                <FiExternalLink size={12} aria-hidden="true" />
+              </button>
+            )}
           </div>
         </div>,
         document.body,

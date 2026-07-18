@@ -19,7 +19,7 @@ import { getUnreadCount } from './ItemChatModal';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import FlippedMenu from '../common/FlippedMenu';
 
-const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN];
+const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.SIMPLE_FORMULA];
 
 const DEFAULT_STATUS_OPTIONS = [
   { id: 'todo', label: 'To Do', color: '#94a3b8' },

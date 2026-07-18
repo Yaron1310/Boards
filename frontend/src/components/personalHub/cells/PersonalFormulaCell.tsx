@@ -82,7 +82,10 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     return { result: v, hasUnresolved: missing };
   }, [cellFormula, formulaContext]);
 
-  const formatNumber = (n: number) => formatGroupedNumber(n, 2);
+  const formatNumber = (n: number) => {
+    const formatted = formatGroupedNumber(n, 2);
+    return settings?.unit ? `${formatted} ${settings.unit}` : formatted;
+  };
 
   const persistValue = (newValue: string | null) => {
     if (newValue !== storedValue) {

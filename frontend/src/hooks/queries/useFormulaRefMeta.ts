@@ -13,6 +13,10 @@ export interface RefMeta {
   isPersonal: boolean;
   /** Current user's display name, for personal refs ("{userName}'s Personal Hub"). */
   userName?: string;
+  /** The source board's id — lets the caller link straight to it (e.g. a "go to board" button
+   *  on the ref's tooltip). Always the real board a ref's data lives on, even for personal refs
+   *  (Personal Hub rows are the user's own board items, so this is `item.boardId`). */
+  boardId?: string;
   boardName?: string;
   groupName?: string;
   itemName?: string;
@@ -182,7 +186,7 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
         const boardName = boardNameMap.get(ref.boardId);
         const groupName = ref.groupId ? groupNameMap.get(ref.boardId)?.get(ref.groupId) : undefined;
         if (boardName === undefined || columnName === undefined) return undefined;
-        return { isPersonal: true, userName, boardName, groupName, columnName, agg: ref.agg };
+        return { isPersonal: true, userName, boardId: ref.boardId, boardName, groupName, columnName, agg: ref.agg };
       }
 
       const itemId = ref.itemId ?? current ?? currentItemId ?? null;
@@ -192,7 +196,7 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
       const boardName = boardNameMap.get(item.boardId);
       if (boardName === undefined) return undefined;
       const groupName = groupNameMap.get(item.boardId)?.get(item.groupId);
-      return { isPersonal: true, userName, boardName, groupName, itemName: item.name, columnName };
+      return { isPersonal: true, userName, boardId: item.boardId, boardName, groupName, itemName: item.name, columnName };
     }
 
     const boardName = boardNameMap.get(ref.boardId);
@@ -201,7 +205,7 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
     if (ref.agg) {
       if (boardName === undefined || columnName === undefined) return undefined;
       const groupName = ref.groupId ? groupNameMap.get(ref.boardId)?.get(ref.groupId) : undefined;
-      return { isPersonal: false, boardName, groupName, columnName, agg: ref.agg };
+      return { isPersonal: false, boardId: ref.boardId, boardName, groupName, columnName, agg: ref.agg };
     }
 
     const itemId = ref.itemId ?? current ?? currentItemId ?? null;
@@ -209,7 +213,7 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
     const item = itemMap.get(ref.boardId)?.get(itemId);
     if (boardName === undefined || columnName === undefined || !item) return undefined;
     const groupName = groupNameMap.get(ref.boardId)?.get(item.groupId);
-    return { isPersonal: false, boardName, groupName, itemName: item.name, columnName };
+    return { isPersonal: false, boardId: ref.boardId, boardName, groupName, itemName: item.name, columnName };
   }
 
   return { resolveMeta };
