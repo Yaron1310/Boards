@@ -57,7 +57,15 @@ function installFetchInterceptor(payload: PublicBoardPayload): () => void {
           : groups.filter((g) => !g.parentItemId);
         return jsonResp(scoped);
       }
-      if (subRes === 'columns') return jsonResp(columns);
+      if (subRes === 'columns') {
+        const parentGroupId = search.get('parentGroupId');
+        // Mirrors the real GET /boards/:boardId/columns: board-level columns by default,
+        // or a specific subitem-group's columns when parentGroupId is given.
+        const scoped = parentGroupId
+          ? columns.filter((c) => c.parentGroupId === parentGroupId)
+          : columns.filter((c) => !c.parentGroupId);
+        return jsonResp(scoped);
+      }
       if (subRes === 'version') return jsonResp({ version: 0 });
       if (subRes === 'members' || subRes === 'participants') return jsonResp([]);
       return jsonResp({});
