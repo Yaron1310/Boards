@@ -49,12 +49,12 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     },
     {
         id: 'invite_org_manager',
-        name: 'Workspace Manager Invitation',
-        description: 'Sent when a new Workspace Manager is invited to set up their account.',
-        subject: "You've been invited as an Workspace Manager for {{entityName}}",
+        name: 'Organization Manager Invitation',
+        description: 'Sent when a new Organization Manager is invited to set up their account.',
+        subject: "You've been invited as an Organization Manager for {{entityName}}",
         variables: ['userName', 'entityName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
-<p>You've been invited to join <strong>{{entityName}}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
+<p>You've been invited to join <strong>{{entityName}}</strong> as an Organization Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
 <p>Thanks,<br/>The {{entityName}} Team</p>`,
@@ -62,7 +62,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'approval_request',
         name: 'Approval Request (to Manager)',
-        description: "Sent to an workspace manager when a new user registers and awaits approval.",
+        description: "Sent to an organization manager when a new user registers and awaits approval.",
         subject: 'New User Registration Request: {{newUserName}}',
         variables: ['newUserName', 'newUserEmail', 'approvalLink'],
         html: `<p>Hello,</p>
@@ -75,11 +75,11 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'account_approved',
         name: 'Account Approved',
-        description: 'Sent to a user when an workspace manager approves their account.',
+        description: 'Sent to a user when an organization manager approves their account.',
         subject: 'Your Account Has Been Approved!',
         variables: ['userName', 'loginLink'],
         html: `<p>Hello {{userName}},</p>
-<p>Great news! Your account for Logyx has been approved by your workspace's administrator.</p>
+<p>Great news! Your account for Logyx has been approved by your organization's administrator.</p>
 <p>You can now log in and start using the application.</p>
 <p><a href="{{loginLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p>
 <p>Welcome aboard!</p>
@@ -100,11 +100,11 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'usage_alert',
         name: 'Token Usage Alert',
-        description: 'Sent to workspace admins when AI token usage reaches a high threshold (75% or 95%).',
+        description: 'Sent to organization admins when AI token usage reaches a high threshold (75% or 95%).',
         subject: 'Usage Alert for {{organizationName}}',
         variables: ['organizationName', 'usagePercentage', 'warningLevel'],
         html: `<p>Hello,</p>
-<p>This is a <strong>{{warningLevel}}</strong> notification that your workspace, <strong>{{organizationName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
+<p>This is a <strong>{{warningLevel}}</strong> notification that your organization, <strong>{{organizationName}}</strong>, has reached <strong>{{usagePercentage}}%</strong> of its monthly AI token usage limit.</p>
 <p>If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p>
 <p>To prevent service interruption, you can increase your limit by visiting the Billing Settings page in your admin dashboard.</p>
 <p>Thanks,<br/>The Logyx Team</p>`,
@@ -135,7 +135,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     <div class="header"><span class="welcome-text">Welcome to {{organizationName}}</span></div>
     <div class="content">
       <p>Hello {{userName}},</p>
-      <p>We're excited to have you join us! {{organizationName}} is your new workspace for business management.</p>
+      <p>We're excited to have you join us! {{organizationName}} is your new organization for business management.</p>
       <p>Your account is now fully active. You can start exploring your boards, items, and dashboards right away.</p>
       <div class="button-container">
         <a href="{{dashboardLink}}" class="button">Go to Dashboard</a>
@@ -151,7 +151,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
     {
         id: 'user_invitation',
         name: 'User Invitation',
-        description: 'Sent to pre-approved users who have been invited to join an workspace.',
+        description: 'Sent to pre-approved users who have been invited to join an organization.',
         subject: "You've been invited to join {{orgName}}",
         variables: ['orgName', 'organizationName', 'partOfText', 'registrationLink'],
         html: `<p>Hello,</p>

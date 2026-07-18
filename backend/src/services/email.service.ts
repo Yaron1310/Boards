@@ -132,7 +132,7 @@ export const sendAccountVerificationEmail = async (
     }
 
     // The system-admin-issued "invite a new Organization Admin" email keeps app branding —
-    // every other org-scoped email here is branded with the recipient's organization/workspace.
+    // every other org-scoped email here is branded with the recipient's organization.
     const brandName = inviteRole === 'org_manager' ? (orgName || organizationName) : organizationName;
     const fromName = inviteRole === 'org_admin'
         ? (process.env.SMTP_FROM_NAME || 'Logyx')
@@ -178,7 +178,7 @@ export const sendAccountVerificationEmail = async (
 
 const buildFallbackVerificationSubject = (inviteRole?: string, organizationName?: string, orgName?: string): string => {
     if (inviteRole === 'org_admin' || inviteRole === 'org_admin_notify') return `You've been invited as an Organization Admin for ${organizationName}`;
-    if (inviteRole === 'org_manager') return `You've been invited as an Workspace Manager for ${orgName || organizationName}`;
+    if (inviteRole === 'org_manager') return `You've been invited as an Organization Manager for ${orgName || organizationName}`;
     return `Verify Your Email for ${organizationName}`;
 };
 
@@ -198,7 +198,7 @@ const buildFallbackVerificationHtml = (
         return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Logyx Team</p>`;
     } else if (inviteRole === 'org_manager') {
         const entityName = orgName || organizationName;
-        introLine = `You've been invited to join <strong>${entityName}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
+        introLine = `You've been invited to join <strong>${entityName}</strong> as an Organization Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
         return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The ${entityName} Team</p>`;
     }
@@ -263,7 +263,7 @@ export const sendAccountApprovedEmail = async (userEmail: string, userName: stri
     const subject = tpl ? renderTemplate(tpl.subject, vars) : 'Your Account Has Been Approved!';
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello ${userName},</p><p>Great news! Your account for Logyx has been approved by your workspace's administrator.</p><p>You can now log in and start using the application.</p><p><a href="${loginLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p><p>Welcome aboard!</p><p>Thanks,<br/>The Logyx Team</p>`;
+        : `<p>Hello ${userName},</p><p>Great news! Your account for Logyx has been approved by your organization's administrator.</p><p>You can now log in and start using the application.</p><p><a href="${loginLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Log In Now</a></p><p>Welcome aboard!</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -346,7 +346,7 @@ export const sendUsageNotificationEmail = async (
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `Usage Alert for ${organizationName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>This is a notification that your workspace, <strong>${organizationName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Logyx Team</p>`;
+        : `<p>Hello,</p><p>This is a notification that your organization, <strong>${organizationName}</strong>, has reached ${usagePercentage}% of its monthly AI token usage limit.</p><p>This is a ${warningLevel} alert. If you reach 100%, new AI requests will be paused until the next billing cycle begins.</p><p>To prevent service interruption, you can increase your limit for the current month by visiting the Billing Settings page in your admin dashboard.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -354,7 +354,7 @@ export const sendUsageNotificationEmail = async (
             to: adminEmails.join(','),
             subject,
             html,
-            text: `Your workspace, ${organizationName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
+            text: `Your organization, ${organizationName}, has reached ${usagePercentage}% of its monthly AI token usage limit. Please visit your dashboard to manage your billing.`,
         });
         logger.info(`Usage notification email sent successfully to admins of ${organizationName}`);
         return { success: true };
@@ -420,7 +420,7 @@ const buildFallbackWelcomeHtml = (userName: string, organizationName: string, fr
     </style></head><body><div class="container">
     <div class="header"><span class="welcome-text">Welcome to ${organizationName}</span></div>
     <div class="content"><p>Hello ${userName},</p>
-    <p>We're excited to have you join us! ${organizationName} is your new workspace for business management.</p>
+    <p>We're excited to have you join us! ${organizationName} is your new organization for business management.</p>
     <p>Your account is now fully active. You can start exploring your boards, items, and dashboards right away.</p>
     <div class="button-container"><a href="${frontendUrl}/login" class="button">Go to Dashboard</a></div>
     <p>If you have any questions or need a hand getting started, we're here to help.</p>
