@@ -35,6 +35,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
   const [expirationDays, setExpirationDays] = useState(DEFAULT_VIEW_LINK_EXPIRATION_DAYS);
   const [viewFeedback, setViewFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
+  const [hiddenInviteIds, setHiddenInviteIds] = useState<Set<string>>(new Set());
 
   const { user: authUser } = useAuthSession();
   const isAdmin = authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN;
@@ -148,6 +149,11 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
     setRevokingInviteId(inviteId);
     try {
       await revokeViewInvite(inviteId);
+      // Leave the "Revoked" row visible briefly so the action reads as confirmed,
+      // then drop it from the list instead of leaving stale revoked rows around.
+      setTimeout(() => {
+        setHiddenInviteIds((prev) => new Set(prev).add(inviteId));
+      }, 2000);
     } catch {
       setViewFeedback({ type: 'error', text: 'Failed to revoke link.' });
     } finally {
@@ -291,9 +297,9 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
               <div className="flex items-center gap-2 py-2 mt-2 text-xs text-gray-400">
                 <FiLoader size={12} className="animate-spin" aria-hidden="true" /> Loading invitations…
               </div>
-            ) : viewInvites.length > 0 && (
+            ) : viewInvites.filter((invite) => !hiddenInviteIds.has(invite.id)).length > 0 && (
               <ul className="space-y-1 mt-3 pt-3 border-t border-gray-200" aria-label="Sent view-only invitations">
-                {viewInvites.map((invite) => {
+                {viewInvites.filter((invite) => !hiddenInviteIds.has(invite.id)).map((invite) => {
                   const isRevoked = !!invite.revokedAt;
                   const isExpired = !isRevoked && new Date(invite.expiresAt).getTime() < Date.now();
                   return (
