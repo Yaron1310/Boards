@@ -573,7 +573,8 @@ export const sendBoardViewInviteEmail = async (
     userEmail: string,
     boardName: string,
     inviterName: string,
-    viewLink: string
+    viewLink: string,
+    expirationDays: number
 ) => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
@@ -583,13 +584,14 @@ export const sendBoardViewInviteEmail = async (
 
     const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
-    const vars = { boardName, inviterName, viewLink };
+    const expiresText = `${expirationDays} day${expirationDays === 1 ? '' : 's'}`;
+    const vars = { boardName, inviterName, viewLink, expiresText };
 
     const tpl = await fetchTemplate('board_view_invite');
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `${inviterName} shared the board "${boardName}" with you`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p><strong>${inviterName}</strong> shared a read-only view of the board <strong>${boardName}</strong> with you on Logyx.</p><p>No account or login is required.</p><p><a href="${viewLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">View Board</a></p><p>This link expires in 7 days and only works for this email invitation.</p><p>If you did not expect this, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
+        : `<p>Hello,</p><p><strong>${inviterName}</strong> shared a read-only view of the board <strong>${boardName}</strong> with you on Logyx.</p><p>No account or login is required.</p><p><a href="${viewLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">View Board</a></p><p>This link expires in ${expiresText} and only works for this email invitation.</p><p>If you did not expect this, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -597,7 +599,7 @@ export const sendBoardViewInviteEmail = async (
             to: userEmail,
             subject,
             html,
-            text: `${inviterName} shared the board "${boardName}" with you on Logyx. View it (no login required, link expires in 7 days): ${viewLink}`,
+            text: `${inviterName} shared the board "${boardName}" with you on Logyx. View it (no login required, link expires in ${expiresText}): ${viewLink}`,
         });
         logger.info(`Board view invite email sent successfully to: ${userEmail}`);
         return { success: true };

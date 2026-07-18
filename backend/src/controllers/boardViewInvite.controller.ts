@@ -18,7 +18,10 @@ import { sendBoardViewInviteEmail } from '../services/email.service.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { env } from '../config/env.js';
 
-const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const DEFAULT_INVITE_TTL_DAYS = 7;
+const MIN_INVITE_TTL_DAYS = 1;
+const MAX_INVITE_TTL_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
   return typeof err === 'object' && err !== null && 'status' in err && 'message' in err;
@@ -40,9 +43,16 @@ export const createInvite = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
   const email = sanitizeText(req.body.email ?? '').toLowerCase().trim();
+  const rawExpirationDays = req.body.expirationDays;
+  const expirationDays = rawExpirationDays === undefined || rawExpirationDays === null
+    ? DEFAULT_INVITE_TTL_DAYS
+    : Number(rawExpirationDays);
 
   if (!email || !email.includes('@')) {
     return res.status(400).json({ message: 'A valid email address is required.' });
+  }
+  if (!Number.isInteger(expirationDays) || expirationDays < MIN_INVITE_TTL_DAYS || expirationDays > MAX_INVITE_TTL_DAYS) {
+    return res.status(400).json({ message: `Expiration must be a whole number of days between ${MIN_INVITE_TTL_DAYS} and ${MAX_INVITE_TTL_DAYS}.` });
   }
 
   try {
@@ -63,7 +73,7 @@ export const createInvite = async (req: Request, res: Response) => {
       email,
       invitedBy: user.id,
       createdAt: admin.firestore.Timestamp.fromMillis(now),
-      expiresAt: admin.firestore.Timestamp.fromMillis(now + INVITE_TTL_MS),
+      expiresAt: admin.firestore.Timestamp.fromMillis(now + expirationDays * DAY_MS),
       revokedAt: null,
     };
     await boardViewInvitesCollection.doc(hashToken(plainToken)).set(invite);
@@ -72,7 +82,7 @@ export const createInvite = async (req: Request, res: Response) => {
     const inviterName = inviterDoc.exists ? (inviterDoc.data()?.name || 'A teammate') : 'A teammate';
 
     const viewLink = `${env.FRONTEND_URL}/public/board-view/${plainToken}`;
-    await sendBoardViewInviteEmail(email, board.name, inviterName, viewLink);
+    await sendBoardViewInviteEmail(email, board.name, inviterName, viewLink, expirationDays);
 
     return res.status(201).json({ message: `View-only invitation sent to ${email}.` });
   } catch (err: unknown) {

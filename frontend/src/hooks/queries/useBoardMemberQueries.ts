@@ -55,7 +55,8 @@ export const useBoardViewInvites = (boardId: string, enabled = true) =>
 export const useCreateBoardViewInvite = (boardId: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (email: string) => wms.createBoardViewInvite(boardId, email),
+    mutationFn: ({ email, expirationDays }: { email: string; expirationDays: number }) =>
+      wms.createBoardViewInvite(boardId, email, expirationDays),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['boardViewInvites', boardId] }),
   });
 };

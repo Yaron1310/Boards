@@ -312,8 +312,8 @@ export interface BoardViewInvite {
 export const getBoardViewInvites = (boardId: string): Promise<BoardViewInvite[]> =>
   fetchWithAuth(`/api/boards/${boardId}/view-invites`);
 
-export const createBoardViewInvite = (boardId: string, email: string): Promise<{ message: string }> =>
-  fetchWithAuth(`/api/boards/${boardId}/view-invites`, { method: 'POST', body: JSON.stringify({ email }) });
+export const createBoardViewInvite = (boardId: string, email: string, expirationDays: number): Promise<{ message: string }> =>
+  fetchWithAuth(`/api/boards/${boardId}/view-invites`, { method: 'POST', body: JSON.stringify({ email, expirationDays }) });
 
 export const revokeBoardViewInvite = (boardId: string, inviteId: string): Promise<{ message: string }> =>
   fetchWithAuth(`/api/boards/${boardId}/view-invites/${inviteId}`, { method: 'DELETE' });

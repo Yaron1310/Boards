@@ -18,6 +18,10 @@ interface Props {
 
 const ADMIN_ROLES = new Set([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN, UserRole.WORKSPACE_ADMIN]);
 
+const DEFAULT_VIEW_LINK_EXPIRATION_DAYS = 7;
+const MIN_VIEW_LINK_EXPIRATION_DAYS = 1;
+const MAX_VIEW_LINK_EXPIRATION_DAYS = 90;
+
 const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
   const [email, setEmail] = useState('');
   const [permissions, setPermissions] = useState<'edit' | 'read_only'>('edit');
@@ -28,6 +32,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
 
   const [viewEmailInput, setViewEmailInput] = useState('');
   const [viewEmails, setViewEmails] = useState<string[]>([]);
+  const [expirationDays, setExpirationDays] = useState(DEFAULT_VIEW_LINK_EXPIRATION_DAYS);
   const [viewFeedback, setViewFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
@@ -118,9 +123,13 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
       setViewFeedback({ type: 'error', text: 'Add at least one email address.' });
       return;
     }
+    if (!Number.isInteger(expirationDays) || expirationDays < MIN_VIEW_LINK_EXPIRATION_DAYS || expirationDays > MAX_VIEW_LINK_EXPIRATION_DAYS) {
+      setViewFeedback({ type: 'error', text: `Expiration must be a whole number of days between ${MIN_VIEW_LINK_EXPIRATION_DAYS} and ${MAX_VIEW_LINK_EXPIRATION_DAYS}.` });
+      return;
+    }
     setViewFeedback(null);
     try {
-      const results = await Promise.allSettled(emails.map((e) => createViewInvite(e)));
+      const results = await Promise.allSettled(emails.map((e) => createViewInvite({ email: e, expirationDays })));
       const failed = results.filter((r) => r.status === 'rejected').length;
       if (failed === 0) {
         setViewFeedback({ type: 'success', text: `View-only link sent to ${emails.length} ${emails.length === 1 ? 'person' : 'people'}.` });
@@ -194,7 +203,7 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
             </div>
             <p className="text-[11px] text-gray-500 mb-3 leading-snug">
               Send a personal, read-only link to specific people — no account or login required.
-              Each link only works for the email it was sent to, and expires automatically after <strong>7 days</strong>.
+              Each link only works for the email it was sent to, and expires automatically after the number of days you set below.
             </p>
 
             {viewFeedback && (
@@ -241,7 +250,28 @@ const BoardInviteModal: React.FC<Props> = ({ boardId, onClose }) => {
               />
             </div>
 
-            <div className="flex justify-end mt-2.5">
+            <div className="flex items-end justify-between gap-3 mt-2.5">
+              <div>
+                <label htmlFor="board-view-invite-expiration" className="block text-xs font-medium text-gray-700 mb-1">
+                  Link expires after
+                </label>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    id="board-view-invite-expiration"
+                    type="number"
+                    min={MIN_VIEW_LINK_EXPIRATION_DAYS}
+                    max={MAX_VIEW_LINK_EXPIRATION_DAYS}
+                    step={1}
+                    value={expirationDays}
+                    onChange={(e) => setExpirationDays(e.target.valueAsNumber || DEFAULT_VIEW_LINK_EXPIRATION_DAYS)}
+                    className="w-16 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    aria-label="Number of days until the view-only link expires"
+                    disabled={isSendingViewInvites}
+                  />
+                  <span className="text-xs text-gray-500">day{expirationDays === 1 ? '' : 's'}</span>
+                </div>
+              </div>
+
               <button
                 type="button"
                 onClick={() => void handleSendViewInvites()}
