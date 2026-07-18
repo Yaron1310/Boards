@@ -10,6 +10,7 @@ import { signInWithCustomToken } from 'firebase/auth';
 import { firebaseAuth } from '../firebase';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../hooks/queries/queryKeys';
+import { REFRESH_TOKEN_STORAGE_KEY } from '../services/authFetch';
 
 // ---------------------------------------------------------------------------
 // Session context — stable identity data, changes only on login / logout
@@ -96,6 +97,7 @@ const removeAuthData = () => {
   localStorage.removeItem('authSelectedOrg');
   localStorage.removeItem('userForContextSelection');
   localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_STORAGE_KEY);
   sessionStorage.removeItem(PARTIAL_TOKEN_KEY);
 };
 
@@ -230,6 +232,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } else {
       localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     }
+    // The refresh token isn't carried by the __session cookie (Firebase Hosting's CDN
+    // strips every other cookie), so it must be stored client-side on every platform —
+    // it's what lets the session survive past the short-lived access token's expiry.
+    if (data.refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, data.refreshToken);
+    }
     setUser(data.user);
     setToken(data.accessToken);
     setSelectedWorkspace(data.selectedWorkspace);
@@ -260,6 +268,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = useCallback(async () => {
     console.log('%c[AUTH_STATE_UPDATE] Logging out user and clearing all auth data.', 'color: red; font-weight: bold;');
+    const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
     setUser(null);
     setToken(null);
     setSelectedWorkspace(null);
@@ -267,7 +276,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setUserForContextSelection(null);
     removeAuthData();
     try {
-      await apiService.logoutFromBackend();
+      await apiService.logoutFromBackend(storedRefreshToken);
     } catch (e) {
       console.warn('Backend logout call failed (cookies may already be expired)', e);
     }

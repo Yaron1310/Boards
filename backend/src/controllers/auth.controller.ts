@@ -24,15 +24,18 @@ import { DBUser, DBWorkspace, JwtUserPayload, DBPreapprovedUser, JwtVerification
 import { sendAccountVerificationEmail, sendPasswordResetEmail, sendWelcomeEmail } from '../services/email.service.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { validatePasswordComplexity } from '../utils/password.js';
+import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken, RefreshTokenError } from '../services/refreshToken.service.js';
 
 const isProduction = process.env.NODE_ENV === 'production' || env.FRONTEND_URL.startsWith('https');
+
+const ACCESS_TOKEN_EXPIRES_IN = '15m';
 
 const AUTH_COOKIE_OPTIONS = {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' as const : 'lax' as const,
     path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days — matches JWT expiry
+    maxAge: 15 * 60 * 1000, // 15 minutes — matches access JWT expiry; refresh token extends the session
 };
 
 const PARTIAL_COOKIE_OPTIONS = {
@@ -302,7 +305,7 @@ export async function applyPreapprovalsToBatch(
     return orgId;
 }
 
-export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceId: string, memberships: DBMembership[], sessionRole?: UserRole) => {
+export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceId: string, memberships: DBMembership[], sessionRole?: UserRole, preIssuedRefreshToken?: string) => {
     const effectiveRole = sessionRole || deriveHighestRole(memberships);
     if (!effectiveRole) {
         throw new Error(`Could not determine a valid role for user ${user.id}.`);
@@ -320,18 +323,20 @@ export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceI
             orgId,
             workspacePermissions,
         };
-        const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '7d' });
+        const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
         const orgDoc = await organizationsCollection.doc(orgId).get();
         const orgName = orgDoc.exists ? (orgDoc.data()?.name || 'Organization') : 'Organization';
-        const [userForFrontend, firebaseToken] = await Promise.all([
+        const [userForFrontend, firebaseToken, refreshToken] = await Promise.all([
             formatUserForFrontend(user, { role: effectiveRole }),
             admin.auth().createCustomToken(user.id, { orgId, role: effectiveRole }).catch((err) => {
                 logger.warn('createCustomToken failed — real-time sync unavailable until IAM is fixed', err.message);
                 return null;
             }),
+            preIssuedRefreshToken ? Promise.resolve(preIssuedRefreshToken) : issueRefreshToken(user.id, orgId, effectiveRole),
         ]);
         return {
             accessToken,
+            refreshToken,
             firebaseToken,
             user: userForFrontend,
             selectedWorkspace: { id: orgId, name: orgName, orgId, workspacePermissions },
@@ -355,18 +360,20 @@ export const generateFullLoginResponse = async (user: DBUser, selectedWorkspaceI
         workspacePermissions,
         ...(selectedMembership?.boardIds !== undefined ? { boardIds: selectedMembership.boardIds } : {}),
     };
-    const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: '7d' });
+    const accessToken = jwt.sign(tokenPayload, env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRES_IN });
 
-    const [userForFrontend, firebaseToken] = await Promise.all([
+    const [userForFrontend, firebaseToken, refreshToken] = await Promise.all([
         formatUserForFrontend(user, { role: effectiveRole }),
         admin.auth().createCustomToken(user.id, { orgId, role: effectiveRole }).catch((err) => {
             logger.warn('createCustomToken failed — real-time sync unavailable until IAM is fixed', err.message);
             return null;
         }),
+        preIssuedRefreshToken ? Promise.resolve(preIssuedRefreshToken) : issueRefreshToken(user.id, selectedWorkspace.id, effectiveRole),
     ]);
 
     return {
         accessToken,
+        refreshToken,
         firebaseToken,
         user: userForFrontend,
         selectedWorkspace: {
@@ -1368,7 +1375,46 @@ export const finalizeOrganizationSetup = async (req: Request, res: Response) => 
     }
 };
 
-export const logout = async (_req: Request, res: Response) => {
+export const logout = async (req: Request, res: Response) => {
+    const { refreshToken } = req.body || {};
+    if (refreshToken) {
+        await revokeRefreshToken(refreshToken);
+    }
     clearAuthCookies(res);
     res.json({ message: 'Logged out successfully.' });
+};
+
+export const refresh = async (req: Request, res: Response) => {
+    const { refreshToken } = req.body || {};
+    if (!refreshToken || typeof refreshToken !== 'string') {
+        return res.status(401).json({ message: 'No refresh token provided.' });
+    }
+
+    try {
+        const { userId, workspaceId, role, newToken } = await rotateRefreshToken(refreshToken);
+
+        const userDoc = await usersCollection.doc(userId).get();
+        if (!userDoc.exists) {
+            return res.status(401).json({ message: 'User not found.' });
+        }
+        const user = snapshotToData<DBUser>(userDoc)!;
+        if (user.status === 'disabled') {
+            return res.status(403).json({ message: 'Your account has been disabled.' });
+        }
+
+        const membershipsSnapshot = await membershipsCollection.where('userId', '==', user.id).get();
+        const memberships = querySnapshotToArray<DBMembership>(membershipsSnapshot);
+
+        const response = await generateFullLoginResponse(user, workspaceId, memberships, role, newToken);
+
+        setAuthCookie(res, response.accessToken);
+        return res.json(response);
+    } catch (error: any) {
+        if (error instanceof RefreshTokenError) {
+            clearAuthCookies(res);
+            return res.status(401).json({ message: error.message });
+        }
+        logger.error('Token refresh error:', error);
+        return res.status(500).json({ message: 'Failed to refresh session.' });
+    }
 };

@@ -1,87 +1,8 @@
 import type { User, Workspace, PreApprovedUser, OrganizationSettings, UserRole, SystemSettings, TutorialSettings, PaginatedResponse } from '../types';
 import { BACKEND_API_URL } from '../constants';
+import { fetchWithAuth, AUTH_TOKEN_STORAGE_KEY } from './authFetch';
 
-const handleAuthError = () => {
-    if (!(window as any).isLoggingOut) {
-        window.dispatchEvent(new CustomEvent('session-expired'));
-    }
-};
-
-export const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
-
-const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  const storedToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-  const callerHeaders = (options.headers || {}) as Record<string, string>;
-  const headers: Record<string, string> = {
-    ...callerHeaders,
-  };
-
-  // If the body is FormData, the browser will set the Content-Type automatically (including boundary).
-  // If we set it to 'application/json' or anything else, it will break.
-  // If the user DID NOT provide a Content-Type, and it's NOT FormData, we default to application/json.
-  if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
-      headers['Content-Type'] = 'application/json';
-  }
-
-  // Add stored token as Bearer if no explicit Authorization header was provided by the caller
-  if (storedToken && !headers['Authorization']) {
-    headers['Authorization'] = `Bearer ${storedToken}`;
-  }
-
-  const response = await fetch(`${BACKEND_API_URL}${url}`, {
-    ...options,
-    headers,
-    credentials: 'include',
-  });
-
-  if (response.status === 401) {
-      const errorData = await response.json().catch(() => ({ message: '' }));
-      const serverMessage = errorData.message || '';
-      // Only trigger session expiration for actual auth/token issues,
-      // not for business-logic 401s like "Incorrect current password"
-      const isSessionError = !serverMessage || /token|session|expired|unauthorized/i.test(serverMessage);
-      if (isSessionError) {
-          handleAuthError();
-      }
-      const err: any = new Error(isSessionError ? "Your session has expired. Please log in again." : serverMessage);
-      err.status = 401;
-      throw err;
-  }
-  if (response.status === 403) {
-      const errorData = await response.json().catch(() => ({ message: 'You do not have permission to perform this action.' }));
-      const error: any = new Error(errorData.message);
-      error.status = 403;
-      if (errorData.code) {
-          error.code = errorData.code;
-      }
-      if (errorData.orgId) {
-          error.orgId = errorData.orgId;
-      }
-      throw error;
-  }
-
-  if (!response.ok) {
-    let errorData;
-    try {
-      errorData = await response.json();
-    } catch (e) {
-      errorData = { message: `HTTP error! status: ${response.status}` };
-    }
-
-    if (response.status === 409 && errorData.dependencies) {
-        const conflictError: any = new Error(errorData.message || 'Conflict with existing resources.');
-        conflictError.isConflict = true;
-        conflictError.dependencies = errorData.dependencies;
-        throw conflictError;
-    }
-
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
-  if (response.status === 204) {
-    return null;
-  }
-  return response.json();
-};
+export { AUTH_TOKEN_STORAGE_KEY };
 
 // --- Auth ---
 export const initiateCheckoutRegistration = async (formData: any): Promise<{ success: boolean; message: string }> => {
@@ -169,9 +90,11 @@ export const verifyNativeMicrosoftToken = async (idToken: string) => {
     return data;
 };
 
-export const logoutFromBackend = async (): Promise<void> => {
+export const logoutFromBackend = async (refreshToken?: string | null): Promise<void> => {
     await fetch(`${BACKEND_API_URL}/api/auth/logout`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
         credentials: 'include',
     });
 };

@@ -159,6 +159,20 @@ export interface JwtPasswordResetPayload {
   action: 'reset_password';
 }
 
+// --- REFRESH TOKENS ---
+
+// Firestore doc ID is the sha256 hash of the plaintext refresh token — the
+// plaintext is never stored, only its hash, so a Firestore read alone can't
+// yield a usable token.
+export interface DBRefreshToken {
+  userId: string;
+  workspaceId: string;
+  role: UserRole;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  expiresAt: admin.firestore.Timestamp | Date | any;
+  revokedAt: admin.firestore.Timestamp | Date | any | null;
+}
+
 // --- PAGINATION ---
 
 export interface PaginatedResponse<T> {

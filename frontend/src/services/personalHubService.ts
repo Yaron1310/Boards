@@ -1,33 +1,5 @@
 import type { ColumnSettings, ColumnType, PersonalColumn, PersonalColumnScope } from '../types';
-import { BACKEND_API_URL } from '../constants';
-
-const AUTH_TOKEN_STORAGE_KEY = 'authJwt';
-
-const fetchWithAuth = async (url: string, options: RequestInit = {}) => {
-  const storedToken = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
-  const headers: Record<string, string> = { ...(options.headers as Record<string, string> | undefined) };
-  if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
-    headers['Content-Type'] = 'application/json';
-  }
-  if (storedToken && !headers['Authorization']) {
-    headers['Authorization'] = `Bearer ${storedToken}`;
-  }
-
-  const response = await fetch(`${BACKEND_API_URL}${url}`, { ...options, headers, credentials: 'include' });
-  if (!response.ok) {
-    let errorData: { message?: string };
-    try {
-      errorData = await response.json();
-    } catch {
-      errorData = { message: `HTTP error! status: ${response.status}` };
-    }
-    const err = new Error(errorData.message || `HTTP error! status: ${response.status}`) as Error & { status: number };
-    err.status = response.status;
-    throw err;
-  }
-  if (response.status === 204) return null;
-  return response.json();
-};
+import { fetchWithAuth } from './authFetch';
 
 export interface CreatePersonalColumnData {
   name: string;
