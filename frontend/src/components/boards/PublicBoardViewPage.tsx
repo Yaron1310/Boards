@@ -84,6 +84,7 @@ function buildMockAuth(board: Board): AuthSessionContextType {
       workspacePermissions: 'read_only',
     } as unknown as AuthSessionContextType['selectedWorkspace'],
     isOrgSubscriptionActive: true,
+    isPublicView: true,
     logout: noop,
     updateAuthUser: noop,
     refreshAuthUser: noopVoid,

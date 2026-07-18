@@ -21,6 +21,8 @@ export interface AuthSessionContextType {
   token: string | null;
   selectedWorkspace: (Workspace & { hasChatAccess?: boolean; hasMindPatternsAccess?: boolean }) | null;
   isOrgSubscriptionActive: boolean;
+  /** True only for the unauthenticated public/shared board-view page — never set by the real AuthProvider. */
+  isPublicView?: boolean;
 
   logout: () => void;
   updateAuthUser: (updatedUser: User) => void;

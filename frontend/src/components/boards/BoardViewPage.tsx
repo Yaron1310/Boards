@@ -492,7 +492,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
 const BoardViewPage: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { user, selectedWorkspace } = useAuthSession();
+  const { user, selectedWorkspace, isPublicView } = useAuthSession();
 
   const pageSize = usePageSize();
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);
@@ -545,14 +545,22 @@ const BoardViewPage: React.FC = () => {
   // only for the initial restore (guarded by a ref), so a user who deliberately opens the
   // still-empty dashboard to add their first widget is not bounced back out.
   const { data: allDashboards } = useCustomDashboards(false);
+  const boardDashboardsCount = useMemo(
+    () => selectBoardDashboards(allDashboards, boardId ?? '').length,
+    [allDashboards, boardId],
+  );
+  // In the public/shared read-only view there's no way to create a dashboard, so an empty
+  // Dashboard tab is just a dead end — hide the toggle entirely there when there's nothing to show.
+  // The real (authenticated) board always keeps the button so an admin can add the first widget.
+  const showDashboardToggle = !isPublicView || boardDashboardsCount > 0;
   const didInitialDashboardCheck = useRef(false);
   useEffect(() => {
     if (didInitialDashboardCheck.current || allDashboards === undefined) return;
     didInitialDashboardCheck.current = true;
-    if (boardView === 'dashboard' && selectBoardDashboards(allDashboards, boardId ?? '').length === 0) {
+    if (boardView === 'dashboard' && boardDashboardsCount === 0) {
       setBoardView('table');
     }
-  }, [allDashboards, boardView, boardId]);
+  }, [allDashboards, boardView, boardDashboardsCount]);
 
   // Local optimistic state for DnD
   const [localGroups, setLocalGroups] = useState<Group[]>([]);
@@ -1053,6 +1061,7 @@ const BoardViewPage: React.FC = () => {
                   </svg>
                 </button>
               )}
+              {showDashboardToggle && (
               <button
                 type="button"
                 onClick={() => setAndPersistBoardView('dashboard')}
@@ -1067,6 +1076,7 @@ const BoardViewPage: React.FC = () => {
                   <path d="M14 2.25A10 10 0 0 1 22 10h-8V2.25z" opacity="0.5" />
                 </svg>
               </button>
+              )}
             </div>
 
             {canManage && (
