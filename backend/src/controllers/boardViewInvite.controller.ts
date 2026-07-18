@@ -11,6 +11,7 @@ import {
   columnsCollection,
   itemsCollection,
   usersCollection,
+  organizationsCollection,
 } from '../db/collections.js';
 import { JwtUserPayload, DBBoard, DBBoardMember, DBBoardViewInvite, DBGroup, DBColumn, DBItem } from '../types/index.js';
 import { assertBoardAccess } from '../utils/workManagementAuth.js';
@@ -81,8 +82,11 @@ export const createInvite = async (req: Request, res: Response) => {
     const inviterDoc = await usersCollection.doc(user.id).get();
     const inviterName = inviterDoc.exists ? (inviterDoc.data()?.name || 'A teammate') : 'A teammate';
 
+    const organizationDoc = await organizationsCollection.doc(user.orgId).get();
+    const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
+
     const viewLink = `${env.FRONTEND_URL}/public/board-view/${plainToken}`;
-    await sendBoardViewInviteEmail(email, board.name, inviterName, viewLink, expirationDays);
+    await sendBoardViewInviteEmail(email, board.name, inviterName, viewLink, expirationDays, organizationName);
 
     return res.status(201).json({ message: `View-only invitation sent to ${email}.` });
   } catch (err: unknown) {

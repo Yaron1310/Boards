@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { itemsCollection, columnsCollection, boardMembersCollection, notificationsCollection, usersCollection, boardsCollection } from '../db/collections.js';
+import { itemsCollection, columnsCollection, boardMembersCollection, notificationsCollection, usersCollection, boardsCollection, organizationsCollection } from '../db/collections.js';
 import { JwtUserPayload, DBItem, DBColumn, DBUser, DBBoard, DBBoardMember, ColumnType, NotificationType } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -111,6 +111,11 @@ async function getBoardName(orgId: string, boardId: string): Promise<string> {
   return doc.exists ? (doc.data() as DBBoard).name : boardId;
 }
 
+async function getOrganizationName(orgId: string): Promise<string> {
+  const doc = await organizationsCollection.doc(orgId).get();
+  return doc.exists ? (doc.data()?.name || 'Logyx') : 'Logyx';
+}
+
 function triggerItemNotifications(
   orgId: string,
   actorId: string,
@@ -149,7 +154,8 @@ function triggerItemNotifications(
         if (!userDoc.exists) return;
         const recipient = userDoc.data() as DBUser;
         if (!recipient.email) return;
-        await sendItemAssignmentEmail(recipient.email, recipient.name ?? recipient.email, actorName, item.name, boardName);
+        const organizationName = await getOrganizationName(orgId);
+        await sendItemAssignmentEmail(recipient.email, recipient.name ?? recipient.email, actorName, item.name, boardName, organizationName);
       } catch (err) {
         logger.warn('Failed to send assignment email:', err);
       }

@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, storage, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
-import { itemsCollection, itemChatMessagesCollection, boardMembersCollection, usersCollection, columnsCollection } from '../db/collections.js';
+import { itemsCollection, itemChatMessagesCollection, boardMembersCollection, usersCollection, columnsCollection, organizationsCollection } from '../db/collections.js';
 import { JwtUserPayload, DBItem, DBUser, DBBoardMember, DBChatMessage, DBChatAttachment, DBColumn, ColumnType } from '../types/index.js';
 import { assertItemAccess } from '../utils/workManagementAuth.js';
 import { sendChatMentionEmail } from '../services/email.service.js';
@@ -230,6 +230,9 @@ async function sendChatNotifications(
     const allRecipientIds = [...mentionedSet, ...assignedOnlyIds];
     if (allRecipientIds.length === 0) return;
 
+    const organizationDoc = await organizationsCollection.doc(orgId).get();
+    const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
+
     const userDocs = await Promise.all(allRecipientIds.map((uid) => usersCollection.doc(uid).get()));
 
     await Promise.all(
@@ -251,6 +254,7 @@ async function sendChatNotifications(
           item.name,
           messageText,
           isMentioned ? 'mention' : 'assigned',
+          organizationName,
         );
       }),
     );

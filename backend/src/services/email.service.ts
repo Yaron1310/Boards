@@ -1,7 +1,5 @@
 import nodemailer from 'nodemailer';
 import * as logger from "firebase-functions/logger";
-import path from 'path';
-import fs from 'fs';
 import { emailTemplatesCollection } from '../db/collections.js';
 import type { DBEmailTemplate } from '../types/index.js';
 
@@ -133,7 +131,12 @@ export const sendAccountVerificationEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    // The system-admin-issued "invite a new Organization Admin" email keeps app branding —
+    // every other org-scoped email here is branded with the recipient's organization/workspace.
+    const brandName = inviteRole === 'org_manager' ? (orgName || organizationName) : organizationName;
+    const fromName = inviteRole === 'org_admin'
+        ? (process.env.SMTP_FROM_NAME || 'Logyx')
+        : (process.env.SMTP_FROM_NAME || brandName || 'Logyx');
     const fromEmail = process.env.SMTP_USER!;
 
     let templateId: string;
@@ -187,19 +190,21 @@ const buildFallbackVerificationHtml = (
     if (inviteRole === 'org_admin_notify') {
         introLine = `You've been added to <strong>${organizationName}</strong> as an Organization Admin. You can now log in and manage this organization.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
-        return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Login to Boards</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Logyx Team</p>`;
+        return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Login to ${organizationName}</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The ${organizationName} Team</p>`;
     } else if (inviteRole === 'org_admin') {
+        // System-admin-issued invitation for a brand-new Organization Admin — keeps app branding.
         introLine = `You've been invited to join <strong>${organizationName}</strong> as an Organization Admin. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
+        return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Logyx Team</p>`;
     } else if (inviteRole === 'org_manager') {
         const entityName = orgName || organizationName;
         introLine = `You've been invited to join <strong>${entityName}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.`;
         ignoreNote = 'If you did not expect this invitation, you can safely ignore this email.';
-    } else {
-        introLine = 'Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.';
-        ignoreNote = 'If you did not create an account, you can safely ignore this email.';
+        return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The ${entityName} Team</p>`;
     }
-    return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The Logyx Team</p>`;
+    introLine = 'Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.';
+    ignoreNote = 'If you did not create an account, you can safely ignore this email.';
+    return `<p>Hello ${userName},</p><p>${introLine}</p><p><a href="${verificationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p><p>${ignoreNote}</p><p>Thanks,<br/>The ${organizationName} Team</p>`;
 };
 
 // ---------------------------------------------------------------------------
@@ -290,7 +295,7 @@ export const sendPasswordResetEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromName = process.env.SMTP_FROM_NAME || organizationName || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const vars = { userName, organizationName, resetLink };
 
@@ -298,7 +303,7 @@ export const sendPasswordResetEmail = async (
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `Reset Your Password for ${organizationName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello ${userName},</p><p>We received a request to reset your password. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p><p><a href="${resetLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p><p>If you did not request a password reset, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
+        : `<p>Hello ${userName},</p><p>We received a request to reset your password. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p><p><a href="${resetLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p><p>If you did not request a password reset, you can safely ignore this email.</p><p>Thanks,<br/>The ${organizationName} Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -361,30 +366,29 @@ export const sendUsageNotificationEmail = async (
 
 // ---------------------------------------------------------------------------
 
-export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
+export const sendWelcomeEmail = async (userEmail: string, userName: string, organizationName = 'Logyx') => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
         logger.error(`Could not send welcome email to ${userEmail} because email service is not initialized.`);
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromName = process.env.SMTP_FROM_NAME || organizationName || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const frontendUrl = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
-    const logoPath = path.join(process.cwd(), 'src', 'assets', 'email_logo.png');
-    const hasLogo = fs.existsSync(logoPath);
 
     const vars = {
         userName,
+        organizationName,
         dashboardLink: `${frontendUrl}/login`,
         currentYear: String(new Date().getFullYear()),
     };
 
     const tpl = await fetchTemplate('welcome');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to Logyx, ${userName}!`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Welcome to ${organizationName}, ${userName}!`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : buildFallbackWelcomeHtml(userName, frontendUrl, hasLogo);
+        : buildFallbackWelcomeHtml(userName, organizationName, frontendUrl);
 
     try {
         const mailOptions: nodemailer.SendMailOptions = {
@@ -392,11 +396,8 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
             to: userEmail,
             subject,
             html,
-            text: `Welcome to Logyx, ${userName}! Your account is now active. Log in at ${frontendUrl}/login`,
+            text: `Welcome to ${organizationName}, ${userName}! Your account is now active. Log in at ${frontendUrl}/login`,
         };
-        if (!tpl && hasLogo) {
-            mailOptions.attachments = [{ filename: 'logo.png', path: logoPath, cid: 'logo' }];
-        }
         await transporter!.sendMail(mailOptions);
         logger.info(`Welcome email sent successfully to user: ${userEmail}`);
         return { success: true };
@@ -406,27 +407,25 @@ export const sendWelcomeEmail = async (userEmail: string, userName: string) => {
     }
 };
 
-const buildFallbackWelcomeHtml = (userName: string, frontendUrl: string, hasLogo: boolean): string => `
+const buildFallbackWelcomeHtml = (userName: string, organizationName: string, frontendUrl: string): string => `
     <!DOCTYPE html><html><head><meta charset="utf-8"><style>
     body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;line-height:1.6;color:#333;margin:0;padding:0}
     .container{max-width:600px;margin:20px auto;padding:20px;border:1px solid #e5e7eb;border-radius:8px}
     .header{display:flex;align-items:center;justify-content:center;margin-bottom:30px;gap:10px}
-    .logo{max-width:120px;height:auto;vertical-align:middle}
     .welcome-text{font-size:24px;font-weight:bold;color:#1f2937;margin:0}
     .content{padding:0 20px}
     .footer{text-align:center;margin-top:30px;font-size:12px;color:#6b7280;border-top:1px solid #e5e7eb;padding-top:20px}
     .button-container{text-align:center;margin:30px 0}
     .button{background-color:#2563eb;color:#ffffff!important;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block}
     </style></head><body><div class="container">
-    <div class="header"><span class="welcome-text">Welcome to</span>
-    ${hasLogo ? '<img src="cid:logo" alt="Logyx Logo" class="logo">' : '<span class="welcome-text" style="color:#2563eb;">Logyx</span>'}</div>
+    <div class="header"><span class="welcome-text">Welcome to ${organizationName}</span></div>
     <div class="content"><p>Hello ${userName},</p>
-    <p>We're excited to have you join us! Logyx is a new space to learn, grow, and transform.</p>
-    <p>Your account is now fully active. You can start exploring our AI-powered mentors, courses, and more right away.</p>
+    <p>We're excited to have you join us! ${organizationName} is your new workspace for business management.</p>
+    <p>Your account is now fully active. You can start exploring your boards, items, and dashboards right away.</p>
     <div class="button-container"><a href="${frontendUrl}/login" class="button">Go to Dashboard</a></div>
     <p>If you have any questions or need a hand getting started, we're here to help.</p>
-    <p>Best regards,<br/>The Logyx Team</p></div>
-    <div class="footer">&copy; ${new Date().getFullYear()} Logyx. All rights reserved.</div>
+    <p>Best regards,<br/>The ${organizationName} Team</p></div>
+    <div class="footer">&copy; ${new Date().getFullYear()} ${organizationName}. All rights reserved.</div>
     </div></body></html>`;
 
 // ---------------------------------------------------------------------------
@@ -471,12 +470,13 @@ export const sendChatMentionEmail = async (
     senderName: string,
     itemName: string,
     messageText: string,
-    reason: 'mention' | 'assigned'
+    reason: 'mention' | 'assigned',
+    organizationName = 'Logyx',
 ): Promise<void> => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) return;
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromName = process.env.SMTP_FROM_NAME || organizationName || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const subject = reason === 'mention'
         ? `${senderName} mentioned you in "${itemName}"`
@@ -489,7 +489,7 @@ export const sendChatMentionEmail = async (
 <blockquote style="border-left:3px solid #6366f1;padding:8px 16px;margin:12px 0;background:#f5f3ff;border-radius:4px;color:#374151;white-space:pre-wrap;">
   ${messageText.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br/>')}
 </blockquote>
-<p>Thanks,<br/>The Logyx Team</p>`;
+<p>Thanks,<br/>The ${organizationName} Team</p>`;
 
     try {
         await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to: toEmail, subject, html });
@@ -506,18 +506,19 @@ export const sendItemAssignmentEmail = async (
     actorName: string,
     itemName: string,
     boardName: string,
+    organizationName = 'Logyx',
 ): Promise<void> => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) return;
 
     const esc = (s: string) => s.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromName = process.env.SMTP_FROM_NAME || organizationName || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const subject = `You've been assigned to "${itemName}"`;
     const onBoard = boardName ? ` on <strong>${esc(boardName)}</strong>` : '';
     const html = `<p>Hello ${esc(toName)},</p>
 <p><strong>${esc(actorName)}</strong> assigned you to <strong>${esc(itemName)}</strong>${onBoard}.</p>
-<p>Thanks,<br/>The Logyx Team</p>`;
+<p>Thanks,<br/>The ${esc(organizationName)} Team</p>`;
 
     try {
         await transporter!.sendMail({ from: `"${fromName}" <${fromEmail}>`, to: toEmail, subject, html });
@@ -540,7 +541,7 @@ export const sendUserInvitationEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromName = process.env.SMTP_FROM_NAME || orgName || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const partOfText = orgName !== organizationName
         ? ` (part of <strong>${organizationName}</strong>)`
@@ -548,10 +549,10 @@ export const sendUserInvitationEmail = async (
     const vars = { orgName, organizationName, partOfText, registrationLink };
 
     const tpl = await fetchTemplate('user_invitation');
-    const subject = tpl ? renderTemplate(tpl.subject, vars) : `You've been invited to join ${orgName} on Logyx`;
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `You've been invited to join ${orgName}`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong>${partOfText} on Logyx.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
+        : `<p>Hello,</p><p>You've been invited to join <strong>${orgName}</strong>${partOfText}.</p><p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p><p><a href="${registrationLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p><p>If you did not expect this invitation, you can safely ignore this email.</p><p>Thanks,<br/>The ${orgName} Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -559,7 +560,7 @@ export const sendUserInvitationEmail = async (
             to: userEmail,
             subject,
             html,
-            text: `You've been invited to join ${orgName} on Logyx. Create your account at: ${registrationLink}`,
+            text: `You've been invited to join ${orgName}. Create your account at: ${registrationLink}`,
         });
         logger.info(`Invitation email sent successfully to: ${userEmail}`);
         return { success: true };
@@ -574,7 +575,8 @@ export const sendBoardViewInviteEmail = async (
     boardName: string,
     inviterName: string,
     viewLink: string,
-    expirationDays: number
+    expirationDays: number,
+    organizationName = 'Logyx',
 ) => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {
@@ -582,16 +584,16 @@ export const sendBoardViewInviteEmail = async (
         return { success: false, error: 'Email service not available' };
     }
 
-    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromName = process.env.SMTP_FROM_NAME || organizationName || 'Logyx';
     const fromEmail = process.env.SMTP_USER!;
     const expiresText = `${expirationDays} day${expirationDays === 1 ? '' : 's'}`;
-    const vars = { boardName, inviterName, viewLink, expiresText };
+    const vars = { boardName, inviterName, viewLink, expiresText, organizationName };
 
     const tpl = await fetchTemplate('board_view_invite');
     const subject = tpl ? renderTemplate(tpl.subject, vars) : `${inviterName} shared the board "${boardName}" with you`;
     const html = tpl
         ? renderTemplate(tpl.html, vars)
-        : `<p>Hello,</p><p><strong>${inviterName}</strong> shared a read-only view of the board <strong>${boardName}</strong> with you on Logyx.</p><p>No account or login is required.</p><p><a href="${viewLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">View Board</a></p><p>This link expires in ${expiresText} and only works for this email invitation.</p><p>If you did not expect this, you can safely ignore this email.</p><p>Thanks,<br/>The Logyx Team</p>`;
+        : `<p>Hello,</p><p><strong>${inviterName}</strong> shared a read-only view of the board <strong>${boardName}</strong> with you on ${organizationName}.</p><p>No account or login is required.</p><p><a href="${viewLink}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">View Board</a></p><p>This link expires in ${expiresText} and only works for this email invitation.</p><p>If you did not expect this, you can safely ignore this email.</p><p>Thanks,<br/>The ${organizationName} Team</p>`;
 
     try {
         await transporter!.sendMail({
@@ -599,7 +601,7 @@ export const sendBoardViewInviteEmail = async (
             to: userEmail,
             subject,
             html,
-            text: `${inviterName} shared the board "${boardName}" with you on Logyx. View it (no login required, link expires in ${expiresText}): ${viewLink}`,
+            text: `${inviterName} shared the board "${boardName}" with you on ${organizationName}. View it (no login required, link expires in ${expiresText}): ${viewLink}`,
         });
         logger.info(`Board view invite email sent successfully to: ${userEmail}`);
         return { success: true };

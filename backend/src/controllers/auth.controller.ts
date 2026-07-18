@@ -601,7 +601,7 @@ export const register = async (req: Request, res: Response) => {
         }
 
         // Send welcome email (fire and forget) — verification email is skipped for invited users
-        sendWelcomeEmail(email, name).catch(err => logger.error("Failed to send welcome email:", err));
+        sendWelcomeEmail(email, name, organizationName).catch(err => logger.error("Failed to send welcome email:", err));
 
         return res.status(201).json({
             success: true,
@@ -963,8 +963,27 @@ export const verifyAccount = async (req: Request, res: Response) => {
             }
             await batch.commit();
 
+            // Resolve the user's organization to brand the welcome email (they were invited
+            // into a real org via the org-admin / workspace-manager verify_email flow).
+            let welcomeOrgName = 'Logyx';
+            const welcomeMembershipSnapshot = await membershipsCollection.where('userId', '==', user.id).limit(1).get();
+            if (!welcomeMembershipSnapshot.empty) {
+                const membership = snapshotToData<DBMembership>(welcomeMembershipSnapshot.docs[0])!;
+                let welcomeOrgId: string | undefined;
+                if (membership.entityType === 'workspace') {
+                    welcomeOrgId = membership.entityId;
+                } else {
+                    const orgDoc = await workspacesCollection.doc(membership.entityId).get();
+                    if (orgDoc.exists) welcomeOrgId = orgDoc.data()?.orgId;
+                }
+                if (welcomeOrgId) {
+                    const organizationDoc = await organizationsCollection.doc(welcomeOrgId).get();
+                    if (organizationDoc.exists) welcomeOrgName = organizationDoc.data()?.name || 'Logyx';
+                }
+            }
+
             // Send Welcome Email (Fire and forget)
-            sendWelcomeEmail(user.email, user.name).catch(err => logger.error("Failed to send welcome email:", err));
+            sendWelcomeEmail(user.email, user.name, welcomeOrgName).catch(err => logger.error("Failed to send welcome email:", err));
 
             if (!user.passwordHash) {
                 return res.redirect(`${env.FRONTEND_URL}/register?account_verified=true&email=${encodeURIComponent(user.email)}`);

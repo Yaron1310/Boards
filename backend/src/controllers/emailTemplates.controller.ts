@@ -21,12 +21,12 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>Welcome! Before you can log in, please verify your email address by clicking the button below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not create an account, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Logyx Team</p>`,
+<p>Thanks,<br/>The {{organizationName}} Team</p>`,
     },
     {
         id: 'invite_organization_admin',
         name: 'Organization Admin Invitation',
-        description: 'Sent when a new Organization Admin is invited to set up their account.',
+        description: 'Sent by a system admin when a new Organization Admin is invited to set up their account. Kept app-branded (not organization-branded) since the recipient has no organization yet.',
         subject: "You've been invited as an Organization Admin for {{organizationName}}",
         variables: ['userName', 'organizationName', 'verificationLink'],
         html: `<p>Hello {{userName}},</p>
@@ -43,9 +43,9 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         variables: ['userName', 'organizationName', 'loginLink'],
         html: `<p>Hello {{userName}},</p>
 <p>You've been added to <strong>{{organizationName}}</strong> as an Organization Admin. You can now log in and manage this organization.</p>
-<p><a href="{{loginLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Login to Boards</a></p>
+<p><a href="{{loginLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Login to {{organizationName}}</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Logyx Team</p>`,
+<p>Thanks,<br/>The {{organizationName}} Team</p>`,
     },
     {
         id: 'invite_org_manager',
@@ -57,7 +57,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>You've been invited to join <strong>{{entityName}}</strong> as an Workspace Manager. Please set up your account by verifying your email address below. This link is valid for 24 hours.</p>
 <p><a href="{{verificationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Verify My Email</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Logyx Team</p>`,
+<p>Thanks,<br/>The {{entityName}} Team</p>`,
     },
     {
         id: 'approval_request',
@@ -95,7 +95,7 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 <p>We received a request to reset your password for <strong>{{organizationName}}</strong>. Please click the button below to set a new password. This link is valid for 24 hours and can only be used once.</p>
 <p><a href="{{resetLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Reset Password</a></p>
 <p>If you did not request a password reset, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Logyx Team</p>`,
+<p>Thanks,<br/>The {{organizationName}} Team</p>`,
     },
     {
         id: 'usage_alert',
@@ -113,8 +113,8 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'welcome',
         name: 'Welcome Email',
         description: 'Sent after a user successfully verifies their email or completes a payment-based signup.',
-        subject: 'Welcome to Logyx, {{userName}}!',
-        variables: ['userName', 'dashboardLink'],
+        subject: 'Welcome to {{organizationName}}, {{userName}}!',
+        variables: ['userName', 'organizationName', 'dashboardLink'],
         html: `<!DOCTYPE html>
 <html>
 <head>
@@ -132,18 +132,18 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
 </head>
 <body>
   <div class="container">
-    <div class="header"><span class="welcome-text">Welcome to Logyx</span></div>
+    <div class="header"><span class="welcome-text">Welcome to {{organizationName}}</span></div>
     <div class="content">
       <p>Hello {{userName}},</p>
-      <p>We're excited to have you join us! Logyx is your new workspace for business management.</p>
+      <p>We're excited to have you join us! {{organizationName}} is your new workspace for business management.</p>
       <p>Your account is now fully active. You can start exploring your boards, items, and dashboards right away.</p>
       <div class="button-container">
         <a href="{{dashboardLink}}" class="button">Go to Dashboard</a>
       </div>
       <p>If you have any questions or need a hand getting started, we're here to help.</p>
-      <p>Best regards,<br/>The Logyx Team</p>
+      <p>Best regards,<br/>The {{organizationName}} Team</p>
     </div>
-    <div class="footer">&copy; {{currentYear}} Logyx. All rights reserved.</div>
+    <div class="footer">&copy; {{currentYear}} {{organizationName}}. All rights reserved.</div>
   </div>
 </body>
 </html>`,
@@ -152,14 +152,14 @@ export const DEFAULT_TEMPLATES: Omit<DBEmailTemplate, 'updatedAt' | 'updatedBy'>
         id: 'user_invitation',
         name: 'User Invitation',
         description: 'Sent to pre-approved users who have been invited to join an workspace.',
-        subject: "You've been invited to join {{orgName}} on Logyx",
+        subject: "You've been invited to join {{orgName}}",
         variables: ['orgName', 'organizationName', 'partOfText', 'registrationLink'],
         html: `<p>Hello,</p>
-<p>You've been invited to join <strong>{{orgName}}</strong>{{partOfText}} on Logyx.</p>
+<p>You've been invited to join <strong>{{orgName}}</strong>{{partOfText}}.</p>
 <p>To get started, please create your account using the button below. Make sure to sign up with this email address.</p>
 <p><a href="{{registrationLink}}" style="background-color:#2563eb;color:white;padding:10px 15px;text-decoration:none;border-radius:5px;">Create My Account</a></p>
 <p>If you did not expect this invitation, you can safely ignore this email.</p>
-<p>Thanks,<br/>The Logyx Team</p>`,
+<p>Thanks,<br/>The {{orgName}} Team</p>`,
     },
 ];
 
