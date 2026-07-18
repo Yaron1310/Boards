@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App'; // Assuming App.tsx is in the same src/ directory
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext'; // Assuming contexts are in src/contexts/
 import { DataProvider } from './contexts/DataContext';
 import { FormulaRecordingProvider } from './contexts/FormulaRecordingContext';
@@ -32,14 +33,16 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <DataProvider>
-          <FormulaRecordingProvider>
-            <App />
-          </FormulaRecordingProvider>
-        </DataProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <DataProvider>
+            <FormulaRecordingProvider>
+              <App />
+            </FormulaRecordingProvider>
+          </DataProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
