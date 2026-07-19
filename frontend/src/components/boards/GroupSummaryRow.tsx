@@ -719,10 +719,11 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulati
       style={minWidth ? { minWidth: `${minWidth}px` } : undefined}
     >
       <div
-        className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4]"
+        className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4] flex items-center pl-7 pr-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
         style={{ width: `${itemSectionWidth}px`, borderBottomLeftRadius: '6px' }}
-        aria-hidden="true"
-      />
+      >
+        Group total
+      </div>
       {leadingExtraCells}
       {visibleColumns.map((col) => (
         <SummaryCell
