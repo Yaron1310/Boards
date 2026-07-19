@@ -3,12 +3,15 @@ import { setDocumentDirOverride, clearDocumentDirOverride } from '../i18n';
 
 /**
  * Forces the HTML element to lang="en" dir="ltr" while the component is mounted.
- * The override is sticky: it also wins over i18n's async 'initialized' and
- * 'languageChanged' events, which would otherwise re-apply an RTL language
- * detected from localStorage after this hook has run.
  * Restores the i18n-driven language on unmount.
  * Used by auth pages (login, register, reset password) and the public
  * board view to prevent RTL/Hebrew from being applied to those pages.
+ *
+ * i18n.ts re-applies the detected language's dir/lang on its
+ * 'languageChanged'/'initialized' events, which can fire asynchronously (the
+ * HttpBackend translation fetch, or the LanguageDetector resolving) *after*
+ * this effect runs. The override registered here is sticky: i18n.ts checks it
+ * before applying those events, so the forced en/ltr wins regardless of timing.
  */
 export function useForceDocumentLang(): void {
   useEffect(() => {

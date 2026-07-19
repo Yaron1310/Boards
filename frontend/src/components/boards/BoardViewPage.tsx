@@ -492,7 +492,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
 const BoardViewPage: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { user, selectedWorkspace } = useAuthSession();
+  const { user, selectedWorkspace, isPublicView } = useAuthSession();
 
   const pageSize = usePageSize();
   const { data: board, isLoading, error } = useBoard(boardId ?? '', !!boardId);
@@ -545,14 +545,22 @@ const BoardViewPage: React.FC = () => {
   // only for the initial restore (guarded by a ref), so a user who deliberately opens the
   // still-empty dashboard to add their first widget is not bounced back out.
   const { data: allDashboards } = useCustomDashboards(false);
+  const boardDashboardsCount = useMemo(
+    () => selectBoardDashboards(allDashboards, boardId ?? '').length,
+    [allDashboards, boardId],
+  );
+  // In the public/shared read-only view there's no way to create a dashboard, so an empty
+  // Dashboard tab is just a dead end — hide the toggle entirely there when there's nothing to show.
+  // The real (authenticated) board always keeps the button so an admin can add the first widget.
+  const showDashboardToggle = !isPublicView || boardDashboardsCount > 0;
   const didInitialDashboardCheck = useRef(false);
   useEffect(() => {
     if (didInitialDashboardCheck.current || allDashboards === undefined) return;
     didInitialDashboardCheck.current = true;
-    if (boardView === 'dashboard' && selectBoardDashboards(allDashboards, boardId ?? '').length === 0) {
+    if (boardView === 'dashboard' && boardDashboardsCount === 0) {
       setBoardView('table');
     }
-  }, [allDashboards, boardView, boardId]);
+  }, [allDashboards, boardView, boardDashboardsCount]);
 
   // Local optimistic state for DnD
   const [localGroups, setLocalGroups] = useState<Group[]>([]);
@@ -865,14 +873,16 @@ const BoardViewPage: React.FC = () => {
       <div className="flex flex-col h-full min-h-0">
         {/* Board top bar */}
         <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 bg-white flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(board.isTemplate ? '/admin/templates' : `/WorkHubs/${board.workspaceId}/boards`)}
-            className="text-gray-400 hover:text-gray-600 transition-colors rounded p-1"
-            aria-label="Go back"
-          >
-            <FiChevronLeft size={18} aria-hidden="true" />
-          </button>
+          {!isPublicView && (
+            <button
+              type="button"
+              onClick={() => navigate(board.isTemplate ? '/admin/templates' : `/WorkHubs/${board.workspaceId}/boards`)}
+              className="text-gray-400 hover:text-gray-600 transition-colors rounded p-1"
+              aria-label="Go back"
+            >
+              <FiChevronLeft size={18} aria-hidden="true" />
+            </button>
+          )}
 
           <div className="flex-shrink-0 min-w-0 max-w-[260px]">
             {editingName && canManage ? (
@@ -906,19 +916,21 @@ const BoardViewPage: React.FC = () => {
           </div>
 
           {/* Board context menu trigger */}
-          <button
-            type="button"
-            onClick={(e) => {
-              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-              setBoardMenuTriggerRect((prev) => prev ? null : rect);
-            }}
-            className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
-            aria-label="Board options"
-            aria-haspopup="true"
-            aria-expanded={!!boardMenuTriggerRect}
-          >
-            <FiMoreVertical size={16} aria-hidden="true" />
-          </button>
+          {!isPublicView && (
+            <button
+              type="button"
+              onClick={(e) => {
+                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                setBoardMenuTriggerRect((prev) => prev ? null : rect);
+              }}
+              className="flex items-center justify-center w-7 h-7 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+              aria-label="Board options"
+              aria-haspopup="true"
+              aria-expanded={!!boardMenuTriggerRect}
+            >
+              <FiMoreVertical size={16} aria-hidden="true" />
+            </button>
+          )}
 
           {/* Search + filter row */}
           <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
@@ -1053,6 +1065,7 @@ const BoardViewPage: React.FC = () => {
                   </svg>
                 </button>
               )}
+              {showDashboardToggle && (
               <button
                 type="button"
                 onClick={() => setAndPersistBoardView('dashboard')}
@@ -1067,6 +1080,7 @@ const BoardViewPage: React.FC = () => {
                   <path d="M14 2.25A10 10 0 0 1 22 10h-8V2.25z" opacity="0.5" />
                 </svg>
               </button>
+              )}
             </div>
 
             {canManage && (

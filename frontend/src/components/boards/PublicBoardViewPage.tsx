@@ -38,23 +38,44 @@ function installFetchInterceptor(payload: PublicBoardPayload): () => void {
     const apiIdx = url.indexOf('/api/');
     if (apiIdx === -1) return original(input, init);
 
-    const [path] = url.slice(apiIdx).split('?');
+    const [path, qs = ''] = url.slice(apiIdx).split('?');
     const segments = path.split('/').filter(Boolean); // ['api', resource, ...]
     const resource = segments[1];
+    const search = new URLSearchParams(qs);
 
     if (method !== 'GET') return jsonResp({ message: 'This is a read-only view.' }, 403);
 
     if (resource === 'boards' && segments[2] === board.id) {
       const subRes = segments[3];
       if (!subRes) return jsonResp({ ...board, userBoardRole: 'viewer' });
-      if (subRes === 'groups') return jsonResp(groups);
-      if (subRes === 'columns') return jsonResp(columns);
+      if (subRes === 'groups') {
+        const parentItemId = search.get('parentItemId');
+        // Mirrors the real GET /boards/:boardId/groups: top-level groups by default,
+        // or a specific item's subitem-groups when parentItemId is given.
+        const scoped = parentItemId
+          ? groups.filter((g) => g.parentItemId === parentItemId)
+          : groups.filter((g) => !g.parentItemId);
+        return jsonResp(scoped);
+      }
+      if (subRes === 'columns') {
+        const parentGroupId = search.get('parentGroupId');
+        // Mirrors the real GET /boards/:boardId/columns: board-level columns by default,
+        // or a specific subitem-group's columns when parentGroupId is given.
+        const scoped = parentGroupId
+          ? columns.filter((c) => c.parentGroupId === parentGroupId)
+          : columns.filter((c) => !c.parentGroupId);
+        return jsonResp(scoped);
+      }
       if (subRes === 'version') return jsonResp({ version: 0 });
       if (subRes === 'members' || subRes === 'participants') return jsonResp([]);
       return jsonResp({});
     }
 
-    if (resource === 'items') return paginated(items);
+    if (resource === 'items') {
+      const groupId = search.get('groupId');
+      const scoped = groupId ? items.filter((i) => i.groupId === groupId) : items;
+      return paginated(scoped);
+    }
 
     // Anything else (users, custom dashboards, notifications, chat, personal hub…)
     // gets a benign empty response so the read-only view never hard-crashes.
@@ -85,6 +106,7 @@ function buildMockAuth(board: Board): AuthSessionContextType {
       workspacePermissions: 'read_only',
     } as unknown as AuthSessionContextType['selectedWorkspace'],
     isOrgSubscriptionActive: true,
+    isPublicView: true,
     logout: noop,
     updateAuthUser: noop,
     refreshAuthUser: noopVoid,
@@ -99,10 +121,11 @@ function buildMockAuth(board: Board): AuthSessionContextType {
 }
 
 const PublicBoardViewPage: React.FC = () => {
-  const { token } = useParams<{ token: string }>();
-  // Public links are opened by guests whose browser may carry an RTL language
-  // in localStorage from a previous session — always render this page LTR.
+  // A public link can be opened from any browser, including one that has an admin's
+  // Hebrew/RTL preference cached — always render this page LTR/English regardless.
   useForceDocumentLang();
+
+  const { token } = useParams<{ token: string }>();
   const [state, setState] = useState<
     | { status: 'loading' }
     | { status: 'error'; message: string }
@@ -168,7 +191,7 @@ const PublicBoardViewPage: React.FC = () => {
         <div className="flex flex-col h-screen overflow-hidden" aria-label="Read-only board view">
           <div className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-xs flex-shrink-0" role="note">
             <FiEye size={13} aria-hidden="true" />
-            <span>Read-only view — no login required. This link expires on {new Date(expiresAt).toLocaleDateString()}.</span>
+            <span>Read-only view - expires on {new Date(expiresAt).toLocaleDateString()}.</span>
           </div>
           <div className="flex-1 overflow-hidden">
             <Routes>

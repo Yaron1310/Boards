@@ -40,7 +40,7 @@ interface ItemRowProps {
 }
 
 const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, groupMinWidth }) => {
-  const { user } = useAuthSession();
+  const { user, isPublicView } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const viewerTier = useColumnVisibilityTier(item.boardId);
   const visibleColumns = columns.filter((col) => canSeeColumn(col, viewerTier));
@@ -160,32 +160,39 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         className={`flex flex-shrink-0 items-stretch ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} sticky left-4 z-[1] bg-white group-hover:bg-indigo-50`}
         style={{ width: `${itemSectionWidth}px`, ...(groupColor ? { borderLeft: `4px solid ${groupColor}` } : {}) }}
       >
-        {/* Drag handle */}
-        <div
-          className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}
-          aria-label="Drag to reorder item"
-          aria-grabbed={isDragging}
-          {...attributes}
-          {...listeners}
-        >
-          <FiMenu size={13} aria-hidden="true" />
-        </div>
+        {/* Drag handle — reordering isn't possible in the public read-only view, so it's
+            never shown there at all rather than just being visually inert on hover. */}
+        {!isPublicView && (
+          <div
+            className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}
+            aria-label="Drag to reorder item"
+            aria-grabbed={isDragging}
+            {...attributes}
+            {...listeners}
+          >
+            <FiMenu size={13} aria-hidden="true" />
+          </div>
+        )}
 
-        {/* Subitems expand toggle */}
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setSubitemsOpen((o) => !o); }}
-          style={(subitemsOpen || subitemGroup) && groupColor ? { color: groupColor } : undefined}
-          className={`flex items-center justify-center w-5 flex-shrink-0 transition-all ${subitemsOpen ? 'opacity-100' : subitemGroup ? 'opacity-60' : 'opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600'}`}
-          aria-label={subitemsOpen ? `Collapse subitems for ${item.name}` : `Expand subitems for ${item.name}`}
-          aria-expanded={subitemsOpen}
-        >
-          <FiChevronRight
-            size={13}
-            aria-hidden="true"
-            className={`transition-transform duration-150 ${subitemsOpen ? 'rotate-90' : ''}`}
-          />
-        </button>
+        {/* Subitems expand toggle — in the public view, only show it when subitems actually
+            exist (no way to create the first one there anyway, so an empty hover-reveal
+            toggle would be a dead end). The real board keeps the hover-to-create affordance. */}
+        {(!isPublicView || subitemGroup) && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setSubitemsOpen((o) => !o); }}
+            style={(subitemsOpen || subitemGroup) && groupColor ? { color: groupColor } : undefined}
+            className={`flex items-center justify-center w-5 flex-shrink-0 transition-all ${subitemsOpen ? 'opacity-100' : subitemGroup ? 'opacity-60' : 'opacity-0 group-hover:opacity-100 text-gray-400 hover:text-indigo-600'}`}
+            aria-label={subitemsOpen ? `Collapse subitems for ${item.name}` : `Expand subitems for ${item.name}`}
+            aria-expanded={subitemsOpen}
+          >
+            <FiChevronRight
+              size={13}
+              aria-hidden="true"
+              className={`transition-transform duration-150 ${subitemsOpen ? 'rotate-90' : ''}`}
+            />
+          </button>
+        )}
 
         {/* Item name */}
         <div
@@ -291,25 +298,27 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
           )}
         </div>
 
-        {/* Chat bubble — always visible */}
-        <div className="flex items-center pr-1.5 flex-shrink-0" role="gridcell">
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); openChat(item); }}
-            className="relative flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-            aria-label={`Open chat for ${item.name}`}
-          >
-            <FiMessageSquare size={16} aria-hidden="true" />
-            {unreadCount > 0 && (
-              <span
-                className="absolute -top-1 -right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full leading-none"
-                aria-label={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
-              >
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </button>
-        </div>
+        {/* Chat bubble — always visible, except in the public view where chat isn't available */}
+        {!isPublicView && (
+          <div className="flex items-center pr-1.5 flex-shrink-0" role="gridcell">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); openChat(item); }}
+              className="relative flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+              aria-label={`Open chat for ${item.name}`}
+            >
+              <FiMessageSquare size={16} aria-hidden="true" />
+              {unreadCount > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full leading-none"
+                  aria-label={`${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}`}
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {leadingExtraCells}
