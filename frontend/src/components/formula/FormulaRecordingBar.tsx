@@ -45,6 +45,7 @@ interface RefTokenProps {
 const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, resolveMeta }) => {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
+  const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const navigate = useNavigate();
 
   const v = resolve(cellRef, currentItemId);
@@ -54,10 +55,22 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
   const sourceBoardId = meta?.boardId;
 
   const show = () => {
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current);
+      hideTimeoutRef.current = null;
+    }
     const rect = spanRef.current?.getBoundingClientRect();
     if (rect) setHoverPos({ top: rect.bottom, left: rect.left + rect.width / 2 });
   };
-  const hide = () => setHoverPos(null);
+  // Small delay before hiding — without it, the gap between the token and the tooltip
+  // (offset below it) closes the tooltip before the cursor reaches the "go to board" button.
+  const hide = () => {
+    hideTimeoutRef.current = setTimeout(() => setHoverPos(null), 200);
+  };
+
+  useEffect(() => () => {
+    if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+  }, []);
 
   return (
     <>

@@ -612,7 +612,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       style={{ width: `${colWidth}px` }}
       onMouseDown={canInsertSummary ? insertSummary : undefined}
       data-formula-insertable={canInsertSummary ? 'true' : undefined}
-      className={`group relative flex flex-shrink-0 items-center bg-white border-r border-[#d2d2d4] last:border-r-0 py-2 px-2 ${canInsertSummary ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : ''}`}
+      className={`group relative flex flex-shrink-0 items-center bg-white border-r border-[#d2d2d4] last:border-r-0 py-2 px-2 min-h-9 ${canInsertSummary ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : ''}`}
     >
       {!canInsertSummary && showActive && (
         <button
