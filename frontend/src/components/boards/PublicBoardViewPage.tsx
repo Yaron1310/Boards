@@ -4,6 +4,7 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { FiEye, FiAlertTriangle, FiLoader } from 'react-icons/fi';
 import { AuthSessionContext } from '../../contexts/AuthContext';
 import type { AuthSessionContextType } from '../../contexts/AuthContext';
+import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 import BoardViewPage from './BoardViewPage';
 import { BACKEND_API_URL } from '../../constants';
 import type { Board, Group, Item, Column } from '../../types';
@@ -99,6 +100,9 @@ function buildMockAuth(board: Board): AuthSessionContextType {
 
 const PublicBoardViewPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
+  // Public links are opened by guests whose browser may carry an RTL language
+  // in localStorage from a previous session — always render this page LTR.
+  useForceDocumentLang();
   const [state, setState] = useState<
     | { status: 'loading' }
     | { status: 'error'; message: string }

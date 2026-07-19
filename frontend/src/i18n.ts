@@ -39,9 +39,32 @@ i18n
     },
   });
 
+// While set, the <html> dir/lang are pinned to these values regardless of the
+// active i18n language. i18n init is async (localStorage detection + HTTP-loaded
+// translations), so a plain one-time write of dir="ltr" can be overwritten when
+// the 'initialized'/'languageChanged' events fire afterwards — the override
+// must win over those events too.
+let documentDirOverride: { dir: 'ltr' | 'rtl'; lang: string } | null = null;
+
+export function setDocumentDirOverride(override: { dir: 'ltr' | 'rtl'; lang: string }): void {
+  documentDirOverride = override;
+  document.documentElement.dir = override.dir;
+  document.documentElement.lang = override.lang;
+}
+
+export function clearDocumentDirOverride(): void {
+  documentDirOverride = null;
+  applyDocumentDir(i18n.language);
+}
+
 // Keep the <html> dir and lang attributes in sync with the active language.
 // This drives the global RTL layout via CSS [dir="rtl"] selectors.
 function applyDocumentDir(lng: string) {
+  if (documentDirOverride) {
+    document.documentElement.dir = documentDirOverride.dir;
+    document.documentElement.lang = documentDirOverride.lang;
+    return;
+  }
   const dir = getLanguageDir(lng);
   document.documentElement.dir = dir;
   document.documentElement.lang = lng;
