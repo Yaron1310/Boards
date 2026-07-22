@@ -112,6 +112,18 @@ function getCellStatusArgb(cell: ExcelJS.Cell): string | null {
   return argb;
 }
 
+const EMPTY_STATUS_PLACEHOLDER_HEX = 'C4C4C4';
+
+// Returns true if the cell's fill is the "no status set" placeholder gray
+// (used by source boards to mark a STATUS cell with no option selected).
+function isEmptyStatusPlaceholderCell(cell: ExcelJS.Cell): boolean {
+  const fill = cell.fill;
+  if (!fill || fill.type !== 'pattern' || fill.pattern === 'none') return false;
+  const argb = (fill as ExcelJS.FillPattern).fgColor?.argb;
+  if (!argb || argb.length < 8) return false;
+  return argb.slice(2).toUpperCase() === EMPTY_STATUS_PLACEHOLDER_HEX;
+}
+
 // Returns true if the cell's font color is white (or near-white).
 // Status cells in this app's export always use white text, so this is the
 // most reliable signal that a column is a STATUS column.
@@ -251,6 +263,11 @@ export async function importBoardFromXlsx(
   // colHasWhiteText[specIndex] — true if any item cell in this column had white text.
   // White text is the reliable indicator that a column is a STATUS column.
   let colHasWhiteText: boolean[] = [];
+  // colHasEmptyStatusPlaceholder[specIndex] — true if any item cell in this column
+  // used the "no status set" placeholder gray. A column made up entirely of such
+  // cells (no status ever selected) has no colored options to detect, but is
+  // still a STATUS column — it must not be downgraded to TEXT.
+  let colHasEmptyStatusPlaceholder: boolean[] = [];
   // colAllValuesUrlLike[specIndex] — true if every non-empty TEXT cell in this column looks like a URL.
   let colAllValuesUrlLike: boolean[] = [];
   // colAllValuesNumberLike[specIndex] — true if every non-empty TEXT cell in this column looks like a plain number.
@@ -272,6 +289,7 @@ export async function importBoardFromXlsx(
       columnSpecs = buildColumnSpecs(headerNames);
       colorMap = columnSpecs.map(() => new Map<string, string>());
       colHasWhiteText = columnSpecs.map(() => false);
+      colHasEmptyStatusPlaceholder = columnSpecs.map(() => false);
       colAllValuesUrlLike = columnSpecs.map(() => true);
       colAllValuesNumberLike = columnSpecs.map(() => true);
       colHasAnyValue = columnSpecs.map(() => false);
@@ -298,6 +316,7 @@ export async function importBoardFromXlsx(
       columnSpecs.forEach((spec, si) => {
         const sheetCell = sheetRow.getCell(spec.rawIndices[0] + 2);
         if (cellHasWhiteText(sheetCell)) colHasWhiteText[si] = true;
+        if (isEmptyStatusPlaceholderCell(sheetCell)) colHasEmptyStatusPlaceholder[si] = true;
         const argb = cellArgbs[si];
         if (argb && !colorMap[si].has(argb)) {
           const label = cellToText(rawCells[spec.rawIndices[0] + 1]).trim();
@@ -335,7 +354,7 @@ export async function importBoardFromXlsx(
 
   const statusInfoBySpec: (StatusColInfo | null)[] = columnSpecs.map((spec, si) => {
     if (spec.type === ColumnType.TIME_RANGE) return null;
-    if (!colHasWhiteText[si]) return null;
+    if (!colHasWhiteText[si] && !colHasEmptyStatusPlaceholder[si]) return null;
 
     const options: StatusOption[] = [];
     const argbToOptionId = new Map<string, string>();
@@ -347,9 +366,10 @@ export async function importBoardFromXlsx(
       argbToOptionId.set(argb, id);
     }
 
-    // A column flagged by white text but with no surviving colored options
-    // (e.g. only blank/placeholder-colored cells) isn't a real STATUS column.
-    if (!options.length) return null;
+    // A column flagged by white text but with no surviving colored options and
+    // no empty-status placeholder cells (e.g. only stray white text elsewhere)
+    // isn't a real STATUS column.
+    if (!options.length && !colHasEmptyStatusPlaceholder[si]) return null;
 
     return { options, argbToOptionId };
   });
