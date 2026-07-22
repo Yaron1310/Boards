@@ -112,6 +112,15 @@ function getCellStatusArgb(cell: ExcelJS.Cell): string | null {
   return argb;
 }
 
+// Fallback options for a STATUS column whose source had no status ever set
+// (every cell was the empty-status placeholder gray). Mirrors the default
+// options used elsewhere in the app when creating a fresh STATUS column.
+const DEFAULT_STATUS_OPTIONS: StatusOption[] = [
+  { id: 'todo', label: 'To Do', color: '#94a3b8' },
+  { id: 'inprogress', label: 'In Progress', color: '#6366f1' },
+  { id: 'done', label: 'Done', color: '#22c55e' },
+];
+
 const EMPTY_STATUS_PLACEHOLDER_HEX = 'C4C4C4';
 
 // Returns true if the cell's fill is the "no status set" placeholder gray
@@ -370,6 +379,12 @@ export async function importBoardFromXlsx(
     // no empty-status placeholder cells (e.g. only stray white text elsewhere)
     // isn't a real STATUS column.
     if (!options.length && !colHasEmptyStatusPlaceholder[si]) return null;
+
+    // Every item had no status set (all cells were the empty-status placeholder),
+    // so no real options were detected. The backend requires STATUS columns to
+    // have a non-empty options list, so seed it with sensible defaults — the
+    // imported items themselves stay unset since argbToOptionId has no entries.
+    if (!options.length) options.push(...DEFAULT_STATUS_OPTIONS);
 
     return { options, argbToOptionId };
   });
