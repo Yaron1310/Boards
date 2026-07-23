@@ -35,9 +35,11 @@ interface SubitemGroupProps {
   onEmpty?: () => void;
   /** Personal Hub only: when set, only render subitems this user is assigned to. */
   filterAssigneeId?: string;
-  /** Board-wide editor rights (same bar the backend requires to create/manage subitems) —
-   *  gates "Add subitem", "Add subitem column", and the per-column manage menu. */
-  canManage: boolean;
+  /** Gates "Add subitem" — also true for workspace-level "edit" users. */
+  canManageItems: boolean;
+  /** Gates "Add subitem column" and the per-column manage menu — structural, board-editor-only
+   *  (does NOT include workspace-level "edit" users, same as top-level board columns). */
+  canManageColumns: boolean;
 }
 
 const DEFAULT_LOCAL_COLUMNS: Column[] = [
@@ -319,7 +321,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
   );
 };
 
-const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, filterAssigneeId, canManage }) => {
+const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, filterAssigneeId, canManageItems, canManageColumns }) => {
   const { user } = useAuthSession();
   const { columnWidths } = useBoardRender();
   const qc = useQueryClient();
@@ -541,7 +543,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                   boardId={boardId}
                   subitemGroupId={subitemGroup.id}
                   colWidth={colWidth}
-                  canManage={canManage}
+                  canManage={canManageColumns}
                   onSwapCommitted={(replaceColumnId, replaceColumnType) => setSwapAddModal({ replaceColumnId, replaceColumnType })}
                 />
               );
@@ -577,7 +579,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         })}
 
         {/* Add column button */}
-        {canManage && (
+        {canManageColumns && (
         <div className="relative flex-shrink-0">
           <button
             type="button"
@@ -672,7 +674,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       </div>
 
       {/* Add subitem row */}
-      {canManage && (
+      {canManageItems && (
       <div className="px-3 py-1.5 rounded-b-lg">
         {addingItem ? (
           <div className="flex items-center gap-2">

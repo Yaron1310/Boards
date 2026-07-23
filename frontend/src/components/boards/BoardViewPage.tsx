@@ -128,7 +128,8 @@ const FilterChip: React.FC<{ filter: ActiveFilter; onRemove: () => void }> = ({ 
 interface BoardContentProps {
   boardId: string;
   board: import('../../types').Board;
-  canManage: boolean;
+  canManageStructure: boolean;
+  canManageItems: boolean;
   groupsLoading: boolean;
   localGroups: Group[];
   localItemsByGroup: Record<string, Item[]>;
@@ -196,7 +197,8 @@ function compareItemValues(a: unknown, b: unknown, colType: ColumnType, directio
 const BoardContent: React.FC<BoardContentProps> = ({
   boardId,
   board,
-  canManage,
+  canManageStructure,
+  canManageItems,
   groupsLoading,
   localGroups,
   localItemsByGroup,
@@ -326,7 +328,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
         >
           <ColumnHeader
             boardId={boardId}
-            canManage={canManage}
+            canManage={canManageStructure}
             onSortChange={setSort}
             onAddColumn={() => setShowAddColumn(true)}
             boardView={boardView}
@@ -342,7 +344,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
             onDragEnd={handleDragEnd}
           >
             <div className="p-4" role="region" aria-label="Board groups">
-              {canManage && !board.isArchived && !groupsLoading && localGroups.length > 0 && (
+              {canManageStructure && !board.isArchived && !groupsLoading && localGroups.length > 0 && (
                 showAddGroupTop && boardId ? (
                   <AddGroupForm
                     boardId={boardId}
@@ -381,7 +383,8 @@ const BoardContent: React.FC<BoardContentProps> = ({
                         group={group}
                         boardId={board.id}
                         workspaceId={board.workspaceId}
-                        canManage={canManage && !board.isArchived}
+                        canManage={canManageStructure && !board.isArchived}
+                        canManageItems={canManageItems && !board.isArchived}
                         items={displayItemsByGroup[group.id] ?? []}
                         itemsAbove={localGroups.slice(0, groupIdx).flatMap((g) => displayItemsByGroup[g.id] ?? [])}
                         onOpenDetail={setDetailItem}
@@ -393,7 +396,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                 </BoardRenderProvider>
               )}
 
-              {canManage && !board.isArchived && showAddGroup && boardId && (
+              {canManageStructure && !board.isArchived && showAddGroup && boardId && (
                 <AddGroupForm boardId={boardId} onClose={() => setShowAddGroup(false)} />
               )}
             </div>
@@ -420,7 +423,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
             </DragOverlay>
           </DndContext>
 
-          {canManage && !board.isArchived && !showAddGroup && (
+          {canManageStructure && !board.isArchived && !showAddGroup && (
             <div className="px-4 pb-6">
               <div className="sticky left-4 w-max">
                 <button
@@ -582,19 +585,32 @@ const BoardViewPage: React.FC = () => {
 
   const isBoardReadOnly = selectedWorkspace?.workspacePermissions === 'read_only';
 
-  // Mirrors the backend's effectiveBoardRole (workManagementAuth.ts): a regular workspace
-  // member whose workspace permission isn't read-only is an editor on every board in that
-  // workspace, even without an explicit board-member row. Without this, "Add item"/"Add
-  // group" stayed hidden for such users even though the backend would accept the create call.
+  // A regular workspace member whose workspace permission isn't read-only, with no explicit
+  // board-member row. Deliberately grants item/subitem creation ONLY (see canManageItems below)
+  // — NOT structural board actions (groups, columns, invites, board settings), which stay
+  // restricted to an explicit board EDITOR/ADMIN row or workspace-admin+/org-editor.
   const isWorkspaceEditor = user?.role === UserRole.REGULAR_USER && !isBoardReadOnly;
 
+  // Board-level management: invites, archive view, dashboards, board rename/delete/duplicate/etc.
   const canManage =
     user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
     user?.role === UserRole.ORG_EDITOR ||
-    isBoardEditor ||
-    isWorkspaceEditor;
+    isBoardEditor;
+
+  // Groups and columns are structural, board-wide changes — restricted to workspace-admin+ or
+  // org-editor only. Deliberately excludes both an explicit board-member editor row and
+  // workspace-level "edit" permission, unlike items/subitems (canManageItems below).
+  const canManageStructure =
+    user?.role === UserRole.WORKSPACE_ADMIN ||
+    user?.role === UserRole.ORGANIZATION_ADMIN ||
+    user?.role === UserRole.SYSTEM_ADMIN ||
+    user?.role === UserRole.ORG_EDITOR;
+
+  // Item/subitem creation — any editor-tier user: an explicit board editor, or a regular
+  // workspace member whose workspace-level permission isn't read-only.
+  const canManageItems = canManage || isWorkspaceEditor;
 
   // Called by each GroupSection when it fetches a new page; keeps localItemsByGroup in sync for DnD/export
   const handlePageItemsChange = useCallback((groupId: string, items: Item[]) => {
@@ -1159,7 +1175,8 @@ const BoardViewPage: React.FC = () => {
             <BoardContent
               boardId={boardId ?? ''}
               board={board}
-              canManage={canManage}
+              canManageStructure={canManageStructure}
+              canManageItems={canManageItems}
               groupsLoading={groupsLoading}
               localGroups={localGroups}
               localItemsByGroup={localItemsByGroup}

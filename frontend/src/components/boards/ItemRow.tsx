@@ -109,15 +109,20 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
   // an explicit board-member row.
   const isWorkspaceEditor = user?.role === UserRole.REGULAR_USER && selectedWorkspace?.workspacePermissions !== 'read_only';
 
-  // Board-wide editor rights — same bar the backend requires to create subitems (not scoped to
-  // this particular item), so it's what gates the subitem table's own "manage" affordances.
-  const isBoardManager =
+  // Groups/columns-equivalent rights for the subitem table's own column management — structural,
+  // board-wide changes restricted to workspace-admin+/org-editor only. Deliberately excludes
+  // both an explicit board-member editor row and workspace-level "edit" permission, matching
+  // BoardViewPage's canManageStructure for top-level groups/columns.
+  const canManageColumns =
     user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
-    user?.role === UserRole.SYSTEM_ADMIN ||
-    isBoardEditor ||
-    isWorkspaceEditor;
+    user?.role === UserRole.SYSTEM_ADMIN;
+
+  // Board-wide item/subitem creation rights — same bar the backend requires to create subitems
+  // (not scoped to this particular item); any editor-tier user, including an explicit board
+  // editor row or workspace-level "edit" permission.
+  const isBoardManager = canManageColumns || isBoardEditor || isWorkspaceEditor;
 
   const canManage =
     isBoardManager ||
@@ -353,7 +358,8 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         groupColor={groupColor}
         onEmpty={() => setSubitemsOpen(false)}
         filterAssigneeId={subitemAssigneeFilterId}
-        canManage={isBoardManager}
+        canManageItems={isBoardManager}
+        canManageColumns={canManageColumns}
       />
     )}
     </>
