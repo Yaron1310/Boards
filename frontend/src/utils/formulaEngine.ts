@@ -41,6 +41,16 @@ export interface CellRef {
   groupId?: string;
 }
 
+/** Stable key identifying the DOM cell a ref points at (a specific item's cell, or a group
+ *  summary cell). Used to tag insertable/summary cells with `data-formula-cell-key` so hovering
+ *  a ref token in the recording bar can highlight the exact source cell if it's on screen. */
+export function formulaRefDomKey(ref: CellRef, currentItemId: string | null = null): string | null {
+  if (ref.agg) return `${ref.kind}:${ref.boardId}:agg:${ref.groupId ?? ''}:${ref.columnId}:${ref.agg}`;
+  const itemId = ref.itemId ?? currentItemId;
+  if (!itemId) return null;
+  return `${ref.kind}:${ref.boardId}:${itemId}:${ref.columnId}`;
+}
+
 function parseTimeToMinutes(time: string): number | null {
   const m = time.match(/^(\d+):(\d{2})$/);
   return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;

@@ -99,10 +99,11 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
 
   const commitDraft = (draft: string, forceScopeChoice = false) => {
     const trimmed = draft.trim();
-    // Ask "all cells / just this cell" only the first time this column gets a formula in this
-    // cell (no column default yet AND this cell has no override), or when the user explicitly
-    // reopens the choice via the recording bar's edit icon. Otherwise reuse the prior decision.
-    const isFirstFormula = !defaultFormula && storedValue === null;
+    // Ask "all cells / just this cell" only the first time this column ever gets a formula
+    // (no scope decision recorded yet), or when the user explicitly reopens the choice via the
+    // recording bar's edit icon or the column's Formula Settings toggle. Once a scope is chosen
+    // it's remembered on the column so the question never resurfaces on its own.
+    const isFirstFormula = !settings?.applyScope;
     if (trimmed && (isFirstFormula || forceScopeChoice)) {
       setPendingFormula(trimmed);
       return;
@@ -160,17 +161,25 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     const relativeFormula = makeRelativeIdFormula(pendingFormula, homeBoardId);
     setPendingFormula(null);
     try {
-      await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula } } });
+      await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
       persistValue(null);
     } catch {
       persistValue(pendingFormula);
     }
   };
 
-  const handleApplyJustThis = () => {
+  const handleApplyJustThis = async () => {
     if (pendingFormula === null) return;
-    persistValue(pendingFormula);
+    const formula = pendingFormula;
     setPendingFormula(null);
+    persistValue(formula);
+    if (settings?.applyScope !== 'perCell') {
+      try {
+        await updateColumn({ id: column.id, patch: { settings: { ...settings, applyScope: 'perCell' } } });
+      } catch {
+        // Non-fatal: the value still saved; the scope just won't be remembered this time.
+      }
+    }
   };
 
   return (
@@ -232,7 +241,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
               </button>
               <button
                 type="button"
-                onClick={handleApplyJustThis}
+                onClick={() => void handleApplyJustThis()}
                 className="w-full px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors"
                 aria-label="Apply formula to just this cell"
               >

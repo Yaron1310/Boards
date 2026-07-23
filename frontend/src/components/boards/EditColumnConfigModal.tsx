@@ -157,6 +157,9 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
   // SIMPLE_FORMULA
   const formulaSettings = column.settings as SimpleFormulaColumnSettings;
   const [formulaUnit, setFormulaUnit] = useState(formulaSettings.unit ?? '');
+  const [formulaApplyScope, setFormulaApplyScope] = useState<'all' | 'perCell'>(
+    formulaSettings.applyScope ?? 'perCell',
+  );
 
   // STATUS
   const statusSettings = column.settings as StatusColumnSettings;
@@ -234,9 +237,11 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
       case ColumnType.NUMBER:
         return { ...(unit ? { unit } : {}), ...(precision ? { precision: parseInt(precision, 10) } : {}) };
       case ColumnType.SIMPLE_FORMULA:
-        return formulaUnit
-          ? { ...formulaSettings, unit: formulaUnit }
-          : { defaultFormula: formulaSettings.defaultFormula };
+        return {
+          defaultFormula: formulaSettings.defaultFormula,
+          ...(formulaUnit ? { unit: formulaUnit } : {}),
+          ...(formulaSettings.applyScope ? { applyScope: formulaApplyScope } : {}),
+        };
       case ColumnType.STATUS:
         return { options: statusOptions, ...(defaultStatusId ? { defaultStatusId } : {}) };
       case ColumnType.DROPDOWN:
@@ -422,6 +427,28 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+                {/* Only shown once the "apply to all / just this cell" question has been answered
+                    at least once for this column — before that, the question modal is what sets
+                    it, not this toggle. */}
+                {formulaSettings.applyScope && (
+                  <div>
+                    <label htmlFor="edit-formula-scope" className="block text-xs text-gray-600 mb-1">
+                      New formulas apply to
+                    </label>
+                    <select
+                      id="edit-formula-scope"
+                      value={formulaApplyScope}
+                      onChange={(e) => setFormulaApplyScope(e.target.value as 'all' | 'perCell')}
+                      className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="perCell">Just the cell being edited</option>
+                      <option value="all">All cells in this column</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Controls whether recording a new formula in this column updates every cell or only the one being edited.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

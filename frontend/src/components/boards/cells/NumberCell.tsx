@@ -4,6 +4,7 @@ import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import type { Item, Column, NumberColumnSettings } from '../../../types';
 import { formatGroupedNumber } from '../../../utils/numberFormat';
+import { formulaRefDomKey } from '../../../utils/formulaEngine';
 import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column }
@@ -53,6 +54,7 @@ const NumberCellInner: React.FC<Props> = ({ item, column }) => {
             title="Add this cell to the formula"
             aria-label={`Add ${column.name} for ${item.name} to the formula`}
             data-formula-insertable="true"
+            data-formula-cell-key={formulaRefDomKey({ kind: 'b', boardId: item.boardId, columnId: column.id, itemId: item.id })}
           >
             {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
           </div>

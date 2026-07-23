@@ -7,14 +7,56 @@ import {
   FiMail, FiPhone, FiMapPin, FiZap, FiLink, FiShield,
 } from 'react-icons/fi';
 import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
-import { useCreatePersonalColumn, usePersonalColumns, useReorderPersonalColumns, useDeletePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
-import { useQueryClient } from '@tanstack/react-query';
+import { useCreatePersonalColumn, usePersonalColumns, useReorderPersonalColumns, useDeletePersonalColumn, useUpdatePersonalItemValue } from '../../hooks/queries/usePersonalHubQueries';
+import { useUpdateItem } from '../../hooks/queries/useItemQueries';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
-import type { StatusOption, DropdownOption, PersonalColumnScope, PersonalColumn, ColumnVisibility } from '../../types';
+import type { StatusOption, DropdownOption, PersonalColumnScope, PersonalColumn, ColumnVisibility, Item, PaginatedResponse } from '../../types';
 import { COLUMN_VISIBILITY_OPTIONS, DEFAULT_COLUMN_VISIBILITY } from '../../utils/columnVisibilityOptions';
+import { canConvertColumnValue, convertColumnValue } from '../../utils/columnTypeConversion';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
+
+function isNonEmptyValue(val: unknown): boolean {
+  return val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0);
+}
+
+/** Board items (optionally scoped to one subitem group) that currently hold a value for
+ *  `columnId` — used both to decide whether a "change type" needs a data-loss/convert choice
+ *  and, when converting, as the source rows to migrate. */
+function collectBoardItemsWithValue(qc: QueryClient, columnId: string, groupId?: string): Item[] {
+  const cached = qc.getQueriesData<PaginatedResponse<Item> | Item>({ queryKey: ['items'] });
+  const byId = new Map<string, Item>();
+  for (const [, data] of cached) {
+    if (!data) continue;
+    const items: Item[] =
+      typeof data === 'object' && data !== null && 'data' in data && Array.isArray((data as PaginatedResponse<Item>).data)
+        ? (data as PaginatedResponse<Item>).data
+        : typeof data === 'object' && data !== null && 'values' in data
+        ? [data as Item]
+        : [];
+    for (const item of items) {
+      if (groupId && item.groupId !== groupId) continue;
+      if (isNonEmptyValue(item.values?.[columnId])) byId.set(item.id, item);
+    }
+  }
+  return Array.from(byId.values());
+}
+
+/** Personal Hub item values (keyed by itemId) currently holding a value for `columnId`. */
+function collectPersonalValuesForColumn(qc: QueryClient, columnId: string): Map<string, unknown> {
+  const cached = qc.getQueriesData<Record<string, Record<string, unknown>>>({ queryKey: queryKeys.personalHub.itemValuesRoot });
+  const map = new Map<string, unknown>();
+  for (const [, data] of cached) {
+    if (!data) continue;
+    for (const [itemId, values] of Object.entries(data)) {
+      const val = values?.[columnId];
+      if (isNonEmptyValue(val)) map.set(itemId, val);
+    }
+  }
+  return map;
+}
 
 interface AddColumnModalProps {
   /** Real board columns require boardId. Personal columns with scope 'all' don't belong to any single board. */
@@ -29,6 +71,10 @@ interface AddColumnModalProps {
    * deleted if the user cancels the modal. Not applicable in personal mode.
    */
   replaceColumnId?: string;
+  /** The type the replaced column currently has — lets this modal offer to convert its existing
+   *  values to whatever new type the user picks, when that conversion is meaningful (e.g. NUMBER
+   *  -> TEXT), instead of always warning that the data will be deleted. */
+  replaceColumnType?: ColumnType;
   /**
    * 'board' (default) creates a real column on the source board. 'personal' creates
    * a user-owned Personal Hub column instead — same type picker and settings UI,
@@ -194,13 +240,15 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, mode = 'board', personalScope }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope }) => {
   const isPersonal = mode === 'personal';
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending: isPendingBoard } = useCreateColumn(boardId ?? '');
   const { mutateAsync: createPersonalColumn, isPending: isPendingPersonal } = useCreatePersonalColumn();
   const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
   const { mutateAsync: deleteColumn } = useDeleteColumn(boardId ?? '');
+  const { mutateAsync: updateItem } = useUpdateItem();
+  const { mutateAsync: updatePersonalItemValue } = useUpdatePersonalItemValue();
   const { data: boardColumns = [] } = useColumns(boardId ?? '', !isPersonal && !parentGroupId && !!boardId);
   const { data: subitemColumns = [] } = useSubitemColumns(boardId ?? '', parentGroupId ?? '', !isPersonal && !!parentGroupId);
   const allColumns = parentGroupId ? subitemColumns : boardColumns;
@@ -231,6 +279,17 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const [name, setName] = useState('');
   const [type, setType] = useState<ColumnType>(ColumnType.TEXT);
   const [error, setError] = useState('');
+
+  // "Change type" data handling — computed once (the cache won't meaningfully change while this
+  // modal is open) so re-renders while picking a type/name don't keep re-scanning every item.
+  const [replaceHasData] = useState(() => {
+    if (!replaceColumnId) return false;
+    return isPersonal
+      ? collectPersonalValuesForColumn(qc, replaceColumnId).size > 0
+      : collectBoardItemsWithValue(qc, replaceColumnId, parentGroupId).length > 0;
+  });
+  const [dataAction, setDataAction] = useState<'convert' | 'discard'>('convert');
+  const canConvertData = !!replaceColumnType && canConvertColumnValue(replaceColumnType, type);
 
   // TEXT
   const [maxLength, setMaxLength] = useState('');
@@ -350,9 +409,10 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
           const effectiveInsertBefore = replaceColumnId ?? insertBeforeColumnId;
+          let newColumnId: string | undefined;
 
           if (updatedColumns.length > 0) {
-            const newColumnId = updatedColumns.find((col) => !previousColumnsRef.current.includes(col.id))?.id;
+            newColumnId = updatedColumns.find((col) => !previousColumnsRef.current.includes(col.id))?.id;
 
             if (newColumnId) {
               let targetIndex = updatedColumns.length - 1;
@@ -383,6 +443,13 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
           }
 
           if (replaceColumnId) {
+            if (newColumnId && replaceColumnType && dataAction === 'convert' && canConvertColumnValue(replaceColumnType, type)) {
+              const values = collectPersonalValuesForColumn(qc, replaceColumnId);
+              await Promise.all(Array.from(values.entries()).map(([itemId, raw]) => {
+                const converted = convertColumnValue(replaceColumnType, type, raw);
+                return converted === undefined ? Promise.resolve() : updatePersonalItemValue({ itemId, columnId: newColumnId as string, value: converted });
+              }));
+            }
             await deletePersonalColumnMutation(replaceColumnId);
           }
         }
@@ -423,9 +490,10 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       });
 
       const effectiveInsertBefore = replaceColumnId ?? insertBeforeColumnId;
+      let newColumnId: string | undefined;
 
       if (updatedColumns.length > 0) {
-        const newColumnId = updatedColumns.find(col => !previousColumnsRef.current.includes(col.id))?.id;
+        newColumnId = updatedColumns.find(col => !previousColumnsRef.current.includes(col.id))?.id;
 
         if (newColumnId) {
           let targetIndex = updatedColumns.length - 1;
@@ -461,8 +529,16 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       }
 
       if (replaceColumnId) {
+        if (newColumnId && replaceColumnType && dataAction === 'convert' && canConvertColumnValue(replaceColumnType, type)) {
+          const items = collectBoardItemsWithValue(qc, replaceColumnId, parentGroupId);
+          await Promise.all(items.map((item) => {
+            const converted = convertColumnValue(replaceColumnType, type, item.values[replaceColumnId]);
+            return converted === undefined ? Promise.resolve() : updateItem({ id: item.id, patch: { values: { [newColumnId as string]: converted } } });
+          }));
+        }
         await deleteColumn(replaceColumnId);
         await qc.invalidateQueries({ queryKey: scopedQueryKey });
+        await qc.invalidateQueries({ queryKey: ['items'] });
       }
 
       onClose();
@@ -558,6 +634,47 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                 })}
               </div>
             </div>
+
+            {/* Change-type data handling — only relevant once a replaced column with existing
+                data is switching to a genuinely different type. */}
+            {replaceColumnId && replaceColumnType && replaceHasData && replaceColumnType !== type && (
+              <div className="pt-1 border-t border-gray-100">
+                {canConvertData ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Existing data</p>
+                    <p className="text-xs text-gray-600">
+                      This column already has data, and {COLUMN_TYPE_LABELS[replaceColumnType]} values can carry over to {COLUMN_TYPE_LABELS[type]}. What should happen to it?
+                    </p>
+                    <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="replace-data-action"
+                        checked={dataAction === 'convert'}
+                        onChange={() => setDataAction('convert')}
+                        className="mt-0.5"
+                        aria-label="Convert existing values to the new type"
+                      />
+                      Convert existing values to the new type
+                    </label>
+                    <label className="flex items-start gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="replace-data-action"
+                        checked={dataAction === 'discard'}
+                        onChange={() => setDataAction('discard')}
+                        className="mt-0.5"
+                        aria-label="Start empty and discard existing values"
+                      />
+                      Start empty (existing data will be permanently deleted)
+                    </label>
+                  </div>
+                ) : (
+                  <p className="text-xs text-red-600" role="alert">
+                    This column contains data that will be <strong>permanently deleted</strong> when you change its type. This action cannot be undone.
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Section 2: Name */}
             <div className="pt-1 border-t border-gray-100">

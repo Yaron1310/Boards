@@ -28,7 +28,11 @@ interface GroupSectionProps {
   group: Group;
   boardId: string;
   workspaceId: string;
+  /** Structural group management — drag/rename/color/archive/duplicate/etc. */
   canManage: boolean;
+  /** Item creation within this group — also true for workspace-level "edit" users who don't
+   *  qualify for canManage (they may create items but not manage the group itself). */
+  canManageItems: boolean;
   /** Filtered/sorted items for display — supplied by parent after applying search & filters */
   items: Item[];
   /** Display items from every group above this one (for cumulative summaries). */
@@ -43,6 +47,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   boardId,
   workspaceId,
   canManage,
+  canManageItems,
   items,
   itemsAbove,
   onOpenDetail,
@@ -667,7 +672,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             )}
 
             {/* Add item row */}
-            {canManage && (
+            {canManageItems && (
               <div>
                 <div className="sticky left-4 w-max bg-white z-[1]">
                   {addingItem ? (

@@ -158,10 +158,13 @@ export function assertBoardAccess(
  *
  * Rules (Phase 9A — board-role aware):
  *   read   — any org member OR board member with viewer+
- *   create/update — WORKSPACE_ADMIN+ OR board creator OR board member with editor+
- *   delete — WORKSPACE_ADMIN+ OR board member with admin
+ *   create/update/archive/delete — WORKSPACE_ADMIN+ OR ORG_EDITOR only. Deliberately does NOT
+ *     extend to an explicit board-member editor row or a regular user's workspace-level "edit"
+ *     permission — groups (like columns) are structural, board-wide changes and stay restricted
+ *     to real admins/org-editors, unlike items/subitems which any editor-tier user may create.
  *
- * `member` defaults to null (backwards-compatible).
+ * `member` defaults to null (backwards-compatible; currently unused in the create/update/
+ * archive/delete branch — see canAccessColumn for the same shape).
  */
 export function canAccessGroup(
   user: JwtUserPayload,
@@ -186,14 +189,7 @@ export function canAccessGroup(
     case 'update':
     case 'archive':
     case 'delete':
-      if (isOrgAdmin) return true;
-      if (user.role === UserRole.ORG_EDITOR) return true;
-      if (user.role === UserRole.REGULAR_USER && user.workspacePermissions !== 'read_only') {
-        // Workspace-level edit access: verify user is in the board's workspace.
-        // boardWorkspaceId is optional for backwards compatibility; omitting it is permissive.
-        return boardWorkspaceId === undefined || user.selectedWorkspaceId === boardWorkspaceId;
-      }
-      return false;
+      return isOrgAdmin || user.role === UserRole.ORG_EDITOR;
 
     default:
       return false;
@@ -310,10 +306,13 @@ export function assertItemAccess(
  *
  * Rules (Phase 9A — board-role aware):
  *   read   — any org member.
- *   create/update/delete — WORKSPACE_ADMIN+ OR board member with editor+
+ *   create/update/delete — WORKSPACE_ADMIN+ OR ORG_EDITOR only. Deliberately does NOT extend
+ *            to an explicit board-member editor row or a regular user's workspace-level "edit"
+ *            permission — columns (like groups) are structural, board-wide changes and stay
+ *            restricted to real admins/org-editors, unlike items/subitems which any
+ *            editor-tier user may create.
  *
- * Columns are org-level; `member` allows editors to manage columns when passed.
- * `member` defaults to null (backwards-compatible).
+ * `member` defaults to null (backwards-compatible; currently unused).
  */
 export function canAccessColumn(
   user: JwtUserPayload,
@@ -330,10 +329,7 @@ export function canAccessColumn(
     case 'create':
     case 'update':
     case 'delete':
-      return (
-        isAtLeast(user.role, UserRole.WORKSPACE_ADMIN) ||
-        boardRoleAtLeast(member?.role ?? null, BoardRole.EDITOR)
-      );
+      return isAtLeast(user.role, UserRole.WORKSPACE_ADMIN) || user.role === UserRole.ORG_EDITOR;
 
     default:
       return false;

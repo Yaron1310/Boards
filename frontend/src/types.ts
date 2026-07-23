@@ -225,6 +225,10 @@ export interface TagsColumnSettings {
 export interface SimpleFormulaColumnSettings {
   defaultFormula: string; // e.g. "{Price} * {Qty}" — evaluated client-side
   unit?: string;
+  /** Remembered answer to "apply to all cells / just this cell", asked once per column the first
+   *  time it gets a formula. 'all' keeps every cell on the shared defaultFormula; 'perCell' lets
+   *  each cell hold its own override. Admins can change it later from the column's edit settings. */
+  applyScope?: 'all' | 'perCell';
 }
 
 export type LinkColumnSettings = Record<string, never>;

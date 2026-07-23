@@ -6,6 +6,7 @@ import CellWrapper from '../../boards/cells/CellWrapper';
 import type { NumberColumnSettings, Column } from '../../../types';
 import type { PersonalCellProps, PersonalGridContext } from './types';
 import { formatGroupedNumber } from '../../../utils/numberFormat';
+import { formulaRefDomKey } from '../../../utils/formulaEngine';
 
 interface Props extends PersonalCellProps {
   gridContext?: PersonalGridContext;
@@ -54,6 +55,7 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
         title="Add this cell to the formula"
         aria-label={`Add ${column.name} for ${itemName} to the formula`}
         data-formula-insertable="true"
+        data-formula-cell-key={formulaRefDomKey({ kind: 'p', boardId: gridContext?.boardId ?? '', columnId: column.id, itemId })}
       >
         {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
       </div>
