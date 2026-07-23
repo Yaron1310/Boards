@@ -1,14 +1,17 @@
 import React from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard } from '../../hooks/queries/useBoardQueries';
+import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useBoards, useArchiveBoard, useRestoreBoard, useDeleteBoard, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useReorderBoards } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { useCustomDashboards } from '../../hooks/queries/useCustomDashboardQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { UserRole, Board, CustomDashboard } from '../../types';
 import {
   FiLayout, FiPlus, FiArchive, FiArrowLeft, FiX,
-  FiRotateCcw, FiLoader, FiInbox, FiDownload, FiMoreVertical,
+  FiRotateCcw, FiLoader, FiInbox, FiDownload, FiMoreVertical, FiMenu,
 } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -45,6 +48,41 @@ const OverflowText: React.FC<{ text: string; className: string }> = ({ text, cla
           {text}
         </div>
       )}
+    </div>
+  );
+};
+
+interface SortableBoardCardProps {
+  board: Board;
+  canReorder: boolean;
+  children: React.ReactNode;
+}
+
+const SortableBoardCard: React.FC<SortableBoardCardProps> = ({ board, canReorder, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: board.id,
+    disabled: !canReorder,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      className="relative"
+    >
+      {canReorder && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-2 left-2 z-10 p-1 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab touch-none"
+          aria-label={`Reorder board ${board.name}`}
+        >
+          <FiMenu size={14} aria-hidden="true" />
+        </button>
+      )}
+      {children}
     </div>
   );
 };
@@ -142,6 +180,29 @@ const BoardListPage: React.FC = () => {
   const { mutateAsync: duplicateBoard } = useDuplicateBoard();
   const { mutateAsync: saveAsTemplate } = useSaveAsBoardTemplate();
   const { mutateAsync: updateBoard } = useUpdateBoard();
+  const { mutateAsync: reorderBoards } = useReorderBoards();
+
+  const [localBoards, setLocalBoards] = React.useState<Board[]>(boards);
+  React.useEffect(() => { setLocalBoards(boards); }, [boards]);
+
+  const dndSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const canReorderBoards =
+    user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN;
+
+  const handleBoardDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !workspaceId) return;
+    const oldIndex = localBoards.findIndex((b) => b.id === active.id);
+    const newIndex = localBoards.findIndex((b) => b.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(localBoards, oldIndex, newIndex);
+    setLocalBoards(reordered);
+    void reorderBoards({
+      workspaceId,
+      order: reordered.map((b, idx) => ({ id: b.id, order: idx })),
+    }).catch(() => setLocalBoards(boards));
+  };
 
   const [actioningId, setActioningId] = React.useState<string | null>(null);
   const [restoringId, setRestoringId] = React.useState<string | null>(null);
@@ -297,17 +358,19 @@ const BoardListPage: React.FC = () => {
         </div>
       )}
 
-      {boards.length === 0 ? (
+      {localBoards.length === 0 ? (
         <p className="text-gray-500">No boards yet.</p>
       ) : (
+        <DndContext sensors={dndSensors} collisionDetection={closestCenter} onDragEnd={handleBoardDragEnd}>
+        <SortableContext items={localBoards.map((b) => b.id)} strategy={verticalListSortingStrategy}>
         <div
           className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
           role="list"
           aria-label="Boards"
         >
-          {boards.map((board) => (
+          {localBoards.map((board) => (
+            <SortableBoardCard key={board.id} board={board} canReorder={canReorderBoards}>
             <div
-              key={board.id}
               role="listitem"
               className="group relative flex items-start gap-4 p-5 bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all cursor-pointer"
               onClick={() => renamingBoardId !== board.id && navigate(`/boards/${board.id}`)}
@@ -377,8 +440,11 @@ const BoardListPage: React.FC = () => {
                 </div>
               )}
             </div>
+            </SortableBoardCard>
           ))}
         </div>
+        </SortableContext>
+        </DndContext>
       )}
 
       {/* Context menu */}

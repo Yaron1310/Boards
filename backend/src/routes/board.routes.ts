@@ -7,6 +7,9 @@ export const boardRouter = Router();
 boardRouter.get('/', boardController.getBoards);
 boardRouter.post('/', boardController.createBoard);
 
+// Reorder — must be registered before generic /:id routes
+boardRouter.patch('/reorder', boardController.reorderBoards);
+
 // Single board — specific action routes before generic /:id
 boardRouter.get('/:id/version', boardController.getBoardVersion);
 boardRouter.patch('/:id/archive', boardController.archiveBoard);

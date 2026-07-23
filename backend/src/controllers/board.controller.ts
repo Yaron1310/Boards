@@ -3,10 +3,10 @@ import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { boardsCollection, boardVersionsCollection, groupsCollection, columnsCollection, workspacesCollection, boardMembersCollection, itemsCollection, itemChatMessagesCollection } from '../db/collections.js';
-import { JwtUserPayload, DBBoard, DBBoardMember } from '../types/index.js';
+import { JwtUserPayload, DBBoard, DBBoardMember, UserRole } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
-import { assertBoardAccess, canAccessBoard, effectiveBoardRole } from '../utils/workManagementAuth.js';
+import { assertBoardAccess, canAccessBoard, effectiveBoardRole, isAtLeast } from '../utils/workManagementAuth.js';
 import { revokeAllWebhooksForBoard } from '../services/webhook.service.js';
 
 function isAuthError(err: unknown): err is { status: number; message: string } {
@@ -73,11 +73,23 @@ export const createBoard = async (req: Request, res: Response) => {
     };
     assertBoardAccess(user, provisionalBoard, 'create');
 
-    // Auto-calculate order if not provided
+    // New boards default to the front of their workspace's list: shift every
+    // existing board in this workspace down by one and give the new board order 0.
     let boardOrder = typeof order === 'number' ? order : null;
     if (boardOrder === null) {
-      const countSnap = await boardsCollection(user.orgId).count().get();
-      boardOrder = countSnap.data().count;
+      const siblingsSnap = await boardsCollection(user.orgId)
+        .where('workspaceId', '==', effectiveWorkspaceId)
+        .get();
+      if (!siblingsSnap.empty) {
+        const shiftBatch = db.batch();
+        const shiftTimestamp = admin.firestore.FieldValue.serverTimestamp();
+        siblingsSnap.docs.forEach((d) => {
+          const currentOrder = (d.data() as DBBoard).order ?? 0;
+          shiftBatch.update(d.ref, { order: currentOrder + 1, updatedAt: shiftTimestamp });
+        });
+        await shiftBatch.commit();
+      }
+      boardOrder = 0;
     }
 
     const docRef = boardsCollection(user.orgId).doc();
@@ -212,6 +224,66 @@ export const getBoards = async (req: Request, res: Response) => {
   } catch (err: unknown) {
     logger.error('Error fetching boards:', err);
     res.status(500).json({ message: 'Failed to fetch boards.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /boards/reorder   (must be registered BEFORE /:id)
+// body: { workspaceId: string; order: { id: string; order: number }[] }
+// Restricted to ORGANIZATION_ADMIN+ — reordering spans the whole WorkHub, not
+// a single board, so the per-board admin role model doesn't apply here.
+// ---------------------------------------------------------------------------
+export const reorderBoards = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { workspaceId, order } = req.body;
+
+  if (!workspaceId || typeof workspaceId !== 'string') {
+    return res.status(400).json({ message: 'workspaceId is required.' });
+  }
+  if (!Array.isArray(order) || order.length === 0) {
+    return res.status(400).json({ message: 'order must be a non-empty array of { id, order } objects.' });
+  }
+  if (!isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) {
+    return res.status(403).json({ message: 'Forbidden: only organization admins can reorder boards.' });
+  }
+
+  try {
+    const boardsSnap = await boardsCollection(user.orgId).where('workspaceId', '==', workspaceId).get();
+    const validIds = new Set(boardsSnap.docs.map((d) => d.id));
+
+    for (const item of order as { id: string; order: number }[]) {
+      if (typeof item.id !== 'string' || typeof item.order !== 'number') {
+        return res.status(400).json({ message: 'Each entry must have id (string) and order (number).' });
+      }
+      if (!validIds.has(item.id)) {
+        return res.status(400).json({ message: `Board "${item.id}" does not belong to workspace "${workspaceId}".` });
+      }
+    }
+
+    const batch = db.batch();
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    for (const item of order as { id: string; order: number }[]) {
+      batch.update(boardsCollection(user.orgId).doc(item.id), { order: item.order, updatedAt: timestamp });
+    }
+    await batch.commit();
+
+    void logAudit({
+      actorUserId: user.id,
+      actorRole: user.role,
+      action: 'UPDATE',
+      resourceType: 'board',
+      resourceId: 'reorder',
+      workspaceId: user.orgId,
+      orgId: user.orgId,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    res.json({ message: 'Boards reordered.' });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error('Error reordering boards:', err);
+    res.status(500).json({ message: 'Failed to reorder boards.' });
   }
 };
 

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
-import type { UpdateBoardData, CreateBoardData, DuplicateMode } from '@/services/workManagementService';
+import type { UpdateBoardData, CreateBoardData, DuplicateMode, ReorderBoardItem } from '@/services/workManagementService';
 
 export const useBoards = (workspaceId?: string, includeArchived = false, enabled = true) =>
   useQuery({
@@ -10,6 +10,17 @@ export const useBoards = (workspaceId?: string, includeArchived = false, enabled
     enabled,
     staleTime: 2 * 60 * 1000,
   });
+
+export const useReorderBoards = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workspaceId, order }: { workspaceId: string; order: ReorderBoardItem[] }) =>
+      wm.reorderBoards(workspaceId, order),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['boards'] });
+    },
+  });
+};
 
 export const useBoard = (id: string, enabled = true) =>
   useQuery({

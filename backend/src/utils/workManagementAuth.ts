@@ -23,7 +23,7 @@ const ROLE_LEVEL: Record<UserRole, number> = {
   [UserRole.SYSTEM_ADMIN]: 4,
 };
 
-function isAtLeast(userRole: UserRole, minRole: UserRole): boolean {
+export function isAtLeast(userRole: UserRole, minRole: UserRole): boolean {
   return ROLE_LEVEL[userRole] >= ROLE_LEVEL[minRole];
 }
 
