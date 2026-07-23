@@ -580,13 +580,21 @@ const BoardViewPage: React.FC = () => {
   const myBoardRole = boardMembers.find((m) => m.userId === user?.id)?.role;
   const isBoardEditor = myBoardRole === BoardRole.EDITOR || myBoardRole === BoardRole.ADMIN;
 
+  const isBoardReadOnly = selectedWorkspace?.workspacePermissions === 'read_only';
+
+  // Mirrors the backend's effectiveBoardRole (workManagementAuth.ts): a regular workspace
+  // member whose workspace permission isn't read-only is an editor on every board in that
+  // workspace, even without an explicit board-member row. Without this, "Add item"/"Add
+  // group" stayed hidden for such users even though the backend would accept the create call.
+  const isWorkspaceEditor = user?.role === UserRole.REGULAR_USER && !isBoardReadOnly;
+
   const canManage =
     user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
-    isBoardEditor;
-
-  const isBoardReadOnly = selectedWorkspace?.workspacePermissions === 'read_only';
+    user?.role === UserRole.ORG_EDITOR ||
+    isBoardEditor ||
+    isWorkspaceEditor;
 
   // Called by each GroupSection when it fetches a new page; keeps localItemsByGroup in sync for DnD/export
   const handlePageItemsChange = useCallback((groupId: string, items: Item[]) => {

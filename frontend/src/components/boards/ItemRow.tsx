@@ -40,7 +40,7 @@ interface ItemRowProps {
 }
 
 const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, groupMinWidth }) => {
-  const { user, isPublicView } = useAuthSession();
+  const { user, isPublicView, selectedWorkspace } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const viewerTier = useColumnVisibilityTier(item.boardId);
   const visibleColumns = columns.filter((col) => canSeeColumn(col, viewerTier));
@@ -104,13 +104,23 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
 
   const myBoardRole = boardMembers.find((m) => m.userId === user?.id)?.role;
   const isBoardEditor = myBoardRole === BoardRole.EDITOR || myBoardRole === BoardRole.ADMIN;
+  // Mirrors the backend's effectiveBoardRole: a regular workspace member whose workspace
+  // permission isn't read-only is an editor on every board in that workspace, even without
+  // an explicit board-member row.
+  const isWorkspaceEditor = user?.role === UserRole.REGULAR_USER && selectedWorkspace?.workspacePermissions !== 'read_only';
 
-  const canManage =
+  // Board-wide editor rights — same bar the backend requires to create subitems (not scoped to
+  // this particular item), so it's what gates the subitem table's own "manage" affordances.
+  const isBoardManager =
     user?.role === UserRole.WORKSPACE_ADMIN ||
     user?.role === UserRole.ORG_EDITOR ||
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
     isBoardEditor ||
+    isWorkspaceEditor;
+
+  const canManage =
+    isBoardManager ||
     item.createdBy === user?.id ||
     (item.assignees ?? []).includes(user?.id ?? '');
 
@@ -343,6 +353,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         groupColor={groupColor}
         onEmpty={() => setSubitemsOpen(false)}
         filterAssigneeId={subitemAssigneeFilterId}
+        canManage={isBoardManager}
       />
     )}
     </>

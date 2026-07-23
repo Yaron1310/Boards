@@ -310,7 +310,12 @@ export function assertItemAccess(
  *
  * Rules (Phase 9A — board-role aware):
  *   read   — any org member.
- *   create/update/delete — WORKSPACE_ADMIN+ OR board member with editor+
+ *   create/update/delete — WORKSPACE_ADMIN+ OR board member with editor+ OR a regular
+ *            workspace member whose workspace-level permission isn't read-only (same
+ *            "workspace edit" bar canAccessItem/canAccessGroup grant, since none of the
+ *            column.controller.ts call sites currently look up and pass an explicit
+ *            board-member row — without this, column management would be admin-only in
+ *            practice for everyone else).
  *
  * Columns are org-level; `member` allows editors to manage columns when passed.
  * `member` defaults to null (backwards-compatible).
@@ -332,7 +337,9 @@ export function canAccessColumn(
     case 'delete':
       return (
         isAtLeast(user.role, UserRole.WORKSPACE_ADMIN) ||
-        boardRoleAtLeast(member?.role ?? null, BoardRole.EDITOR)
+        user.role === UserRole.ORG_EDITOR ||
+        boardRoleAtLeast(member?.role ?? null, BoardRole.EDITOR) ||
+        (user.role === UserRole.REGULAR_USER && user.workspacePermissions !== 'read_only')
       );
 
     default:

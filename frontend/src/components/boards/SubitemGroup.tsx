@@ -35,6 +35,9 @@ interface SubitemGroupProps {
   onEmpty?: () => void;
   /** Personal Hub only: when set, only render subitems this user is assigned to. */
   filterAssigneeId?: string;
+  /** Board-wide editor rights (same bar the backend requires to create/manage subitems) —
+   *  gates "Add subitem", "Add subitem column", and the per-column manage menu. */
+  canManage: boolean;
 }
 
 const DEFAULT_LOCAL_COLUMNS: Column[] = [
@@ -51,8 +54,9 @@ const SubitemColumnHeader: React.FC<{
   boardId: string;
   subitemGroupId: string;
   colWidth: number;
+  canManage: boolean;
   onSwapCommitted: (replaceColumnId: string, replaceColumnType: ColumnType) => void;
-}> = ({ col, boardId, subitemGroupId, colWidth, onSwapCommitted }) => {
+}> = ({ col, boardId, subitemGroupId, colWidth, canManage, onSwapCommitted }) => {
   const qc = useQueryClient();
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
   const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdateColumn(boardId);
@@ -113,6 +117,7 @@ const SubitemColumnHeader: React.FC<{
       <span className="text-gray-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
       <span className="truncate">{col.name}</span>
 
+      {canManage && (
       <div className="relative ml-auto flex-shrink-0" ref={menuRef}>
         <button
           type="button"
@@ -195,6 +200,7 @@ const SubitemColumnHeader: React.FC<{
           </FlippedMenu>
         )}
       </div>
+      )}
 
       {showAddColumnModal && (
         <AddColumnModal
@@ -313,7 +319,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
   );
 };
 
-const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, filterAssigneeId }) => {
+const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, filterAssigneeId, canManage }) => {
   const { user } = useAuthSession();
   const { columnWidths } = useBoardRender();
   const qc = useQueryClient();
@@ -535,6 +541,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                   boardId={boardId}
                   subitemGroupId={subitemGroup.id}
                   colWidth={colWidth}
+                  canManage={canManage}
                   onSwapCommitted={(replaceColumnId, replaceColumnType) => setSwapAddModal({ replaceColumnId, replaceColumnType })}
                 />
               );
@@ -570,6 +577,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         })}
 
         {/* Add column button */}
+        {canManage && (
         <div className="relative flex-shrink-0">
           <button
             type="button"
@@ -617,6 +625,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
             </>
           )}
         </div>
+        )}
       </div>
 
       {showAddColModal && subitemGroup && (
@@ -663,6 +672,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       </div>
 
       {/* Add subitem row */}
+      {canManage && (
       <div className="px-3 py-1.5 rounded-b-lg">
         {addingItem ? (
           <div className="flex items-center gap-2">
@@ -699,6 +709,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
           </button>
         )}
       </div>
+      )}
     </div>
   );
 };
