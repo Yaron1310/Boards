@@ -13,8 +13,9 @@ const formatNumber = (n: number) => formatGroupedNumber(n, 2);
 
 const REF_TOKEN_RE = /(\{ref:[^}]*\})/g;
 
-/** The draft stores the parser's ASCII operators (`*`, `/`); show them as their math glyphs. */
-const displayOperators = (text: string): string => text.replace(/\*/g, '×').replace(/\//g, '÷');
+/** The draft stores the parser's ASCII operators (`*`, `/`); show multiply as its math glyph but
+ *  keep divide as the plain `/` character. */
+const displayOperators = (text: string): string => text.replace(/\*/g, '×');
 
 const AGG_LABEL: Record<string, string> = {
   sum: 'Sum', avg: 'Average', median: 'Median', min: 'Min', max: 'Max', count: 'Count',
@@ -36,13 +37,17 @@ interface RefTokenProps {
   currentItemId: string | null;
   resolve: (ref: CellRef, currentItemId?: string | null) => number | null | undefined;
   resolveMeta: (ref: CellRef, currentItemId?: string | null) => RefMeta | undefined;
+  /** Draft offsets this token spans — tagged on the DOM node so a click can be mapped back to a
+   *  cursor position (see FormulaRecordingBar's handleFieldClick). */
+  start: number;
+  end: number;
 }
 
 /** One resolved value inside the formula preview — hover shows a light-blue highlight
  *  plus an instant (no-delay) tooltip naming the value's source, since the native
  *  `title` attribute both has a delay and can't be styled. The tooltip also offers a button
  *  that navigates straight to the source board, when the ref resolves to a real board. */
-const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, resolveMeta }) => {
+const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, resolveMeta, start, end }) => {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,6 +84,8 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
           display-only; the underlying draft still holds the full {ref:…} token. */}
       <span
         ref={spanRef}
+        data-start={start}
+        data-end={end}
         className="rounded px-0.5 -mx-0.5 text-blue-700 hover:bg-blue-100 transition-colors"
         onMouseEnter={show}
         onMouseLeave={hide}
@@ -126,29 +133,45 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
  * Save navigates back to the origin board so the origin cell commits.
  */
 const FormulaRecordingBar: React.FC = () => {
-  const { session, requestSave, requestSaveWithScopeChoice, cancel } = useFormulaRecording();
+  const { session, requestSave, requestSaveWithScopeChoice, cancel, setCursor } = useFormulaRecording();
   const { user, selectedWorkspace } = useAuth();
   const navigate = useNavigate();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
 
   const draft = session?.draft ?? '';
+  const cursor = session?.cursor ?? draft.length;
   const refs = useMemo(() => extractRefs(draft), [draft]);
   const { resolve, isLoading } = useForeignCellValues(refs, orgId);
   const currentItemId = session?.origin.itemId ?? null;
   const { resolveMeta } = useFormulaRefMeta(refs, currentItemId);
 
-  // Split into literal text and {ref:...} tokens so each resolved value can be rendered as its
-  // own hoverable element (a plain string replace, like before, can't attach per-value hover).
+  // Split into literal text and {ref:...} tokens, each tagged with its start/end offset into the
+  // draft, so each resolved value can be rendered as its own hoverable element and the caret /
+  // click-to-position logic can map back to a draft offset.
   const segments = useMemo(() => {
-    return draft
-      .split(REF_TOKEN_RE)
-      .filter((part) => part !== '')
-      .map((part, idx) => {
-        const isToken = /^\{ref:[^}]*\}$/.test(part);
-        const ref = isToken ? parseRefToken(part.slice(1, -1)) : null;
-        return ref ? { key: idx, ref } : { key: idx, text: part };
-      });
+    const parts = draft.split(REF_TOKEN_RE).filter((part) => part !== '');
+    let offset = 0;
+    return parts.map((part, idx) => {
+      const isToken = /^\{ref:[^}]*\}$/.test(part);
+      const start = offset;
+      offset += part.length;
+      const ref = isToken ? parseRefToken(part.slice(1, -1)) : null;
+      return ref ? { key: idx, ref, start, end: offset } : { key: idx, text: part, start, end: offset };
+    });
   }, [draft]);
+
+  // Click anywhere in the formula field to move the cursor there — each character (and each ref
+  // token as a whole) is its own span tagged with data-start/data-end; we pick whichever edge is
+  // closer to the click.
+  const handleFieldClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-start]');
+    if (!target) { setCursor(draft.length); return; }
+    const start = Number(target.dataset.start);
+    const end = Number(target.dataset.end);
+    const rect = target.getBoundingClientRect();
+    const closerToEnd = e.clientX - rect.left > rect.width / 2;
+    setCursor(closerToEnd ? end : start);
+  };
 
   const preview = useMemo(
     () =>
@@ -172,6 +195,54 @@ const FormulaRecordingBar: React.FC = () => {
     }
   }, [session, navigate]);
 
+  // Caret element inserted wherever `cursor` falls among the segments below.
+  const caret = (key: string) => (
+    <span key={key} className="inline-block w-px h-4 bg-indigo-500 animate-caret-blink" aria-hidden="true" />
+  );
+
+  const fieldNodes: React.ReactNode[] = [];
+  segments.forEach((seg) => {
+    if (!seg.ref) {
+      const text = seg.text ?? '';
+      if (cursor > seg.start && cursor < seg.end) {
+        // Cursor lands inside this text run — split it so the caret can sit between characters.
+        const localIdx = cursor - seg.start;
+        [...text].forEach((ch, i) => {
+          const charStart = seg.start + i;
+          if (charStart === cursor) fieldNodes.push(caret(`${seg.key}-caret`));
+          fieldNodes.push(
+            <span key={`${seg.key}-${i}`} data-start={charStart} data-end={charStart + 1}>
+              {displayOperators(ch)}
+            </span>,
+          );
+        });
+        if (localIdx === text.length) fieldNodes.push(caret(`${seg.key}-caret-end`));
+        return;
+      }
+    }
+    if (cursor === seg.start) fieldNodes.push(caret(`${seg.key}-before`));
+    if (seg.ref) {
+      fieldNodes.push(
+        <RefToken
+          key={seg.key}
+          cellRef={seg.ref}
+          currentItemId={currentItemId}
+          resolve={resolve}
+          resolveMeta={resolveMeta}
+          start={seg.start}
+          end={seg.end}
+        />,
+      );
+    } else {
+      fieldNodes.push(
+        <span key={seg.key} data-start={seg.start} data-end={seg.end}>
+          {displayOperators(seg.text ?? '')}
+        </span>,
+      );
+    }
+  });
+  if (cursor >= draft.length) fieldNodes.push(caret('end'));
+
   if (!session || session.phase !== 'recording') return null;
   const { origin } = session;
 
@@ -194,21 +265,18 @@ const FormulaRecordingBar: React.FC = () => {
 
         <span className="text-sm font-mono text-indigo-500 select-none">=</span>
         <div
-          className="flex-1 min-w-0 flex items-center font-mono text-gray-800 bg-white/80 rounded px-2 py-1 ring-1 ring-inset ring-indigo-200 overflow-hidden"
+          className="flex-1 min-w-0 flex items-center font-mono text-gray-800 bg-white/80 rounded px-2 py-1 ring-1 ring-inset ring-indigo-200 overflow-hidden cursor-text"
           style={{ fontSize: '1rem', lineHeight: '2em' }}
           aria-label="Formula being recorded"
+          onClick={handleFieldClick}
         >
+          {/* Click anywhere to move the cursor; arrow keys (captured globally while recording)
+              also move it. The blinking caret marks where typed input / clicked cells land. */}
           <span className="truncate">
             {segments.length === 0
-              ? <span className="text-gray-400">Click number cells on any board or type numbers and operators (+ − × ÷)…</span>
-              : segments.map((seg) =>
-                  seg.ref
-                    ? <RefToken key={seg.key} cellRef={seg.ref} currentItemId={currentItemId} resolve={resolve} resolveMeta={resolveMeta} />
-                    : <span key={seg.key}>{displayOperators(seg.text ?? '')}</span>,
-                )}
+              ? <span className="text-gray-400">Click number cells on any board or type numbers and operators (+ − × /)…</span>
+              : fieldNodes}
           </span>
-          {/* Blinking caret signals the field is capturing input (digits/operators typed anywhere). */}
-          <span className="inline-block w-px h-4 bg-indigo-500 ml-0.5 flex-shrink-0 animate-caret-blink" aria-hidden="true" />
         </div>
 
         <span className="text-xs text-gray-500 whitespace-nowrap">
