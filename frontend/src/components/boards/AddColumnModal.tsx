@@ -301,6 +301,9 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const [unit, setUnit] = useState('');
   const [precision, setPrecision] = useState('');
 
+  // SIMPLE_FORMULA
+  const [formulaUnit, setFormulaUnit] = useState('');
+
   // DATE
   const [includeTime, setIncludeTime] = useState(false);
 
@@ -369,7 +372,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       case ColumnType.TAGS:
         return { allowCustom };
       case ColumnType.SIMPLE_FORMULA:
-        return { defaultFormula: '' };
+        return { defaultFormula: '', ...(formulaUnit ? { unit: formulaUnit } : {}) };
       default:
         return {};
     }
@@ -763,6 +766,26 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                       className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     />
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* SIMPLE_FORMULA settings */}
+            {type === ColumnType.SIMPLE_FORMULA && (
+              <div className="space-y-3 pt-1 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Formula Settings</p>
+                <div>
+                  <label htmlFor="formula-unit" className="block text-xs text-gray-600 mb-1">
+                    Unit
+                  </label>
+                  <input
+                    id="formula-unit"
+                    type="text"
+                    value={formulaUnit}
+                    onChange={(e) => setFormulaUnit(e.target.value)}
+                    placeholder="e.g. $, %, kg"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
                 </div>
               </div>
             )}
