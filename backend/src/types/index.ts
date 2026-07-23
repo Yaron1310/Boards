@@ -304,6 +304,8 @@ export interface DBColumn {
   type: ColumnType;
   settings: ColumnSettings;
   visibility?: ColumnVisibility;
+  /** Client-generated idempotency key used to dedupe retried create requests. Not exposed in UI. */
+  clientRequestId?: string;
   summaryConfig?: {
     calc: string;
     unit: string;

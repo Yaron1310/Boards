@@ -140,7 +140,7 @@ export const getColumnById = async (req: Request, res: Response) => {
 export const createColumn = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
-  const { name, type, settings, parentGroupId, visibility } = req.body;
+  const { name, type, settings, parentGroupId, visibility, clientRequestId } = req.body;
 
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ message: 'Column name is required.' });
@@ -178,27 +178,28 @@ export const createColumn = async (req: Request, res: Response) => {
     assertColumnAccess(user, provisionalColumn, 'create');
 
     // Guard against duplicate columns from a retried/resent request (e.g. a dropped
-    // response causing the client to resend): if an identical column was created on
-    // this board in the last few seconds, return it instead of creating another.
+    // response causing the client to resend): if a column was created on this board
+    // in the last few seconds carrying the same clientRequestId, return it instead
+    // of creating another. This is keyed on clientRequestId (not name/type/parentGroupId)
+    // because legitimate bulk operations (e.g. xlsx import) can create several distinct
+    // columns with the same name and type back-to-back — matching on name/type alone
+    // would incorrectly collapse those into one.
     const normalizedName = sanitizeText(name);
-    const recentSnapshot = await columnsCollection(user.orgId, boardId)
-      .orderBy('createdAt', 'desc')
-      .limit(5)
-      .get();
-    const dedupWindowMs = 5000;
-    const now = Date.now();
-    const duplicateDoc = recentSnapshot.docs.find((doc) => {
-      const data = doc.data() as DBColumn & { createdAt?: admin.firestore.Timestamp };
-      const createdAtMs = data.createdAt?.toMillis?.() ?? 0;
-      return (
-        data.name === normalizedName &&
-        data.type === type &&
-        (data.parentGroupId ?? null) === (parentGroupId ?? null) &&
-        now - createdAtMs < dedupWindowMs
-      );
-    });
-    if (duplicateDoc) {
-      return res.status(200).json(snapshotToData<DBColumn>(duplicateDoc));
+    if (typeof clientRequestId === 'string' && clientRequestId) {
+      const recentSnapshot = await columnsCollection(user.orgId, boardId)
+        .orderBy('createdAt', 'desc')
+        .limit(5)
+        .get();
+      const dedupWindowMs = 5000;
+      const now = Date.now();
+      const duplicateDoc = recentSnapshot.docs.find((doc) => {
+        const data = doc.data() as DBColumn & { createdAt?: admin.firestore.Timestamp; clientRequestId?: string };
+        const createdAtMs = data.createdAt?.toMillis?.() ?? 0;
+        return data.clientRequestId === clientRequestId && now - createdAtMs < dedupWindowMs;
+      });
+      if (duplicateDoc) {
+        return res.status(200).json(snapshotToData<DBColumn>(duplicateDoc));
+      }
     }
 
     const docRef = columnsCollection(user.orgId, boardId).doc();
@@ -206,11 +207,12 @@ export const createColumn = async (req: Request, res: Response) => {
     await docRef.set({
       id: docRef.id,
       boardId,
-      name: sanitizeText(name),
+      name: normalizedName,
       type: type as ColumnType,
       settings: settings ?? {},
       ...(parentGroupId ? { parentGroupId } : {}),
       ...(visibility ? { visibility: visibility as ColumnVisibility } : {}),
+      ...(typeof clientRequestId === 'string' && clientRequestId ? { clientRequestId } : {}),
       createdAt: timestamp,
       updatedAt: timestamp,
     });

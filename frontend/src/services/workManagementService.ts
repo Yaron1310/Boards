@@ -237,7 +237,13 @@ export const getColumn = (boardId: string, id: string): Promise<Column> =>
   fetchWithAuth(`/api/boards/${boardId}/columns/${id}`);
 
 export const createColumn = (boardId: string, data: CreateColumnData): Promise<Column> =>
-  fetchWithAuth(`/api/boards/${boardId}/columns`, { method: 'POST', body: JSON.stringify(data) });
+  fetchWithAuth(`/api/boards/${boardId}/columns`, {
+    method: 'POST',
+    // clientRequestId lets the backend distinguish a genuine retry of this exact
+    // request from a legitimate second column sharing the same name/type (e.g.
+    // several "Status" columns created back-to-back during an xlsx import).
+    body: JSON.stringify({ ...data, clientRequestId: crypto.randomUUID() }),
+  });
 
 export const updateColumn = (boardId: string, id: string, patch: UpdateColumnData): Promise<Column> =>
   fetchWithAuth(`/api/boards/${boardId}/columns/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
