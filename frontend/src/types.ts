@@ -403,6 +403,8 @@ export interface Item {
   status?: string;
   assignees?: string[];
   dueDate?: Date | string;
+  // Last time this item's assignees changed — used to sort the Personal Hub (newest first)
+  lastAssignedAt?: Date | string;
   // Cell dependency links — stored on the target item (the dependent one)
   dependencies?: TimeRangeDependency[];
   // Chat denormalized counters

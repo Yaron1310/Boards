@@ -27,9 +27,9 @@ interface Props extends PersonalCellProps {
  * cells on any board can be clicked to add references, and Save returns here to commit.
  * Personal-hub values are stored via personalItemValues; references to them use kind 'p'.
  */
-const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext }) => {
-  const { mutate: mutateItemValue } = useUpdatePersonalItemValue();
-  const { mutateAsync: updateColumn } = useUpdatePersonalColumn();
+const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext, userId }) => {
+  const { mutate: mutateItemValue } = useUpdatePersonalItemValue(userId);
+  const { mutateAsync: updateColumn } = useUpdatePersonalColumn(userId);
   const { push: pushUndo } = useUndo();
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;

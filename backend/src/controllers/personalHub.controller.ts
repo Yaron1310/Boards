@@ -16,13 +16,11 @@ function personalValueDocId(userId: string, itemId: string): string {
 /**
  * Resolve whose personal-hub data a read request should serve. Defaults to the
  * requester. An org/system admin may read another user's hub (their own personal
- * columns + values) by passing ?userId= — this is the sanctioned, read-only path
- * behind /admin/users. A personal column belongs to its owner, so a non-admin
- * asking for someone else's is rejected. Org isolation is automatic: every query
- * is scoped to the requester's orgId, so a foreign-org userId simply yields nothing.
- *
- * The write endpoints stay owner-gated (they compare column.userId to the caller),
- * so admin viewing is view-only.
+ * columns + values) by passing ?userId= — this is the sanctioned path behind
+ * /admin/users, and (via resolveWriteTargetUserId below) also lets an admin fully
+ * edit that hub. A personal column belongs to its owner, so a non-admin asking for
+ * someone else's is rejected. Org isolation is automatic: every query is scoped to
+ * the requester's orgId, so a foreign-org userId simply yields nothing.
  */
 function resolveTargetUserId(req: Request): { userId: string } | { status: number; message: string } {
   const user = req.user as JwtUserPayload;
@@ -30,6 +28,22 @@ function resolveTargetUserId(req: Request): { userId: string } | { status: numbe
   if (!requested || requested === user.id) return { userId: user.id };
   if (!ADMIN_ROLES.has(user.role)) {
     return { status: 403, message: "Forbidden: only admins may view another user's personal hub." };
+  }
+  return { userId: requested };
+}
+
+/**
+ * Same resolution as resolveTargetUserId, but for write endpoints (POST/PATCH/DELETE),
+ * which take the target userId from the JSON body instead of the query string. Lets an
+ * org/system admin fully manage another user's Personal Hub (add/edit/delete personal
+ * columns and cell values) with the same admin bypass already used for read access.
+ */
+function resolveWriteTargetUserId(req: Request): { userId: string } | { status: number; message: string } {
+  const user = req.user as JwtUserPayload;
+  const requested = typeof req.body?.userId === 'string' ? req.body.userId.trim() : '';
+  if (!requested || requested === user.id) return { userId: user.id };
+  if (!ADMIN_ROLES.has(user.role)) {
+    return { status: 403, message: "Forbidden: only admins may edit another user's personal hub." };
   }
   return { userId: requested };
 }
@@ -76,9 +90,12 @@ export const createPersonalColumn = async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'boardId is required when scope is "board".' });
   }
 
+  const target = resolveWriteTargetUserId(req);
+  if ('status' in target) return res.status(target.status).json({ message: target.message });
+
   try {
     const countSnap = await personalColumnsCollection(user.orgId)
-      .where('userId', '==', user.id)
+      .where('userId', '==', target.userId)
       .count()
       .get();
     const order = countSnap.data().count;
@@ -88,7 +105,7 @@ export const createPersonalColumn = async (req: Request, res: Response) => {
     await docRef.set({
       id: docRef.id,
       orgId: user.orgId,
-      userId: user.id,
+      userId: target.userId,
       name: sanitizeText(name),
       type: type as ColumnType,
       settings: settings ?? {},
@@ -139,7 +156,7 @@ export const reorderPersonalColumns = async (req: Request, res: Response) => {
       }
     }
     for (const doc of docs) {
-      if (doc?.exists && doc.data()?.userId !== user.id) {
+      if (doc?.exists && doc.data()?.userId !== user.id && !ADMIN_ROLES.has(user.role)) {
         return res.status(403).json({ message: 'Forbidden: one or more columns are not yours.' });
       }
     }
@@ -189,7 +206,7 @@ export const updatePersonalColumn = async (req: Request, res: Response) => {
     if (!doc.exists) return res.status(404).json({ message: 'Personal column not found.' });
 
     const column = snapshotToData<DBPersonalColumn>(doc);
-    if (!column || column.userId !== user.id) {
+    if (!column || (column.userId !== user.id && !ADMIN_ROLES.has(user.role))) {
       return res.status(403).json({ message: 'Forbidden: this is not your personal column.' });
     }
 
@@ -245,7 +262,7 @@ export const deletePersonalColumn = async (req: Request, res: Response) => {
     if (!doc.exists) return res.status(404).json({ message: 'Personal column not found.' });
 
     const column = snapshotToData<DBPersonalColumn>(doc);
-    if (!column || column.userId !== user.id) {
+    if (!column || (column.userId !== user.id && !ADMIN_ROLES.has(user.role))) {
       return res.status(403).json({ message: 'Forbidden: this is not your personal column.' });
     }
 
@@ -305,19 +322,22 @@ export const updatePersonalItemValue = async (req: Request, res: Response) => {
     return res.status(400).json({ message: 'columnId is required.' });
   }
 
+  const target = resolveWriteTargetUserId(req);
+  if ('status' in target) return res.status(target.status).json({ message: target.message });
+
   try {
     const column = await personalColumnsCollection(user.orgId).doc(columnId).get();
-    if (!column.exists || column.data()?.userId !== user.id) {
+    if (!column.exists || (column.data()?.userId !== target.userId && !ADMIN_ROLES.has(user.role))) {
       return res.status(403).json({ message: 'Forbidden: this is not your personal column.' });
     }
 
-    const docId = personalValueDocId(user.id, itemId);
+    const docId = personalValueDocId(target.userId, itemId);
     const ref = personalItemValuesCollection(user.orgId).doc(docId);
     await ref.set(
       {
         id: docId,
         orgId: user.orgId,
-        userId: user.id,
+        userId: target.userId,
         itemId,
         values: { [columnId]: value ?? null },
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),

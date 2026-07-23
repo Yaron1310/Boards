@@ -28,11 +28,12 @@ import type { Item, PersonalColumn, SimpleFormulaColumnSettings } from '../../ty
 interface Props {
   boardId: string;
   items: Item[];
+  /** Whether the viewer can edit this hub — true for the owner, and also true for an
+   *  org/system admin viewing someone else's hub (full edit ability, same as the owner). */
   isOwn: boolean;
   /**
    * Whose personal columns/values to load. `undefined` = the logged-in user's own
-   * hub; set to another user's id when an admin is viewing their hub (read-only —
-   * `isOwn` stays false, so cells and summary controls remain non-editable).
+   * hub; set to another user's id when an admin is viewing/editing their hub.
    */
   ownerUserId?: string;
   boardView: BoardView;
@@ -106,6 +107,7 @@ const renderPersonalCells = (
   personalValuesByItem: Record<string, Record<string, unknown>>,
   isOwn: boolean,
   gridContext: PersonalGridContext,
+  ownerUserId?: string,
 ): React.ReactNode =>
   columns.length === 0 ? null : (
     <>
@@ -123,6 +125,7 @@ const renderPersonalCells = (
             value={personalValuesByItem[item.id]?.[col.id]}
             editable={isOwn}
             gridContext={gridContext}
+            userId={ownerUserId}
           />
         </div>
       ))}
@@ -138,7 +141,8 @@ const renderPersonalCells = (
  * straight back to the source board (same permission rules as viewing that
  * board directly), and stay exactly as fetched — no column management here.
  * Cross-group personal columns (managed from the page-level header) are
- * woven in before them, on the left, and are only editable by the hub's owner.
+ * woven in before them, on the left, and are editable by the hub's owner or
+ * an org/system admin viewing/editing that owner's hub.
  *
  * Subitems the user is assigned to are never shown as their own row here —
  * their hosting (parent) item is shown instead, exactly as on the source
@@ -147,7 +151,7 @@ const renderPersonalCells = (
  */
 const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId, groupMinWidth }) => {
   const navigate = useNavigate();
-  const { mutate: updatePersonalColumn } = useUpdatePersonalColumn();
+  const { mutate: updatePersonalColumn } = useUpdatePersonalColumn(ownerUserId);
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
 
   React.useEffect(() => {
@@ -350,8 +354,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       item={item}
                       onOpenDetail={onOpenDetail}
                       groupColor="#6366f1"
-                      leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext)}
-                      extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext)}
+                      leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext, ownerUserId)}
+                      extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext, ownerUserId)}
                       subitemAssigneeFilterId={subitemAssigneeFilterId}
                       groupMinWidth={groupMinWidth}
                     />

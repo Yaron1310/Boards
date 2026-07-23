@@ -104,6 +104,9 @@ const PersonalHubPageInner: React.FC = () => {
   // self-consumer (this page, the board groups, formula-ref meta, the add-column
   // modal) shares one cache entry; an admin viewing someone else loads that owner's.
   const hubOwnerId = isOwn ? undefined : targetUserId;
+  // An org/system admin gets full edit ability on another user's Personal Hub —
+  // same as the owner themselves (add/edit/delete personal columns, cell values, subitems).
+  const canEdit = isOwn || isOrgAdmin;
 
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 });
   const targetUser = isOwn ? authUser : allUsers.find((u) => u.id === targetUserId);
@@ -167,7 +170,15 @@ const PersonalHubPageInner: React.FC = () => {
     { assignee: targetUserId, limit: 500 },
     !!targetUserId && (isOwn || isOrgAdmin),
   );
-  const items = useMemo(() => itemsPage?.data ?? [], [itemsPage]);
+  const items = useMemo(() => {
+    const data = itemsPage?.data ?? [];
+    // Newest-assigned items float to the top of the Personal Hub.
+    return [...data].sort((a, b) => {
+      const aTime = a.lastAssignedAt ? new Date(a.lastAssignedAt).getTime() : 0;
+      const bTime = b.lastAssignedAt ? new Date(b.lastAssignedAt).getTime() : 0;
+      return bTime - aTime;
+    });
+  }, [itemsPage]);
 
   const displayItems = useMemo(() => {
     const userFilters = activeFilters.filter((f): f is { type: 'user'; value: string; label: string } => f.type === 'user');
@@ -242,7 +253,7 @@ const PersonalHubPageInner: React.FC = () => {
       .filter((it) => !it.isArchived),
     [pageCrossGroupGridContext.rowOrder, itemById],
   );
-  const { mutate: updatePersonalColumn } = useUpdatePersonalColumn();
+  const { mutate: updatePersonalColumn } = useUpdatePersonalColumn(hubOwnerId);
 
 
   const handleExport = async () => {
@@ -484,8 +495,8 @@ const PersonalHubPageInner: React.FC = () => {
               Item
             </div>
             {crossGroupColumns.map((col) => (
-              isOwn
-                ? <PersonalColumnHeaderCell key={col.id} column={col} />
+              canEdit
+                ? <PersonalColumnHeaderCell key={col.id} column={col} userId={hubOwnerId} />
                 : (
                   <div
                     key={col.id}
@@ -499,7 +510,7 @@ const PersonalHubPageInner: React.FC = () => {
                   </div>
                 )
             ))}
-            {isOwn && (
+            {canEdit && (
               <button
                 type="button"
                 onClick={() => setShowAddCrossGroupColumn(true)}
@@ -518,7 +529,7 @@ const PersonalHubPageInner: React.FC = () => {
                 key={boardId}
                 boardId={boardId}
                 items={itemsByBoard[boardId]}
-                isOwn={isOwn}
+                isOwn={canEdit}
                 ownerUserId={hubOwnerId}
                 boardView={viewMode as BoardView}
                 onOpenDetail={setDetailItem}
@@ -565,7 +576,7 @@ const PersonalHubPageInner: React.FC = () => {
                       getValue={(item) => pageCrossGroupGridContext.valuesByItem[item.id]?.[col.id]}
                       evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, pageCrossGroupGridContext) : undefined}
                       boardTotal
-                      onPersist={(c) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { boardSummaryConfig: c } }); }}
+                      onPersist={(c) => { if (canEdit) updatePersonalColumn({ id: col.id, patch: { boardSummaryConfig: c } }); }}
                     />
                   ))}
                 />
@@ -609,7 +620,7 @@ const PersonalHubPageInner: React.FC = () => {
       )}
 
       {showAddCrossGroupColumn && (
-        <AddColumnModal mode="personal" personalScope="all" onClose={() => setShowAddCrossGroupColumn(false)} />
+        <AddColumnModal mode="personal" personalScope="all" personalOwnerId={hubOwnerId} onClose={() => setShowAddCrossGroupColumn(false)} />
       )}
     </div>
   );

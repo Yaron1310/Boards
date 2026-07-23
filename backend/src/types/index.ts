@@ -456,6 +456,8 @@ export interface DBItem {
   status?: string;          // mirrors values[statusColumnId]
   assignees?: string[];     // mirrors values[personColumnId] — userIds
   dueDate?: admin.firestore.Timestamp | Date | any; // mirrors values[dateColumnId]
+  // Last time `assignees` changed — used to sort the Personal Hub (newest first)
+  lastAssignedAt?: admin.firestore.Timestamp | Date | any;
   dependencies?: TimeRangeDependency[];
   // Chat denormalized counters (updated on each new chat message)
   chatMessageCount?: number;

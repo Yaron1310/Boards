@@ -26,6 +26,8 @@ interface Props {
   editable: boolean;
   /** Only needed by Number (as a formula click-target) and Simple Formula cells. */
   gridContext?: PersonalGridContext;
+  /** Whose hub this cell belongs to — undefined for your own; set when an admin is editing another user's Personal Hub. */
+  userId?: string;
 }
 
 /**
@@ -43,8 +45,8 @@ interface Props {
  * group's list of cross-group or board-only personal columns) — any cell,
  * any row, not just the same row as the formula.
  */
-const PersonalColumnCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext }) => {
-  const props = { column, itemId, itemName: itemName ?? '', value, editable };
+const PersonalColumnCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext, userId }) => {
+  const props = { column, itemId, itemName: itemName ?? '', value, editable, userId };
 
   switch (column.type) {
     case ColumnType.TEXT: return <PersonalTextCell {...props} />;

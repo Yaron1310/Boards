@@ -11,40 +11,45 @@ export const usePersonalColumns = (userId?: string, enabled = true) =>
     staleTime: 60 * 1000,
   });
 
-export const useCreatePersonalColumn = () => {
+// Every write hook below optionally takes the target hub's owner userId (construction-time,
+// not per-call) — undefined means "my own hub". An org/system admin editing another user's
+// Personal Hub passes that user's id so columns/values are created/updated under their
+// account instead of the admin's own, matching the backend's admin-aware write endpoints.
+
+export const useCreatePersonalColumn = (userId?: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: CreatePersonalColumnData) => ph.createPersonalColumn(data),
+    mutationFn: (data: CreatePersonalColumnData) => ph.createPersonalColumn(data, userId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columnsRoot });
     },
   });
 };
 
-export const useUpdatePersonalColumn = () => {
+export const useUpdatePersonalColumn = (userId?: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: UpdatePersonalColumnData }) => ph.updatePersonalColumn(id, patch),
+    mutationFn: ({ id, patch }: { id: string; patch: UpdatePersonalColumnData }) => ph.updatePersonalColumn(id, patch, userId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columnsRoot });
     },
   });
 };
 
-export const useReorderPersonalColumns = () => {
+export const useReorderPersonalColumns = (userId?: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (order: ReorderPersonalColumnItem[]) => ph.reorderPersonalColumns(order),
+    mutationFn: (order: ReorderPersonalColumnItem[]) => ph.reorderPersonalColumns(order, userId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columnsRoot });
     },
   });
 };
 
-export const useDeletePersonalColumn = () => {
+export const useDeletePersonalColumn = (userId?: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => ph.deletePersonalColumn(id),
+    mutationFn: (id: string) => ph.deletePersonalColumn(id, userId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.personalHub.columnsRoot });
       void qc.invalidateQueries({ queryKey: queryKeys.personalHub.itemValuesRoot });
@@ -60,11 +65,11 @@ export const usePersonalItemValues = (itemIds: string[], userId?: string, enable
     staleTime: 30 * 1000,
   });
 
-export const useUpdatePersonalItemValue = () => {
+export const useUpdatePersonalItemValue = (userId?: string) => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ itemId, columnId, value }: { itemId: string; columnId: string; value: unknown }) =>
-      ph.updatePersonalItemValue(itemId, columnId, value),
+      ph.updatePersonalItemValue(itemId, columnId, value, userId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.personalHub.itemValuesRoot });
     },

@@ -5,10 +5,10 @@ import CellWrapper from '../../boards/cells/CellWrapper';
 import type { Column, LocationValue } from '../../../types';
 import type { PersonalCellProps } from './types';
 
-const PersonalLocationCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalLocationCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const rawValue = value as LocationValue | null | undefined;
   const address = rawValue?.address ?? '';
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState(address);
 

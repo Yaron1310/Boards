@@ -19,11 +19,11 @@ function getContrastText(hex: string): string {
   return luminance > 0.6 ? '#1F2937' : '#FFFFFF';
 }
 
-const PersonalStatusCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalStatusCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const currentValue = (value ?? '') as string;
   const settings = column.settings as StatusColumnSettings;
-  const { mutate } = useUpdatePersonalItemValue();
-  const { mutateAsync: updateColumn } = useUpdatePersonalColumn();
+  const { mutate } = useUpdatePersonalItemValue(userId);
+  const { mutateAsync: updateColumn } = useUpdatePersonalColumn(userId);
   const { push: pushUndo } = useUndo();
 
   const [isAdding, setIsAdding] = useState(false);

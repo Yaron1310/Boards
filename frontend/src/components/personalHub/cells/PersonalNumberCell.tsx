@@ -12,10 +12,10 @@ interface Props extends PersonalCellProps {
   gridContext?: PersonalGridContext;
 }
 
-const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext }) => {
+const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext, userId }) => {
   const rawValue = value as number | null | undefined;
   const settings = column.settings as NumberColumnSettings;
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
   const { isRecording, insertRef } = useFormulaRecording();
   const [draft, setDraft] = useState<string>(rawValue != null ? String(rawValue) : '');

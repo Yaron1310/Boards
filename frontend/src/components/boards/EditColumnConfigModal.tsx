@@ -41,6 +41,8 @@ interface EditColumnConfigModalProps {
   column: Column | PersonalColumn;
   onClose: () => void;
   mode?: 'board' | 'personal';
+  /** Personal mode only: whose hub this column belongs to — undefined for your own. */
+  personalOwnerId?: string;
 }
 
 interface SortableStatusOptionProps {
@@ -123,13 +125,13 @@ const SortableStatusOption: React.FC<SortableStatusOptionProps> = ({
 };
 
 
-const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, column, onClose, mode = 'board' }) => {
+const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, column, onClose, mode = 'board', personalOwnerId }) => {
   const isPersonal = mode === 'personal';
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
   const { mutateAsync: updateBoardColumn, isPending: isPendingBoard } = useUpdateColumn(boardId ?? '');
-  const { mutateAsync: updatePersonalColumn, isPending: isPendingPersonal } = useUpdatePersonalColumn();
+  const { mutateAsync: updatePersonalColumn, isPending: isPendingPersonal } = useUpdatePersonalColumn(personalOwnerId);
   const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
   const [error, setError] = useState('');
 

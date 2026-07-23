@@ -281,6 +281,7 @@ export const createItem = async (req: Request, res: Response) => {
       status: status ?? mirrored.status ?? null,
       assignees: assignees ?? mirrored.assignees ?? [],
       dueDate: dueDate ?? mirrored.dueDate ?? null,
+      lastAssignedAt: timestamp,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -597,6 +598,10 @@ export const updateItem = async (req: Request, res: Response) => {
     if (Array.isArray(dependencies)) updateData.dependencies = dependencies;
 
     const previousAssignees = item.assignees ?? [];
+    const nextAssignees = (updateData.assignees as string[] | undefined) ?? previousAssignees;
+    const hasNewAssignee = nextAssignees.some((uid) => !previousAssignees.includes(uid));
+    if (hasNewAssignee) updateData.lastAssignedAt = admin.firestore.FieldValue.serverTimestamp();
+
     await itemsCollection(user.orgId).doc(id).update(updateData);
     touchBoardVersion(user.orgId, item.boardId);
     const updated = snapshotToData<DBItem>(await itemsCollection(user.orgId).doc(id).get())!;

@@ -6,6 +6,8 @@ export interface PersonalCellProps {
   itemName: string;
   value: unknown;
   editable: boolean;
+  /** Whose hub this cell belongs to — undefined for your own; set when an admin is editing another user's Personal Hub. */
+  userId?: string;
 }
 
 /**

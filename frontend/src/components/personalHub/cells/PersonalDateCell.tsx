@@ -27,11 +27,11 @@ const formatDisplay = (val: string | Date | null | undefined, includeTime: boole
   return `${dd}/${mm}/${yyyy}`;
 };
 
-const PersonalDateCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalDateCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const rawValue = value as string | Date | null | undefined;
   const settings = column.settings as DateColumnSettings;
   const includeTime = settings?.includeTime ?? false;
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState<string>(toInputValue(rawValue, includeTime));
 

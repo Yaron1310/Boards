@@ -5,9 +5,9 @@ import CellWrapper from '../../boards/cells/CellWrapper';
 import type { Column } from '../../../types';
 import type { PersonalCellProps } from './types';
 
-const PersonalTagsCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalTagsCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const rawValue = useMemo(() => (value ?? []) as string[], [value]);
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState('');
   const [tags, setTags] = useState<string[]>(rawValue);

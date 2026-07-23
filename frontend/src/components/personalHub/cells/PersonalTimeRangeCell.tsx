@@ -214,9 +214,9 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({ initialStart, initial
   );
 };
 
-const PersonalTimeRangeCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalTimeRangeCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const rawValue = value as TimeRangeValue | null | undefined;
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
   const [start, setStart] = useState(toDateInput(rawValue?.start));
   const [end, setEnd] = useState(toDateInput(rawValue?.end));

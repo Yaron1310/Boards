@@ -82,6 +82,8 @@ interface AddColumnModalProps {
    */
   mode?: 'board' | 'personal';
   personalScope?: PersonalColumnScope;
+  /** Personal mode only: whose hub this column belongs to — undefined for your own. */
+  personalOwnerId?: string;
 }
 
 const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
@@ -240,24 +242,24 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope, personalOwnerId }) => {
   const isPersonal = mode === 'personal';
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending: isPendingBoard } = useCreateColumn(boardId ?? '');
-  const { mutateAsync: createPersonalColumn, isPending: isPendingPersonal } = useCreatePersonalColumn();
+  const { mutateAsync: createPersonalColumn, isPending: isPendingPersonal } = useCreatePersonalColumn(personalOwnerId);
   const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
   const { mutateAsync: deleteColumn } = useDeleteColumn(boardId ?? '');
   const { mutateAsync: updateItem } = useUpdateItem();
-  const { mutateAsync: updatePersonalItemValue } = useUpdatePersonalItemValue();
+  const { mutateAsync: updatePersonalItemValue } = useUpdatePersonalItemValue(personalOwnerId);
   const { data: boardColumns = [] } = useColumns(boardId ?? '', !isPersonal && !parentGroupId && !!boardId);
   const { data: subitemColumns = [] } = useSubitemColumns(boardId ?? '', parentGroupId ?? '', !isPersonal && !!parentGroupId);
   const allColumns = parentGroupId ? subitemColumns : boardColumns;
   const { mutateAsync: reorderColumns } = useReorderColumns(boardId ?? '');
 
-  const { data: allPersonalColumns = [] } = usePersonalColumns(undefined, isPersonal);
+  const { data: allPersonalColumns = [] } = usePersonalColumns(personalOwnerId, isPersonal);
   const personalAllScopeColumns = allPersonalColumns.filter((c: PersonalColumn) => c.scope === 'all');
-  const { mutateAsync: reorderPersonalColumns } = useReorderPersonalColumns();
-  const { mutateAsync: deletePersonalColumnMutation } = useDeletePersonalColumn();
+  const { mutateAsync: reorderPersonalColumns } = useReorderPersonalColumns(personalOwnerId);
+  const { mutateAsync: deletePersonalColumnMutation } = useDeletePersonalColumn(personalOwnerId);
 
   const trackedColumns = isPersonal ? personalAllScopeColumns : allColumns;
   const previousColumnsRef = useRef<string[]>([]);
@@ -403,7 +405,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
         if (personalScope === 'all') {
           await qc.refetchQueries({ queryKey: queryKeys.personalHub.columnsRoot });
-          const rawColumns = (qc.getQueryData(queryKeys.personalHub.columns()) as PersonalColumn[] | undefined) ?? [];
+          const rawColumns = (qc.getQueryData(queryKeys.personalHub.columns(personalOwnerId)) as PersonalColumn[] | undefined) ?? [];
           const updatedColumns = [...rawColumns]
             .filter((c) => c.scope === 'all')
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
