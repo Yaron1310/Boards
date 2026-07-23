@@ -5,9 +5,9 @@ import CellWrapper from '../../boards/cells/CellWrapper';
 import type { Column } from '../../../types';
 import type { PersonalCellProps } from './types';
 
-const PersonalCheckboxCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalCheckboxCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const checked = Boolean(value);
-  const { mutate, isPending } = useUpdatePersonalItemValue();
+  const { mutate, isPending } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
 
   const toggle = (e: React.MouseEvent) => {

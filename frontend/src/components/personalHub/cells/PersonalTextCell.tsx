@@ -10,10 +10,10 @@ import type { PersonalCellProps } from './types';
 const LONG_TEXT_THRESHOLD = 16;
 const DEFAULT_MAX_LENGTH = 1000;
 
-const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const rawValue = typeof value === 'string' ? value : '';
   const settings = column.settings as TextColumnSettings;
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState(rawValue);
   const [modalOpen, setModalOpen] = useState(false);

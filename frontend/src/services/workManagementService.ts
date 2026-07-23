@@ -63,6 +63,14 @@ export const listArchivedTemplates = (): Promise<Board[]> =>
 export const getBoardVersion = (id: string): Promise<{ lastUpdatedAt: string | null }> =>
   fetchWithAuth(`/api/boards/${id}/version`);
 
+export interface ReorderBoardItem {
+  id: string;
+  order: number;
+}
+
+export const reorderBoards = (workspaceId: string, order: ReorderBoardItem[]): Promise<void> =>
+  fetchWithAuth('/api/boards/reorder', { method: 'PATCH', body: JSON.stringify({ workspaceId, order }) });
+
 // ─── GROUPS ──────────────────────────────────────────────────────────────────
 
 export interface CreateGroupData {

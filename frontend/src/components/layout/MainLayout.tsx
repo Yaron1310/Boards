@@ -5,7 +5,10 @@ import { useData } from '../../hooks/useData';
 import { UserRole, User, WorkHub, Board } from '../../types';
 import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiChevronLeft, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark, FiUser } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
-import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard } from '../../hooks/queries/useBoardQueries';
+import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard, useReorderBoards } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import FormulaRecordingBar from '../formula/FormulaRecordingBar';
 import BoardContextMenu from '../boards/BoardContextMenu';
@@ -31,15 +34,53 @@ const WORKSPACE_COLORS = [
 
 // --- WORKSPACES + BOARDS NAV SECTION ---
 
+interface SortableBoardItemProps {
+  board: Board;
+  sidebarLinkColor: string;
+  canReorder: boolean;
+  children: React.ReactNode;
+}
+
+const SortableBoardItem: React.FC<SortableBoardItemProps> = ({ board, sidebarLinkColor, canReorder, children }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: board.id,
+    disabled: !canReorder,
+  });
+
+  return (
+    <li
+      ref={setNodeRef}
+      role="listitem"
+      className="group/board flex items-center"
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+    >
+      {canReorder && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="flex-shrink-0 opacity-0 group-hover/board:opacity-100 p-1 cursor-grab touch-none"
+          style={{ color: sidebarLinkColor }}
+          aria-label={`Reorder board ${board.name}`}
+        >
+          <FiMenu size={12} aria-hidden="true" />
+        </button>
+      )}
+      {children}
+    </li>
+  );
+};
+
 interface WorkspaceBoardsGroupProps {
   workspace: { id: string; name: string };
   sidebarLinkColor: string;
   onNavigate: () => void;
   allWorkspaces: WorkHub[];
   canManage: boolean;
+  canReorder: boolean;
 }
 
-const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate, allWorkspaces, canManage }) => {
+const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, sidebarLinkColor, onNavigate, allWorkspaces, canManage, canReorder }) => {
   const [isExpanded, setIsExpanded] = useState(true);
   const [menuBoardId, setMenuBoardId] = useState<string | null>(null);
   const [menuTriggerRect, setMenuTriggerRect] = useState<DOMRect | null>(null);
@@ -66,6 +107,26 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
   const { mutateAsync: updateBoard } = useUpdateBoard();
   const { mutateAsync: archiveBoard } = useArchiveBoard();
   const { mutateAsync: deleteBoard } = useDeleteBoard();
+  const { mutateAsync: reorderBoards } = useReorderBoards();
+
+  const [localBoards, setLocalBoards] = useState<Board[]>(boards);
+  useEffect(() => { setLocalBoards(boards); }, [boards]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+
+  const handleBoardDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = localBoards.findIndex((b) => b.id === active.id);
+    const newIndex = localBoards.findIndex((b) => b.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const reordered = arrayMove(localBoards, oldIndex, newIndex);
+    setLocalBoards(reordered);
+    void reorderBoards({
+      workspaceId: workspace.id,
+      order: reordered.map((b, idx) => ({ id: b.id, order: idx })),
+    }).catch(() => setLocalBoards(boards));
+  };
 
   const menuBoard = menuBoardId ? boards.find((b) => b.id === menuBoardId) : null;
 
@@ -113,14 +174,16 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
         <span>Boards</span>
       </button>
       {isExpanded && (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleBoardDragEnd}>
         <ul role="list" aria-label={`${workspace.name} boards`}>
-          {boards.length === 0 && (
+          {localBoards.length === 0 && (
             <li className="px-8 py-1 text-xs" style={{ color: sidebarLinkColor, opacity: 0.45 }}>
               No boards yet
             </li>
           )}
-          {boards.map((board) => (
-            <li key={board.id} role="listitem" className="group/board flex items-center">
+          <SortableContext items={localBoards.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+          {localBoards.map((board) => (
+            <SortableBoardItem key={board.id} board={board} sidebarLinkColor={sidebarLinkColor} canReorder={canReorder}>
               {renamingBoardId === board.id ? (
                 <div className="flex-1 min-w-0 flex items-center gap-2 pl-8 py-1" style={{ color: sidebarLinkColor }}>
                   <FiLayout size={13} className="flex-shrink-0" aria-hidden="true" />
@@ -181,8 +244,9 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
                   <FiMoreHorizontal size={13} aria-hidden="true" />
                 </button>
               )}
-            </li>
+            </SortableBoardItem>
           ))}
+          </SortableContext>
           <li role="listitem">
             <button
               type="button"
@@ -196,6 +260,7 @@ const WorkspaceBoardsGroup: React.FC<WorkspaceBoardsGroupProps> = ({ workspace, 
             </button>
           </li>
         </ul>
+        </DndContext>
       )}
       {menuBoard && menuTriggerRect && (
         <BoardContextMenu
@@ -279,11 +344,12 @@ interface WorkspacesNavSectionProps {
   sidebarLinkColor: string;
   onNavigate: () => void;
   canManage: boolean;
+  canReorder: boolean;
 }
 
 const WORKHUB_STORAGE_KEY = 'logyx_selected_workhub_id';
 
-const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate, canManage }) => {
+const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLinkColor, onNavigate, canManage, canReorder }) => {
   const { data: allWorkspaces = [] } = useWorkspacesQuery();
   const workspaces = allWorkspaces.filter((w) => !w.isPersonal && !w.isTemplates);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -370,6 +436,7 @@ const WorkspacesNavSection: React.FC<WorkspacesNavSectionProps> = ({ sidebarLink
           onNavigate={onNavigate}
           allWorkspaces={workspaces}
           canManage={canManage}
+          canReorder={canReorder}
         />
       )}
     </div>
@@ -821,6 +888,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 sidebarLinkColor={sidebarLinkColor}
                 onNavigate={() => setIsSidebarOpen(false)}
                 canManage={user?.role === UserRole.WORKSPACE_ADMIN || user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN}
+                canReorder={user?.role === UserRole.ORGANIZATION_ADMIN || user?.role === UserRole.SYSTEM_ADMIN}
               />
 
               {availableAdminNavItems.length > 0 && (

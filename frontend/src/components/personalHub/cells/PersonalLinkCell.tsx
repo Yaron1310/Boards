@@ -23,9 +23,9 @@ function isValidUrl(v: string): boolean {
   }
 }
 
-const PersonalLinkCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalLinkCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const rawValue = (value ?? '') as string;
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState(rawValue);
   const [inputError, setInputError] = useState(false);

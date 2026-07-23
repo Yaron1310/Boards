@@ -10,6 +10,8 @@ import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 
 interface Props {
   column: PersonalColumn;
+  /** Whose hub this column belongs to — undefined for your own; set when an admin is editing another user's Personal Hub. */
+  userId?: string;
 }
 
 const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.SIMPLE_FORMULA];
@@ -19,9 +21,9 @@ const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATU
  * board column's ColumnHeaderCell (rename, settings, add left/right, change
  * type, delete), just pointed at the personal-hub column endpoints.
  */
-const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
-  const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdatePersonalColumn();
-  const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeletePersonalColumn();
+const PersonalColumnHeaderCell: React.FC<Props> = ({ column, userId }) => {
+  const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdatePersonalColumn(userId);
+  const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeletePersonalColumn(userId);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -233,6 +235,7 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
         <AddColumnModal
           mode="personal"
           personalScope="all"
+          personalOwnerId={userId}
           onClose={() => { setShowAddColumnModal(false); setInsertPosition(null); setSwapMode(false); }}
           insertAfterColumnId={!swapMode && insertPosition === 'right' ? column.id : undefined}
           insertBeforeColumnId={!swapMode && insertPosition === 'left' ? column.id : undefined}
@@ -245,6 +248,7 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
         <EditColumnConfigModal
           mode="personal"
           column={column}
+          personalOwnerId={userId}
           onClose={() => setShowEditConfigModal(false)}
         />
       )}

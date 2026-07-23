@@ -5,11 +5,11 @@ import CellWrapper from '../../boards/cells/CellWrapper';
 import type { Column, DropdownColumnSettings } from '../../../types';
 import type { PersonalCellProps } from './types';
 
-const PersonalDropdownCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalDropdownCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const selected = (value ?? []) as string[];
   const settings = column.settings as DropdownColumnSettings;
   const multiple = settings?.multiple ?? false;
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
 
   const selectedOptions = settings?.options?.filter((o) => selected.includes(o.id)) ?? [];

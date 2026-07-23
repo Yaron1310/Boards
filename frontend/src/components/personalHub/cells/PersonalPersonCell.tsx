@@ -99,11 +99,11 @@ const ProfileTooltip: React.FC<{
   );
 };
 
-const PersonalPersonCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable }) => {
+const PersonalPersonCell: React.FC<PersonalCellProps> = ({ column, itemId, itemName, value, editable, userId }) => {
   const selected = (value ?? []) as string[];
   const settings = column.settings as PersonColumnSettings;
   const multiple = settings?.multiple ?? true;
-  const { mutate } = useUpdatePersonalItemValue();
+  const { mutate } = useUpdatePersonalItemValue(userId);
   const { push: pushUndo } = useUndo();
   const [search, setSearch] = useState('');
   const [hoveredUser, setHoveredUser] = useState<User | null>(null);

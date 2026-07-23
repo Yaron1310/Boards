@@ -41,6 +41,8 @@ interface EditColumnConfigModalProps {
   column: Column | PersonalColumn;
   onClose: () => void;
   mode?: 'board' | 'personal';
+  /** Personal mode only: whose hub this column belongs to — undefined for your own. */
+  personalOwnerId?: string;
 }
 
 interface SortableStatusOptionProps {
@@ -123,13 +125,13 @@ const SortableStatusOption: React.FC<SortableStatusOptionProps> = ({
 };
 
 
-const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, column, onClose, mode = 'board' }) => {
+const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, column, onClose, mode = 'board', personalOwnerId }) => {
   const isPersonal = mode === 'personal';
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
   const { mutateAsync: updateBoardColumn, isPending: isPendingBoard } = useUpdateColumn(boardId ?? '');
-  const { mutateAsync: updatePersonalColumn, isPending: isPendingPersonal } = useUpdatePersonalColumn();
+  const { mutateAsync: updatePersonalColumn, isPending: isPendingPersonal } = useUpdatePersonalColumn(personalOwnerId);
   const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
   const [error, setError] = useState('');
 
@@ -157,6 +159,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
   // SIMPLE_FORMULA
   const formulaSettings = column.settings as SimpleFormulaColumnSettings;
   const [formulaUnit, setFormulaUnit] = useState(formulaSettings.unit ?? '');
+  const [formulaPercentMultiply, setFormulaPercentMultiply] = useState(formulaSettings.percentAutoMultiply ?? true);
   const [formulaApplyScope, setFormulaApplyScope] = useState<'all' | 'perCell'>(
     formulaSettings.applyScope ?? 'perCell',
   );
@@ -240,6 +243,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
         return {
           defaultFormula: formulaSettings.defaultFormula,
           ...(formulaUnit ? { unit: formulaUnit } : {}),
+          ...(formulaUnit === '%' ? { percentAutoMultiply: formulaPercentMultiply } : {}),
           ...(formulaSettings.applyScope ? { applyScope: formulaApplyScope } : {}),
         };
       case ColumnType.STATUS:
@@ -427,6 +431,18 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+                {formulaUnit === '%' && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formulaPercentMultiply}
+                      onChange={(e) => setFormulaPercentMultiply(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      aria-label="Multiply value by 100 for percentage display"
+                    />
+                    Multiply by 100 (e.g. 0.42 → 42%)
+                  </label>
+                )}
                 {/* Only shown once the "apply to all / just this cell" question has been answered
                     at least once for this column — before that, the question modal is what sets
                     it, not this toggle. */}

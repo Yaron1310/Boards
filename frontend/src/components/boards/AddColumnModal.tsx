@@ -82,6 +82,8 @@ interface AddColumnModalProps {
    */
   mode?: 'board' | 'personal';
   personalScope?: PersonalColumnScope;
+  /** Personal mode only: whose hub this column belongs to — undefined for your own. */
+  personalOwnerId?: string;
 }
 
 const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
@@ -240,24 +242,24 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope, personalOwnerId }) => {
   const isPersonal = mode === 'personal';
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending: isPendingBoard } = useCreateColumn(boardId ?? '');
-  const { mutateAsync: createPersonalColumn, isPending: isPendingPersonal } = useCreatePersonalColumn();
+  const { mutateAsync: createPersonalColumn, isPending: isPendingPersonal } = useCreatePersonalColumn(personalOwnerId);
   const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
   const { mutateAsync: deleteColumn } = useDeleteColumn(boardId ?? '');
   const { mutateAsync: updateItem } = useUpdateItem();
-  const { mutateAsync: updatePersonalItemValue } = useUpdatePersonalItemValue();
+  const { mutateAsync: updatePersonalItemValue } = useUpdatePersonalItemValue(personalOwnerId);
   const { data: boardColumns = [] } = useColumns(boardId ?? '', !isPersonal && !parentGroupId && !!boardId);
   const { data: subitemColumns = [] } = useSubitemColumns(boardId ?? '', parentGroupId ?? '', !isPersonal && !!parentGroupId);
   const allColumns = parentGroupId ? subitemColumns : boardColumns;
   const { mutateAsync: reorderColumns } = useReorderColumns(boardId ?? '');
 
-  const { data: allPersonalColumns = [] } = usePersonalColumns(undefined, isPersonal);
+  const { data: allPersonalColumns = [] } = usePersonalColumns(personalOwnerId, isPersonal);
   const personalAllScopeColumns = allPersonalColumns.filter((c: PersonalColumn) => c.scope === 'all');
-  const { mutateAsync: reorderPersonalColumns } = useReorderPersonalColumns();
-  const { mutateAsync: deletePersonalColumnMutation } = useDeletePersonalColumn();
+  const { mutateAsync: reorderPersonalColumns } = useReorderPersonalColumns(personalOwnerId);
+  const { mutateAsync: deletePersonalColumnMutation } = useDeletePersonalColumn(personalOwnerId);
 
   const trackedColumns = isPersonal ? personalAllScopeColumns : allColumns;
   const previousColumnsRef = useRef<string[]>([]);
@@ -298,6 +300,10 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   // NUMBER
   const [unit, setUnit] = useState('');
   const [precision, setPrecision] = useState('');
+
+  // SIMPLE_FORMULA
+  const [formulaUnit, setFormulaUnit] = useState('');
+  const [formulaPercentMultiply, setFormulaPercentMultiply] = useState(true);
 
   // DATE
   const [includeTime, setIncludeTime] = useState(false);
@@ -367,7 +373,11 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       case ColumnType.TAGS:
         return { allowCustom };
       case ColumnType.SIMPLE_FORMULA:
-        return { defaultFormula: '' };
+        return {
+          defaultFormula: '',
+          ...(formulaUnit ? { unit: formulaUnit } : {}),
+          ...(formulaUnit === '%' ? { percentAutoMultiply: formulaPercentMultiply } : {}),
+        };
       default:
         return {};
     }
@@ -403,7 +413,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
         if (personalScope === 'all') {
           await qc.refetchQueries({ queryKey: queryKeys.personalHub.columnsRoot });
-          const rawColumns = (qc.getQueryData(queryKeys.personalHub.columns()) as PersonalColumn[] | undefined) ?? [];
+          const rawColumns = (qc.getQueryData(queryKeys.personalHub.columns(personalOwnerId)) as PersonalColumn[] | undefined) ?? [];
           const updatedColumns = [...rawColumns]
             .filter((c) => c.scope === 'all')
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -762,6 +772,38 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                     />
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* SIMPLE_FORMULA settings */}
+            {type === ColumnType.SIMPLE_FORMULA && (
+              <div className="space-y-3 pt-1 border-t border-gray-100">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Formula Settings</p>
+                <div>
+                  <label htmlFor="formula-unit" className="block text-xs text-gray-600 mb-1">
+                    Unit
+                  </label>
+                  <input
+                    id="formula-unit"
+                    type="text"
+                    value={formulaUnit}
+                    onChange={(e) => setFormulaUnit(e.target.value)}
+                    placeholder="e.g. $, %, kg"
+                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                {formulaUnit === '%' && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formulaPercentMultiply}
+                      onChange={(e) => setFormulaPercentMultiply(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      aria-label="Multiply value by 100 for percentage display"
+                    />
+                    Multiply by 100 (e.g. 0.42 → 42%)
+                  </label>
+                )}
               </div>
             )}
 
