@@ -225,6 +225,10 @@ export interface TagsColumnSettings {
 export interface SimpleFormulaColumnSettings {
   defaultFormula: string; // e.g. "{Price} * {Qty}" — evaluated client-side
   unit?: string;
+  /** Only meaningful when unit === '%'. Multiplies the evaluated result by 100 before display
+   *  (e.g. a formula returning 0.42 shows as "42%" instead of "0.42%"). Defaults to true (on)
+   *  whenever unit is '%' and this is unset — so existing percent-unit columns keep working. */
+  percentAutoMultiply?: boolean;
   /** Remembered answer to "apply to all cells / just this cell", asked once per column the first
    *  time it gets a formula. 'all' keeps every cell on the shared defaultFormula; 'perCell' lets
    *  each cell hold its own override. Admins can change it later from the column's edit settings. */

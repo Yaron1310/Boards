@@ -303,6 +303,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
   // SIMPLE_FORMULA
   const [formulaUnit, setFormulaUnit] = useState('');
+  const [formulaPercentMultiply, setFormulaPercentMultiply] = useState(true);
 
   // DATE
   const [includeTime, setIncludeTime] = useState(false);
@@ -372,7 +373,11 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       case ColumnType.TAGS:
         return { allowCustom };
       case ColumnType.SIMPLE_FORMULA:
-        return { defaultFormula: '', ...(formulaUnit ? { unit: formulaUnit } : {}) };
+        return {
+          defaultFormula: '',
+          ...(formulaUnit ? { unit: formulaUnit } : {}),
+          ...(formulaUnit === '%' ? { percentAutoMultiply: formulaPercentMultiply } : {}),
+        };
       default:
         return {};
     }
@@ -787,6 +792,18 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                     className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   />
                 </div>
+                {formulaUnit === '%' && (
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formulaPercentMultiply}
+                      onChange={(e) => setFormulaPercentMultiply(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      aria-label="Multiply value by 100 for percentage display"
+                    />
+                    Multiply by 100 (e.g. 0.42 → 42%)
+                  </label>
+                )}
               </div>
             )}
 

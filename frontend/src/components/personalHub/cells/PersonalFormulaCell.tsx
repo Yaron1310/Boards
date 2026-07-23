@@ -83,7 +83,9 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
   }, [cellFormula, formulaContext]);
 
   const formatNumber = (n: number) => {
-    const formatted = formatGroupedNumber(n, 2);
+    const isPercent = settings?.unit === '%';
+    const displayValue = isPercent && settings?.percentAutoMultiply !== false ? n * 100 : n;
+    const formatted = formatGroupedNumber(displayValue, 2);
     return settings?.unit ? `${formatted} ${settings.unit}` : formatted;
   };
 
