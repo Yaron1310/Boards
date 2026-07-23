@@ -213,3 +213,11 @@ html.dark-contrast .auth-page-no-contrast canvas {
 .animate-caret-blink {
   animation: caret-blink 1s steps(1, end) infinite;
 }
+
+/* Hovering a resolved value in the formula recording bar highlights its source cell, when that
+   cell happens to be on screen (drawn with outline, not border, so it doesn't shift layout). */
+.formula-source-highlight {
+  outline: 2px solid #fb923c !important; /* orange-400 */
+  outline-offset: -2px;
+  background-color: #fff7ed !important; /* orange-50 */
+}

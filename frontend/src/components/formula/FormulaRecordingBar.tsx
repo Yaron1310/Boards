@@ -6,7 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
 import { useFormulaRefMeta, type RefMeta } from '../../hooks/queries/useFormulaRefMeta';
-import { evaluateFormula, extractRefs, parseRefToken, type CellRef } from '../../utils/formulaEngine';
+import { evaluateFormula, extractRefs, formulaRefDomKey, parseRefToken, type CellRef } from '../../utils/formulaEngine';
 import { formatGroupedNumber } from '../../utils/numberFormat';
 
 const formatNumber = (n: number) => formatGroupedNumber(n, 2);
@@ -58,6 +58,18 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
   const meta = resolveMeta(cellRef, currentItemId);
   const tooltip = metaToTooltip(meta);
   const sourceBoardId = meta?.boardId;
+  const domKey = formulaRefDomKey(cellRef, currentItemId);
+
+  // Highlight the referenced cell itself (orange border + light-orange background), if it
+  // happens to be rendered on the currently viewed board — matched via the shared
+  // data-formula-cell-key tag rather than component state, so no cross-board rendering wiring
+  // is needed for a ref that lives on a different page than the one you're looking at.
+  const setSourceHighlighted = (on: boolean) => {
+    if (!domKey) return;
+    document.querySelectorAll(`[data-formula-cell-key="${CSS.escape(domKey)}"]`).forEach((el) => {
+      el.classList.toggle('formula-source-highlight', on);
+    });
+  };
 
   const show = () => {
     if (hideTimeoutRef.current) {
@@ -66,15 +78,19 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
     }
     const rect = spanRef.current?.getBoundingClientRect();
     if (rect) setHoverPos({ top: rect.bottom, left: rect.left + rect.width / 2 });
+    setSourceHighlighted(true);
   };
   // Small delay before hiding — without it, the gap between the token and the tooltip
   // (offset below it) closes the tooltip before the cursor reaches the "go to board" button.
   const hide = () => {
     hideTimeoutRef.current = setTimeout(() => setHoverPos(null), 200);
+    setSourceHighlighted(false);
   };
 
   useEffect(() => () => {
     if (hideTimeoutRef.current) clearTimeout(hideTimeoutRef.current);
+    setSourceHighlighted(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

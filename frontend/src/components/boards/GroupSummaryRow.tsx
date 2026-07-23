@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { BOARD_TOTAL_GROUP_ID, evaluateFormula, extractForeignRefs, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
+import { BOARD_TOTAL_GROUP_ID, evaluateFormula, extractForeignRefs, formulaRefDomKey, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
@@ -590,17 +590,19 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
     config.calc !== 'none' && value != null && items.length > 0 &&
     (!isPersonalSummary || !!session?.origin.isPersonal);
 
+  const summaryRef: CellRef = {
+    kind: getValue ? 'p' : 'b',
+    boardId: col.boardId ?? items[0]?.boardId ?? '',
+    columnId: col.id,
+    itemId: null,
+    agg: config.calc as SummaryCalc,
+    groupId: boardTotal ? BOARD_TOTAL_GROUP_ID : items[0]?.groupId,
+  };
+
   const insertSummary = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    insertRef({
-      kind: getValue ? 'p' : 'b',
-      boardId: col.boardId ?? items[0]?.boardId ?? '',
-      columnId: col.id,
-      itemId: null,
-      agg: config.calc as SummaryCalc,
-      groupId: boardTotal ? BOARD_TOTAL_GROUP_ID : items[0]?.groupId,
-    });
+    insertRef(summaryRef);
   };
 
   return (
@@ -612,6 +614,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       style={{ width: `${colWidth}px` }}
       onMouseDown={canInsertSummary ? insertSummary : undefined}
       data-formula-insertable={canInsertSummary ? 'true' : undefined}
+      data-formula-cell-key={canInsertSummary ? formulaRefDomKey(summaryRef) : undefined}
       className={`group relative flex flex-shrink-0 items-center bg-white border-r border-[#d2d2d4] last:border-r-0 py-2 px-2 min-h-9 ${canInsertSummary ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : ''}`}
     >
       {!canInsertSummary && showActive && (

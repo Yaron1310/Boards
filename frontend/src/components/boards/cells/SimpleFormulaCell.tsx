@@ -12,6 +12,7 @@ import {
   convertLegacyToIdRefs,
   evaluateFormula,
   extractForeignRefs,
+  formulaRefDomKey,
   makeRelativeIdFormula,
 } from '../../../utils/formulaEngine';
 import type { Item, Column, SimpleFormulaColumnSettings } from '../../../types';
@@ -209,6 +210,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
         title="Add this formula's value to the formula"
         aria-label={`Add ${column.name} for ${item.name} to the formula`}
         data-formula-insertable="true"
+        data-formula-cell-key={formulaRefDomKey({ kind: 'b', boardId: homeBoardId, columnId: column.id, itemId: item.id })}
       >
         <span className="text-sm text-gray-600 px-3 text-center truncate">
           {result != null ? formatNumber(result) : <span className="text-gray-300 text-xs">—</span>}
