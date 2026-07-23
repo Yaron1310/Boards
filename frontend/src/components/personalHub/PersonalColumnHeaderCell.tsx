@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { FiEdit2, FiTrash2, FiMoreVertical, FiSettings, FiPlus, FiRefreshCw } from 'react-icons/fi';
 import { useUpdatePersonalColumn, useDeletePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
 import { ColumnType } from '../../types';
@@ -21,7 +20,6 @@ const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATU
  * type, delete), just pointed at the personal-hub column endpoints.
  */
 const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
-  const qc = useQueryClient();
   const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdatePersonalColumn();
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeletePersonalColumn();
 
@@ -33,7 +31,6 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
   const [swapMode, setSwapMode] = useState(false);
-  const [showSwapWarning, setShowSwapWarning] = useState(false);
 
   const isConfigurable = CONFIGURABLE_TYPES.includes(column.type);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -82,34 +79,15 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
     setMenuOpen(false);
   };
 
-  const columnHasData = (): boolean => {
-    const cached = qc.getQueriesData<Record<string, Record<string, unknown>>>({ queryKey: ['personalHub', 'itemValues'] });
-    for (const [, data] of cached) {
-      if (!data) continue;
-      for (const values of Object.values(data)) {
-        const val = values?.[column.id];
-        if (val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-
-  const proceedWithSwap = () => {
-    setShowSwapWarning(false);
+  // Nothing is deleted here — the old column is only removed once the user finishes
+  // configuring its replacement in the AddColumnModal below. Whether the new type can even
+  // carry the old data over is only knowable once the user picks it there, so any data-loss /
+  // convert-or-discard decision is asked inside that modal, not here.
+  const handleSwapType = () => {
+    setMenuOpen(false);
     setInsertPosition('left');
     setSwapMode(true);
     setShowAddColumnModal(true);
-  };
-
-  const handleSwapType = () => {
-    setMenuOpen(false);
-    if (columnHasData()) {
-      setShowSwapWarning(true);
-    } else {
-      proceedWithSwap();
-    }
   };
 
   return (
@@ -259,6 +237,7 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
           insertAfterColumnId={!swapMode && insertPosition === 'right' ? column.id : undefined}
           insertBeforeColumnId={!swapMode && insertPosition === 'left' ? column.id : undefined}
           replaceColumnId={swapMode ? column.id : undefined}
+          replaceColumnType={swapMode ? column.type : undefined}
         />
       )}
 
@@ -270,41 +249,6 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column }) => {
         />
       )}
 
-      {showSwapWarning && (
-        <div
-          className="fixed inset-0 z-[10300] flex items-center justify-center bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="personal-swap-type-warning-title"
-        >
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
-            <h2 id="personal-swap-type-warning-title" className="text-sm font-semibold text-gray-900 mb-2">
-              Change column type?
-            </h2>
-            <p className="text-sm text-gray-600 mb-5">
-              This column contains data that will be <strong>permanently deleted</strong> when you change its type. This action cannot be undone.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowSwapWarning(false)}
-                className="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                aria-label="Cancel"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={proceedWithSwap}
-                className="px-3 py-1.5 text-xs text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
-                aria-label="Continue changing column type"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

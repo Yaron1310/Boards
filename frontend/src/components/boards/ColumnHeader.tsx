@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
   DragOverlay,
@@ -19,7 +18,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns, useReorderColumns, useDeleteColumn, useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { ColumnType } from '../../types';
-import type { Column, Item, NumberColumnSettings, PaginatedResponse } from '../../types';
+import type { Column, NumberColumnSettings } from '../../types';
 import {
   FiType, FiHash, FiCalendar, FiFlag, FiUser, FiChevronDown,
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
@@ -147,7 +146,6 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [showEditConfigModal, setShowEditConfigModal] = useState(false);
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
-  const [showSwapWarning, setShowSwapWarning] = useState(false);
 
   // Every board column type is configurable now — at minimum it always has the Visibility
   // control, plus type-specific settings (unit, options, etc.) where applicable.
@@ -162,7 +160,6 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   const renameInputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
   const { mutateAsync: updateColumn, isPending: isUpdating } = useUpdateColumn(boardId);
-  const qc = useQueryClient();
 
   const {
     attributes,
@@ -233,41 +230,14 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
     setMenuOpen(false);
   };
 
-  const columnHasData = (): boolean => {
-    const cached = qc.getQueriesData<PaginatedResponse<Item> | Item>({ queryKey: ['items'] });
-    for (const [, data] of cached) {
-      if (!data) continue;
-      const items: Item[] =
-        data !== null && typeof data === 'object' && 'data' in data && Array.isArray((data as PaginatedResponse<Item>).data)
-          ? (data as PaginatedResponse<Item>).data
-          : data !== null && typeof data === 'object' && 'values' in data
-          ? [data as Item]
-          : [];
-      for (const item of items) {
-        const val = item.values?.[column.id];
-        if (val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-
-  // Nothing is deleted here — the old column is only removed once the user
-  // finishes creating its replacement in the AddColumnModal opened by the parent
-  // (ColumnHeader). Cancelling that modal leaves the original column untouched.
-  const proceedWithSwap = () => {
-    setShowSwapWarning(false);
-    onSwapCommitted(column.id);
-  };
-
+  // Nothing is deleted here — the old column is only removed once the user finishes
+  // configuring its replacement in the AddColumnModal opened by the parent (ColumnHeader).
+  // Cancelling that modal leaves the original column untouched. Whether the new type can
+  // even carry the old data over is only knowable once the user picks it there, so any
+  // data-loss / convert-or-discard decision is asked inside that modal, not here.
   const handleSwapType = () => {
     setMenuOpen(false);
-    if (columnHasData()) {
-      setShowSwapWarning(true);
-    } else {
-      proceedWithSwap();
-    }
+    onSwapCommitted(column.id);
   };
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
@@ -505,43 +475,6 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
         />
       )}
 
-      {/* Change type — data-loss warning modal */}
-      {showSwapWarning && (
-        <div
-          className="fixed inset-0 z-[10300] flex items-center justify-center bg-black/40"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="swap-type-warning-title"
-        >
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
-            <h2 id="swap-type-warning-title" className="text-sm font-semibold text-gray-900 mb-2">
-              Change column type?
-            </h2>
-            <p className="text-sm text-gray-600 mb-5">
-              This column contains data that will be <strong>permanently deleted</strong> when you change its type. This action cannot be undone.
-            </p>
-            <div className="flex gap-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setShowSwapWarning(false)}
-                className="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                aria-label="Cancel"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={proceedWithSwap}
-                className="px-3 py-1.5 text-xs text-white bg-red-500 rounded-lg hover:bg-red-600 transition-colors"
-                aria-label="Continue changing column type"
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };
@@ -560,7 +493,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const serverColumnsRef = useRef<Column[]>([]);
-  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string } | null>(null);
+  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string; replaceColumnType: ColumnType } | null>(null);
 
   // Item column resize state
   const [itemResizingWidth, setItemResizingWidth] = useState<number | null>(null);
@@ -740,7 +673,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
                 boardView={boardView}
                 currentWidth={colWidth}
                 onWidthCommit={(w) => onWidthChange(col.id, w)}
-                onSwapCommitted={(replaceColumnId) => setSwapAddModal({ replaceColumnId })}
+                onSwapCommitted={(replaceColumnId) => setSwapAddModal({ replaceColumnId, replaceColumnType: col.type })}
               />
             );
           })}
@@ -787,6 +720,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
           boardId={boardId}
           onClose={() => setSwapAddModal(null)}
           replaceColumnId={swapAddModal.replaceColumnId}
+          replaceColumnType={swapAddModal.replaceColumnType}
         />
       )}
     </DndContext>

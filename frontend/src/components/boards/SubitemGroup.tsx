@@ -12,7 +12,7 @@ import { queryKeys } from '../../hooks/queries/queryKeys';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { ColumnType } from '../../types';
-import type { Column, Item, PaginatedResponse } from '../../types';
+import type { Column, Item } from '../../types';
 import { COLUMN_TYPE_ICONS } from './ColumnHeader';
 import { ColumnCell } from './cells';
 import { getUnreadCount } from './ItemChatModal';
@@ -51,7 +51,7 @@ const SubitemColumnHeader: React.FC<{
   boardId: string;
   subitemGroupId: string;
   colWidth: number;
-  onSwapCommitted: (replaceColumnId: string) => void;
+  onSwapCommitted: (replaceColumnId: string, replaceColumnType: ColumnType) => void;
 }> = ({ col, boardId, subitemGroupId, colWidth, onSwapCommitted }) => {
   const qc = useQueryClient();
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
@@ -63,7 +63,6 @@ const SubitemColumnHeader: React.FC<{
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [showEditConfigModal, setShowEditConfigModal] = useState(false);
   const [insertPosition, setInsertPosition] = useState<'left' | 'right' | null>(null);
-  const [showSwapWarning, setShowSwapWarning] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -95,42 +94,14 @@ const SubitemColumnHeader: React.FC<{
     setMenuOpen(false);
   };
 
-  const columnHasData = (): boolean => {
-    const cached = qc.getQueriesData<PaginatedResponse<Item> | Item>({ queryKey: ['items'] });
-    for (const [, data] of cached) {
-      if (!data) continue;
-      const items: Item[] =
-        data !== null && typeof data === 'object' && 'data' in data && Array.isArray((data as PaginatedResponse<Item>).data)
-          ? (data as PaginatedResponse<Item>).data
-          : data !== null && typeof data === 'object' && 'values' in data
-          ? [data as Item]
-          : [];
-      for (const item of items) {
-        if (item.groupId !== subitemGroupId) continue;
-        const val = item.values?.[col.id];
-        if (val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-
-  // Nothing is deleted here — the old column is only removed once the user
-  // finishes creating its replacement in the AddColumnModal opened by the parent
-  // (SubitemGroup). Cancelling that modal leaves the original column untouched.
-  const proceedWithSwap = () => {
-    setShowSwapWarning(false);
-    onSwapCommitted(col.id);
-  };
-
+  // Nothing is deleted here — the old column is only removed once the user finishes
+  // configuring its replacement in the AddColumnModal opened by the parent (SubitemGroup).
+  // Cancelling that modal leaves the original column untouched. Whether the new type can
+  // even carry the old data over is only knowable once the user picks it there, so any
+  // data-loss / convert-or-discard decision is asked inside that modal, not here.
   const handleSwapType = () => {
     setMenuOpen(false);
-    if (columnHasData()) {
-      setShowSwapWarning(true);
-    } else {
-      proceedWithSwap();
-    }
+    onSwapCommitted(col.id, col.type);
   };
 
   return (
@@ -241,26 +212,6 @@ const SubitemColumnHeader: React.FC<{
           column={col}
           onClose={() => { setShowEditConfigModal(false); void qc.invalidateQueries({ queryKey: subitemColumnsKey }); }}
         />
-      )}
-
-      {showSwapWarning && (
-        <div className="fixed inset-0 z-[10300] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-5">
-            <p className="text-sm text-gray-700 mb-4">
-              Changing this column&apos;s type will permanently delete the data currently stored in it. Do you want to continue?
-            </p>
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowSwapWarning(false)}
-                className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition-colors" aria-label="Cancel change type">
-                Cancel
-              </button>
-              <button type="button" onClick={proceedWithSwap}
-                className="px-3 py-1.5 text-sm text-white bg-red-500 rounded hover:bg-red-600 transition-colors" aria-label="Confirm change type">
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
     </div>
@@ -374,7 +325,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const addItemInputRef = useRef<HTMLInputElement>(null);
   const shouldFocusOnMount = useRef(false);
   const [showAddColModal, setShowAddColModal] = useState(false);
-  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string } | null>(null);
+  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string; replaceColumnType: ColumnType } | null>(null);
   const [showQuickAddCol, setShowQuickAddCol] = useState(false);
   const [quickColName, setQuickColName] = useState('');
   const [quickColType, setQuickColType] = useState<ColumnType>(ColumnType.TEXT);
@@ -584,7 +535,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                   boardId={boardId}
                   subitemGroupId={subitemGroup.id}
                   colWidth={colWidth}
-                  onSwapCommitted={(replaceColumnId) => setSwapAddModal({ replaceColumnId })}
+                  onSwapCommitted={(replaceColumnId, replaceColumnType) => setSwapAddModal({ replaceColumnId, replaceColumnType })}
                 />
               );
             })
@@ -686,6 +637,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
           parentGroupId={subitemGroup.id}
           onClose={() => setSwapAddModal(null)}
           replaceColumnId={swapAddModal.replaceColumnId}
+          replaceColumnType={swapAddModal.replaceColumnType}
         />
       )}
 
