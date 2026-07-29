@@ -65,6 +65,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
 
   if (settings?.richText) {
     const preview = richTextToPlainText(rawValue);
+    const hasContent = preview.length > 0;
     return (
       <>
         <CellWrapper column={column} isReadOnly>
@@ -72,9 +73,11 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
             <div
               ref={cellRef}
               tabIndex={0}
-              className="group/richcell relative flex items-center w-full h-full px-3 py-2 focus:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-indigo-400"
+              className={`group/richcell relative flex items-center w-full h-full px-3 py-2 focus:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-indigo-400 ${hasContent ? 'cursor-pointer' : ''}`}
+              onClick={() => { if (hasContent) setSidebarOpen(true); }}
+              onKeyDown={(e) => { if (hasContent && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSidebarOpen(true); } }}
             >
-              <div dir={getTextDir(preview)} className="flex-1 min-w-0 text-sm text-gray-700 truncate text-center">
+              <div dir={getTextDir(preview)} className="flex-1 min-w-0 pr-7 text-sm text-gray-700 truncate text-center">
                 {preview || <span className="text-gray-300 text-xs">—</span>}
               </div>
               <button

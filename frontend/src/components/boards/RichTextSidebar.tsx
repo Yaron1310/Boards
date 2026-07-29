@@ -260,7 +260,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            className="min-h-full text-sm text-gray-800 leading-relaxed outline-none break-words [overflow-wrap:anywhere] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+            className="min-h-full text-sm text-gray-800 leading-relaxed outline-none break-words [overflow-wrap:anywhere] [&_ul]:list-disc [&_ul]:list-inside [&_ol]:list-decimal [&_ol]:list-inside"
             role="textbox"
             aria-multiline="true"
             aria-label={`${fieldName} rich text content`}

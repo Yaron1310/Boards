@@ -50,6 +50,7 @@ const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemNam
 
   if (settings?.richText) {
     const preview = richTextToPlainText(rawValue);
+    const hasContent = preview.length > 0;
     return (
       <>
         <CellWrapper column={column as unknown as Column} isReadOnly>
@@ -57,9 +58,11 @@ const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemNam
             <div
               ref={cellRef}
               tabIndex={0}
-              className="group/richcell relative flex items-center w-full h-full px-3 py-2 focus:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-indigo-400"
+              className={`group/richcell relative flex items-center w-full h-full px-3 py-2 focus:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-indigo-400 ${editable && hasContent ? 'cursor-pointer' : ''}`}
+              onClick={() => { if (editable && hasContent) setSidebarOpen(true); }}
+              onKeyDown={(e) => { if (editable && hasContent && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSidebarOpen(true); } }}
             >
-              <div dir={getTextDir(preview)} className="flex-1 min-w-0 text-sm text-gray-700 truncate text-center">
+              <div dir={getTextDir(preview)} className="flex-1 min-w-0 pr-7 text-sm text-gray-700 truncate text-center">
                 {preview || <span className="text-gray-300 text-xs">—</span>}
               </div>
               {editable && (
