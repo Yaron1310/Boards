@@ -14,6 +14,28 @@ const ClearFormattingIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
   </svg>
 );
 
+const LtrIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="3" y1="5" x2="21" y2="5" />
+    <line x1="3" y1="10" x2="15" y2="10" />
+    <line x1="3" y1="15" x2="15" y2="15" />
+    <line x1="3" y1="20" x2="12" y2="20" />
+    <path d="M14 20 h7" />
+    <path d="M18 17 l3 3 l-3 3" />
+  </svg>
+);
+
+const RtlIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <line x1="21" y1="5" x2="3" y2="5" />
+    <line x1="21" y1="10" x2="9" y2="10" />
+    <line x1="21" y1="15" x2="9" y2="15" />
+    <line x1="21" y1="20" x2="12" y2="20" />
+    <path d="M10 20 h-7" />
+    <path d="M6 17 l-3 3 l3 3" />
+  </svg>
+);
+
 const HIGHLIGHT_COLOR = '#fef08a';
 const FONT_SIZE_MARKER = '7';
 
@@ -240,10 +262,10 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
         <div className="w-px h-5 bg-gray-300 mx-1" />
 
         <ToolbarButton label="Left to right" active={direction === 'ltr'} onClick={() => applyDirection('ltr')}>
-          <span className="text-xs font-semibold px-0.5">LTR</span>
+          <LtrIcon size={16} />
         </ToolbarButton>
         <ToolbarButton label="Right to left" active={direction === 'rtl'} onClick={() => applyDirection('rtl')}>
-          <span className="text-xs font-semibold px-0.5">RTL</span>
+          <RtlIcon size={16} />
         </ToolbarButton>
 
         <div className="w-px h-5 bg-gray-300 mx-1" />
