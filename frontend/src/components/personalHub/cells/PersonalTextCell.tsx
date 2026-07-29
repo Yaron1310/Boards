@@ -3,7 +3,9 @@ import ReactDOM from 'react-dom';
 import { useUpdatePersonalItemValue } from '../../../hooks/queries/usePersonalHubQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import CellWrapper from '../../boards/cells/CellWrapper';
+import RichTextSidebar from '../../boards/RichTextSidebar';
 import { getTextDir } from '../../../utils/textDir';
+import { richTextToPlainText } from '../../../utils/sanitizeHtml';
 import type { TextColumnSettings, Column } from '../../../types';
 import type { PersonalCellProps } from './types';
 
@@ -17,6 +19,7 @@ const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemNam
   const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState(rawValue);
   const [modalOpen, setModalOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
   const cellRef = useRef<HTMLDivElement>(null);
@@ -25,11 +28,15 @@ const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemNam
 
   const isLong = rawValue.length > LONG_TEXT_THRESHOLD;
 
-  const commit = (next: string, stopEdit: () => void) => {
+  const saveValue = (next: string) => {
     if (next !== rawValue) {
       pushUndo({ label: `Changed "${column.name}" on "${itemName}"`, undo: () => mutate({ itemId, columnId: column.id, value: rawValue }) });
       mutate({ itemId, columnId: column.id, value: next });
     }
+  };
+
+  const commit = (next: string, stopEdit: () => void) => {
+    saveValue(next);
     stopEdit();
   };
 
@@ -40,48 +47,66 @@ const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemNam
     setTooltipVisible(true);
   };
 
+  if (settings?.richText) {
+    const preview = richTextToPlainText(rawValue);
+    return (
+      <>
+        <CellWrapper column={column as unknown as Column} isReadOnly>
+          {() => (
+            <div
+              ref={cellRef}
+              dir={getTextDir(preview)}
+              className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-50/30 transition-colors"
+              onClick={() => editable && setSidebarOpen(true)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (editable && (e.key === 'Enter' || e.key === ' ')) setSidebarOpen(true); }}
+              aria-label={`${column.name}: ${preview || 'empty'}. Press Enter to open rich text editor`}
+            >
+              {preview || <span className="text-gray-300 text-xs">—</span>}
+            </div>
+          )}
+        </CellWrapper>
+
+        {sidebarOpen && (
+          <RichTextSidebar
+            title={itemName}
+            fieldName={column.name}
+            value={rawValue}
+            onSave={saveValue}
+            onClose={() => setSidebarOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <CellWrapper column={column as unknown as Column} isReadOnly={!editable || isLong}>
         {(isEditing, stopEdit) => {
           if (!isLong) {
             if (isEditing) {
-              if (settings?.multiline) {
-                return (
-                  <textarea
-                    value={draft}
-                    autoFocus
-                    maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
-                    rows={3}
-                    dir={getTextDir(draft)}
-                    className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none resize-none text-center"
-                    onChange={(e) => setDraft(e.target.value)}
-                    onBlur={() => commit(draft, stopEdit)}
-                    onKeyDown={(e) => { if (e.key === 'Escape') { setDraft(rawValue); stopEdit(); } }}
-                    aria-label={column.name}
-                  />
-                );
-              }
               return (
-                <input
-                  type="text"
+                <textarea
                   value={draft}
                   autoFocus
                   maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
+                  rows={Math.min(6, draft.split('\n').length)}
                   dir={getTextDir(draft)}
-                  className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none text-center"
+                  className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none resize-none text-center"
                   onChange={(e) => setDraft(e.target.value)}
                   onBlur={() => commit(draft, stopEdit)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); commit(draft, stopEdit); }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(draft, stopEdit); }
                     if (e.key === 'Escape') { setDraft(rawValue); stopEdit(); }
                   }}
-                  aria-label={column.name}
+                  aria-label={`${column.name} (Shift+Enter for a new line)`}
                 />
               );
             }
             return (
-              <div dir={getTextDir(rawValue)} className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center">
+              <div dir={getTextDir(rawValue)} className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center whitespace-pre-wrap">
                 {rawValue || <span className="text-gray-300 text-xs">—</span>}
               </div>
             );
