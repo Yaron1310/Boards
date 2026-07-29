@@ -4,8 +4,15 @@ import {
   FiX, FiBold, FiItalic, FiUnderline, FiList, FiAlignLeft, FiAlignCenter, FiAlignRight,
   FiCornerUpLeft, FiCornerUpRight,
 } from 'react-icons/fi';
-import { MdFormatStrikethrough, MdFormatListNumbered, MdBorderColor, MdFormatClear } from 'react-icons/md';
+import { MdFormatStrikethrough, MdFormatListNumbered, MdBorderColor } from 'react-icons/md';
 import { splitDirWrapper, wrapWithDir, type TextDirection } from '../../utils/sanitizeHtml';
+
+const ClearFormattingIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width={size} height={size} fill="currentColor" stroke="currentColor" aria-hidden="true">
+    <path d="M216,24H72A40,40,0,0,0,32,64v72a24,24,0,0,0,24,24h48l-7.89,46.67A8.42,8.42,0,0,0,96,208a32,32,0,0,0,64,0,8.42,8.42,0,0,0-.11-1.33L152,160h48a24,24,0,0,0,24-24V32A8,8,0,0,0,216,24ZM72,40H176V80a8,8,0,0,0,16,0V40h16v64H48V64A24,24,0,0,1,72,40ZM200,144H152a16,16,0,0,0-15.84,18.26l0,.2L144,208.6a16,16,0,0,1-32,0l7.8-46.14,0-.2A16,16,0,0,0,104,144H56a8,8,0,0,1-8-8V120H208v16A8,8,0,0,1,200,144Z" />
+    <line x1="10" y1="10" x2="216" y2="216" stroke="currentColor" strokeWidth="25" strokeLinecap="round" fill="none" />
+  </svg>
+);
 
 const HIGHLIGHT_COLOR = '#fef08a';
 const FONT_SIZE_MARKER = '7';
@@ -240,7 +247,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
         <div className="w-px h-5 bg-gray-300 mx-1" />
 
         <ToolbarButton label="Clear formatting" onClick={() => exec('removeFormat')}>
-          <MdFormatClear size={16} aria-hidden="true" />
+          <ClearFormattingIcon size={16} />
         </ToolbarButton>
       </div>
 
