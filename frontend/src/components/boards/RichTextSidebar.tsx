@@ -45,6 +45,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({ label, active, disabled, 
     type="button"
     onMouseDown={(e) => { e.preventDefault(); if (!disabled) onClick(); }}
     disabled={disabled}
+    title={label}
     className={`p-2 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${active ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}
     aria-label={label}
     aria-pressed={active}
@@ -143,7 +144,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
   return ReactDOM.createPortal(
     <div
       ref={panelRef}
-      className="fixed right-0 top-0 bottom-0 z-[10200] w-full max-w-[45rem] bg-white shadow-2xl flex flex-col overflow-x-hidden"
+      className="fixed right-0 top-0 bottom-0 z-[10200] w-full max-w-[50rem] bg-white shadow-2xl flex flex-col overflow-x-hidden"
       role="region"
       aria-label={`Rich text editor for ${fieldName} on ${title}`}
     >
@@ -187,6 +188,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
             if (px) applyFontSize(px);
             e.target.value = '';
           }}
+          title="Font size"
           className="text-sm text-gray-600 border border-gray-200 rounded-lg px-1.5 py-1.5 bg-white hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-400"
           aria-label="Font size"
         >
@@ -251,18 +253,20 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
         </ToolbarButton>
       </div>
 
-      {/* Editor area */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 py-3">
-        <div
-          ref={editorRef}
-          contentEditable
-          suppressContentEditableWarning
-          className="min-h-full text-sm text-gray-800 leading-relaxed outline-none break-words [overflow-wrap:anywhere] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
-          role="textbox"
-          aria-multiline="true"
-          aria-label={`${fieldName} rich text content`}
-          onInput={() => checkDirty()}
-        />
+      {/* Editor area — gray gutter around the white text box */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-100" style={{ paddingLeft: 15, paddingRight: 15, paddingTop: 15, paddingBottom: 15 }}>
+        <div className="min-h-full bg-white rounded-lg border border-gray-200 px-4 py-3">
+          <div
+            ref={editorRef}
+            contentEditable
+            suppressContentEditableWarning
+            className="min-h-full text-sm text-gray-800 leading-relaxed outline-none break-words [overflow-wrap:anywhere] [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+            role="textbox"
+            aria-multiline="true"
+            aria-label={`${fieldName} rich text content`}
+            onInput={() => checkDirty()}
+          />
+        </div>
       </div>
 
       {/* Footer: Save / Cancel */}
