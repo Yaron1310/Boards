@@ -1,10 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { FiX, FiBold, FiItalic, FiUnderline, FiList } from 'react-icons/fi';
-import { MdFormatStrikethrough, MdFormatListNumbered, MdBorderColor } from 'react-icons/md';
-import { sanitizeRichText } from '../../utils/sanitizeHtml';
+import { FiX, FiBold, FiItalic, FiUnderline, FiList, FiAlignLeft, FiAlignCenter, FiAlignRight } from 'react-icons/fi';
+import { MdFormatStrikethrough, MdFormatListNumbered, MdBorderColor, MdFormatClear } from 'react-icons/md';
+import { splitDirWrapper, wrapWithDir, type TextDirection } from '../../utils/sanitizeHtml';
 
 const HIGHLIGHT_COLOR = '#fef08a';
+const FONT_SIZE_MARKER = '7';
+
+const FONT_SIZES = [
+  { label: 'Small', px: '12px' },
+  { label: 'Normal', px: '14px' },
+  { label: 'Large', px: '18px' },
+  { label: 'Huge', px: '24px' },
+];
 
 interface RichTextSidebarProps {
   title: string;
@@ -37,10 +45,14 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
   const editorRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [isHighlighted, setIsHighlighted] = useState(false);
+  const [direction, setDirection] = useState<TextDirection>('ltr');
 
   useEffect(() => {
+    const { dir, inner } = splitDirWrapper(value || '');
+    setDirection(dir);
     if (editorRef.current) {
-      editorRef.current.innerHTML = sanitizeRichText(value || '');
+      editorRef.current.innerHTML = inner;
+      editorRef.current.setAttribute('dir', dir);
     }
     editorRef.current?.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,7 +68,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
   }, []);
 
   const commit = () => {
-    const html = sanitizeRichText(editorRef.current?.innerHTML ?? '');
+    const html = wrapWithDir(editorRef.current?.innerHTML ?? '', direction);
     onSave(html);
   };
 
@@ -74,6 +86,25 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
     editorRef.current?.focus();
     document.execCommand('hiliteColor', false, isHighlighted ? 'transparent' : HIGHLIGHT_COLOR);
     setIsHighlighted((v) => !v);
+  };
+
+  const applyDirection = (dir: TextDirection) => {
+    setDirection(dir);
+    editorRef.current?.setAttribute('dir', dir);
+    editorRef.current?.focus();
+  };
+
+  const applyFontSize = (px: string) => {
+    editorRef.current?.focus();
+    document.execCommand('fontSize', false, FONT_SIZE_MARKER);
+    const container = editorRef.current;
+    if (!container) return;
+    container.querySelectorAll(`font[size="${FONT_SIZE_MARKER}"]`).forEach((fontEl) => {
+      const span = document.createElement('span');
+      span.style.fontSize = px;
+      while (fontEl.firstChild) span.appendChild(fontEl.firstChild);
+      fontEl.replaceWith(span);
+    });
   };
 
   return ReactDOM.createPortal(
@@ -101,10 +132,30 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
 
       {/* Toolbar */}
       <div
-        className="flex items-center gap-1 px-3 py-2 border-b border-gray-200 bg-gray-50 flex-shrink-0"
+        className="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-gray-200 bg-gray-50 flex-shrink-0"
         role="toolbar"
         aria-label="Rich text formatting"
       >
+        <label className="sr-only" htmlFor="rt-font-size">Font size</label>
+        <select
+          id="rt-font-size"
+          defaultValue=""
+          onChange={(e) => {
+            const px = e.target.value;
+            if (px) applyFontSize(px);
+            e.target.value = '';
+          }}
+          className="text-sm text-gray-600 border border-gray-200 rounded-lg px-1.5 py-1.5 bg-white hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          aria-label="Font size"
+        >
+          <option value="" disabled>Size</option>
+          {FONT_SIZES.map((s) => (
+            <option key={s.px} value={s.px}>{s.label}</option>
+          ))}
+        </select>
+
+        <div className="w-px h-5 bg-gray-300 mx-1" />
+
         <ToolbarButton label="Bold" onClick={() => exec('bold')}>
           <FiBold size={16} aria-hidden="true" />
         </ToolbarButton>
@@ -120,16 +171,41 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
         <ToolbarButton label="Highlight" active={isHighlighted} onClick={toggleHighlight}>
           <MdBorderColor size={16} aria-hidden="true" />
         </ToolbarButton>
+
         <div className="w-px h-5 bg-gray-300 mx-1" />
+
+        <ToolbarButton label="Align left" onClick={() => exec('justifyLeft')}>
+          <FiAlignLeft size={16} aria-hidden="true" />
+        </ToolbarButton>
+        <ToolbarButton label="Align center" onClick={() => exec('justifyCenter')}>
+          <FiAlignCenter size={16} aria-hidden="true" />
+        </ToolbarButton>
+        <ToolbarButton label="Align right" onClick={() => exec('justifyRight')}>
+          <FiAlignRight size={16} aria-hidden="true" />
+        </ToolbarButton>
+
+        <div className="w-px h-5 bg-gray-300 mx-1" />
+
         <ToolbarButton label="Bullet list" onClick={() => exec('insertUnorderedList')}>
           <FiList size={16} aria-hidden="true" />
         </ToolbarButton>
         <ToolbarButton label="Numbered list" onClick={() => exec('insertOrderedList')}>
           <MdFormatListNumbered size={16} aria-hidden="true" />
         </ToolbarButton>
+
         <div className="w-px h-5 bg-gray-300 mx-1" />
+
+        <ToolbarButton label="Left to right" active={direction === 'ltr'} onClick={() => applyDirection('ltr')}>
+          <span className="text-xs font-semibold px-0.5">LTR</span>
+        </ToolbarButton>
+        <ToolbarButton label="Right to left" active={direction === 'rtl'} onClick={() => applyDirection('rtl')}>
+          <span className="text-xs font-semibold px-0.5">RTL</span>
+        </ToolbarButton>
+
+        <div className="w-px h-5 bg-gray-300 mx-1" />
+
         <ToolbarButton label="Clear formatting" onClick={() => exec('removeFormat')}>
-          <span className="text-xs font-semibold px-0.5">Tx</span>
+          <MdFormatClear size={16} aria-hidden="true" />
         </ToolbarButton>
       </div>
 
