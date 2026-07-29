@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { MdOutlineEditNote } from 'react-icons/md';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column, TextColumnSettings } from '../../../types';
@@ -70,15 +71,20 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
           {() => (
             <div
               ref={cellRef}
-              dir={getTextDir(preview)}
-              className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-50/30 transition-colors"
-              onClick={() => setSidebarOpen(true)}
-              role="button"
               tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setSidebarOpen(true); }}
-              aria-label={`${column.name}: ${preview || 'empty'}. Press Enter to open rich text editor`}
+              className="group/richcell relative flex items-center w-full h-full px-3 py-2 focus:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-indigo-400"
             >
-              {preview || <span className="text-gray-300 text-xs">—</span>}
+              <div dir={getTextDir(preview)} className="flex-1 min-w-0 text-sm text-gray-700 truncate text-center">
+                {preview || <span className="text-gray-300 text-xs">—</span>}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setSidebarOpen(true); }}
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover/richcell:opacity-100 group-focus-within/richcell:opacity-100 focus:opacity-100 transition-opacity"
+                aria-label={`Open rich text editor for ${column.name}`}
+              >
+                <MdOutlineEditNote size={16} aria-hidden="true" />
+              </button>
             </div>
           )}
         </CellWrapper>
