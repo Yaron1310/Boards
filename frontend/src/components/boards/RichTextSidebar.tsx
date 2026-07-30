@@ -2,9 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import {
   FiX, FiBold, FiItalic, FiUnderline, FiList, FiAlignLeft, FiAlignCenter, FiAlignRight,
-  FiCornerUpLeft, FiCornerUpRight,
+  FiCornerUpLeft, FiCornerUpRight, FiChevronDown,
 } from 'react-icons/fi';
-import { MdFormatStrikethrough, MdFormatListNumbered, MdBorderColor } from 'react-icons/md';
+import { MdFormatStrikethrough, MdFormatListNumbered } from 'react-icons/md';
+import { TbHighlight } from 'react-icons/tb';
 import { splitDirWrapper, wrapWithDir, type TextDirection } from '../../utils/sanitizeHtml';
 
 const ClearFormattingIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
@@ -36,7 +37,14 @@ const RtlIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
   </svg>
 );
 
-const HIGHLIGHT_COLOR = '#fef08a';
+const HIGHLIGHT_COLORS = [
+  { name: 'Yellow', value: '#fef08a' },
+  { name: 'Green', value: '#bbf7d0' },
+  { name: 'Red', value: '#fecaca' },
+  { name: 'Blue', value: '#bfdbfe' },
+  { name: 'Pink', value: '#fbcfe8' },
+  { name: 'Turquoise', value: '#99f6e4' },
+];
 const FONT_SIZE_MARKER = '7';
 
 const FONT_SIZES = [
@@ -80,10 +88,24 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
   const editorRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const initialHtmlRef = useRef('');
+  const colorMenuRef = useRef<HTMLDivElement>(null);
   const [isHighlighted, setIsHighlighted] = useState(false);
+  const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0].value);
+  const [colorMenuOpen, setColorMenuOpen] = useState(false);
   const [direction, setDirection] = useState<TextDirection>('ltr');
   const [isDirty, setIsDirty] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+
+  useEffect(() => {
+    if (!colorMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (colorMenuRef.current && !colorMenuRef.current.contains(e.target as Node)) {
+        setColorMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [colorMenuOpen]);
 
   useEffect(() => {
     const { dir, inner } = splitDirWrapper(value || '');
@@ -136,8 +158,17 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
 
   const toggleHighlight = () => {
     editorRef.current?.focus();
-    document.execCommand('hiliteColor', false, isHighlighted ? 'transparent' : HIGHLIGHT_COLOR);
+    document.execCommand('hiliteColor', false, isHighlighted ? 'transparent' : highlightColor);
     setIsHighlighted((v) => !v);
+    checkDirty();
+  };
+
+  const selectHighlightColor = (color: string) => {
+    editorRef.current?.focus();
+    document.execCommand('hiliteColor', false, color);
+    setHighlightColor(color);
+    setIsHighlighted(true);
+    setColorMenuOpen(false);
     checkDirty();
   };
 
@@ -234,9 +265,51 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
         <ToolbarButton label="Strikethrough" onClick={() => exec('strikeThrough')}>
           <MdFormatStrikethrough size={16} aria-hidden="true" />
         </ToolbarButton>
-        <ToolbarButton label="Highlight" active={isHighlighted} onClick={toggleHighlight}>
-          <MdBorderColor size={16} aria-hidden="true" />
-        </ToolbarButton>
+        <div className="relative flex items-center" ref={colorMenuRef}>
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); setColorMenuOpen((v) => !v); }}
+            title="Choose highlight color"
+            aria-label="Choose highlight color"
+            aria-haspopup="true"
+            aria-expanded={colorMenuOpen}
+            className="p-1 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            <FiChevronDown size={12} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); toggleHighlight(); }}
+            title="Highlight"
+            aria-label="Highlight"
+            aria-pressed={isHighlighted}
+            className={`flex flex-col items-center gap-0.5 px-1.5 py-1.5 rounded-lg transition-colors ${isHighlighted ? 'bg-indigo-100 text-indigo-700' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <TbHighlight size={16} aria-hidden="true" />
+            <span className="block w-4 h-1 rounded-sm" style={{ backgroundColor: highlightColor }} aria-hidden="true" />
+          </button>
+
+          {colorMenuOpen && (
+            <div
+              className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-2 flex gap-1.5"
+              role="menu"
+              aria-label="Highlight colors"
+            >
+              {HIGHLIGHT_COLORS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); selectHighlightColor(c.value); }}
+                  title={c.name}
+                  aria-label={c.name}
+                  role="menuitem"
+                  className={`w-6 h-6 rounded-full border transition-transform hover:scale-110 ${highlightColor === c.value ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-300'}`}
+                  style={{ backgroundColor: c.value }}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="w-px h-5 bg-gray-300 mx-1" />
 
