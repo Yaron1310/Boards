@@ -45,14 +45,31 @@ const HIGHLIGHT_COLORS = [
   { name: 'Pink', value: '#fbcfe8' },
   { name: 'Turquoise', value: '#99f6e4' },
 ];
-const FONT_SIZE_MARKER = '7';
+const DEFAULT_FONT_SIZE = 14;
+const MIN_FONT_SIZE = 6;
+const MAX_FONT_SIZE = 200;
 
-const FONT_SIZES = [
-  { label: 'Small', px: '12px' },
-  { label: 'Normal', px: '14px' },
-  { label: 'Large', px: '18px' },
-  { label: 'Huge', px: '24px' },
-];
+// Word-style preset sizes.
+const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
+
+/** Strips the zero-width spaces `applyFontSize` uses as caret anchors when nothing is selected. */
+function stripZeroWidth(html: string): string {
+  return html.replace(/\u200B/g, '');
+}
+
+/** Walks up from a selection node to find the nearest inline font-size, defaulting otherwise. */
+function getFontSizeAt(node: Node | null, root: HTMLElement | null): number {
+  let el: HTMLElement | null = node && node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node?.parentElement ?? null;
+  while (el && el !== root?.parentElement) {
+    if (el.style?.fontSize) {
+      const match = /^([\d.]+)px$/.exec(el.style.fontSize);
+      if (match) return Math.round(parseFloat(match[1]));
+    }
+    if (el === root) break;
+    el = el.parentElement;
+  }
+  return DEFAULT_FONT_SIZE;
+}
 
 interface RichTextSidebarProps {
   title: string;
@@ -89,23 +106,43 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
   const panelRef = useRef<HTMLDivElement>(null);
   const initialHtmlRef = useRef('');
   const colorMenuRef = useRef<HTMLDivElement>(null);
+  const fontSizeMenuRef = useRef<HTMLDivElement>(null);
   const [isHighlighted, setIsHighlighted] = useState(false);
   const [highlightColor, setHighlightColor] = useState(HIGHLIGHT_COLORS[0].value);
   const [colorMenuOpen, setColorMenuOpen] = useState(false);
+  const [currentFontSize, setCurrentFontSize] = useState(DEFAULT_FONT_SIZE);
+  const [fontSizeInput, setFontSizeInput] = useState(String(DEFAULT_FONT_SIZE));
+  const [fontSizeMenuOpen, setFontSizeMenuOpen] = useState(false);
   const [direction, setDirection] = useState<TextDirection>('ltr');
   const [isDirty, setIsDirty] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   useEffect(() => {
-    if (!colorMenuOpen) return;
+    if (!colorMenuOpen && !fontSizeMenuOpen) return;
     const handler = (e: MouseEvent) => {
-      if (colorMenuRef.current && !colorMenuRef.current.contains(e.target as Node)) {
+      if (colorMenuOpen && colorMenuRef.current && !colorMenuRef.current.contains(e.target as Node)) {
         setColorMenuOpen(false);
+      }
+      if (fontSizeMenuOpen && fontSizeMenuRef.current && !fontSizeMenuRef.current.contains(e.target as Node)) {
+        setFontSizeMenuOpen(false);
+        setFontSizeInput(String(currentFontSize));
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [colorMenuOpen]);
+  }, [colorMenuOpen, fontSizeMenuOpen, currentFontSize]);
+
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const sel = window.getSelection();
+      if (!sel || !sel.anchorNode || !editorRef.current || !editorRef.current.contains(sel.anchorNode)) return;
+      const size = getFontSizeAt(sel.anchorNode, editorRef.current);
+      setCurrentFontSize(size);
+      setFontSizeInput(String(size));
+    };
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  }, []);
 
   useEffect(() => {
     const { dir, inner } = splitDirWrapper(value || '');
@@ -120,12 +157,12 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
   }, []);
 
   const checkDirty = (dir: TextDirection = direction) => {
-    const current = wrapWithDir(editorRef.current?.innerHTML ?? '', dir);
+    const current = wrapWithDir(stripZeroWidth(editorRef.current?.innerHTML ?? ''), dir);
     setIsDirty(current !== initialHtmlRef.current);
   };
 
   const handleSave = () => {
-    const html = wrapWithDir(editorRef.current?.innerHTML ?? '', direction);
+    const html = wrapWithDir(stripZeroWidth(editorRef.current?.innerHTML ?? ''), direction);
     onSave(html);
     onClose();
   };
@@ -179,19 +216,56 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
     checkDirty(dir);
   };
 
-  const applyFontSize = (px: string) => {
-    editorRef.current?.focus();
-    document.execCommand('fontSize', false, FONT_SIZE_MARKER);
-    const container = editorRef.current;
-    if (container) {
-      container.querySelectorAll(`font[size="${FONT_SIZE_MARKER}"]`).forEach((fontEl) => {
-        const span = document.createElement('span');
-        span.style.fontSize = px;
-        while (fontEl.firstChild) span.appendChild(fontEl.firstChild);
-        fontEl.replaceWith(span);
-      });
+  // Applies a font size to the current selection (or, for a collapsed caret, arms an
+  // empty span so subsequently typed text picks it up) — bypasses execCommand('fontSize'),
+  // whose legacy <font size="7"> marker isn't created until the *next* keystroke for a
+  // collapsed caret, which left stray unconverted huge/legacy-sized text behind.
+  const applyFontSize = (size: number) => {
+    const editor = editorRef.current;
+    const sel = window.getSelection();
+    if (!editor || !sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) return;
+
+    editor.focus();
+    const span = document.createElement('span');
+    span.style.fontSize = `${size}px`;
+
+    if (sel.isCollapsed) {
+      span.appendChild(document.createTextNode('\u200B'));
+      range.insertNode(span);
+      const caret = document.createRange();
+      caret.setStart(span.firstChild as Node, 1);
+      caret.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(caret);
+    } else {
+      span.appendChild(range.extractContents());
+      range.insertNode(span);
+      const newSelection = document.createRange();
+      newSelection.selectNodeContents(span);
+      sel.removeAllRanges();
+      sel.addRange(newSelection);
     }
+
+    setCurrentFontSize(size);
+    setFontSizeInput(String(size));
     checkDirty();
+  };
+
+  const selectFontSize = (size: number) => {
+    applyFontSize(size);
+    setFontSizeMenuOpen(false);
+  };
+
+  const commitFontSizeInput = () => {
+    const parsed = parseInt(fontSizeInput, 10);
+    if (Number.isFinite(parsed) && parsed >= MIN_FONT_SIZE && parsed <= MAX_FONT_SIZE) {
+      applyFontSize(parsed);
+    } else {
+      setFontSizeInput(String(currentFontSize));
+    }
+    setFontSizeMenuOpen(false);
   };
 
   return ReactDOM.createPortal(
@@ -232,24 +306,57 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
 
         <div className="w-px h-5 bg-gray-300 mx-1" />
 
-        <label className="sr-only" htmlFor="rt-font-size">Font size</label>
-        <select
-          id="rt-font-size"
-          defaultValue=""
-          onChange={(e) => {
-            const px = e.target.value;
-            if (px) applyFontSize(px);
-            e.target.value = '';
-          }}
-          title="Font size"
-          className="text-sm text-gray-600 border border-gray-200 rounded-lg px-1.5 py-1.5 bg-white hover:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-          aria-label="Font size"
-        >
-          <option value="" disabled>Size</option>
-          {FONT_SIZES.map((s) => (
-            <option key={s.px} value={s.px}>{s.label}</option>
-          ))}
-        </select>
+        <div className="relative flex items-center border border-gray-200 rounded-lg bg-white" ref={fontSizeMenuRef}>
+          <label className="sr-only" htmlFor="rt-font-size">Font size</label>
+          <input
+            id="rt-font-size"
+            type="text"
+            inputMode="numeric"
+            value={fontSizeInput}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => setFontSizeInput(e.target.value.replace(/[^0-9]/g, ''))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); commitFontSizeInput(); editorRef.current?.focus(); }
+              if (e.key === 'Escape') { e.preventDefault(); setFontSizeInput(String(currentFontSize)); }
+            }}
+            onBlur={() => { if (!fontSizeMenuOpen) commitFontSizeInput(); }}
+            title="Font size"
+            aria-label="Font size"
+            className="w-9 text-sm text-gray-700 text-center outline-none rounded-l-lg py-1.5 bg-transparent"
+          />
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); setFontSizeMenuOpen((v) => !v); }}
+            title="Choose font size"
+            aria-label="Choose font size"
+            aria-haspopup="true"
+            aria-expanded={fontSizeMenuOpen}
+            className="px-1 py-1.5 text-gray-500 hover:bg-gray-100 rounded-r-lg transition-colors"
+          >
+            <FiChevronDown size={12} aria-hidden="true" />
+          </button>
+
+          {fontSizeMenuOpen && (
+            <div
+              className="absolute top-full left-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-56 overflow-y-auto w-16"
+              role="listbox"
+              aria-label="Font sizes"
+            >
+              {FONT_SIZES.map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); selectFontSize(size); }}
+                  role="option"
+                  aria-selected={size === currentFontSize}
+                  className={`w-full text-left px-3 py-1 text-sm transition-colors ${size === currentFontSize ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div className="w-px h-5 bg-gray-300 mx-1" />
 
