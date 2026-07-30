@@ -51,6 +51,65 @@ const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemNam
   if (settings?.richText) {
     const preview = richTextToPlainText(rawValue);
     const hasContent = preview.length > 0;
+
+    if (!hasContent) {
+      // Nothing saved yet: behaves like a normal plain-text cell (typeable inline).
+      // The icon is still available to jump straight into the rich-text sidebar.
+      return (
+        <>
+          <CellWrapper column={column as unknown as Column} isReadOnly={!editable}>
+            {(isEditing, stopEdit) => {
+              if (isEditing) {
+                return (
+                  <textarea
+                    value={draft}
+                    autoFocus
+                    rows={Math.min(6, draft.split('\n').length)}
+                    dir={getTextDir(draft)}
+                    className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none resize-none text-center"
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => commit(draft, stopEdit)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(draft, stopEdit); }
+                      if (e.key === 'Escape') { setDraft(rawValue); stopEdit(); }
+                    }}
+                    aria-label={`${column.name} (Shift+Enter for a new line)`}
+                  />
+                );
+              }
+              return (
+                <div className="group/richcell relative flex items-center w-full h-full px-3 py-2">
+                  <div className="flex-1 min-w-0 pr-7 text-center">
+                    <span className="text-gray-300 text-xs">—</span>
+                  </div>
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setSidebarOpen(true); }}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover/richcell:opacity-100 group-focus-within/richcell:opacity-100 focus:opacity-100 transition-opacity"
+                      aria-label={`Open rich text editor for ${column.name}`}
+                    >
+                      <MdOutlineEditNote size={16} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              );
+            }}
+          </CellWrapper>
+
+          {sidebarOpen && (
+            <RichTextSidebar
+              title={itemName}
+              fieldName={column.name}
+              value={rawValue}
+              onSave={saveValue}
+              onClose={() => setSidebarOpen(false)}
+            />
+          )}
+        </>
+      );
+    }
+
     return (
       <>
         <CellWrapper column={column as unknown as Column} isReadOnly>
@@ -58,12 +117,12 @@ const PersonalTextCell: React.FC<PersonalCellProps> = ({ column, itemId, itemNam
             <div
               ref={cellRef}
               tabIndex={0}
-              className={`group/richcell relative flex items-center w-full h-full px-3 py-2 focus:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-indigo-400 ${editable && hasContent ? 'cursor-pointer' : ''}`}
-              onClick={() => { if (editable && hasContent) setSidebarOpen(true); }}
-              onKeyDown={(e) => { if (editable && hasContent && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSidebarOpen(true); } }}
+              className={`group/richcell relative flex items-center w-full h-full px-3 py-2 focus:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-indigo-400 ${editable ? 'cursor-pointer' : ''}`}
+              onClick={() => { if (editable) setSidebarOpen(true); }}
+              onKeyDown={(e) => { if (editable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setSidebarOpen(true); } }}
             >
               <div dir={getTextDir(preview)} className="flex-1 min-w-0 pr-7 text-sm text-gray-700 truncate text-center">
-                {preview || <span className="text-gray-300 text-xs">—</span>}
+                {preview}
               </div>
               {editable && (
                 <button
