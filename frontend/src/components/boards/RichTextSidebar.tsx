@@ -79,6 +79,18 @@ function getFontSizeAt(node: Node | null, root: HTMLElement | null): number {
   return DEFAULT_FONT_SIZE;
 }
 
+/** Walks up from a selection node to find the nearest inline highlight color, if any. */
+function getHighlightColorAt(node: Node | null, root: HTMLElement | null): string | null {
+  let el: HTMLElement | null = node && node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node?.parentElement ?? null;
+  while (el && el !== root?.parentElement) {
+    const bg = el.style?.backgroundColor;
+    if (bg && bg !== 'transparent' && bg !== 'rgba(0, 0, 0, 0)') return bg;
+    if (el === root) break;
+    el = el.parentElement;
+  }
+  return null;
+}
+
 interface RichTextSidebarProps {
   title: string;
   fieldName: string;
@@ -161,6 +173,10 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
       setCurrentFontSize(size);
       setFontSizeInput(String(size));
       updateActiveFormats();
+
+      const highlight = getHighlightColorAt(sel.anchorNode, editorRef.current);
+      setIsHighlighted(!!highlight);
+      if (highlight) setHighlightColor(highlight);
     };
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
