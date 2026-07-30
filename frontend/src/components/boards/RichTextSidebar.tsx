@@ -350,7 +350,10 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
 
       {/* Editor area — gray gutter around the white text box */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-100" style={{ paddingLeft: 15, paddingRight: 15, paddingTop: 15, paddingBottom: 15 }}>
-        <div className="min-h-full bg-white rounded-lg border border-gray-200 px-4 py-3">
+        <div
+          className="min-h-full bg-white rounded-lg border border-gray-200 px-4 py-3 cursor-text"
+          onClick={(e) => { if (e.target === e.currentTarget) editorRef.current?.focus(); }}
+        >
           <div
             ref={editorRef}
             contentEditable
