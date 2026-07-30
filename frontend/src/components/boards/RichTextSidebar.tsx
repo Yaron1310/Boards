@@ -49,6 +49,14 @@ const DEFAULT_FONT_SIZE = 14;
 const MIN_FONT_SIZE = 6;
 const MAX_FONT_SIZE = 200;
 
+// Toggle-style commands whose on/off state is reflected on their toolbar button.
+const TOGGLE_COMMANDS = [
+  'bold', 'italic', 'underline', 'strikeThrough',
+  'justifyLeft', 'justifyCenter', 'justifyRight',
+  'insertUnorderedList', 'insertOrderedList',
+] as const;
+type ToggleCommand = (typeof TOGGLE_COMMANDS)[number];
+
 // Word-style preset sizes.
 const FONT_SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 
@@ -116,6 +124,19 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
   const [direction, setDirection] = useState<TextDirection>('ltr');
   const [isDirty, setIsDirty] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [activeFormats, setActiveFormats] = useState<Partial<Record<ToggleCommand, boolean>>>({});
+
+  const updateActiveFormats = () => {
+    const next: Partial<Record<ToggleCommand, boolean>> = {};
+    TOGGLE_COMMANDS.forEach((command) => {
+      try {
+        next[command] = document.queryCommandState(command);
+      } catch {
+        next[command] = false;
+      }
+    });
+    setActiveFormats(next);
+  };
 
   useEffect(() => {
     if (!colorMenuOpen && !fontSizeMenuOpen) return;
@@ -139,6 +160,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
       const size = getFontSizeAt(sel.anchorNode, editorRef.current);
       setCurrentFontSize(size);
       setFontSizeInput(String(size));
+      updateActiveFormats();
     };
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
@@ -191,6 +213,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
     editorRef.current?.focus();
     document.execCommand(command, false, arg);
     checkDirty();
+    updateActiveFormats();
   };
 
   const toggleHighlight = () => {
@@ -360,16 +383,16 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
 
         <div className="w-px h-5 bg-gray-300 mx-1" />
 
-        <ToolbarButton label="Bold" onClick={() => exec('bold')}>
+        <ToolbarButton label="Bold" active={activeFormats.bold} onClick={() => exec('bold')}>
           <FiBold size={16} aria-hidden="true" />
         </ToolbarButton>
-        <ToolbarButton label="Italic" onClick={() => exec('italic')}>
+        <ToolbarButton label="Italic" active={activeFormats.italic} onClick={() => exec('italic')}>
           <FiItalic size={16} aria-hidden="true" />
         </ToolbarButton>
-        <ToolbarButton label="Underline" onClick={() => exec('underline')}>
+        <ToolbarButton label="Underline" active={activeFormats.underline} onClick={() => exec('underline')}>
           <FiUnderline size={16} aria-hidden="true" />
         </ToolbarButton>
-        <ToolbarButton label="Strikethrough" onClick={() => exec('strikeThrough')}>
+        <ToolbarButton label="Strikethrough" active={activeFormats.strikeThrough} onClick={() => exec('strikeThrough')}>
           <MdFormatStrikethrough size={16} aria-hidden="true" />
         </ToolbarButton>
         <div className="relative flex items-center" ref={colorMenuRef}>
@@ -420,22 +443,22 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
 
         <div className="w-px h-5 bg-gray-300 mx-1" />
 
-        <ToolbarButton label="Align left" onClick={() => exec('justifyLeft')}>
+        <ToolbarButton label="Align left" active={activeFormats.justifyLeft} onClick={() => exec('justifyLeft')}>
           <FiAlignLeft size={16} aria-hidden="true" />
         </ToolbarButton>
-        <ToolbarButton label="Align center" onClick={() => exec('justifyCenter')}>
+        <ToolbarButton label="Align center" active={activeFormats.justifyCenter} onClick={() => exec('justifyCenter')}>
           <FiAlignCenter size={16} aria-hidden="true" />
         </ToolbarButton>
-        <ToolbarButton label="Align right" onClick={() => exec('justifyRight')}>
+        <ToolbarButton label="Align right" active={activeFormats.justifyRight} onClick={() => exec('justifyRight')}>
           <FiAlignRight size={16} aria-hidden="true" />
         </ToolbarButton>
 
         <div className="w-px h-5 bg-gray-300 mx-1" />
 
-        <ToolbarButton label="Bullet list" onClick={() => exec('insertUnorderedList')}>
+        <ToolbarButton label="Bullet list" active={activeFormats.insertUnorderedList} onClick={() => exec('insertUnorderedList')}>
           <FiList size={16} aria-hidden="true" />
         </ToolbarButton>
-        <ToolbarButton label="Numbered list" onClick={() => exec('insertOrderedList')}>
+        <ToolbarButton label="Numbered list" active={activeFormats.insertOrderedList} onClick={() => exec('insertOrderedList')}>
           <MdFormatListNumbered size={16} aria-hidden="true" />
         </ToolbarButton>
 
@@ -465,7 +488,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
             ref={editorRef}
             contentEditable
             suppressContentEditableWarning
-            className="min-h-full text-sm text-gray-800 leading-relaxed outline-none break-words [overflow-wrap:anywhere] [&_ul]:list-disc [&_ul]:list-inside [&_ol]:list-decimal [&_ol]:list-inside"
+            className="min-h-full text-sm text-gray-800 leading-relaxed outline-none break-words [overflow-wrap:anywhere] [&_ul]:list-disc [&_ul]:ps-8 [&_ol]:list-decimal [&_ol]:ps-8"
             role="textbox"
             aria-multiline="true"
             aria-label={`${fieldName} rich text content`}
