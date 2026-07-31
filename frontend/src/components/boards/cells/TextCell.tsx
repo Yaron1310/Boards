@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
+import { MdOutlineEditNote } from 'react-icons/md';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import type { Item, Column, TextColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
 import { getTextDir } from '../../../utils/textDir';
+import { richTextToPlainText } from '../../../utils/sanitizeHtml';
+import RichTextSidebar from '../RichTextSidebar';
 
 interface Props { item: Item; column: Column }
 
@@ -19,6 +22,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
   const { push: pushUndo } = useUndo();
   const [draft, setDraft] = useState(rawValue);
   const [modalOpen, setModalOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [tooltipVisible, setTooltipVisible] = useState(false);
   const [tooltipPos, setTooltipPos] = useState({ top: 0, left: 0 });
   const cellRef = useRef<HTMLDivElement>(null);
@@ -27,19 +31,20 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
 
   const isLong = rawValue.length > LONG_TEXT_THRESHOLD;
 
-  const commit = (stopEdit: () => void) => {
-    if (draft !== rawValue) {
+  const saveValue = (next: string) => {
+    if (next !== rawValue) {
       pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue } } }) });
-      mutate({ id: item.id, patch: { values: { [column.id]: draft } } });
+      mutate({ id: item.id, patch: { values: { [column.id]: next } } });
     }
+  };
+
+  const commit = (stopEdit: () => void) => {
+    saveValue(draft);
     stopEdit();
   };
 
   const commitModal = () => {
-    if (draft !== rawValue) {
-      pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue } } }) });
-      mutate({ id: item.id, patch: { values: { [column.id]: draft } } });
-    }
+    saveValue(draft);
     setModalOpen(false);
   };
 
@@ -58,50 +63,131 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
     setTooltipVisible(true);
   };
 
+  if (settings?.richText) {
+    const preview = richTextToPlainText(rawValue);
+    const hasContent = preview.length > 0;
+
+    if (!hasContent) {
+      // Nothing saved yet: behaves like a normal plain-text cell (typeable inline).
+      // The icon is still available to jump straight into the rich-text sidebar.
+      return (
+        <>
+          <CellWrapper column={column}>
+            {(isEditing, stopEdit) => {
+              if (isEditing) {
+                return (
+                  <textarea
+                    value={draft}
+                    autoFocus
+                    rows={Math.min(6, draft.split('\n').length)}
+                    dir={getTextDir(draft)}
+                    className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none resize-none text-center"
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => commit(stopEdit)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(stopEdit); }
+                      if (e.key === 'Escape') { setDraft(rawValue); stopEdit(); }
+                    }}
+                    aria-label={`${column.name} (Shift+Enter for a new line)`}
+                  />
+                );
+              }
+              return (
+                <div className="group/richcell relative flex items-center w-full h-full px-3 py-2">
+                  <div className="flex-1 min-w-0 pr-7 text-center">
+                    <span className="text-gray-300 text-xs">—</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setSidebarOpen(true); }}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover/richcell:opacity-100 group-focus-within/richcell:opacity-100 focus:opacity-100 transition-opacity"
+                    aria-label={`Open rich text editor for ${column.name}`}
+                  >
+                    <MdOutlineEditNote size={16} aria-hidden="true" />
+                  </button>
+                </div>
+              );
+            }}
+          </CellWrapper>
+
+          {sidebarOpen && (
+            <RichTextSidebar
+              title={item.name}
+              fieldName={column.name}
+              value={rawValue}
+              onSave={saveValue}
+              onClose={() => setSidebarOpen(false)}
+            />
+          )}
+        </>
+      );
+    }
+
+    return (
+      <>
+        <CellWrapper column={column} isReadOnly>
+          {() => (
+            <div
+              ref={cellRef}
+              tabIndex={0}
+              className="group/richcell relative flex items-center w-full h-full px-3 py-2 focus:outline-none focus-within:ring-1 focus-within:ring-inset focus-within:ring-indigo-400 cursor-pointer"
+              onClick={() => setSidebarOpen(true)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSidebarOpen(true); } }}
+            >
+              <div dir={getTextDir(preview)} className="flex-1 min-w-0 pr-7 text-sm text-gray-700 truncate text-center">
+                {preview}
+              </div>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setSidebarOpen(true); }}
+                className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 opacity-0 group-hover/richcell:opacity-100 group-focus-within/richcell:opacity-100 focus:opacity-100 transition-opacity"
+                aria-label={`Open rich text editor for ${column.name}`}
+              >
+                <MdOutlineEditNote size={16} aria-hidden="true" />
+              </button>
+            </div>
+          )}
+        </CellWrapper>
+
+        {sidebarOpen && (
+          <RichTextSidebar
+            title={item.name}
+            fieldName={column.name}
+            value={rawValue}
+            onSave={saveValue}
+            onClose={() => setSidebarOpen(false)}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <CellWrapper column={column} isReadOnly={isLong}>
         {(isEditing, stopEdit) => {
           if (!isLong) {
             if (isEditing) {
-              if (settings?.multiline) {
-                return (
-                  <textarea
-                    value={draft}
-                    autoFocus
-                    maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
-                    rows={3}
-                    dir={getTextDir(draft)}
-                    className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none resize-none text-center"
-                    onChange={(e) => setDraft(e.target.value)}
-                    onBlur={() => commit(stopEdit)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Escape') { setDraft(rawValue); stopEdit(); }
-                    }}
-                    aria-label={column.name}
-                  />
-                );
-              }
               return (
-                <input
-                  type="text"
+                <textarea
                   value={draft}
                   autoFocus
                   maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
+                  rows={Math.min(6, draft.split('\n').length)}
                   dir={getTextDir(draft)}
-                  className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none text-center"
+                  className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none resize-none text-center"
                   onChange={(e) => setDraft(e.target.value)}
                   onBlur={() => commit(stopEdit)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(stopEdit); }
                     if (e.key === 'Escape') { setDraft(rawValue); stopEdit(); }
                   }}
-                  aria-label={column.name}
+                  aria-label={`${column.name} (Shift+Enter for a new line)`}
                 />
               );
             }
             return (
-              <div dir={getTextDir(rawValue)} className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center">
+              <div dir={getTextDir(rawValue)} className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center whitespace-pre-wrap">
                 {rawValue || <span className="text-gray-300 text-xs">—</span>}
               </div>
             );

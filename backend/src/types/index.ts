@@ -232,7 +232,7 @@ export enum ColumnType {
 
 export interface TextColumnSettings {
   maxLength?: number;
-  multiline?: boolean;
+  richText?: boolean;
 }
 
 export interface NumberColumnSettings {

@@ -240,6 +240,36 @@ const LoginPage: React.FC = () => {
             </div>
           )}
 
+          <div className="flex flex-col items-center gap-3">
+            <button
+              onClick={handleGoogleLogin}
+              type="button"
+              disabled={authLoading}
+              className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 disabled:opacity-70"
+            >
+              <GoogleIconSVG className="h-5 w-5 mr-2" />
+              {t('auth.signInWithGoogle')}
+            </button>
+            <button
+              onClick={handleMicrosoftLogin}
+              type="button"
+              disabled={authLoading}
+              className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 disabled:opacity-70"
+            >
+              <img src="/ms-symbollockup_mssymbol_19.svg" alt="Microsoft" className="h-5 w-5 mr-2" />
+              {t('auth.signInWithMicrosoft')}
+            </button>
+          </div>
+
+          <div className="my-6 relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-300"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">{t('auth.orLoginWith')}</span>
+            </div>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-5">
             <p className="text-xs text-gray-500">{t('common.mandatoryFields')}</p>
             <div>
@@ -315,38 +345,6 @@ const LoginPage: React.FC = () => {
               </button>
             </div>
           </form>
-
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">{t('auth.orContinueWith')}</span>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-col items-center gap-3">
-              <button
-                onClick={handleGoogleLogin}
-                type="button"
-                disabled={authLoading}
-                className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 disabled:opacity-70"
-              >
-                <GoogleIconSVG className="h-5 w-5 mr-2" />
-                {t('auth.signInWithGoogle')}
-              </button>
-              <button
-                onClick={handleMicrosoftLogin}
-                type="button"
-                disabled={authLoading}
-                className="w-full inline-flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 disabled:opacity-70"
-              >
-                <img src="/ms-symbollockup_mssymbol_19.svg" alt="Microsoft" className="h-5 w-5 mr-2" />
-                {t('auth.signInWithMicrosoft')}
-              </button>
-            </div>
-          </div>
 
           <p className="mt-8 text-center text-sm text-gray-600">
             {t('auth.noAccount')}{' '}

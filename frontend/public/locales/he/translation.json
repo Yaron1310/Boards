@@ -131,6 +131,7 @@
     "creatingAccount": "יוצר חשבון...",
     "createAcademyAdmin": "צור חשבון מנהל אקדמיה",
     "orContinueWith": "או המשך באמצעות",
+    "orLoginWith": "או התחבר באמצעות",
     "academyNameTooShort": "שם האקדמיה חייב להכיל לפחות 3 תווים",
     "academyNameTaken": "השם כבר תפוס. בחר שם אחר",
     "errorCheckingName": "שגיאה בבדיקת שם",

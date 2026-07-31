@@ -180,7 +180,8 @@ export enum ColumnType {
 
 export interface TextColumnSettings {
   maxLength?: number;
-  multiline?: boolean;
+  /** When true, the cell opens a sidebar with a rich-text (HTML) editor instead of inline plain-text editing. */
+  richText?: boolean;
 }
 
 export interface NumberColumnSettings {

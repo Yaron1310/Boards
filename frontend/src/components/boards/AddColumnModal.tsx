@@ -295,7 +295,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
   // TEXT
   const [maxLength, setMaxLength] = useState('');
-  const [multiline, setMultiline] = useState(false);
+  const [richText, setRichText] = useState(false);
 
   // NUMBER
   const [unit, setUnit] = useState('');
@@ -359,7 +359,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const buildSettings = () => {
     switch (type) {
       case ColumnType.TEXT:
-        return { ...(maxLength ? { maxLength: parseInt(maxLength, 10) } : {}), multiline };
+        return { ...(maxLength ? { maxLength: parseInt(maxLength, 10) } : {}), richText };
       case ColumnType.NUMBER:
         return { ...(unit ? { unit } : {}), ...(precision ? { precision: parseInt(precision, 10) } : {}) };
       case ColumnType.DATE:
@@ -727,12 +727,12 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                   <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer pb-1.5">
                     <input
                       type="checkbox"
-                      checked={multiline}
-                      onChange={(e) => setMultiline(e.target.checked)}
+                      checked={richText}
+                      onChange={(e) => setRichText(e.target.checked)}
                       className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      aria-label="Allow multiline text"
+                      aria-label="Edit as rich text in a sidebar"
                     />
-                    Multiline
+                    Rich text
                   </label>
                 </div>
               </div>
