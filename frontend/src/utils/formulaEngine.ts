@@ -501,11 +501,13 @@ export function extractRefs(formula: string): CellRef[] {
   return refs;
 }
 
-/** References the local board context cannot resolve on its own: always cross-board refs, plus
- *  same-board group-summary refs when `groupsComplete` is false (the local item set is a filtered
- *  subset — e.g. Personal Hub — so the summary must be aggregated from the full source board instead). */
-export function extractForeignRefs(formula: string, homeBoardId: string, groupsComplete = true): CellRef[] {
-  return extractRefs(formula).filter((r) => r.boardId !== homeBoardId || (r.agg != null && !groupsComplete));
+/** References that may need a fetch beyond the local `allItems`/`visibleItems` array: cross-board
+ *  refs always do, and same-board refs are included too, because a same-board ref can point at a
+ *  subitem — `allItems` is built from a board's top-level items only, so subitem rows aren't in it.
+ *  `resolveStructuredRef` always tries local resolution first, so requesting this fetch for a
+ *  same-board ref that *does* resolve locally is just unused fallback data, never a correctness issue. */
+export function extractForeignRefs(formula: string): CellRef[] {
+  return extractRefs(formula);
 }
 
 /** Convert a legacy positional formula ({C3}/{C}) into stable-ID refs. Runs on the origin

@@ -54,8 +54,8 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
 
   // Load cross-board values referenced by the saved formula so the result stays live.
   const foreignRefs = useMemo(
-    () => extractForeignRefs(cellFormula, homeBoardId, groupsComplete),
-    [cellFormula, homeBoardId, groupsComplete],
+    () => extractForeignRefs(cellFormula),
+    [cellFormula],
   );
   const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId);
 

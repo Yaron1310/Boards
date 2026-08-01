@@ -363,7 +363,6 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   // (cross-board) refs across the rows so their values are loaded; same-board refs resolve locally
   // from the board's own items. Personal formula columns use `evalFormula` instead (grid-addressed).
   const isBoardFormula = col.type === ColumnType.SIMPLE_FORMULA && !evalFormula;
-  const formulaHomeBoardId = col.boardId ?? '';
   const foreignRefs: CellRef[] = [];
   if (isBoardFormula) {
     const settings = col.settings as SimpleFormulaColumnSettings;
@@ -373,7 +372,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       const stored = getVal(i, col.id);
       const formula = typeof stored === 'string' ? stored : defaultFormula;
       if (!formula) continue;
-      for (const r of extractForeignRefs(formula, formulaHomeBoardId)) {
+      for (const r of extractForeignRefs(formula)) {
         const key = serializeRef(r);
         if (!seen.has(key)) { seen.add(key); foreignRefs.push(r); }
       }
