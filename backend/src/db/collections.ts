@@ -71,3 +71,8 @@ export const personalColumnsCollection = (orgId: string) =>
 // /organizations/{orgId}/personalItemValues/{userId_itemId}
 export const personalItemValuesCollection = (orgId: string) =>
   db.collection('organizations').doc(orgId).collection('personalItemValues');
+
+// Personal Hub template — org-wide running totals per template NUMBER column:
+// /organizations/{orgId}/personalHubTemplateTotals/{templateColumnId}
+export const personalHubTemplateTotalsCollection = (orgId: string) =>
+  db.collection('organizations').doc(orgId).collection('personalHubTemplateTotals');

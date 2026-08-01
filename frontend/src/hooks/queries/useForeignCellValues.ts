@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, doc, query, where, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
+import { getPersonalHubTemplateTotal } from '@/services/geminiService';
 import { BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
@@ -82,6 +83,65 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
       ).sort(),
     [refs],
   );
+
+  // Personal Hub template totals — org-wide running sums, not tied to any board. Referenced by
+  // templateColumnId (held in `columnId` for 'ph' refs).
+  const templateColumnIds = useMemo(
+    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph').map((r) => r.columnId))).sort(),
+    [refs],
+  );
+  const templateTotalQueries = useQueries({
+    queries: templateColumnIds.map((templateColumnId) => ({
+      queryKey: queryKeys.personalHubTemplateTotals.one(templateColumnId),
+      queryFn: () => getPersonalHubTemplateTotal(templateColumnId),
+      enabled: !!templateColumnId,
+      staleTime: 30 * 1000,
+    })),
+  });
+  const templateTotalsMap = useMemo(() => {
+    const m = new Map<string, { total: number; frozen: boolean }>();
+    templateColumnIds.forEach((id, i) => {
+      const data = templateTotalQueries[i]?.data;
+      if (data) m.set(id, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateColumnIds.join(','), templateTotalQueries]);
+
+  // Live recompute: subscribe to each referenced template total doc so a value change anywhere
+  // in the org invalidates the cached total and refetches it.
+  useEffect(() => {
+    if (!orgId || templateColumnIds.length === 0) return;
+    let unsubs: Array<() => void> = [];
+
+    const open = () => {
+      unsubs = templateColumnIds.map((templateColumnId) => {
+        const totalDocRef = doc(firestoreDb, `organizations/${orgId}/personalHubTemplateTotals/${templateColumnId}`);
+        return onSnapshot(
+          totalDocRef,
+          () => {
+            void qc.invalidateQueries({ queryKey: queryKeys.personalHubTemplateTotals.one(templateColumnId) });
+          },
+          () => {},
+        );
+      });
+    };
+    const close = () => {
+      unsubs.forEach((u) => u());
+      unsubs = [];
+    };
+
+    const unsubAuth = onAuthStateChanged(firebaseAuth, (u) => {
+      close();
+      if (u) open();
+    });
+    return () => {
+      unsubAuth();
+      close();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, templateColumnIds.join(','), qc]);
+
   const boardKey = boardIds.join(',');
 
   const boardQueries = useQueries({
@@ -233,6 +293,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
   const isLoading =
     boardQueries.some((q) => q.isLoading) ||
     columnQueries.some((q) => q.isLoading) ||
+    templateTotalQueries.some((q) => q.isLoading) ||
     (personalQueries[0]?.isLoading ?? false);
 
   const resolve = useCallback(
@@ -240,6 +301,13 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
       // `visited` keys the formula cells already on the resolution stack (across boards) so a
       // cross-board reference cycle (A → B → A) terminates by contributing 0 where it closes.
       const inner = (r: CellRef, cid: string | null | undefined, visited: Set<string>): number | null | undefined => {
+        // Personal Hub template total: an org-wide running sum, not tied to any row/board —
+        // resolves straight from the live-subscribed total doc.
+        if (r.kind === 'ph') {
+          const data = templateTotalsMap.get(r.columnId);
+          return data ? data.total : undefined;
+        }
+
         // Group-summary reference: aggregate a column across a group. Board columns only —
         // personal-hub summaries are resolved locally on the Personal Hub, not cross-context.
         if (r.agg) {
@@ -304,7 +372,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
 
       return inner(ref, currentItemId, new Set<string>());
     },
-    [boardItemMap, boardItemsList, boardColumnsMap, personalValues],
+    [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap],
   );
 
   return { resolve, isLoading };

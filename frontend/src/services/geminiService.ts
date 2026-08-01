@@ -221,6 +221,8 @@ export const getPersonalHubTemplate = async (): Promise<{ columns: PersonalHubTe
     fetchWithAuth('/api/app-config/personal-hub-template');
 export const updatePersonalHubTemplate = async (columns: PersonalHubTemplateColumn[]): Promise<{ columns: PersonalHubTemplateColumn[] }> =>
     fetchWithAuth('/api/app-config/personal-hub-template', { method: 'PUT', body: JSON.stringify({ columns }) });
+export const getPersonalHubTemplateTotal = async (templateColumnId: string): Promise<{ total: number; frozen: boolean }> =>
+    fetchWithAuth(`/api/app-config/personal-hub-template-totals/${templateColumnId}`);
 
 // --- System-wide Settings (System Admin only) ---
 export const getTokenLimits = async (): Promise<SystemSettings> => fetchWithAuth('/api/system-settings/settings');

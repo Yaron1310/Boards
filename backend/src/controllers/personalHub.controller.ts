@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
-import { personalColumnsCollection, personalItemValuesCollection, organizationSettingsCollection } from '../db/collections.js';
+import { personalColumnsCollection, personalItemValuesCollection, organizationSettingsCollection, personalHubTemplateTotalsCollection } from '../db/collections.js';
 import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, DBOrganizationSettings, ColumnType, UserRole } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 
@@ -80,6 +80,7 @@ async function seedFromTemplateIfNeeded(orgId: string, userId: string, existing:
         settings: tc.settings ?? {},
         scope: 'all' as const,
         fromTemplate: true,
+        templateColumnId: tc.id,
         order: existing.length + i,
         createdAt: timestamp,
         updatedAt: timestamp,
@@ -377,13 +378,62 @@ export const updatePersonalItemValue = async (req: Request, res: Response) => {
 
   try {
     const column = await personalColumnsCollection(user.orgId).doc(columnId).get();
-    if (!column.exists || (column.data()?.userId !== target.userId && !ADMIN_ROLES.has(user.role))) {
+    const columnData = column.data();
+    if (!column.exists || (columnData?.userId !== target.userId && !ADMIN_ROLES.has(user.role))) {
       return res.status(403).json({ message: 'Forbidden: this is not your personal column.' });
     }
 
     const docId = personalValueDocId(target.userId, itemId);
-    const ref = personalItemValuesCollection(user.orgId).doc(docId);
-    await ref.set(
+    const valueRef = personalItemValuesCollection(user.orgId).doc(docId);
+
+    // Columns materialized from the Personal Hub template feed an org-wide running total
+    // (see DBPersonalHubTemplateTotal) — every edit needs to know how much the value changed
+    // by (not just its new value) so the total can move by that delta, so this path reads the
+    // old value and writes both docs together in one transaction.
+    const templateColumnId = columnData?.templateColumnId as string | undefined;
+    if (templateColumnId && columnData?.type === ColumnType.NUMBER) {
+      const totalRef = personalHubTemplateTotalsCollection(user.orgId).doc(templateColumnId);
+      await db.runTransaction(async (tx) => {
+        const [valueSnap, totalSnap] = await Promise.all([tx.get(valueRef), tx.get(totalRef)]);
+        const toNum = (raw: unknown) => (raw != null && raw !== '' && !isNaN(Number(raw)) ? Number(raw) : 0);
+        const oldNum = toNum(valueSnap.exists ? (valueSnap.data()?.values as Record<string, unknown> | undefined)?.[columnId] : undefined);
+        const newNum = toNum(value);
+        const delta = newNum - oldNum;
+
+        tx.set(
+          valueRef,
+          {
+            id: docId,
+            orgId: user.orgId,
+            userId: target.userId,
+            itemId,
+            values: { [columnId]: value ?? null },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+
+        const totalFrozen = totalSnap.exists && totalSnap.data()?.frozen === true;
+        if (delta !== 0 && !totalFrozen) {
+          if (totalSnap.exists) {
+            tx.set(totalRef, { total: admin.firestore.FieldValue.increment(delta), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+          } else {
+            tx.set(totalRef, {
+              id: templateColumnId,
+              templateColumnId,
+              total: delta,
+              frozen: false,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      });
+
+      const updated = snapshotToData<DBPersonalItemValue>(await valueRef.get());
+      return res.json(updated);
+    }
+
+    await valueRef.set(
       {
         id: docId,
         orgId: user.orgId,
@@ -395,7 +445,7 @@ export const updatePersonalItemValue = async (req: Request, res: Response) => {
       { merge: true },
     );
 
-    const updated = snapshotToData<DBPersonalItemValue>(await ref.get());
+    const updated = snapshotToData<DBPersonalItemValue>(await valueRef.get());
     res.json(updated);
   } catch (err: unknown) {
     logger.error(`Error updating personal item value for item ${req.params.itemId}:`, err);

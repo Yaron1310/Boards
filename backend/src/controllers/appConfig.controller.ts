@@ -4,9 +4,9 @@ import admin from 'firebase-admin';
 import * as logger from 'firebase-functions/logger';
 import crypto from 'crypto';
 
-import { organizationSettingsCollection } from '../db/collections.js';
-import { snapshotToData, storage } from '../services/firestore.service.js';
-import { JwtUserPayload, DBOrganizationSettings, ColumnType, PersonalHubTemplateColumn } from '../types/index.js';
+import { organizationSettingsCollection, personalHubTemplateTotalsCollection } from '../db/collections.js';
+import { db, snapshotToData, storage } from '../services/firestore.service.js';
+import { JwtUserPayload, DBOrganizationSettings, DBPersonalHubTemplateTotal, ColumnType, PersonalHubTemplateColumn } from '../types/index.js';
 import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../utils/sanitizer.js';
 
 const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
@@ -188,6 +188,22 @@ export const updatePersonalHubTemplate = async (req: Request, res: Response) => 
 
     try {
         const docRef = organizationSettingsCollection.doc(user.orgId);
+        const existingDoc = await docRef.get();
+        const existingColumns = (existingDoc.exists ? snapshotToData<DBOrganizationSettings>(existingDoc) : null)?.personalHubTemplate?.columns ?? [];
+
+        // A template column that existed before this save but isn't in the new list was just
+        // removed by the admin — its org-wide running total (if any) freezes at its last value
+        // instead of continuing to move or erroring out once nothing feeds it anymore.
+        const newIds = new Set(sanitized.map((c) => c.id));
+        const removedIds = existingColumns.map((c) => c.id).filter((id) => !newIds.has(id));
+        if (removedIds.length > 0) {
+            const batch = db.batch();
+            for (const id of removedIds) {
+                batch.set(personalHubTemplateTotalsCollection(user.orgId).doc(id), { frozen: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+            }
+            await batch.commit();
+        }
+
         await docRef.set({
             personalHubTemplate: {
                 columns: sanitized,
@@ -200,6 +216,22 @@ export const updatePersonalHubTemplate = async (req: Request, res: Response) => 
     } catch (error) {
         logger.error('Error updating personal hub template:', error);
         res.status(500).json({ message: 'Failed to update personal hub template.' });
+    }
+};
+
+// Any authenticated org member may read a template total — a board formula referencing it
+// needs to resolve for every viewer of that board, not just admins.
+export const getPersonalHubTemplateTotal = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    const { templateColumnId } = req.params;
+    try {
+        const doc = await personalHubTemplateTotalsCollection(user.orgId).doc(templateColumnId).get();
+        if (!doc.exists) return res.json({ total: 0, frozen: false });
+        const data = snapshotToData<DBPersonalHubTemplateTotal>(doc)!;
+        res.json({ total: data.total ?? 0, frozen: data.frozen === true });
+    } catch (error) {
+        logger.error('Error fetching personal hub template total:', error);
+        res.status(500).json({ message: 'Failed to fetch personal hub template total.' });
     }
 };
 

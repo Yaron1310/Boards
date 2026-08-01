@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiPlus, FiTrash2, FiSave, FiLoader, FiCheckCircle, FiAlertCircle, FiArrowUp, FiArrowDown, FiUser } from 'react-icons/fi';
+import { FiArrowLeft, FiPlus, FiTrash2, FiSave, FiLoader, FiCheckCircle, FiAlertCircle, FiArrowUp, FiArrowDown, FiUser, FiHash } from 'react-icons/fi';
 import * as apiService from '../../services/geminiService';
 import AddColumnModal, { COLUMN_TYPE_LABELS } from '../boards/AddColumnModal';
-import type { ColumnType, PersonalHubTemplateColumn } from '../../types';
+import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
+import { formulaRefDomKey } from '../../utils/formulaEngine';
+import { ColumnType } from '../../types';
+import type { PersonalHubTemplateColumn } from '../../types';
 
 /** Org-admin editor for the Personal Hub default template: an "all groups" column-schema
  *  list only — no groups, items, or data. Materialized into a user's own Personal Hub
@@ -11,6 +14,7 @@ import type { ColumnType, PersonalHubTemplateColumn } from '../../types';
  *  and persisted in one call via "Save Template". */
 const PersonalHubTemplatePage: React.FC = () => {
   const navigate = useNavigate();
+  const { isRecording, insertRef } = useFormulaRecording();
 
   const [columns, setColumns] = useState<PersonalHubTemplateColumn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -112,6 +116,13 @@ const PersonalHubTemplatePage: React.FC = () => {
         </div>
       )}
 
+      {isRecording && (
+        <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700" role="status">
+          <FiHash size={15} aria-hidden="true" />
+          Recording a formula — click a Number column below to insert its running total across every user's Personal Hub.
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-gray-400">
           <FiLoader size={24} className="animate-spin" aria-hidden="true" />
@@ -127,42 +138,62 @@ const PersonalHubTemplatePage: React.FC = () => {
             </div>
           ) : (
             <ul role="list" aria-label="Personal Hub template columns" className="divide-y divide-gray-100">
-              {columns.map((col, i) => (
-                <li key={col.id} className="flex items-center gap-3 px-4 py-3">
-                  <div className="flex flex-col">
-                    <button
-                      type="button"
-                      onClick={() => move(i, -1)}
-                      disabled={i === 0}
-                      className="text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed p-0.5"
-                      aria-label={`Move ${col.name} up`}
-                    >
-                      <FiArrowUp size={13} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => move(i, 1)}
-                      disabled={i === columns.length - 1}
-                      className="text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed p-0.5"
-                      aria-label={`Move ${col.name} down`}
-                    >
-                      <FiArrowDown size={13} aria-hidden="true" />
-                    </button>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-800 truncate">{col.name}</p>
-                    <p className="text-xs text-gray-500">{COLUMN_TYPE_LABELS[col.type]}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleRemove(col.id)}
-                    className="text-gray-400 hover:text-red-500 transition-colors p-1.5"
-                    aria-label={`Remove ${col.name} from template`}
+              {columns.map((col, i) => {
+                const canInsert = isRecording && col.type === ColumnType.NUMBER;
+                const handleInsert = () => insertRef({ kind: 'ph', boardId: '', columnId: col.id, itemId: null });
+                return (
+                  <li
+                    key={col.id}
+                    data-formula-cell-key={formulaRefDomKey({ kind: 'ph', boardId: '', columnId: col.id, itemId: null })}
+                    className={`flex items-center gap-3 px-4 py-3 ${canInsert ? 'cursor-pointer hover:bg-indigo-50 transition-colors' : ''}`}
+                    onClick={canInsert ? handleInsert : undefined}
                   >
-                    <FiTrash2 size={15} aria-hidden="true" />
-                  </button>
-                </li>
-              ))}
+                    <div className="flex flex-col">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); move(i, -1); }}
+                        disabled={i === 0}
+                        className="text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed p-0.5"
+                        aria-label={`Move ${col.name} up`}
+                      >
+                        <FiArrowUp size={13} aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); move(i, 1); }}
+                        disabled={i === columns.length - 1}
+                        className="text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed p-0.5"
+                        aria-label={`Move ${col.name} down`}
+                      >
+                        <FiArrowDown size={13} aria-hidden="true" />
+                      </button>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-800 truncate">{col.name}</p>
+                      <p className="text-xs text-gray-500">{COLUMN_TYPE_LABELS[col.type]}</p>
+                    </div>
+                    {canInsert && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleInsert(); }}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors"
+                        aria-label={`Insert running total of ${col.name}`}
+                      >
+                        <FiHash size={12} aria-hidden="true" />
+                        Insert total
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleRemove(col.id); }}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-1.5"
+                      aria-label={`Remove ${col.name} from template`}
+                    >
+                      <FiTrash2 size={15} aria-hidden="true" />
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
 

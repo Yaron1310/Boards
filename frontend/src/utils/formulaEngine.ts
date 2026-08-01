@@ -30,11 +30,14 @@ export type SummaryCalc = 'sum' | 'avg' | 'median' | 'min' | 'max' | 'count';
 
 /** A structured, stable-ID cell reference. */
 export interface CellRef {
-  /** Value source: board item.values ('b') or personal-hub value store ('p'). */
-  kind: 'b' | 'p';
+  /** Value source: board item.values ('b'), personal-hub value store ('p'), or the org-wide
+   *  running total of a Personal Hub template column across every user ('ph'). */
+  kind: 'b' | 'p' | 'ph';
   boardId: string;
+  /** For 'ph' refs, this holds the template column's stable id instead of a real columnId. */
   columnId: string;
-  /** null → relative to the current row (only valid for same-board refs); otherwise a specific item id. */
+  /** null → relative to the current row (only valid for same-board refs); otherwise a specific item id.
+   *  Always null for 'ph' refs — the total isn't tied to any row. */
   itemId: string | null;
   /** When set, this is a group-summary reference: aggregate `columnId` across `groupId` with `agg`. */
   agg?: SummaryCalc;
@@ -45,6 +48,7 @@ export interface CellRef {
  *  summary cell). Used to tag insertable/summary cells with `data-formula-cell-key` so hovering
  *  a ref token in the recording bar can highlight the exact source cell if it's on screen. */
 export function formulaRefDomKey(ref: CellRef, currentItemId: string | null = null): string | null {
+  if (ref.kind === 'ph') return `ph:${ref.columnId}`;
   if (ref.agg) return `${ref.kind}:${ref.boardId}:agg:${ref.groupId ?? ''}:${ref.columnId}:${ref.agg}`;
   const itemId = ref.itemId ?? currentItemId;
   if (!itemId) return null;
@@ -188,9 +192,10 @@ export function parseRefToken(inner: string): CellRef | null {
   const parts = trimmed.split(':');
   if (parts.length !== 5) return null;
   const [, kind, boardId, columnId, row] = parts;
-  if (kind !== 'b' && kind !== 'p') return null;
-  // boardId may be empty for Personal Hub "all-groups" columns (no single owning board);
-  // 'p' refs resolve by itemId+columnId regardless of board, so an empty boardId is valid.
+  if (kind !== 'b' && kind !== 'p' && kind !== 'ph') return null;
+  // boardId may be empty for Personal Hub "all-groups" columns (no single owning board) and is
+  // always empty for 'ph' refs (an org-wide total isn't tied to any board);
+  // 'p'/'ph' refs resolve by itemId+columnId (or just columnId, for 'ph') regardless of board.
   if (!columnId || !row) return null;
   // Group-summary refs encode the row slot as `sum#<agg>#<groupId>` (Firestore ids carry no ':'/'#').
   if (row.startsWith('sum#')) {
