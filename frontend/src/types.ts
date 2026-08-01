@@ -643,12 +643,26 @@ export interface PersonalColumn {
   };
   scope: PersonalColumnScope;
   boardId?: string;
+  /** Set when this column was materialized from the org's Personal Hub template — editable,
+   *  but the user cannot delete it (only columns they created themselves). */
+  fromTemplate?: boolean;
   width?: number;
   /** Per-board cumulative summary scope (boardId -> include board groups above), independent per board group. */
   summaryCumulativeByBoard?: Record<string, boolean>;
   order: number;
   createdAt: Date | string;
   updatedAt: Date | string;
+}
+
+/** One column definition in the org admin's Personal Hub default template — "all groups"
+ *  columns only, no groups/items/data. Materialized into a user's own personalColumns
+ *  (scope 'all', fromTemplate: true) the first time they have none. */
+export interface PersonalHubTemplateColumn {
+  id: string;
+  name: string;
+  type: ColumnType;
+  settings: ColumnSettings;
+  order: number;
 }
 
 export type NotificationType = 'assignment' | 'mention';

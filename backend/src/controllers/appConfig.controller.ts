@@ -6,8 +6,10 @@ import crypto from 'crypto';
 
 import { organizationSettingsCollection } from '../db/collections.js';
 import { snapshotToData, storage } from '../services/firestore.service.js';
-import { JwtUserPayload, DBOrganizationSettings } from '../types/index.js';
+import { JwtUserPayload, DBOrganizationSettings, ColumnType, PersonalHubTemplateColumn } from '../types/index.js';
 import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../utils/sanitizer.js';
+
+const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
 
 /**
  * Upload an image file to Firebase Storage and return the public URL.
@@ -138,6 +140,66 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
     } catch (error: any) {
         logger.error("Error updating workspace settings:", error);
         res.status(500).json({ message: 'Failed to update workspace settings.' });
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Personal Hub default template — org-admin-configured "all groups" columns,
+// materialized into a user's own personalColumns the first time they have none.
+// ---------------------------------------------------------------------------
+export const getPersonalHubTemplate = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    try {
+        const doc = await organizationSettingsCollection.doc(user.orgId).get();
+        const settings = doc.exists ? snapshotToData<DBOrganizationSettings>(doc) : null;
+        const columns = settings?.personalHubTemplate?.columns ?? [];
+        res.json({ columns: [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) });
+    } catch (error) {
+        logger.error('Error fetching personal hub template:', error);
+        res.status(500).json({ message: 'Failed to fetch personal hub template.' });
+    }
+};
+
+export const updatePersonalHubTemplate = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    const { columns } = req.body;
+
+    if (!Array.isArray(columns)) {
+        return res.status(400).json({ message: 'columns must be an array.' });
+    }
+
+    const sanitized: PersonalHubTemplateColumn[] = [];
+    for (let i = 0; i < columns.length; i++) {
+        const c = columns[i];
+        if (!c || typeof c !== 'object') return res.status(400).json({ message: `Invalid column at index ${i}.` });
+        const { id, name, type, settings } = c as { id?: unknown; name?: unknown; type?: unknown; settings?: unknown };
+        if (!name || typeof name !== 'string') return res.status(400).json({ message: `Column at index ${i} is missing a name.` });
+        if (!type || !VALID_COLUMN_TYPES.has(type as string)) {
+            return res.status(400).json({ message: `Column "${name}" has an invalid type.` });
+        }
+        sanitized.push({
+            id: typeof id === 'string' && id ? id : organizationSettingsCollection.doc().id,
+            name: sanitizeText(name),
+            type: type as ColumnType,
+            settings: (settings && typeof settings === 'object' ? settings : {}) as PersonalHubTemplateColumn['settings'],
+            order: i,
+        });
+    }
+
+    try {
+        const docRef = organizationSettingsCollection.doc(user.orgId);
+        await docRef.set({
+            personalHubTemplate: {
+                columns: sanitized,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        res.json({ columns: sanitized });
+    } catch (error) {
+        logger.error('Error updating personal hub template:', error);
+        res.status(500).json({ message: 'Failed to update personal hub template.' });
     }
 };
 

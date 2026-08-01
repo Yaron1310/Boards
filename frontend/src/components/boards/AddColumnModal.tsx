@@ -13,7 +13,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
-import type { StatusOption, DropdownOption, PersonalColumnScope, PersonalColumn, ColumnVisibility, Item, PaginatedResponse } from '../../types';
+import type { StatusOption, DropdownOption, PersonalColumnScope, PersonalColumn, ColumnVisibility, ColumnSettings, Item, PaginatedResponse } from '../../types';
 import { COLUMN_VISIBILITY_OPTIONS, DEFAULT_COLUMN_VISIBILITY } from '../../utils/columnVisibilityOptions';
 import { canConvertColumnValue, convertColumnValue } from '../../utils/columnTypeConversion';
 import { useFocusTrap } from '../../hooks/useFocusTrap';
@@ -78,15 +78,20 @@ interface AddColumnModalProps {
   /**
    * 'board' (default) creates a real column on the source board. 'personal' creates
    * a user-owned Personal Hub column instead — same type picker and settings UI,
-   * different destination. Requires personalScope (and boardId when personalScope is 'board').
+   * different destination. 'template' doesn't persist anything itself — it just
+   * reports the column def back to the caller via onSave (used by the Personal Hub
+   * template editor, which stages edits locally and saves them all at once).
+   * Requires personalScope (and boardId when personalScope is 'board').
    */
-  mode?: 'board' | 'personal';
+  mode?: 'board' | 'personal' | 'template';
   personalScope?: PersonalColumnScope;
   /** Personal mode only: whose hub this column belongs to — undefined for your own. */
   personalOwnerId?: string;
+  /** template mode only: receives the built column def instead of any backend call. */
+  onSave?: (column: { name: string; type: ColumnType; settings: ColumnSettings }) => void;
 }
 
-const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
+export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   [ColumnType.TEXT]: 'Text',
   [ColumnType.NUMBER]: 'Number',
   [ColumnType.DATE]: 'Date',
@@ -242,8 +247,9 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope, personalOwnerId }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope, personalOwnerId, onSave }) => {
   const isPersonal = mode === 'personal';
+  const isTemplate = mode === 'template';
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending: isPendingBoard } = useCreateColumn(boardId ?? '');
   const { mutateAsync: createPersonalColumn, isPending: isPendingPersonal } = useCreatePersonalColumn(personalOwnerId);
@@ -399,6 +405,13 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     setError('');
     hasSubmittedRef.current = true;
     isSubmittingRef.current = true;
+
+    if (isTemplate) {
+      onSave?.({ name: trimmedName, type, settings: buildSettings() });
+      isSubmittingRef.current = false;
+      onClose();
+      return;
+    }
 
     if (isPersonal) {
       if (!personalScope || (personalScope === 'board' && !boardId)) { isSubmittingRef.current = false; return; }
@@ -966,7 +979,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
 
             {/* VISIBILITY (board columns only — personal columns and subitem columns are always
                 private/scoped to their owner, so the setting wouldn't mean anything there) */}
-            {!isPersonal && !parentGroupId && (
+            {mode === 'board' && !parentGroupId && (
               <div className="pt-1 border-t border-gray-100">
                 <label htmlFor="col-visibility" className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 mb-2">
                   <FiShield size={14} className="text-gray-400" aria-hidden="true" />
@@ -1007,11 +1020,11 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             </button>
             <button
               type="submit"
-              disabled={isPending}
+              disabled={!isTemplate && isPending}
               className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
               aria-label="Create column"
             >
-              {isPending ? 'Creating…' : 'Create Column'}
+              {!isTemplate && isPending ? 'Creating…' : 'Create Column'}
             </button>
           </div>
         </form>

@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
-import { personalColumnsCollection, personalItemValuesCollection } from '../db/collections.js';
-import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, ColumnType, UserRole } from '../types/index.js';
+import { personalColumnsCollection, personalItemValuesCollection, organizationSettingsCollection } from '../db/collections.js';
+import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, DBOrganizationSettings, ColumnType, UserRole } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 
 const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
@@ -48,6 +48,50 @@ function resolveWriteTargetUserId(req: Request): { userId: string } | { status: 
   return { userId: requested };
 }
 
+/**
+ * First time a user's Personal Hub has zero "all groups" columns, copy the org's
+ * admin-configured template columns into their own personalColumns (tagged
+ * fromTemplate so they can't be deleted, only edited). A no-op once the user has
+ * any scope:'all' column of their own — later template edits by the admin don't
+ * retroactively touch already-seeded users.
+ */
+async function seedFromTemplateIfNeeded(orgId: string, userId: string, existing: DBPersonalColumn[]): Promise<DBPersonalColumn[]> {
+  if (existing.some((c) => c.scope === 'all')) return existing;
+
+  const settingsDoc = await organizationSettingsCollection.doc(orgId).get();
+  const settings = settingsDoc.exists ? snapshotToData<DBOrganizationSettings>(settingsDoc) : null;
+  const templateColumns = settings?.personalHubTemplate?.columns ?? [];
+  if (templateColumns.length === 0) return existing;
+
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+  const seeded: DBPersonalColumn[] = [];
+  templateColumns
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .forEach((tc, i) => {
+      const docRef = personalColumnsCollection(orgId).doc();
+      const column = {
+        id: docRef.id,
+        orgId,
+        userId,
+        name: tc.name,
+        type: tc.type,
+        settings: tc.settings ?? {},
+        scope: 'all' as const,
+        fromTemplate: true,
+        order: existing.length + i,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      batch.set(docRef, column);
+      seeded.push(column as unknown as DBPersonalColumn);
+    });
+  await batch.commit();
+
+  return [...existing, ...seeded];
+}
+
 // ---------------------------------------------------------------------------
 // GET /personal-hub/columns
 // ---------------------------------------------------------------------------
@@ -61,8 +105,11 @@ export const listPersonalColumns = async (req: Request, res: Response) => {
     const snapshot = await personalColumnsCollection(user.orgId)
       .where('userId', '==', target.userId)
       .get();
-    const columns = querySnapshotToArray<DBPersonalColumn>(snapshot)
+    let columns = querySnapshotToArray<DBPersonalColumn>(snapshot)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    columns = await seedFromTemplateIfNeeded(user.orgId, target.userId, columns);
+
     res.json(columns);
   } catch (err: unknown) {
     logger.error('Error fetching personal columns:', err);
@@ -264,6 +311,9 @@ export const deletePersonalColumn = async (req: Request, res: Response) => {
     const column = snapshotToData<DBPersonalColumn>(doc);
     if (!column || (column.userId !== user.id && !ADMIN_ROLES.has(user.role))) {
       return res.status(403).json({ message: 'Forbidden: this is not your personal column.' });
+    }
+    if (column.fromTemplate) {
+      return res.status(403).json({ message: 'This column comes from the Personal Hub template and cannot be deleted.' });
     }
 
     await personalColumnsCollection(user.orgId).doc(id).delete();

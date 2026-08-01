@@ -49,6 +49,7 @@ const EmailTemplatesPage = React.lazy(() => import('./components/admin/EmailTemp
 
 // -- Templates chunk --
 const TemplatesPage = React.lazy(() => import('./components/boards/TemplatesPage'));
+const PersonalHubTemplatePage = React.lazy(() => import('./components/admin/PersonalHubTemplatePage'));
 
 const PageLoader: React.FC = () => (
   <div
@@ -332,6 +333,14 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <TemplatesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/templates/personal-hub"
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN]}>
+                  <PersonalHubTemplatePage />
                 </ProtectedRoute>
               }
             />

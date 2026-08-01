@@ -14,7 +14,7 @@ import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import { UserRole, Board } from '../../types';
 import {
   FiBookmark, FiMoreVertical, FiPlus, FiArchive, FiDownload, FiLoader,
-  FiX, FiInbox, FiRotateCcw, FiLayout,
+  FiX, FiInbox, FiRotateCcw, FiLayout, FiUser,
 } from 'react-icons/fi';
 import ReactDOM from 'react-dom';
 import BoardContextMenu from './BoardContextMenu';
@@ -157,6 +157,17 @@ const TemplatesPage: React.FC = () => {
                 {isImporting ? 'Importing…' : 'Import'}
               </button>
             </>
+          )}
+          {user?.role === UserRole.ORGANIZATION_ADMIN && (
+            <button
+              type="button"
+              onClick={() => navigate('/admin/templates/personal-hub')}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors"
+              aria-label="Edit Personal Hub default template"
+            >
+              <FiUser size={16} aria-hidden="true" />
+              Personal Hub Template
+            </button>
           )}
           {canManage && (
             <button

@@ -45,6 +45,23 @@ export interface DBOrganizationSettings {
   displayNameColor?: string;
   sidebarLinkColor?: string;
   logoCircle?: boolean;
+  personalHubTemplate?: PersonalHubTemplate;
+}
+
+// --- Personal Hub default template — org-admin-configured "all groups" columns that get
+// copied into a user's own personalColumns the first time they have none. Never rendered
+// with groups/items/data itself — it's a column-schema list only. ---
+export interface PersonalHubTemplateColumn {
+  id: string;
+  name: string;
+  type: ColumnType;
+  settings: ColumnSettings;
+  order: number;
+}
+
+export interface PersonalHubTemplate {
+  columns: PersonalHubTemplateColumn[];
+  updatedAt: admin.firestore.Timestamp | Date | any;
 }
 
 export interface DBSystemSettings {
@@ -350,6 +367,9 @@ export interface DBPersonalColumn {
   };
   scope: 'board' | 'all';
   boardId?: string; // required when scope === 'board'
+  /** Set when this column was materialized from the org's Personal Hub template — the user
+   *  can edit it freely but cannot delete it (only columns they created themselves). */
+  fromTemplate?: boolean;
   width?: number;
   /** Per-board cumulative summary scope (boardId -> include board groups above), independent per board group. */
   summaryCumulativeByBoard?: Record<string, boolean>;
