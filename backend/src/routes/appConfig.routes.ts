@@ -17,3 +17,4 @@ appConfigRouter.post('/api-key/regenerate', requireRole(adminRoles), appConfigCo
 appConfigRouter.get('/personal-hub-template', appConfigController.getPersonalHubTemplate);
 appConfigRouter.put('/personal-hub-template', requireRole(adminRoles), appConfigController.updatePersonalHubTemplate);
 appConfigRouter.get('/personal-hub-template-totals/:templateColumnId', appConfigController.getPersonalHubTemplateTotal);
+appConfigRouter.get('/personal-hub-template-totals/:templateColumnId/items/:itemId', appConfigController.getPersonalHubTemplateItemTotal);

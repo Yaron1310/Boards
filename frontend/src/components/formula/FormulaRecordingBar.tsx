@@ -23,7 +23,10 @@ const AGG_LABEL: Record<string, string> = {
 
 function metaToTooltip(meta: RefMeta | undefined): string {
   if (!meta) return 'Loading…';
-  if (meta.isTemplateTotal) return `Personal Hub Template › "${meta.columnName ?? '—'}" column (sum across every user)`;
+  if (meta.isTemplateTotal) {
+    const scope = meta.phScope === 'item' ? 'sum across every user, filtered to this item' : 'sum across every user';
+    return `Personal Hub Template › "${meta.columnName ?? '—'}" column (${scope})`;
+  }
   const board = meta.boardName ?? '—';
   const group = meta.groupName ?? '—';
   const root = meta.isPersonal ? (meta.userName ? `${meta.userName}’s Personal Hub` : 'Personal Hub') : null;
@@ -158,8 +161,8 @@ const FormulaRecordingBar: React.FC = () => {
   const draft = session?.draft ?? '';
   const cursor = session?.cursor ?? draft.length;
   const refs = useMemo(() => extractRefs(draft), [draft]);
-  const { resolve, isLoading } = useForeignCellValues(refs, orgId);
   const currentItemId = session?.origin.itemId ?? null;
+  const { resolve, isLoading } = useForeignCellValues(refs, orgId, currentItemId ? [currentItemId] : []);
   const { resolveMeta } = useFormulaRefMeta(refs, currentItemId);
 
   // Split into literal text and {ref:...} tokens, each tagged with its start/end offset into the

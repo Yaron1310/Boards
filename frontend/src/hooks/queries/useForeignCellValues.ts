@@ -6,7 +6,7 @@ import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
-import { getPersonalHubTemplateTotal } from '@/services/geminiService';
+import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal } from '@/services/geminiService';
 import { BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
@@ -57,7 +57,15 @@ function formulaRefsInBoard(items: Item[], columns: Column[]): CellRef[] {
  * and grows by scanning each newly-loaded board's formula columns for more references, up to
  * MAX_HOPS.
  */
-export function useForeignCellValues(refs: CellRef[], orgId: string | undefined): ForeignValues {
+/**
+ * `contextItemIds`: the item id(s) `resolve()` might be called with as `currentItemId` — needed
+ * up front only for 'ph' refs scoped `phScope: 'item'`, since their per-item total has to be
+ * fetched per (templateColumnId, itemId) pair and `resolve()` itself must return synchronously
+ * from already-loaded data. Callers that only ever resolve against one row (e.g. a single formula
+ * cell) pass that one id; a caller that evaluates the same formula across many rows (e.g. a group
+ * summary footer) passes all of them.
+ */
+export function useForeignCellValues(refs: CellRef[], orgId: string | undefined, contextItemIds: string[] = []): ForeignValues {
   const qc = useQueryClient();
 
   const directBoardIds = useMemo(
@@ -85,9 +93,11 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
   );
 
   // Personal Hub template totals — org-wide running sums, not tied to any board. Referenced by
-  // templateColumnId (held in `columnId` for 'ph' refs).
+  // templateColumnId (held in `columnId` for 'ph' refs). Global (whole-org) scope only here —
+  // 'item'-scoped refs are handled separately below, since they need a (templateColumnId, itemId)
+  // pair rather than just a templateColumnId.
   const templateColumnIds = useMemo(
-    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph').map((r) => r.columnId))).sort(),
+    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope !== 'item').map((r) => r.columnId))).sort(),
     [refs],
   );
   const templateTotalQueries = useQueries({
@@ -141,6 +151,49 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, templateColumnIds.join(','), qc]);
+
+  // 'item'-scoped template totals: computed on demand per (templateColumnId, itemId) pair, not a
+  // maintained counter, so there's no single doc to live-subscribe to — polled on a short interval
+  // instead. Cartesian product of the item-scoped template columns referenced and every item id
+  // the caller says it might resolve against.
+  const itemScopedTemplateColumnIds = useMemo(
+    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope === 'item').map((r) => r.columnId))).sort(),
+    [refs],
+  );
+  const itemTotalPairs = useMemo(() => {
+    if (itemScopedTemplateColumnIds.length === 0 || contextItemIds.length === 0) return [] as Array<{ templateColumnId: string; itemId: string }>;
+    const pairs: Array<{ templateColumnId: string; itemId: string }> = [];
+    const seen = new Set<string>();
+    for (const templateColumnId of itemScopedTemplateColumnIds) {
+      for (const itemId of contextItemIds) {
+        if (!itemId) continue;
+        const key = `${templateColumnId}:${itemId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pairs.push({ templateColumnId, itemId });
+      }
+    }
+    return pairs;
+  }, [itemScopedTemplateColumnIds, contextItemIds]);
+  const itemTotalPairsKey = itemTotalPairs.map((p) => `${p.templateColumnId}:${p.itemId}`).join(',');
+
+  const itemTotalQueries = useQueries({
+    queries: itemTotalPairs.map(({ templateColumnId, itemId }) => ({
+      queryKey: queryKeys.personalHubTemplateTotals.oneForItem(templateColumnId, itemId),
+      queryFn: () => getPersonalHubTemplateItemTotal(templateColumnId, itemId),
+      staleTime: 15 * 1000,
+      refetchInterval: 15 * 1000,
+    })),
+  });
+  const itemTotalsMap = useMemo(() => {
+    const m = new Map<string, number>();
+    itemTotalPairs.forEach(({ templateColumnId, itemId }, i) => {
+      const data = itemTotalQueries[i]?.data;
+      if (data) m.set(`${templateColumnId}:${itemId}`, data.total);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemTotalPairsKey, itemTotalQueries]);
 
   const boardKey = boardIds.join(',');
 
@@ -294,6 +347,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
     boardQueries.some((q) => q.isLoading) ||
     columnQueries.some((q) => q.isLoading) ||
     templateTotalQueries.some((q) => q.isLoading) ||
+    itemTotalQueries.some((q) => q.isLoading) ||
     (personalQueries[0]?.isLoading ?? false);
 
   const resolve = useCallback(
@@ -301,9 +355,16 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
       // `visited` keys the formula cells already on the resolution stack (across boards) so a
       // cross-board reference cycle (A → B → A) terminates by contributing 0 where it closes.
       const inner = (r: CellRef, cid: string | null | undefined, visited: Set<string>): number | null | undefined => {
-        // Personal Hub template total: an org-wide running sum, not tied to any row/board —
-        // resolves straight from the live-subscribed total doc.
+        // Personal Hub template total: a sum across every user's Personal Hub, not tied to any
+        // board. 'global' resolves straight from the live-subscribed org-wide counter; 'item'
+        // scopes it to the row currently being evaluated (cid) and resolves from the (bounded,
+        // polled rather than live) per-item total instead.
         if (r.kind === 'ph') {
+          if (r.phScope === 'item') {
+            const itemId = cid ?? currentItemId ?? null;
+            if (!itemId) return undefined;
+            return itemTotalsMap.get(`${r.columnId}:${itemId}`);
+          }
           const data = templateTotalsMap.get(r.columnId);
           return data ? data.total : undefined;
         }
@@ -372,7 +433,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
 
       return inner(ref, currentItemId, new Set<string>());
     },
-    [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap],
+    [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap, itemTotalsMap],
   );
 
   return { resolve, isLoading };

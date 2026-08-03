@@ -57,7 +57,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
     () => extractForeignRefs(cellFormula),
     [cellFormula],
   );
-  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId);
+  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId, [item.id]);
 
   const formulaContext = useMemo(
     () => ({

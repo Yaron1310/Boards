@@ -42,6 +42,10 @@ export interface CellRef {
   /** When set, this is a group-summary reference: aggregate `columnId` across `groupId` with `agg`. */
   agg?: SummaryCalc;
   groupId?: string;
+  /** 'ph' refs only: 'global' (default) sums the column across every user's Personal Hub,
+   *  regardless of item. 'item' scopes the sum to only the values entered against the same
+   *  item as the row the formula is evaluated for (relative — like `itemId: null` for 'b'/'p'). */
+  phScope?: 'global' | 'item';
 }
 
 /** Stable key identifying the DOM cell a ref points at (a specific item's cell, or a group
@@ -197,6 +201,12 @@ export function parseRefToken(inner: string): CellRef | null {
   // always empty for 'ph' refs (an org-wide total isn't tied to any board);
   // 'p'/'ph' refs resolve by itemId+columnId (or just columnId, for 'ph') regardless of board.
   if (!columnId || !row) return null;
+  // 'ph' refs repurpose the row slot for phScope instead of an item id — they never have a real
+  // item (that's the whole point of "global"), and "item"-scoped ones resolve relative to
+  // whatever row the formula is being evaluated for, same idea as itemId: null for 'b'/'p'.
+  if (kind === 'ph') {
+    return { kind, boardId: '', columnId, itemId: null, phScope: row === 'item' ? 'item' : 'global' };
+  }
   // Group-summary refs encode the row slot as `sum#<agg>#<groupId>` (Firestore ids carry no ':'/'#').
   if (row.startsWith('sum#')) {
     const [, agg, groupId] = row.split('#');
@@ -207,6 +217,9 @@ export function parseRefToken(inner: string): CellRef | null {
 
 /** Serialize a CellRef back into its `{ref:...}` token form. */
 export function serializeRef(ref: CellRef): string {
+  if (ref.kind === 'ph') {
+    return `{ref:ph::${ref.columnId}:${ref.phScope === 'item' ? 'item' : '@'}}`;
+  }
   const row = ref.agg ? `sum#${ref.agg}#${ref.groupId ?? ''}` : (ref.itemId ?? '@');
   return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}}`;
 }

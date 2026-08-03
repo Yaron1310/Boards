@@ -27,6 +27,9 @@ export interface RefMeta {
    *  source cell to name (it's a sum across every user's Personal Hub), so the tooltip
    *  describes what it is instead of a board/group/item path. */
   isTemplateTotal?: boolean;
+  /** For an isTemplateTotal ref: whether it's the whole-org sum or scoped to just the item
+   *  the formula is evaluated for. Mirrors CellRef.phScope. */
+  phScope?: 'global' | 'item';
 }
 
 /**
@@ -199,7 +202,7 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
     if (ref.kind === 'ph') {
       const columnName = templateColumnNameMap.get(ref.columnId);
       if (columnName === undefined) return undefined;
-      return { isPersonal: false, isTemplateTotal: true, columnName };
+      return { isPersonal: false, isTemplateTotal: true, columnName, phScope: ref.phScope === 'item' ? 'item' : 'global' };
     }
 
     if (ref.kind === 'p') {

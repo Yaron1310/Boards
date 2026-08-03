@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { BOARD_TOTAL_GROUP_ID, evaluateFormula, extractForeignRefs, formulaRefDomKey, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
@@ -378,7 +378,11 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       }
     }
   }
-  const { resolve: resolveForeign } = useForeignCellValues(foreignRefs, orgId);
+  const foreignRefsItemIds = useMemo(
+    () => (isBoardFormula ? effectiveItems.map((i) => i.id) : []),
+    [isBoardFormula, effectiveItems],
+  );
+  const { resolve: resolveForeign } = useForeignCellValues(foreignRefs, orgId, foreignRefsItemIds);
 
   // Keep local state in sync if the column data is refreshed from the server
   useEffect(() => {

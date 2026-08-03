@@ -66,6 +66,8 @@ export const queryKeys = {
   },
   personalHubTemplateTotals: {
     one: (templateColumnId: string) => ['personalHub', 'templateTotal', templateColumnId] as const,
+    oneForItem: (templateColumnId: string, itemId: string) =>
+      ['personalHub', 'templateTotal', templateColumnId, 'item', itemId] as const,
     templateColumns: ['personalHub', 'templateColumns'] as const,
   },
 };

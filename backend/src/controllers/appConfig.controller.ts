@@ -4,7 +4,7 @@ import admin from 'firebase-admin';
 import * as logger from 'firebase-functions/logger';
 import crypto from 'crypto';
 
-import { organizationSettingsCollection, personalHubTemplateTotalsCollection } from '../db/collections.js';
+import { organizationSettingsCollection, personalHubTemplateTotalsCollection, personalColumnsCollection, personalItemValuesCollection } from '../db/collections.js';
 import { db, snapshotToData, storage } from '../services/firestore.service.js';
 import { JwtUserPayload, DBOrganizationSettings, DBPersonalHubTemplateTotal, ColumnType, PersonalHubTemplateColumn } from '../types/index.js';
 import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../utils/sanitizer.js';
@@ -232,6 +232,45 @@ export const getPersonalHubTemplateTotal = async (req: Request, res: Response) =
     } catch (error) {
         logger.error('Error fetching personal hub template total:', error);
         res.status(500).json({ message: 'Failed to fetch personal hub template total.' });
+    }
+};
+
+// Scoped variant of the total above: sums the template column's values across every user,
+// but only the ones entered against one specific item — for a formula that filters the
+// running total down to "just this item" instead of the whole org. Computed on demand
+// (not a maintained counter, unlike the global total) since it's naturally bounded to
+// however many users have a value against this one item — no unbounded scan risk.
+export const getPersonalHubTemplateItemTotal = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    const { templateColumnId, itemId } = req.params;
+    try {
+        const columnsSnap = await personalColumnsCollection(user.orgId)
+            .where('templateColumnId', '==', templateColumnId)
+            .get();
+        if (columnsSnap.empty) return res.json({ total: 0 });
+
+        const columnIdByDocId = new Map<string, string>();
+        const refs = columnsSnap.docs.map((d) => {
+            const userId = (d.data() as { userId: string }).userId;
+            const valueDocId = `${userId}_${itemId}`;
+            columnIdByDocId.set(valueDocId, d.id);
+            return personalItemValuesCollection(user.orgId).doc(valueDocId);
+        });
+
+        const valueDocs = await personalItemValuesCollection(user.orgId).firestore.getAll(...refs);
+        let total = 0;
+        valueDocs.forEach((doc) => {
+            if (!doc.exists) return;
+            const columnId = columnIdByDocId.get(doc.id);
+            if (!columnId) return;
+            const raw = (doc.data()?.values as Record<string, unknown> | undefined)?.[columnId];
+            const n = Number(raw);
+            if (raw != null && raw !== '' && !isNaN(n)) total += n;
+        });
+        res.json({ total });
+    } catch (error) {
+        logger.error('Error fetching personal hub template item total:', error);
+        res.status(500).json({ message: 'Failed to fetch personal hub template item total.' });
     }
 };
 
