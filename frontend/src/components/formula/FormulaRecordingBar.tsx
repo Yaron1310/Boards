@@ -201,6 +201,12 @@ const FormulaRecordingBar: React.FC = () => {
         }
       }
       setOriginApplyScope(nextScope);
+    } catch (err) {
+      // Swallowed on purpose: a failed save here must never throw past this handler — an
+      // unhandled rejection from a button's onClick can, depending on the app's error
+      // monitoring, be treated as a crash and tear down state well beyond this toggle,
+      // which would look like "the formula bar closed" for an unrelated failed request.
+      console.error('Failed to toggle formula apply-scope:', err);
     } finally {
       setIsTogglingScope(false);
     }
