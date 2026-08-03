@@ -386,7 +386,7 @@ const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) 
           <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mb-1" style={{ transform: 'translateX(-50%)' }} />
           <div
             ref={tooltipRef}
-            className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap max-w-[min(90vw,20rem)]"
+            className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-normal w-max max-w-[min(90vw,16rem)]"
             style={{ transform: `translateX(calc(-50% + ${offsetX}px))` }}
           >
             Choose where to apply: all cells in the column or just this cell
