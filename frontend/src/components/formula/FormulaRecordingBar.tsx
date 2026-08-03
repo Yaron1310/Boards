@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FiCheck, FiX, FiEdit2, FiExternalLink } from 'react-icons/fi';
+import { FiCheck, FiX, FiExternalLink } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
@@ -328,46 +328,73 @@ const FormulaRecordingBar: React.FC = () => {
   );
 };
 
-/** Toggle-styled affordance next to Save — clicking it still immediately saves via the
- *  scope-choice flow (pick all cells in the column vs. just this one), same as before; only the
- *  look (a toggle-shaped icon button instead of a plain flat one) and the tooltip (an instant,
- *  styled tooltip instead of the native `title`, which has a delay and can't be styled) changed. */
+const TOOLTIP_MARGIN = 8;
+
+/** Switch-styled affordance next to Save, with a visible label — clicking it still immediately
+ *  saves via the scope-choice flow (pick all cells in the column vs. just this one), same as
+ *  before; only the presentation changed: a real pill-and-knob switch instead of a plain icon
+ *  button, a visible text label instead of icon-only, and an instant styled tooltip (clamped to
+ *  stay on screen) instead of the native `title`, which has a delay and can't be styled. */
 const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) => {
   const btnRef = useRef<HTMLButtonElement>(null);
-  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [offsetX, setOffsetX] = useState(0);
 
   const show = () => {
     const rect = btnRef.current?.getBoundingClientRect();
-    if (rect) setTooltipPos({ top: rect.bottom, left: rect.left + rect.width / 2 });
+    if (rect) setAnchor({ top: rect.bottom, left: rect.left + rect.width / 2 });
   };
-  const hide = () => setTooltipPos(null);
+  const hide = () => setAnchor(null);
+
+  // Keep the tooltip box on screen: measure it once positioned, and shift it back in from
+  // whichever edge (or both) it would otherwise overflow. The arrow stays pointing at the
+  // button — only the text box itself shifts.
+  useLayoutEffect(() => {
+    if (!anchor) { setOffsetX(0); return; }
+    const el = tooltipRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    let shift = 0;
+    if (rect.right > window.innerWidth - TOOLTIP_MARGIN) shift = window.innerWidth - TOOLTIP_MARGIN - rect.right;
+    if (rect.left + shift < TOOLTIP_MARGIN) shift = TOOLTIP_MARGIN - rect.left;
+    setOffsetX(shift);
+  }, [anchor]);
 
   return (
-    <>
+    // onClick lives on the row, not the button: a real click on the button still bubbles up
+    // and fires it exactly once, but this way clicking the label text activates it too, without
+    // double-firing (which attaching onClick to both the row and the button would cause).
+    <div className="ml-2 flex items-center gap-2 cursor-pointer select-none" onClick={onActivate}>
+      <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Apply to all cells</span>
       <button
         ref={btnRef}
         type="button"
-        onClick={onActivate}
+        role="switch"
+        aria-checked={false}
         onMouseEnter={show}
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
-        aria-pressed={false}
-        className="ml-1 flex items-center justify-center w-7 h-7 rounded-full border border-indigo-300 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 hover:border-indigo-400 transition-colors"
-        aria-label="Save and choose which cells this formula applies to (all cells or just this one)"
+        aria-label="Apply to all cells — save and choose which cells this formula applies to (all cells or just this one)"
+        className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full bg-indigo-500 hover:bg-indigo-600 transition-colors"
       >
-        <FiEdit2 size={13} aria-hidden="true" />
+        <span className="inline-block h-5 w-5 translate-x-[22px] transform rounded-full bg-white shadow transition-transform" aria-hidden="true" />
       </button>
-      {tooltipPos && ReactDOM.createPortal(
-        <div className="fixed z-[9999] -translate-x-1/2 pointer-events-none" style={{ top: tooltipPos.top + 6, left: tooltipPos.left }}>
-          <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mb-1" />
-          <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+      {anchor && ReactDOM.createPortal(
+        <div className="fixed z-[9999] pointer-events-none" style={{ top: anchor.top + 6, left: anchor.left }}>
+          <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mb-1" style={{ transform: 'translateX(-50%)' }} />
+          <div
+            ref={tooltipRef}
+            className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap max-w-[min(90vw,20rem)]"
+            style={{ transform: `translateX(calc(-50% + ${offsetX}px))` }}
+          >
             Choose where to apply: all cells in the column or just this cell
           </div>
         </div>,
         document.body,
       )}
-    </>
+    </div>
   );
 };
 
