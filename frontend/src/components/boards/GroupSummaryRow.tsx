@@ -435,7 +435,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
               allItems: visibleItems,
               columns: boardColumns,
               currentRowIndex: rowIndex >= 0 ? rowIndex : undefined,
-              homeBoardId: formulaHomeBoardId,
+              homeBoardId: col.boardId ?? '',
               resolveRef: (ref) => resolveForeign(ref, i.id),
             });
           })
