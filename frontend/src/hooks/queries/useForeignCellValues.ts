@@ -25,7 +25,7 @@ const MAX_HOPS = 4;
  *  item's total in a single batched request instead of one request per item — worthwhile once a
  *  column has enough rows that per-item requests would otherwise fan out heavily, not worth the
  *  extra code path below it (individual per-item requests cache more precisely and are simpler). */
-const ITEM_TOTAL_BATCH_THRESHOLD = 20;
+const ITEM_TOTAL_BATCH_THRESHOLD = 40;
 
 export interface ForeignValues {
   /** Resolve a ref to a number, null (known but empty/non-numeric), or undefined (loading/broken).
