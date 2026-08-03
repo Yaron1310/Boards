@@ -4,10 +4,12 @@ import admin from 'firebase-admin';
 import * as logger from 'firebase-functions/logger';
 import crypto from 'crypto';
 
-import { organizationSettingsCollection } from '../db/collections.js';
-import { snapshotToData, storage } from '../services/firestore.service.js';
-import { JwtUserPayload, DBOrganizationSettings } from '../types/index.js';
+import { organizationSettingsCollection, personalHubTemplateTotalsCollection, personalColumnsCollection, personalItemValuesCollection } from '../db/collections.js';
+import { db, snapshotToData, storage } from '../services/firestore.service.js';
+import { JwtUserPayload, DBOrganizationSettings, DBPersonalHubTemplateTotal, ColumnType, PersonalHubTemplateColumn } from '../types/index.js';
 import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../utils/sanitizer.js';
+
+const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
 
 /**
  * Upload an image file to Firebase Storage and return the public URL.
@@ -138,6 +140,192 @@ export const updateThemeSettings = async (req: Request, res: Response) => {
     } catch (error: any) {
         logger.error("Error updating workspace settings:", error);
         res.status(500).json({ message: 'Failed to update workspace settings.' });
+    }
+};
+
+// ---------------------------------------------------------------------------
+// Personal Hub default template — org-admin-configured "all groups" columns,
+// materialized into a user's own personalColumns the first time they have none.
+// ---------------------------------------------------------------------------
+export const getPersonalHubTemplate = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    try {
+        const doc = await organizationSettingsCollection.doc(user.orgId).get();
+        const settings = doc.exists ? snapshotToData<DBOrganizationSettings>(doc) : null;
+        const columns = settings?.personalHubTemplate?.columns ?? [];
+        res.json({ columns: [...columns].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) });
+    } catch (error) {
+        logger.error('Error fetching personal hub template:', error);
+        res.status(500).json({ message: 'Failed to fetch personal hub template.' });
+    }
+};
+
+export const updatePersonalHubTemplate = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    const { columns } = req.body;
+
+    if (!Array.isArray(columns)) {
+        return res.status(400).json({ message: 'columns must be an array.' });
+    }
+
+    const sanitized: PersonalHubTemplateColumn[] = [];
+    for (let i = 0; i < columns.length; i++) {
+        const c = columns[i];
+        if (!c || typeof c !== 'object') return res.status(400).json({ message: `Invalid column at index ${i}.` });
+        const { id, name, type, settings } = c as { id?: unknown; name?: unknown; type?: unknown; settings?: unknown };
+        if (!name || typeof name !== 'string') return res.status(400).json({ message: `Column at index ${i} is missing a name.` });
+        if (!type || !VALID_COLUMN_TYPES.has(type as string)) {
+            return res.status(400).json({ message: `Column "${name}" has an invalid type.` });
+        }
+        sanitized.push({
+            id: typeof id === 'string' && id ? id : organizationSettingsCollection.doc().id,
+            name: sanitizeText(name),
+            type: type as ColumnType,
+            settings: (settings && typeof settings === 'object' ? settings : {}) as PersonalHubTemplateColumn['settings'],
+            order: i,
+        });
+    }
+
+    try {
+        const docRef = organizationSettingsCollection.doc(user.orgId);
+        const existingDoc = await docRef.get();
+        const existingColumns = (existingDoc.exists ? snapshotToData<DBOrganizationSettings>(existingDoc) : null)?.personalHubTemplate?.columns ?? [];
+
+        // A template column that existed before this save but isn't in the new list was just
+        // removed by the admin — its org-wide running total (if any) freezes at its last value
+        // instead of continuing to move or erroring out once nothing feeds it anymore.
+        const newIds = new Set(sanitized.map((c) => c.id));
+        const removedIds = existingColumns.map((c) => c.id).filter((id) => !newIds.has(id));
+        if (removedIds.length > 0) {
+            const batch = db.batch();
+            for (const id of removedIds) {
+                batch.set(personalHubTemplateTotalsCollection(user.orgId).doc(id), { frozen: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+            }
+            await batch.commit();
+        }
+
+        await docRef.set({
+            personalHubTemplate: {
+                columns: sanitized,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+
+        res.json({ columns: sanitized });
+    } catch (error) {
+        logger.error('Error updating personal hub template:', error);
+        res.status(500).json({ message: 'Failed to update personal hub template.' });
+    }
+};
+
+// Any authenticated org member may read a template total — a board formula referencing it
+// needs to resolve for every viewer of that board, not just admins.
+export const getPersonalHubTemplateTotal = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    const { templateColumnId } = req.params;
+    try {
+        const doc = await personalHubTemplateTotalsCollection(user.orgId).doc(templateColumnId).get();
+        if (!doc.exists) return res.json({ total: 0, frozen: false });
+        const data = snapshotToData<DBPersonalHubTemplateTotal>(doc)!;
+        res.json({ total: data.total ?? 0, frozen: data.frozen === true });
+    } catch (error) {
+        logger.error('Error fetching personal hub template total:', error);
+        res.status(500).json({ message: 'Failed to fetch personal hub template total.' });
+    }
+};
+
+// Scoped variant of the total above: sums the template column's values across every user,
+// but only the ones entered against one specific item — for a formula that filters the
+// running total down to "just this item" instead of the whole org. Computed on demand
+// (not a maintained counter, unlike the global total) since it's naturally bounded to
+// however many users have a value against this one item — no unbounded scan risk.
+export const getPersonalHubTemplateItemTotal = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    const { templateColumnId, itemId } = req.params;
+    try {
+        const columnsSnap = await personalColumnsCollection(user.orgId)
+            .where('templateColumnId', '==', templateColumnId)
+            .get();
+        if (columnsSnap.empty) return res.json({ total: 0 });
+
+        const columnIdByDocId = new Map<string, string>();
+        const refs = columnsSnap.docs.map((d) => {
+            const userId = (d.data() as { userId: string }).userId;
+            const valueDocId = `${userId}_${itemId}`;
+            columnIdByDocId.set(valueDocId, d.id);
+            return personalItemValuesCollection(user.orgId).doc(valueDocId);
+        });
+
+        const valueDocs = await personalItemValuesCollection(user.orgId).firestore.getAll(...refs);
+        let total = 0;
+        valueDocs.forEach((doc) => {
+            if (!doc.exists) return;
+            const columnId = columnIdByDocId.get(doc.id);
+            if (!columnId) return;
+            const raw = (doc.data()?.values as Record<string, unknown> | undefined)?.[columnId];
+            const n = Number(raw);
+            if (raw != null && raw !== '' && !isNaN(n)) total += n;
+        });
+        res.json({ total });
+    } catch (error) {
+        logger.error('Error fetching personal hub template item total:', error);
+        res.status(500).json({ message: 'Failed to fetch personal hub template item total.' });
+    }
+};
+
+// Batched form of the per-item total above: one request for many items instead of one request
+// per item, for a formula column with enough rows that per-item requests would otherwise fan out.
+const ITEM_TOTALS_BATCH_MAX = 500;
+const VALUE_DOC_GET_CHUNK = 300; // Firestore getAll() is called in chunks to stay well under any request-size limit.
+
+export const getPersonalHubTemplateItemTotalsBatch = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    const { templateColumnId } = req.params;
+    const { itemIds } = req.body;
+
+    if (!Array.isArray(itemIds)) {
+        return res.status(400).json({ message: 'itemIds must be an array.' });
+    }
+    const ids = Array.from(new Set(itemIds.filter((id): id is string => typeof id === 'string' && !!id))).slice(0, ITEM_TOTALS_BATCH_MAX);
+    if (ids.length === 0) return res.json({ totals: {} });
+
+    try {
+        const totals: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
+
+        const columnsSnap = await personalColumnsCollection(user.orgId)
+            .where('templateColumnId', '==', templateColumnId)
+            .get();
+        if (columnsSnap.empty) return res.json({ totals });
+
+        const userColumnPairs = columnsSnap.docs.map((d) => ({ userId: (d.data() as { userId: string }).userId, columnId: d.id }));
+
+        const refs: FirebaseFirestore.DocumentReference[] = [];
+        const refMeta: Array<{ itemId: string; columnId: string }> = [];
+        for (const itemId of ids) {
+            for (const { userId, columnId } of userColumnPairs) {
+                refs.push(personalItemValuesCollection(user.orgId).doc(`${userId}_${itemId}`));
+                refMeta.push({ itemId, columnId });
+            }
+        }
+
+        for (let i = 0; i < refs.length; i += VALUE_DOC_GET_CHUNK) {
+            const chunkRefs = refs.slice(i, i + VALUE_DOC_GET_CHUNK);
+            const chunkMeta = refMeta.slice(i, i + VALUE_DOC_GET_CHUNK);
+            const docs = await personalItemValuesCollection(user.orgId).firestore.getAll(...chunkRefs);
+            docs.forEach((doc, idx) => {
+                if (!doc.exists) return;
+                const { itemId, columnId } = chunkMeta[idx];
+                const raw = (doc.data()?.values as Record<string, unknown> | undefined)?.[columnId];
+                const n = Number(raw);
+                if (raw != null && raw !== '' && !isNaN(n)) totals[itemId] += n;
+            });
+        }
+
+        res.json({ totals });
+    } catch (error) {
+        logger.error('Error fetching personal hub template item totals batch:', error);
+        res.status(500).json({ message: 'Failed to fetch personal hub template item totals.' });
     }
 };
 

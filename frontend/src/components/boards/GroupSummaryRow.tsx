@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { BOARD_TOTAL_GROUP_ID, evaluateFormula, extractForeignRefs, formulaRefDomKey, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
@@ -363,7 +363,6 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   // (cross-board) refs across the rows so their values are loaded; same-board refs resolve locally
   // from the board's own items. Personal formula columns use `evalFormula` instead (grid-addressed).
   const isBoardFormula = col.type === ColumnType.SIMPLE_FORMULA && !evalFormula;
-  const formulaHomeBoardId = col.boardId ?? '';
   const foreignRefs: CellRef[] = [];
   if (isBoardFormula) {
     const settings = col.settings as SimpleFormulaColumnSettings;
@@ -373,13 +372,17 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       const stored = getVal(i, col.id);
       const formula = typeof stored === 'string' ? stored : defaultFormula;
       if (!formula) continue;
-      for (const r of extractForeignRefs(formula, formulaHomeBoardId)) {
+      for (const r of extractForeignRefs(formula)) {
         const key = serializeRef(r);
         if (!seen.has(key)) { seen.add(key); foreignRefs.push(r); }
       }
     }
   }
-  const { resolve: resolveForeign } = useForeignCellValues(foreignRefs, orgId);
+  const foreignRefsItemIds = useMemo(
+    () => (isBoardFormula ? effectiveItems.map((i) => i.id) : []),
+    [isBoardFormula, effectiveItems],
+  );
+  const { resolve: resolveForeign } = useForeignCellValues(foreignRefs, orgId, foreignRefsItemIds);
 
   // Keep local state in sync if the column data is refreshed from the server
   useEffect(() => {
@@ -436,7 +439,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
               allItems: visibleItems,
               columns: boardColumns,
               currentRowIndex: rowIndex >= 0 ? rowIndex : undefined,
-              homeBoardId: formulaHomeBoardId,
+              homeBoardId: col.boardId ?? '',
               resolveRef: (ref) => resolveForeign(ref, i.id),
             });
           })

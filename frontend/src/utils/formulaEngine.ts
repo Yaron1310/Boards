@@ -30,21 +30,29 @@ export type SummaryCalc = 'sum' | 'avg' | 'median' | 'min' | 'max' | 'count';
 
 /** A structured, stable-ID cell reference. */
 export interface CellRef {
-  /** Value source: board item.values ('b') or personal-hub value store ('p'). */
-  kind: 'b' | 'p';
+  /** Value source: board item.values ('b'), personal-hub value store ('p'), or the org-wide
+   *  running total of a Personal Hub template column across every user ('ph'). */
+  kind: 'b' | 'p' | 'ph';
   boardId: string;
+  /** For 'ph' refs, this holds the template column's stable id instead of a real columnId. */
   columnId: string;
-  /** null → relative to the current row (only valid for same-board refs); otherwise a specific item id. */
+  /** null → relative to the current row (only valid for same-board refs); otherwise a specific item id.
+   *  Always null for 'ph' refs — the total isn't tied to any row. */
   itemId: string | null;
   /** When set, this is a group-summary reference: aggregate `columnId` across `groupId` with `agg`. */
   agg?: SummaryCalc;
   groupId?: string;
+  /** 'ph' refs only: 'global' (default) sums the column across every user's Personal Hub,
+   *  regardless of item. 'item' scopes the sum to only the values entered against the same
+   *  item as the row the formula is evaluated for (relative — like `itemId: null` for 'b'/'p'). */
+  phScope?: 'global' | 'item';
 }
 
 /** Stable key identifying the DOM cell a ref points at (a specific item's cell, or a group
  *  summary cell). Used to tag insertable/summary cells with `data-formula-cell-key` so hovering
  *  a ref token in the recording bar can highlight the exact source cell if it's on screen. */
 export function formulaRefDomKey(ref: CellRef, currentItemId: string | null = null): string | null {
+  if (ref.kind === 'ph') return `ph:${ref.columnId}`;
   if (ref.agg) return `${ref.kind}:${ref.boardId}:agg:${ref.groupId ?? ''}:${ref.columnId}:${ref.agg}`;
   const itemId = ref.itemId ?? currentItemId;
   if (!itemId) return null;
@@ -188,10 +196,17 @@ export function parseRefToken(inner: string): CellRef | null {
   const parts = trimmed.split(':');
   if (parts.length !== 5) return null;
   const [, kind, boardId, columnId, row] = parts;
-  if (kind !== 'b' && kind !== 'p') return null;
-  // boardId may be empty for Personal Hub "all-groups" columns (no single owning board);
-  // 'p' refs resolve by itemId+columnId regardless of board, so an empty boardId is valid.
+  if (kind !== 'b' && kind !== 'p' && kind !== 'ph') return null;
+  // boardId may be empty for Personal Hub "all-groups" columns (no single owning board) and is
+  // always empty for 'ph' refs (an org-wide total isn't tied to any board);
+  // 'p'/'ph' refs resolve by itemId+columnId (or just columnId, for 'ph') regardless of board.
   if (!columnId || !row) return null;
+  // 'ph' refs repurpose the row slot for phScope instead of an item id — they never have a real
+  // item (that's the whole point of "global"), and "item"-scoped ones resolve relative to
+  // whatever row the formula is being evaluated for, same idea as itemId: null for 'b'/'p'.
+  if (kind === 'ph') {
+    return { kind, boardId: '', columnId, itemId: null, phScope: row === 'item' ? 'item' : 'global' };
+  }
   // Group-summary refs encode the row slot as `sum#<agg>#<groupId>` (Firestore ids carry no ':'/'#').
   if (row.startsWith('sum#')) {
     const [, agg, groupId] = row.split('#');
@@ -202,6 +217,9 @@ export function parseRefToken(inner: string): CellRef | null {
 
 /** Serialize a CellRef back into its `{ref:...}` token form. */
 export function serializeRef(ref: CellRef): string {
+  if (ref.kind === 'ph') {
+    return `{ref:ph::${ref.columnId}:${ref.phScope === 'item' ? 'item' : '@'}}`;
+  }
   const row = ref.agg ? `sum#${ref.agg}#${ref.groupId ?? ''}` : (ref.itemId ?? '@');
   return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}}`;
 }
@@ -501,11 +519,13 @@ export function extractRefs(formula: string): CellRef[] {
   return refs;
 }
 
-/** References the local board context cannot resolve on its own: always cross-board refs, plus
- *  same-board group-summary refs when `groupsComplete` is false (the local item set is a filtered
- *  subset — e.g. Personal Hub — so the summary must be aggregated from the full source board instead). */
-export function extractForeignRefs(formula: string, homeBoardId: string, groupsComplete = true): CellRef[] {
-  return extractRefs(formula).filter((r) => r.boardId !== homeBoardId || (r.agg != null && !groupsComplete));
+/** References that may need a fetch beyond the local `allItems`/`visibleItems` array: cross-board
+ *  refs always do, and same-board refs are included too, because a same-board ref can point at a
+ *  subitem — `allItems` is built from a board's top-level items only, so subitem rows aren't in it.
+ *  `resolveStructuredRef` always tries local resolution first, so requesting this fetch for a
+ *  same-board ref that *does* resolve locally is just unused fallback data, never a correctness issue. */
+export function extractForeignRefs(formula: string): CellRef[] {
+  return extractRefs(formula);
 }
 
 /** Convert a legacy positional formula ({C3}/{C}) into stable-ID refs. Runs on the origin

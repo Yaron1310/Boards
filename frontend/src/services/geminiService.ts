@@ -1,4 +1,4 @@
-import type { User, Workspace, PreApprovedUser, OrganizationSettings, UserRole, SystemSettings, TutorialSettings, PaginatedResponse } from '../types';
+import type { User, Workspace, PreApprovedUser, OrganizationSettings, UserRole, SystemSettings, TutorialSettings, PaginatedResponse, PersonalHubTemplateColumn } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import { fetchWithAuth, AUTH_TOKEN_STORAGE_KEY } from './authFetch';
 
@@ -215,6 +215,18 @@ export const updateThemeSettingsOnBackend = async (settings: Partial<Organizatio
     return fetchWithAuth('/api/app-config/theme', { method: 'PUT', body: JSON.stringify(settings) });
 };
 export const regenerateApiKey = async (): Promise<OrganizationSettings> => fetchWithAuth('/api/app-config/api-key/regenerate', { method: 'POST' });
+
+// --- Personal Hub default template (org admin) ---
+export const getPersonalHubTemplate = async (): Promise<{ columns: PersonalHubTemplateColumn[] }> =>
+    fetchWithAuth('/api/app-config/personal-hub-template');
+export const updatePersonalHubTemplate = async (columns: PersonalHubTemplateColumn[]): Promise<{ columns: PersonalHubTemplateColumn[] }> =>
+    fetchWithAuth('/api/app-config/personal-hub-template', { method: 'PUT', body: JSON.stringify({ columns }) });
+export const getPersonalHubTemplateTotal = async (templateColumnId: string): Promise<{ total: number; frozen: boolean }> =>
+    fetchWithAuth(`/api/app-config/personal-hub-template-totals/${templateColumnId}`);
+export const getPersonalHubTemplateItemTotal = async (templateColumnId: string, itemId: string): Promise<{ total: number }> =>
+    fetchWithAuth(`/api/app-config/personal-hub-template-totals/${templateColumnId}/items/${itemId}`);
+export const getPersonalHubTemplateItemTotalsBatch = async (templateColumnId: string, itemIds: string[]): Promise<{ totals: Record<string, number> }> =>
+    fetchWithAuth(`/api/app-config/personal-hub-template-totals/${templateColumnId}/items-batch`, { method: 'POST', body: JSON.stringify({ itemIds }) });
 
 // --- System-wide Settings (System Admin only) ---
 export const getTokenLimits = async (): Promise<SystemSettings> => fetchWithAuth('/api/system-settings/settings');

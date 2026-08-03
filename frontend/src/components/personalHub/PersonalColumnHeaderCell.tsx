@@ -96,8 +96,8 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column, userId }) => {
     <div
       role="columnheader"
       style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-      className="relative flex flex-shrink-0 items-center px-2 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 bg-indigo-50/50 group"
-      title={`${column.name} (your personal column)`}
+      className={`relative flex flex-shrink-0 items-center px-2 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 group ${column.fromTemplate ? 'bg-[#fff0de80]' : 'bg-indigo-50/50'}`}
+      title={`${column.name} (your personal column${column.fromTemplate ? ', from the org template' : ''})`}
     >
       <span className="flex flex-1 items-center justify-center gap-1.5 min-w-0 truncate px-1">
         <span className="text-indigo-400 flex-shrink-0" title={column.type}>
@@ -205,26 +205,30 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column, userId }) => {
                   <FiPlus size={12} aria-hidden="true" />
                   Add right
                 </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleSwapType}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
-                  aria-label="Change column type"
-                >
-                  <FiRefreshCw size={12} aria-hidden="true" />
-                  Change type
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => setConfirmDelete(true)}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
-                  aria-label="Delete column"
-                >
-                  <FiTrash2 size={12} aria-hidden="true" />
-                  Delete
-                </button>
+                {!column.fromTemplate && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleSwapType}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+                    aria-label="Change column type"
+                  >
+                    <FiRefreshCw size={12} aria-hidden="true" />
+                    Change type
+                  </button>
+                )}
+                {!column.fromTemplate && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => setConfirmDelete(true)}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 transition-colors"
+                    aria-label="Delete column"
+                  >
+                    <FiTrash2 size={12} aria-hidden="true" />
+                    Delete
+                  </button>
+                )}
               </>
             )}
           </div>

@@ -54,10 +54,14 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
 
   // Load cross-board values referenced by the saved formula so the result stays live.
   const foreignRefs = useMemo(
-    () => extractForeignRefs(cellFormula, homeBoardId, groupsComplete),
-    [cellFormula, homeBoardId, groupsComplete],
+    () => extractForeignRefs(cellFormula),
+    [cellFormula],
   );
-  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId);
+  // Every row's own cell passes the *whole* board's item ids (not just its own) so that when the
+  // same default formula is applied to many rows, their per-item Personal Hub template total
+  // requests share one query/batch instead of each cell fetching its own item in isolation.
+  const boardItemIds = useMemo(() => visibleItems.map((it) => it.id), [visibleItems]);
+  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId, boardItemIds);
 
   const formulaContext = useMemo(
     () => ({
@@ -98,16 +102,38 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
     }
   };
 
+  /** Applies a formula decision the same way the modal's two buttons do. */
+  const applyScopeDecision = async (formula: string, scope: 'all' | 'perCell') => {
+    if (scope === 'all') {
+      const relativeFormula = makeRelativeIdFormula(formula, homeBoardId);
+      try {
+        await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
+        persistValue(null);
+      } catch {
+        persistValue(formula);
+      }
+    } else {
+      persistValue(formula);
+      if (settings?.applyScope !== 'perCell') {
+        try {
+          await updateColumn({ id: column.id, patch: { settings: { ...settings, applyScope: 'perCell' } } });
+        } catch {
+          // Non-fatal: the value still saved; the scope just won't be remembered this time.
+        }
+      }
+    }
+  };
+
   /** Turn the recorded draft into a stored value, matching the single-board commit semantics.
    *  When the column has no default yet, defer to the apply-to-all / just-this choice. */
-  const commitDraft = (draft: string, forceScopeChoice = false) => {
+  const commitDraft = (draft: string) => {
     const trimmed = draft.trim();
-    // Ask "all cells / just this cell" only the first time this column ever gets a formula
-    // (no scope decision recorded yet), or when the user explicitly reopens the choice via the
-    // recording bar's edit icon or the column's Formula Settings toggle. Once a scope is chosen
-    // it's remembered on the column so the question never resurfaces on its own.
+    // Ask "all cells / just this cell" only the first time this column ever gets a formula (no
+    // scope decision recorded yet). Once a scope is chosen it's remembered on the column, so the
+    // question never resurfaces on its own — the apply-scope toggle flips it directly instead
+    // (and persists immediately, independent of Save — see FormulaRecordingBar).
     const isFirstFormula = !settings?.applyScope;
-    if (trimmed && (isFirstFormula || forceScopeChoice)) {
+    if (trimmed && isFirstFormula) {
       setPendingFormula(trimmed);
       return;
     }
@@ -122,10 +148,9 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   const finish = () => {
     if (finishGuard.current) return;
     const draft = sessionRef.current?.draft ?? '';
-    const forceScopeChoice = sessionRef.current?.chooseScopeOnSave ?? false;
     finishGuard.current = true;
     endSession();
-    commitDraft(draft, forceScopeChoice);
+    commitDraft(draft);
   };
 
   const startRecording = (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -147,6 +172,8 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
         columnName: column.name,
         itemName: item.name,
         isPersonal: false,
+        applyScope: settings?.applyScope,
+        columnSettings: settings,
       },
       idFormula,
     );
@@ -170,28 +197,16 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
 
   const handleApplyToAll = async () => {
     if (pendingFormula === null) return;
-    const relativeFormula = makeRelativeIdFormula(pendingFormula, homeBoardId);
+    const formula = pendingFormula;
     setPendingFormula(null);
-    try {
-      await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
-      persistValue(null);
-    } catch {
-      persistValue(pendingFormula);
-    }
+    await applyScopeDecision(formula, 'all');
   };
 
   const handleApplyJustThis = async () => {
     if (pendingFormula === null) return;
     const formula = pendingFormula;
     setPendingFormula(null);
-    persistValue(formula);
-    if (settings?.applyScope !== 'perCell') {
-      try {
-        await updateColumn({ id: column.id, patch: { settings: { ...settings, applyScope: 'perCell' } } });
-      } catch {
-        // Non-fatal: the value still saved; the scope just won't be remembered this time.
-      }
-    }
+    await applyScopeDecision(formula, 'perCell');
   };
 
   // While another cell is recording, this formula cell (any cell except the recording origin)

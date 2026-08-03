@@ -64,4 +64,12 @@ export const queryKeys = {
     itemValues: (itemIds: string[], userId?: string) =>
       ['personalHub', 'itemValues', userId ?? 'self', [...itemIds].sort()] as const,
   },
+  personalHubTemplateTotals: {
+    one: (templateColumnId: string) => ['personalHub', 'templateTotal', templateColumnId] as const,
+    oneForItem: (templateColumnId: string, itemId: string) =>
+      ['personalHub', 'templateTotal', templateColumnId, 'item', itemId] as const,
+    batchForItems: (templateColumnId: string, itemIds: string[]) =>
+      ['personalHub', 'templateTotal', templateColumnId, 'batch', [...itemIds].sort()] as const,
+    templateColumns: ['personalHub', 'templateColumns'] as const,
+  },
 };

@@ -13,3 +13,9 @@ const adminRoles = [UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN];
 appConfigRouter.get('/theme', appConfigController.getThemeSettings);
 appConfigRouter.put('/theme', requireRole(adminRoles), appConfigController.updateThemeSettings);
 appConfigRouter.post('/api-key/regenerate', requireRole(adminRoles), appConfigController.regenerateApiKey);
+
+appConfigRouter.get('/personal-hub-template', appConfigController.getPersonalHubTemplate);
+appConfigRouter.put('/personal-hub-template', requireRole(adminRoles), appConfigController.updatePersonalHubTemplate);
+appConfigRouter.get('/personal-hub-template-totals/:templateColumnId', appConfigController.getPersonalHubTemplateTotal);
+appConfigRouter.get('/personal-hub-template-totals/:templateColumnId/items/:itemId', appConfigController.getPersonalHubTemplateItemTotal);
+appConfigRouter.post('/personal-hub-template-totals/:templateColumnId/items-batch', appConfigController.getPersonalHubTemplateItemTotalsBatch);

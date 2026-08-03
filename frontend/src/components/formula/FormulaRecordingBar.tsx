@@ -1,12 +1,15 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { FiCheck, FiX, FiEdit2, FiExternalLink } from 'react-icons/fi';
+import { FiCheck, FiX, FiExternalLink } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
 import { useFormulaRefMeta, type RefMeta } from '../../hooks/queries/useFormulaRefMeta';
-import { evaluateFormula, extractRefs, formulaRefDomKey, parseRefToken, type CellRef } from '../../utils/formulaEngine';
+import { useUpdateItem } from '../../hooks/queries/useItemQueries';
+import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
+import { useUpdatePersonalItemValue, useUpdatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
+import { evaluateFormula, extractRefs, formulaRefDomKey, makeRelativeIdFormula, parseRefToken, type CellRef } from '../../utils/formulaEngine';
 import { formatGroupedNumber } from '../../utils/numberFormat';
 
 const formatNumber = (n: number) => formatGroupedNumber(n, 2);
@@ -23,6 +26,10 @@ const AGG_LABEL: Record<string, string> = {
 
 function metaToTooltip(meta: RefMeta | undefined): string {
   if (!meta) return 'Loading…';
+  if (meta.isTemplateTotal) {
+    const scope = meta.phScope === 'item' ? 'sum across every user, filtered to this item' : 'sum across every user';
+    return `Personal Hub Template › "${meta.columnName ?? '—'}" column (${scope})`;
+  }
   const board = meta.boardName ?? '—';
   const group = meta.groupName ?? '—';
   const root = meta.isPersonal ? (meta.userName ? `${meta.userName}’s Personal Hub` : 'Personal Hub') : null;
@@ -149,16 +156,67 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
  * Save navigates back to the origin board so the origin cell commits.
  */
 const FormulaRecordingBar: React.FC = () => {
-  const { session, requestSave, requestSaveWithScopeChoice, cancel, setCursor } = useFormulaRecording();
+  const { session, requestSave, setOriginApplyScope, cancel, setCursor } = useFormulaRecording();
   const { user, selectedWorkspace } = useAuth();
   const navigate = useNavigate();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
 
+  const origin = session?.origin;
+  const { mutateAsync: updateItemValue } = useUpdateItem();
+  const { mutateAsync: updateBoardColumn } = useUpdateColumn(origin?.boardId ?? '');
+  const { mutateAsync: updatePersonalItemValueMutation } = useUpdatePersonalItemValue(origin?.personalOwnerId);
+  const { mutateAsync: updatePersonalColumnMutation } = useUpdatePersonalColumn(origin?.personalOwnerId);
+  const [isTogglingScope, setIsTogglingScope] = useState(false);
+
+  // Persists the flipped scope right away — column settings (+ this cell's own value) — without
+  // touching the recording session's phase: the bar stays open and the user keeps building the
+  // formula. Works even if the origin cell itself isn't mounted (recording can continue on a
+  // different board), since it goes straight through the mutation hooks instead of routing through
+  // the origin cell's own commit logic.
+  const handleToggleApplyScope = async () => {
+    if (!origin || isTogglingScope) return;
+    const trimmed = (session?.draft ?? '').trim();
+    if (!trimmed) return;
+    const nextScope: 'all' | 'perCell' = origin.applyScope === 'all' ? 'perCell' : 'all';
+    const settings = origin.columnSettings ?? { defaultFormula: '' };
+
+    setIsTogglingScope(true);
+    try {
+      if (nextScope === 'all') {
+        const relativeFormula = makeRelativeIdFormula(trimmed, origin.boardId);
+        if (origin.isPersonal) {
+          await updatePersonalColumnMutation({ id: origin.columnId, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
+          await updatePersonalItemValueMutation({ itemId: origin.itemId, columnId: origin.columnId, value: null });
+        } else {
+          await updateBoardColumn({ id: origin.columnId, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
+          await updateItemValue({ id: origin.itemId, patch: { values: { [origin.columnId]: null } } });
+        }
+      } else {
+        if (origin.isPersonal) {
+          await updatePersonalItemValueMutation({ itemId: origin.itemId, columnId: origin.columnId, value: trimmed });
+          await updatePersonalColumnMutation({ id: origin.columnId, patch: { settings: { ...settings, applyScope: 'perCell' } } });
+        } else {
+          await updateItemValue({ id: origin.itemId, patch: { values: { [origin.columnId]: trimmed } } });
+          await updateBoardColumn({ id: origin.columnId, patch: { settings: { ...settings, applyScope: 'perCell' } } });
+        }
+      }
+      setOriginApplyScope(nextScope);
+    } catch (err) {
+      // Swallowed on purpose: a failed save here must never throw past this handler — an
+      // unhandled rejection from a button's onClick can, depending on the app's error
+      // monitoring, be treated as a crash and tear down state well beyond this toggle,
+      // which would look like "the formula bar closed" for an unrelated failed request.
+      console.error('Failed to toggle formula apply-scope:', err);
+    } finally {
+      setIsTogglingScope(false);
+    }
+  };
+
   const draft = session?.draft ?? '';
   const cursor = session?.cursor ?? draft.length;
   const refs = useMemo(() => extractRefs(draft), [draft]);
-  const { resolve, isLoading } = useForeignCellValues(refs, orgId);
   const currentItemId = session?.origin.itemId ?? null;
+  const { resolve, isLoading } = useForeignCellValues(refs, orgId, currentItemId ? [currentItemId] : []);
   const { resolveMeta } = useFormulaRefMeta(refs, currentItemId);
 
   // Split into literal text and {ref:...} tokens, each tagged with its start/end offset into the
@@ -259,8 +317,7 @@ const FormulaRecordingBar: React.FC = () => {
   });
   if (cursor >= draft.length) fieldNodes.push(caret('end'));
 
-  if (!session || session.phase !== 'recording') return null;
-  const { origin } = session;
+  if (!session || session.phase !== 'recording' || !origin) return null;
 
   return (
     <div
@@ -318,16 +375,100 @@ const FormulaRecordingBar: React.FC = () => {
         >
           <FiX size={13} aria-hidden="true" /> Cancel
         </button>
-        <button
-          type="button"
-          onClick={requestSaveWithScopeChoice}
-          className="ml-1 p-1.5 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 rounded transition-colors"
-          aria-label="Save and choose which cells this formula applies to (all cells or just this one)"
-          title="Choose where to apply: all cells in the column or just this cell"
-        >
-          <FiEdit2 size={14} aria-hidden="true" />
-        </button>
+        <ApplyScopeToggle
+          currentScope={origin?.applyScope}
+          onActivate={() => void handleToggleApplyScope()}
+          disabled={isTogglingScope}
+        />
       </div>
+    </div>
+  );
+};
+
+const TOOLTIP_MARGIN = 8;
+
+/** Switch-styled affordance next to Save, with a visible label. Its behavior depends on whether
+ *  this column has ever had a formula saved before:
+ *  - Not yet decided (currentScope undefined): clicking does nothing here — the all-cells /
+ *    just-this-cell modal always appears for a column's very first formula regardless, so there's
+ *    nothing to flip yet. The switch shows in its neutral (off) position.
+ *  - Already decided: clicking flips between "all cells" and "just this cell" and persists that
+ *    choice immediately, without ending the recording session — the formula top row stays open
+ *    and the user can keep building the formula. The switch reflects and toggles the real scope. */
+const ApplyScopeToggle: React.FC<{ currentScope: 'all' | 'perCell' | undefined; onActivate: () => void; disabled?: boolean }> = ({ currentScope, onActivate, disabled }) => {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
+  const [offsetX, setOffsetX] = useState(0);
+  const isOn = currentScope === 'all';
+  const isDecided = currentScope !== undefined;
+
+  const show = () => {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) setAnchor({ top: rect.bottom, left: rect.left + rect.width / 2 });
+  };
+  const hide = () => setAnchor(null);
+
+  // Keep the tooltip box on screen: measure it once positioned, and shift it back in from
+  // whichever edge (or both) it would otherwise overflow. The arrow stays pointing at the
+  // button — only the text box itself shifts.
+  useLayoutEffect(() => {
+    if (!anchor) { setOffsetX(0); return; }
+    const el = tooltipRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    let shift = 0;
+    if (rect.right > window.innerWidth - TOOLTIP_MARGIN) shift = window.innerWidth - TOOLTIP_MARGIN - rect.right;
+    if (rect.left + shift < TOOLTIP_MARGIN) shift = TOOLTIP_MARGIN - rect.left;
+    setOffsetX(shift);
+  }, [anchor]);
+
+  const tooltipText = !isDecided
+    ? 'This column’s first formula always asks where to apply it — all cells or just this one.'
+    : isOn
+      ? 'Applying to the whole column. Click to switch to just this cell — saves right away, formula stays open.'
+      : 'Applying to just this cell. Click to switch to the whole column — saves right away, formula stays open.';
+
+  return (
+    // onClick lives on the row, not the button: a real click on the button still bubbles up
+    // and fires it exactly once, but this way clicking the label text activates it too, without
+    // double-firing (which attaching onClick to both the row and the button would cause).
+    <div
+      className={`ml-2 flex items-center gap-2 select-none ${!isDecided || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      onClick={isDecided && !disabled ? onActivate : undefined}
+    >
+      <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Apply to column</span>
+      <button
+        ref={btnRef}
+        type="button"
+        role="switch"
+        aria-checked={isOn}
+        disabled={!isDecided || disabled}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        aria-label="Apply to column — flip between all cells and just this cell, saved immediately"
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed ${isOn ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-gray-300 hover:bg-gray-400'}`}
+      >
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isOn ? 'translate-x-[22px]' : 'translate-x-[2px]'}`}
+          aria-hidden="true"
+        />
+      </button>
+      {anchor && ReactDOM.createPortal(
+        <div className="fixed z-[9999] pointer-events-none" style={{ top: anchor.top + 6, left: anchor.left }}>
+          <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mb-1" style={{ transform: 'translateX(-50%)' }} />
+          <div
+            ref={tooltipRef}
+            className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-normal w-max max-w-[min(90vw,16rem)]"
+            style={{ transform: `translateX(calc(-50% + ${offsetX}px))` }}
+          >
+            {tooltipText}
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 };

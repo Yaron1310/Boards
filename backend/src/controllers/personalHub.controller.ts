@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
-import { personalColumnsCollection, personalItemValuesCollection } from '../db/collections.js';
-import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, ColumnType, UserRole } from '../types/index.js';
+import { personalColumnsCollection, personalItemValuesCollection, organizationSettingsCollection, personalHubTemplateTotalsCollection } from '../db/collections.js';
+import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, DBOrganizationSettings, ColumnType, UserRole } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 
 const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
@@ -48,6 +48,55 @@ function resolveWriteTargetUserId(req: Request): { userId: string } | { status: 
   return { userId: requested };
 }
 
+/**
+ * Copies any org template column the user doesn't already have (matched by
+ * templateColumnId, not by name/scope) into their own personalColumns — tagged
+ * fromTemplate so they can't be deleted, only edited. Runs on every load, but is a
+ * no-op past the first time for a given template column: it only ever adds columns
+ * missing by id, so a user who already has one all-scope column (e.g. one they made
+ * themselves before the template existed) still gets the template ones too, and later
+ * template edits by the admin don't retroactively touch columns already seeded.
+ */
+async function seedFromTemplateIfNeeded(orgId: string, userId: string, existing: DBPersonalColumn[]): Promise<DBPersonalColumn[]> {
+  const settingsDoc = await organizationSettingsCollection.doc(orgId).get();
+  const settings = settingsDoc.exists ? snapshotToData<DBOrganizationSettings>(settingsDoc) : null;
+  const templateColumns = settings?.personalHubTemplate?.columns ?? [];
+  if (templateColumns.length === 0) return existing;
+
+  const alreadyHave = new Set(existing.map((c) => c.templateColumnId).filter((id): id is string => !!id));
+  const missing = templateColumns.filter((tc) => !alreadyHave.has(tc.id));
+  if (missing.length === 0) return existing;
+
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+  const seeded: DBPersonalColumn[] = [];
+  missing
+    .slice()
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .forEach((tc, i) => {
+      const docRef = personalColumnsCollection(orgId).doc();
+      const column = {
+        id: docRef.id,
+        orgId,
+        userId,
+        name: tc.name,
+        type: tc.type,
+        settings: tc.settings ?? {},
+        scope: 'all' as const,
+        fromTemplate: true,
+        templateColumnId: tc.id,
+        order: existing.length + i,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      batch.set(docRef, column);
+      seeded.push(column as unknown as DBPersonalColumn);
+    });
+  await batch.commit();
+
+  return [...existing, ...seeded];
+}
+
 // ---------------------------------------------------------------------------
 // GET /personal-hub/columns
 // ---------------------------------------------------------------------------
@@ -61,8 +110,11 @@ export const listPersonalColumns = async (req: Request, res: Response) => {
     const snapshot = await personalColumnsCollection(user.orgId)
       .where('userId', '==', target.userId)
       .get();
-    const columns = querySnapshotToArray<DBPersonalColumn>(snapshot)
+    let columns = querySnapshotToArray<DBPersonalColumn>(snapshot)
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    columns = await seedFromTemplateIfNeeded(user.orgId, target.userId, columns);
+
     res.json(columns);
   } catch (err: unknown) {
     logger.error('Error fetching personal columns:', err);
@@ -265,6 +317,9 @@ export const deletePersonalColumn = async (req: Request, res: Response) => {
     if (!column || (column.userId !== user.id && !ADMIN_ROLES.has(user.role))) {
       return res.status(403).json({ message: 'Forbidden: this is not your personal column.' });
     }
+    if (column.fromTemplate) {
+      return res.status(403).json({ message: 'This column comes from the Personal Hub template and cannot be deleted.' });
+    }
 
     await personalColumnsCollection(user.orgId).doc(id).delete();
     res.status(204).send();
@@ -327,13 +382,62 @@ export const updatePersonalItemValue = async (req: Request, res: Response) => {
 
   try {
     const column = await personalColumnsCollection(user.orgId).doc(columnId).get();
-    if (!column.exists || (column.data()?.userId !== target.userId && !ADMIN_ROLES.has(user.role))) {
+    const columnData = column.data();
+    if (!column.exists || (columnData?.userId !== target.userId && !ADMIN_ROLES.has(user.role))) {
       return res.status(403).json({ message: 'Forbidden: this is not your personal column.' });
     }
 
     const docId = personalValueDocId(target.userId, itemId);
-    const ref = personalItemValuesCollection(user.orgId).doc(docId);
-    await ref.set(
+    const valueRef = personalItemValuesCollection(user.orgId).doc(docId);
+
+    // Columns materialized from the Personal Hub template feed an org-wide running total
+    // (see DBPersonalHubTemplateTotal) — every edit needs to know how much the value changed
+    // by (not just its new value) so the total can move by that delta, so this path reads the
+    // old value and writes both docs together in one transaction.
+    const templateColumnId = columnData?.templateColumnId as string | undefined;
+    if (templateColumnId && columnData?.type === ColumnType.NUMBER) {
+      const totalRef = personalHubTemplateTotalsCollection(user.orgId).doc(templateColumnId);
+      await db.runTransaction(async (tx) => {
+        const [valueSnap, totalSnap] = await Promise.all([tx.get(valueRef), tx.get(totalRef)]);
+        const toNum = (raw: unknown) => (raw != null && raw !== '' && !isNaN(Number(raw)) ? Number(raw) : 0);
+        const oldNum = toNum(valueSnap.exists ? (valueSnap.data()?.values as Record<string, unknown> | undefined)?.[columnId] : undefined);
+        const newNum = toNum(value);
+        const delta = newNum - oldNum;
+
+        tx.set(
+          valueRef,
+          {
+            id: docId,
+            orgId: user.orgId,
+            userId: target.userId,
+            itemId,
+            values: { [columnId]: value ?? null },
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+
+        const totalFrozen = totalSnap.exists && totalSnap.data()?.frozen === true;
+        if (delta !== 0 && !totalFrozen) {
+          if (totalSnap.exists) {
+            tx.set(totalRef, { total: admin.firestore.FieldValue.increment(delta), updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+          } else {
+            tx.set(totalRef, {
+              id: templateColumnId,
+              templateColumnId,
+              total: delta,
+              frozen: false,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      });
+
+      const updated = snapshotToData<DBPersonalItemValue>(await valueRef.get());
+      return res.json(updated);
+    }
+
+    await valueRef.set(
       {
         id: docId,
         orgId: user.orgId,
@@ -345,7 +449,7 @@ export const updatePersonalItemValue = async (req: Request, res: Response) => {
       { merge: true },
     );
 
-    const updated = snapshotToData<DBPersonalItemValue>(await ref.get());
+    const updated = snapshotToData<DBPersonalItemValue>(await valueRef.get());
     res.json(updated);
   } catch (err: unknown) {
     logger.error(`Error updating personal item value for item ${req.params.itemId}:`, err);

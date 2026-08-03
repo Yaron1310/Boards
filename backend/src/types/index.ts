@@ -45,6 +45,36 @@ export interface DBOrganizationSettings {
   displayNameColor?: string;
   sidebarLinkColor?: string;
   logoCircle?: boolean;
+  personalHubTemplate?: PersonalHubTemplate;
+}
+
+// --- Personal Hub default template — org-admin-configured "all groups" columns that get
+// copied into a user's own personalColumns the first time they have none. Never rendered
+// with groups/items/data itself — it's a column-schema list only. ---
+export interface PersonalHubTemplateColumn {
+  id: string;
+  name: string;
+  type: ColumnType;
+  settings: ColumnSettings;
+  order: number;
+}
+
+export interface PersonalHubTemplate {
+  columns: PersonalHubTemplateColumn[];
+  updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
+// Org-wide running total for one Personal Hub template NUMBER column, summed live across every
+// user's materialized copy of it. Updated by delta whenever a user edits their value (see
+// updatePersonalItemValue) — never recomputed from scratch, so it stays cheap at any org size.
+// `frozen: true` once the admin removes the column from the template: the total stops moving and
+// holds at its last value instead of erroring out or silently resuming.
+export interface DBPersonalHubTemplateTotal {
+  id: string; // == templateColumnId
+  templateColumnId: string;
+  total: number;
+  frozen: boolean;
+  updatedAt: admin.firestore.Timestamp | Date | any;
 }
 
 export interface DBSystemSettings {
@@ -350,6 +380,13 @@ export interface DBPersonalColumn {
   };
   scope: 'board' | 'all';
   boardId?: string; // required when scope === 'board'
+  /** Set when this column was materialized from the org's Personal Hub template — the user
+   *  can edit it freely but cannot delete it (only columns they created themselves). */
+  fromTemplate?: boolean;
+  /** The template column this was materialized from — stable across every user's own copy
+   *  (which each get their own columnId), so their values can all feed the same org-wide
+   *  running total (DBPersonalHubTemplateTotal). Only set alongside fromTemplate. */
+  templateColumnId?: string;
   width?: number;
   /** Per-board cumulative summary scope (boardId -> include board groups above), independent per board group. */
   summaryCumulativeByBoard?: Record<string, boolean>;

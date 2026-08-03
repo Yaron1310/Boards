@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, doc, query, where, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
+import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
 import { BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
@@ -19,6 +20,12 @@ const FOREIGN_ITEMS_LIMIT = 500;
  * a reference beyond the cap simply never loads and resolves as unavailable (shown as `#ref`).
  */
 const MAX_HOPS = 4;
+
+/** Above this many distinct items for one item-scoped Personal Hub template column, fetch every
+ *  item's total in a single batched request instead of one request per item — worthwhile once a
+ *  column has enough rows that per-item requests would otherwise fan out heavily, not worth the
+ *  extra code path below it (individual per-item requests cache more precisely and are simpler). */
+const ITEM_TOTAL_BATCH_THRESHOLD = 40;
 
 export interface ForeignValues {
   /** Resolve a ref to a number, null (known but empty/non-numeric), or undefined (loading/broken).
@@ -56,7 +63,15 @@ function formulaRefsInBoard(items: Item[], columns: Column[]): CellRef[] {
  * and grows by scanning each newly-loaded board's formula columns for more references, up to
  * MAX_HOPS.
  */
-export function useForeignCellValues(refs: CellRef[], orgId: string | undefined): ForeignValues {
+/**
+ * `contextItemIds`: the item id(s) `resolve()` might be called with as `currentItemId` — needed
+ * up front only for 'ph' refs scoped `phScope: 'item'`, since their per-item total has to be
+ * fetched per (templateColumnId, itemId) pair and `resolve()` itself must return synchronously
+ * from already-loaded data. Callers that only ever resolve against one row (e.g. a single formula
+ * cell) pass that one id; a caller that evaluates the same formula across many rows (e.g. a group
+ * summary footer) passes all of them.
+ */
+export function useForeignCellValues(refs: CellRef[], orgId: string | undefined, contextItemIds: string[] = []): ForeignValues {
   const qc = useQueryClient();
 
   const directBoardIds = useMemo(
@@ -82,6 +97,138 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
       ).sort(),
     [refs],
   );
+
+  // Personal Hub template totals — org-wide running sums, not tied to any board. Referenced by
+  // templateColumnId (held in `columnId` for 'ph' refs). Global (whole-org) scope only here —
+  // 'item'-scoped refs are handled separately below, since they need a (templateColumnId, itemId)
+  // pair rather than just a templateColumnId.
+  const templateColumnIds = useMemo(
+    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope !== 'item').map((r) => r.columnId))).sort(),
+    [refs],
+  );
+  const templateTotalQueries = useQueries({
+    queries: templateColumnIds.map((templateColumnId) => ({
+      queryKey: queryKeys.personalHubTemplateTotals.one(templateColumnId),
+      queryFn: () => getPersonalHubTemplateTotal(templateColumnId),
+      enabled: !!templateColumnId,
+      staleTime: 30 * 1000,
+    })),
+  });
+  const templateTotalsMap = useMemo(() => {
+    const m = new Map<string, { total: number; frozen: boolean }>();
+    templateColumnIds.forEach((id, i) => {
+      const data = templateTotalQueries[i]?.data;
+      if (data) m.set(id, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateColumnIds.join(','), templateTotalQueries]);
+
+  // Live recompute: subscribe to each referenced template total doc so a value change anywhere
+  // in the org invalidates the cached total and refetches it.
+  useEffect(() => {
+    if (!orgId || templateColumnIds.length === 0) return;
+    let unsubs: Array<() => void> = [];
+
+    const open = () => {
+      unsubs = templateColumnIds.map((templateColumnId) => {
+        const totalDocRef = doc(firestoreDb, `organizations/${orgId}/personalHubTemplateTotals/${templateColumnId}`);
+        return onSnapshot(
+          totalDocRef,
+          () => {
+            void qc.invalidateQueries({ queryKey: queryKeys.personalHubTemplateTotals.one(templateColumnId) });
+          },
+          () => {},
+        );
+      });
+    };
+    const close = () => {
+      unsubs.forEach((u) => u());
+      unsubs = [];
+    };
+
+    const unsubAuth = onAuthStateChanged(firebaseAuth, (u) => {
+      close();
+      if (u) open();
+    });
+    return () => {
+      unsubAuth();
+      close();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, templateColumnIds.join(','), qc]);
+
+  // 'item'-scoped template totals: computed on demand per (templateColumnId, itemId), not a
+  // maintained counter, so there's no single doc to live-subscribe to — polled instead. Every
+  // item-scoped template column referenced, paired with the distinct item ids the caller says it
+  // might resolve against.
+  const itemScopedTemplateColumnIds = useMemo(
+    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope === 'item').map((r) => r.columnId))).sort(),
+    [refs],
+  );
+  const dedupedContextItemIds = useMemo(
+    () => Array.from(new Set(contextItemIds.filter((id): id is string => !!id))).sort(),
+    [contextItemIds],
+  );
+
+  // Past the threshold, fetch one column's worth of item totals in a single request instead of
+  // fanning out one request per item — e.g. a formula column with many rows all sharing the same
+  // default formula. Below it, per-item requests are simpler and cache more precisely, so keep them.
+  const useBatchFetch = dedupedContextItemIds.length > ITEM_TOTAL_BATCH_THRESHOLD;
+
+  const batchQueries = useQueries({
+    queries: (useBatchFetch ? itemScopedTemplateColumnIds : []).map((templateColumnId) => ({
+      queryKey: queryKeys.personalHubTemplateTotals.batchForItems(templateColumnId, dedupedContextItemIds),
+      queryFn: () => getPersonalHubTemplateItemTotalsBatch(templateColumnId, dedupedContextItemIds),
+      staleTime: 60 * 1000,
+      refetchInterval: 60 * 1000,
+      refetchOnMount: 'always' as const,
+      enabled: dedupedContextItemIds.length > 0,
+    })),
+  });
+
+  const itemTotalPairs = useMemo(() => {
+    if (useBatchFetch || itemScopedTemplateColumnIds.length === 0 || dedupedContextItemIds.length === 0) {
+      return [] as Array<{ templateColumnId: string; itemId: string }>;
+    }
+    const pairs: Array<{ templateColumnId: string; itemId: string }> = [];
+    for (const templateColumnId of itemScopedTemplateColumnIds) {
+      for (const itemId of dedupedContextItemIds) pairs.push({ templateColumnId, itemId });
+    }
+    return pairs;
+  }, [useBatchFetch, itemScopedTemplateColumnIds, dedupedContextItemIds]);
+  const itemTotalPairsKey = itemTotalPairs.map((p) => `${p.templateColumnId}:${p.itemId}`).join(',');
+
+  const itemTotalQueries = useQueries({
+    queries: itemTotalPairs.map(({ templateColumnId, itemId }) => ({
+      queryKey: queryKeys.personalHubTemplateTotals.oneForItem(templateColumnId, itemId),
+      queryFn: () => getPersonalHubTemplateItemTotal(templateColumnId, itemId),
+      staleTime: 60 * 1000,
+      refetchInterval: 60 * 1000,
+      // Without this, navigating back to a board within `staleTime` of the last fetch reuses
+      // the cached (possibly outdated) total instead of checking the server — refetchOnMount
+      // 'always' forces every mount (e.g. returning from another board) to fetch fresh.
+      refetchOnMount: 'always' as const,
+    })),
+  });
+  const itemTotalsMap = useMemo(() => {
+    const m = new Map<string, number>();
+    if (useBatchFetch) {
+      itemScopedTemplateColumnIds.forEach((templateColumnId, i) => {
+        const totals = batchQueries[i]?.data?.totals;
+        if (!totals) return;
+        Object.entries(totals).forEach(([itemId, total]) => m.set(`${templateColumnId}:${itemId}`, total));
+      });
+      return m;
+    }
+    itemTotalPairs.forEach(({ templateColumnId, itemId }, i) => {
+      const data = itemTotalQueries[i]?.data;
+      if (data) m.set(`${templateColumnId}:${itemId}`, data.total);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [useBatchFetch, itemScopedTemplateColumnIds.join(','), batchQueries, itemTotalPairsKey, itemTotalQueries]);
+
   const boardKey = boardIds.join(',');
 
   const boardQueries = useQueries({
@@ -233,6 +380,9 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
   const isLoading =
     boardQueries.some((q) => q.isLoading) ||
     columnQueries.some((q) => q.isLoading) ||
+    templateTotalQueries.some((q) => q.isLoading) ||
+    itemTotalQueries.some((q) => q.isLoading) ||
+    batchQueries.some((q) => q.isLoading) ||
     (personalQueries[0]?.isLoading ?? false);
 
   const resolve = useCallback(
@@ -240,6 +390,20 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
       // `visited` keys the formula cells already on the resolution stack (across boards) so a
       // cross-board reference cycle (A → B → A) terminates by contributing 0 where it closes.
       const inner = (r: CellRef, cid: string | null | undefined, visited: Set<string>): number | null | undefined => {
+        // Personal Hub template total: a sum across every user's Personal Hub, not tied to any
+        // board. 'global' resolves straight from the live-subscribed org-wide counter; 'item'
+        // scopes it to the row currently being evaluated (cid) and resolves from the (bounded,
+        // polled rather than live) per-item total instead.
+        if (r.kind === 'ph') {
+          if (r.phScope === 'item') {
+            const itemId = cid ?? currentItemId ?? null;
+            if (!itemId) return undefined;
+            return itemTotalsMap.get(`${r.columnId}:${itemId}`);
+          }
+          const data = templateTotalsMap.get(r.columnId);
+          return data ? data.total : undefined;
+        }
+
         // Group-summary reference: aggregate a column across a group. Board columns only —
         // personal-hub summaries are resolved locally on the Personal Hub, not cross-context.
         if (r.agg) {
@@ -304,7 +468,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined)
 
       return inner(ref, currentItemId, new Set<string>());
     },
-    [boardItemMap, boardItemsList, boardColumnsMap, personalValues],
+    [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap, itemTotalsMap],
   );
 
   return { resolve, isLoading };
