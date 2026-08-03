@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FiArrowLeft, FiPlus, FiTrash2, FiSave, FiLoader, FiCheckCircle, FiAlertCircle, FiArrowUp, FiArrowDown, FiUser, FiHash } from 'react-icons/fi';
+import { FiArrowLeft, FiPlus, FiTrash2, FiLoader, FiAlertCircle, FiArrowUp, FiArrowDown, FiUser, FiHash } from 'react-icons/fi';
 import * as apiService from '../../services/geminiService';
 import AddColumnModal, { COLUMN_TYPE_LABELS } from '../boards/AddColumnModal';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
@@ -10,8 +10,8 @@ import type { PersonalHubTemplateColumn } from '../../types';
 
 /** Org-admin editor for the Personal Hub default template: an "all groups" column-schema
  *  list only — no groups, items, or data. Materialized into a user's own Personal Hub
- *  (as non-deletable columns) the first time they have none. Edits are staged locally
- *  and persisted in one call via "Save Template". */
+ *  (as non-deletable columns) the first time they have none. Every add/remove/reorder
+ *  persists immediately — there's no separate save step. */
 const PersonalHubTemplatePage: React.FC = () => {
   const navigate = useNavigate();
   const { isRecording, insertRef } = useFormulaRecording();
@@ -19,11 +19,9 @@ const PersonalHubTemplatePage: React.FC = () => {
   const [columns, setColumns] = useState<PersonalHubTemplateColumn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveState, setSaveState] = useState<'idle' | 'success' | 'error'>('idle');
-  const [saveError, setSaveError] = useState('');
+  const [isPersisting, setIsPersisting] = useState(false);
+  const [persistError, setPersistError] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,48 +38,42 @@ const PersonalHubTemplatePage: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
+  /** Applies a local edit to `columns`, then immediately persists the resulting list.
+   *  Reverts to the last-saved list if the save fails, so the UI never shows an edit
+   *  that didn't actually make it to the server. */
+  const commit = async (next: PersonalHubTemplateColumn[]) => {
+    const previous = columns;
+    setColumns(next);
+    setIsPersisting(true);
+    setPersistError('');
+    try {
+      const { columns: saved } = await apiService.updatePersonalHubTemplate(next);
+      setColumns([...saved].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+    } catch (err) {
+      setColumns(previous);
+      setPersistError(err instanceof Error ? err.message : 'Failed to save the change.');
+    } finally {
+      setIsPersisting(false);
+    }
+  };
+
   const handleAdd = (col: { name: string; type: ColumnType; settings: PersonalHubTemplateColumn['settings'] }) => {
-    setColumns((prev) => [
-      ...prev,
-      { id: `new_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: col.name, type: col.type, settings: col.settings, order: prev.length },
+    void commit([
+      ...columns,
+      { id: `new_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: col.name, type: col.type, settings: col.settings, order: columns.length },
     ]);
-    setIsDirty(true);
-    setSaveState('idle');
   };
 
   const handleRemove = (id: string) => {
-    setColumns((prev) => prev.filter((c) => c.id !== id).map((c, i) => ({ ...c, order: i })));
-    setIsDirty(true);
-    setSaveState('idle');
+    void commit(columns.filter((c) => c.id !== id).map((c, i) => ({ ...c, order: i })));
   };
 
   const move = (index: number, direction: -1 | 1) => {
-    setColumns((prev) => {
-      const target = index + direction;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next.map((c, i) => ({ ...c, order: i }));
-    });
-    setIsDirty(true);
-    setSaveState('idle');
-  };
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    setSaveState('idle');
-    setSaveError('');
-    try {
-      const { columns: saved } = await apiService.updatePersonalHubTemplate(columns);
-      setColumns([...saved].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
-      setIsDirty(false);
-      setSaveState('success');
-    } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Failed to save the Personal Hub template.');
-      setSaveState('error');
-    } finally {
-      setIsSaving(false);
-    }
+    const target = index + direction;
+    if (target < 0 || target >= columns.length) return;
+    const next = [...columns];
+    [next[index], next[target]] = [next[target], next[index]];
+    void commit(next.map((c, i) => ({ ...c, order: i })));
   };
 
   return (
@@ -105,14 +97,28 @@ const PersonalHubTemplatePage: React.FC = () => {
             <h1 className="text-2xl font-bold text-gray-800">Personal Hub Template</h1>
             <p className="text-sm text-gray-500 mt-1">
               Columns every user's Personal Hub starts with. No groups or data here — only "all groups" columns.
+              Changes save automatically.
             </p>
           </div>
         </div>
+        {isPersisting && (
+          <span className="flex items-center gap-1.5 text-xs text-gray-400 flex-shrink-0 mt-1" role="status">
+            <FiLoader size={13} className="animate-spin" aria-hidden="true" />
+            Saving…
+          </span>
+        )}
       </div>
 
       {loadError && (
         <div className="mt-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" role="alert">
           {loadError}
+        </div>
+      )}
+
+      {persistError && (
+        <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" role="alert">
+          <FiAlertCircle size={15} aria-hidden="true" />
+          {persistError}
         </div>
       )}
 
@@ -152,7 +158,7 @@ const PersonalHubTemplatePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); move(i, -1); }}
-                        disabled={i === 0}
+                        disabled={i === 0 || isPersisting}
                         className="text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed p-0.5"
                         aria-label={`Move ${col.name} up`}
                       >
@@ -161,7 +167,7 @@ const PersonalHubTemplatePage: React.FC = () => {
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); move(i, 1); }}
-                        disabled={i === columns.length - 1}
+                        disabled={i === columns.length - 1 || isPersisting}
                         className="text-gray-400 hover:text-gray-700 disabled:opacity-30 disabled:cursor-not-allowed p-0.5"
                         aria-label={`Move ${col.name} down`}
                       >
@@ -186,7 +192,8 @@ const PersonalHubTemplatePage: React.FC = () => {
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); handleRemove(col.id); }}
-                      className="text-gray-400 hover:text-red-500 transition-colors p-1.5"
+                      disabled={isPersisting}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-1.5 disabled:opacity-30 disabled:cursor-not-allowed"
                       aria-label={`Remove ${col.name} from template`}
                     >
                       <FiTrash2 size={15} aria-hidden="true" />
@@ -201,7 +208,8 @@ const PersonalHubTemplatePage: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowAddModal(true)}
-              className="flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700"
+              disabled={isPersisting}
+              className="flex items-center gap-1.5 text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Add a template column"
             >
               <FiPlus size={15} aria-hidden="true" />
@@ -210,34 +218,6 @@ const PersonalHubTemplatePage: React.FC = () => {
           </div>
         </div>
       )}
-
-      <div className="flex items-center gap-3 mt-6">
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          disabled={isSaving || isLoading}
-          className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
-          aria-label="Save Personal Hub template"
-        >
-          {isSaving ? <FiLoader size={16} className="animate-spin" aria-hidden="true" /> : <FiSave size={16} aria-hidden="true" />}
-          {isSaving ? 'Saving…' : 'Save Template'}
-        </button>
-        {isDirty && saveState === 'idle' && (
-          <span className="text-xs text-gray-500">You have unsaved changes.</span>
-        )}
-        {saveState === 'success' && (
-          <span className="flex items-center gap-1.5 text-sm text-green-600">
-            <FiCheckCircle size={15} aria-hidden="true" />
-            Template saved.
-          </span>
-        )}
-        {saveState === 'error' && (
-          <span className="flex items-center gap-1.5 text-sm text-red-600" role="alert">
-            <FiAlertCircle size={15} aria-hidden="true" />
-            {saveError}
-          </span>
-        )}
-      </div>
 
       {showAddModal && (
         <AddColumnModal mode="template" onSave={handleAdd} onClose={() => setShowAddModal(false)} />
