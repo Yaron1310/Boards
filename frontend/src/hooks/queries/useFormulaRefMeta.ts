@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import { usePersonalColumns } from './usePersonalHubQueries';
 import { useAuth } from '../useAuth';
 import * as wm from '@/services/workManagementService';
+import { getPersonalHubTemplate } from '@/services/geminiService';
 import type { CellRef, SummaryCalc } from '@/utils/formulaEngine';
 import type { Item, PaginatedResponse } from '@/types';
 
@@ -22,6 +23,10 @@ export interface RefMeta {
   itemName?: string;
   columnName?: string;
   agg?: SummaryCalc;
+  /** Set for a Personal Hub template running-total ref ("kind: 'ph'") — there's no single
+   *  source cell to name (it's a sum across every user's Personal Hub), so the tooltip
+   *  describes what it is instead of a board/group/item path. */
+  isTemplateTotal?: boolean;
 }
 
 /**
@@ -50,6 +55,19 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
     (personalColumns ?? []).forEach((c) => m.set(c.id, c.name));
     return m;
   }, [personalColumns]);
+
+  const hasTemplateRefs = useMemo(() => refs.some((r) => r.kind === 'ph'), [refs]);
+  const { data: template } = useQuery({
+    queryKey: queryKeys.personalHubTemplateTotals.templateColumns,
+    queryFn: () => getPersonalHubTemplate(),
+    enabled: hasTemplateRefs,
+    staleTime: 5 * 60 * 1000,
+  });
+  const templateColumnNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    (template?.columns ?? []).forEach((c) => m.set(c.id, c.name));
+    return m;
+  }, [template]);
 
   // "All groups" personal cells don't carry a boardId on the ref — resolve the underlying
   // item individually first to learn which board it actually lives on.
@@ -178,6 +196,12 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
   }, [boardKey, itemQueries]);
 
   function resolveMeta(ref: CellRef, current?: string | null): RefMeta | undefined {
+    if (ref.kind === 'ph') {
+      const columnName = templateColumnNameMap.get(ref.columnId);
+      if (columnName === undefined) return undefined;
+      return { isPersonal: false, isTemplateTotal: true, columnName };
+    }
+
     if (ref.kind === 'p') {
       const columnName = personalColumnNameMap.get(ref.columnId);
 

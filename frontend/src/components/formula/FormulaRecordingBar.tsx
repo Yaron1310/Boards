@@ -23,6 +23,7 @@ const AGG_LABEL: Record<string, string> = {
 
 function metaToTooltip(meta: RefMeta | undefined): string {
   if (!meta) return 'Loading…';
+  if (meta.isTemplateTotal) return `Personal Hub Template › "${meta.columnName ?? '—'}" column (sum across every user)`;
   const board = meta.boardName ?? '—';
   const group = meta.groupName ?? '—';
   const root = meta.isPersonal ? (meta.userName ? `${meta.userName}’s Personal Hub` : 'Personal Hub') : null;
