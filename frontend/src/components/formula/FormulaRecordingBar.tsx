@@ -317,8 +317,7 @@ const FormulaRecordingBar: React.FC = () => {
   });
   if (cursor >= draft.length) fieldNodes.push(caret('end'));
 
-  if (!session || session.phase !== 'recording') return null;
-  const { origin } = session;
+  if (!session || session.phase !== 'recording' || !origin) return null;
 
   return (
     <div
