@@ -366,7 +366,7 @@ const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) 
     // and fires it exactly once, but this way clicking the label text activates it too, without
     // double-firing (which attaching onClick to both the row and the button would cause).
     <div className="ml-2 flex items-center gap-2 cursor-pointer select-none" onClick={onActivate}>
-      <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Apply to all cells</span>
+      <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Apply to column</span>
       <button
         ref={btnRef}
         type="button"
@@ -376,7 +376,7 @@ const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) 
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
-        aria-label="Apply to all cells — save and choose which cells this formula applies to (all cells or just this one)"
+        aria-label="Apply to column — save and choose which cells this formula applies to (all cells or just this one)"
         className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full bg-indigo-500 hover:bg-indigo-600 transition-colors"
       >
         <span className="inline-block h-5 w-5 translate-x-[22px] transform rounded-full bg-white shadow transition-transform" aria-hidden="true" />
