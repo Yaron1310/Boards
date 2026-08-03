@@ -102,14 +102,42 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     }
   };
 
-  const commitDraft = (draft: string, forceScopeChoice = false) => {
+  /** Applies a formula decision the same way the modal's two buttons do, but callable directly
+   *  (used when the apply-scope toggle already flipped a decided scope, skipping the modal). */
+  const applyScopeDecision = async (formula: string, scope: 'all' | 'perCell') => {
+    if (scope === 'all') {
+      const relativeFormula = makeRelativeIdFormula(formula, homeBoardId);
+      try {
+        await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
+        persistValue(null);
+      } catch {
+        persistValue(formula);
+      }
+    } else {
+      persistValue(formula);
+      if (settings?.applyScope !== 'perCell') {
+        try {
+          await updateColumn({ id: column.id, patch: { settings: { ...settings, applyScope: 'perCell' } } });
+        } catch {
+          // Non-fatal: the value still saved; the scope just won't be remembered this time.
+        }
+      }
+    }
+  };
+
+  const commitDraft = (draft: string, forcedScope?: 'all' | 'perCell') => {
     const trimmed = draft.trim();
-    // Ask "all cells / just this cell" only the first time this column ever gets a formula
-    // (no scope decision recorded yet), or when the user explicitly reopens the choice via the
-    // recording bar's edit icon or the column's Formula Settings toggle. Once a scope is chosen
-    // it's remembered on the column so the question never resurfaces on its own.
+    // The apply-scope toggle already decided the scope (only possible once the column has a
+    // scope on record) — apply it directly, no modal.
+    if (trimmed && forcedScope) {
+      void applyScopeDecision(trimmed, forcedScope);
+      return;
+    }
+    // Ask "all cells / just this cell" only the first time this column ever gets a formula (no
+    // scope decision recorded yet). Once a scope is chosen it's remembered on the column, so the
+    // question never resurfaces on its own — the apply-scope toggle flips it directly instead.
     const isFirstFormula = !settings?.applyScope;
-    if (trimmed && (isFirstFormula || forceScopeChoice)) {
+    if (trimmed && isFirstFormula) {
       setPendingFormula(trimmed);
       return;
     }
@@ -123,10 +151,10 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
   const finish = () => {
     if (finishGuard.current) return;
     const draft = sessionRef.current?.draft ?? '';
-    const forceScopeChoice = sessionRef.current?.chooseScopeOnSave ?? false;
+    const forcedScope = sessionRef.current?.forcedApplyScope;
     finishGuard.current = true;
     endSession();
-    commitDraft(draft, forceScopeChoice);
+    commitDraft(draft, forcedScope);
   };
 
   const startRecording = (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -147,6 +175,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
         columnName: column.name,
         itemName,
         isPersonal: true,
+        applyScope: settings?.applyScope,
       },
       idFormula,
     );
@@ -163,28 +192,16 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
 
   const handleApplyToAll = async () => {
     if (pendingFormula === null) return;
-    const relativeFormula = makeRelativeIdFormula(pendingFormula, homeBoardId);
+    const formula = pendingFormula;
     setPendingFormula(null);
-    try {
-      await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
-      persistValue(null);
-    } catch {
-      persistValue(pendingFormula);
-    }
+    await applyScopeDecision(formula, 'all');
   };
 
   const handleApplyJustThis = async () => {
     if (pendingFormula === null) return;
     const formula = pendingFormula;
     setPendingFormula(null);
-    persistValue(formula);
-    if (settings?.applyScope !== 'perCell') {
-      try {
-        await updateColumn({ id: column.id, patch: { settings: { ...settings, applyScope: 'perCell' } } });
-      } catch {
-        // Non-fatal: the value still saved; the scope just won't be remembered this time.
-      }
-    }
+    await applyScopeDecision(formula, 'perCell');
   };
 
   return (

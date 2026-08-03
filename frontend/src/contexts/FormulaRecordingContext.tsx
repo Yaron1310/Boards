@@ -11,6 +11,10 @@ export interface RecordingOrigin {
   itemName: string;
   /** True when the formula lives on a Personal Hub column. */
   isPersonal: boolean;
+  /** The column's current apply-scope decision at the moment recording began ('all' cells share
+   *  one default formula, 'perCell' means each cell keeps its own), or undefined if this column
+   *  has never had a formula saved before — i.e. the choice hasn't been made yet. */
+  applyScope?: 'all' | 'perCell';
 }
 
 /**
@@ -28,9 +32,10 @@ export interface RecordingSession {
    *  user navigate within the formula with arrow keys or a mouse click instead of always
    *  editing at the end. */
   cursor: number;
-  /** Set when the user saved via the "choose where to apply" control — forces the origin cell
-   *  to re-show the all-cells / just-this chooser even if it normally wouldn't. */
-  chooseScopeOnSave?: boolean;
+  /** Set by the apply-scope toggle once the column already has a scope decision on record — the
+   *  origin cell applies this scope directly on save, skipping the all-cells/just-this modal
+   *  entirely (that modal is reserved for the column's very first formula). */
+  forcedApplyScope?: 'all' | 'perCell';
 }
 
 interface FormulaRecordingContextValue {
@@ -48,8 +53,10 @@ interface FormulaRecordingContextValue {
   cancel: () => void;
   /** User pressed Save: switch to 'awaiting-origin' so the origin cell finishes on its board. */
   requestSave: () => void;
-  /** Save, but force the origin cell to re-show the all-cells / just-this-cell scope chooser. */
-  requestSaveWithScopeChoice: () => void;
+  /** Flip between "all cells" and "just this cell" and save immediately — no chooser. Only
+   *  meaningful once the column already has a scope decision (see RecordingOrigin.applyScope);
+   *  before that, behaves like a plain save (the modal decides the first scope, same as always). */
+  toggleApplyScope: () => void;
   /** Called by the origin cell once it has committed (or the user cancelled the finish). */
   endSession: () => void;
 }
@@ -115,8 +122,15 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
     setSession((s) => (s ? { ...s, phase: 'awaiting-origin' } : s));
   }, []);
 
-  const requestSaveWithScopeChoice = useCallback(() => {
-    setSession((s) => (s ? { ...s, phase: 'awaiting-origin', chooseScopeOnSave: true } : s));
+  const toggleApplyScope = useCallback(() => {
+    setSession((s) => {
+      if (!s) return s;
+      const current = s.forcedApplyScope ?? s.origin.applyScope;
+      // No scope decided yet for this column — nothing to flip, so just save normally; the
+      // column's very first formula always shows the all-cells/just-this modal regardless.
+      const next = current ? (current === 'all' ? 'perCell' : 'all') : undefined;
+      return { ...s, phase: 'awaiting-origin', forcedApplyScope: next };
+    });
   }, []);
 
   // Global keyboard while recording: Esc cancels; Enter saves; digits/operators/parens build the
@@ -217,10 +231,10 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
       insertRef,
       cancel,
       requestSave,
-      requestSaveWithScopeChoice,
+      toggleApplyScope,
       endSession,
     }),
-    [session, begin, setDraft, setCursor, insertRef, cancel, requestSave, requestSaveWithScopeChoice, endSession],
+    [session, begin, setDraft, setCursor, insertRef, cancel, requestSave, toggleApplyScope, endSession],
   );
 
   return <FormulaRecordingContext.Provider value={value}>{children}</FormulaRecordingContext.Provider>;

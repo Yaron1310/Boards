@@ -153,7 +153,7 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
  * Save navigates back to the origin board so the origin cell commits.
  */
 const FormulaRecordingBar: React.FC = () => {
-  const { session, requestSave, requestSaveWithScopeChoice, cancel, setCursor } = useFormulaRecording();
+  const { session, requestSave, toggleApplyScope, cancel, setCursor } = useFormulaRecording();
   const { user, selectedWorkspace } = useAuth();
   const navigate = useNavigate();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
@@ -322,7 +322,10 @@ const FormulaRecordingBar: React.FC = () => {
         >
           <FiX size={13} aria-hidden="true" /> Cancel
         </button>
-        <ApplyScopeToggle onActivate={requestSaveWithScopeChoice} />
+        <ApplyScopeToggle
+          currentScope={session?.forcedApplyScope ?? session?.origin.applyScope}
+          onActivate={toggleApplyScope}
+        />
       </div>
     </div>
   );
@@ -330,16 +333,19 @@ const FormulaRecordingBar: React.FC = () => {
 
 const TOOLTIP_MARGIN = 8;
 
-/** Switch-styled affordance next to Save, with a visible label — clicking it still immediately
- *  saves via the scope-choice flow (pick all cells in the column vs. just this one), same as
- *  before; only the presentation changed: a real pill-and-knob switch instead of a plain icon
- *  button, a visible text label instead of icon-only, and an instant styled tooltip (clamped to
- *  stay on screen) instead of the native `title`, which has a delay and can't be styled. */
-const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) => {
+/** Switch-styled affordance next to Save, with a visible label. Its behavior depends on whether
+ *  this column has ever had a formula saved before:
+ *  - Not yet decided (currentScope undefined): clicking just saves normally — the all-cells /
+ *    just-this-cell modal always appears for a column's very first formula regardless, so there's
+ *    nothing to flip yet. The switch shows in its neutral (off) position.
+ *  - Already decided: clicking flips between "all cells" and "just this cell" and saves
+ *    immediately — no modal. The switch reflects and toggles the real current scope. */
+const ApplyScopeToggle: React.FC<{ currentScope: 'all' | 'perCell' | undefined; onActivate: () => void }> = ({ currentScope, onActivate }) => {
   const btnRef = useRef<HTMLButtonElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const [anchor, setAnchor] = useState<{ top: number; left: number } | null>(null);
   const [offsetX, setOffsetX] = useState(0);
+  const isOn = currentScope === 'all';
 
   const show = () => {
     const rect = btnRef.current?.getBoundingClientRect();
@@ -361,6 +367,12 @@ const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) 
     setOffsetX(shift);
   }, [anchor]);
 
+  const tooltipText = currentScope === undefined
+    ? 'This column’s first formula always asks where to apply it — all cells or just this one.'
+    : isOn
+      ? 'Applying to the whole column. Click to switch to just this cell.'
+      : 'Applying to just this cell. Click to switch to the whole column.';
+
   return (
     // onClick lives on the row, not the button: a real click on the button still bubbles up
     // and fires it exactly once, but this way clicking the label text activates it too, without
@@ -371,15 +383,18 @@ const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) 
         ref={btnRef}
         type="button"
         role="switch"
-        aria-checked={false}
+        aria-checked={isOn}
         onMouseEnter={show}
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
         aria-label="Apply to column — save and choose which cells this formula applies to (all cells or just this one)"
-        className="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full bg-indigo-500 hover:bg-indigo-600 transition-colors"
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${isOn ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-gray-300 hover:bg-gray-400'}`}
       >
-        <span className="inline-block h-5 w-5 translate-x-[22px] transform rounded-full bg-white shadow transition-transform" aria-hidden="true" />
+        <span
+          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isOn ? 'translate-x-[22px]' : 'translate-x-[2px]'}`}
+          aria-hidden="true"
+        />
       </button>
       {anchor && ReactDOM.createPortal(
         <div className="fixed z-[9999] pointer-events-none" style={{ top: anchor.top + 6, left: anchor.left }}>
@@ -389,7 +404,7 @@ const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) 
             className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-normal w-max max-w-[min(90vw,16rem)]"
             style={{ transform: `translateX(calc(-50% + ${offsetX}px))` }}
           >
-            Choose where to apply: all cells in the column or just this cell
+            {tooltipText}
           </div>
         </div>,
         document.body,
