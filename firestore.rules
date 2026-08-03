@@ -48,6 +48,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Personal Hub template running totals — clients subscribe via onSnapshot so a formula
+      // referencing one stays live without a page reload. Written only by the backend (admin SDK).
+      match /personalHubTemplateTotals/{templateColumnId} {
+        allow read: if isOrgMember(orgId);
+        allow write: if false;
+      }
+
       // Notifications
       match /notifications/{notificationId} {
         allow read: if isOrgMember(orgId) && request.auth.uid == resource.data.userId;
