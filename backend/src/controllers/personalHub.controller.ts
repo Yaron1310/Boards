@@ -49,24 +49,28 @@ function resolveWriteTargetUserId(req: Request): { userId: string } | { status: 
 }
 
 /**
- * First time a user's Personal Hub has zero "all groups" columns, copy the org's
- * admin-configured template columns into their own personalColumns (tagged
- * fromTemplate so they can't be deleted, only edited). A no-op once the user has
- * any scope:'all' column of their own — later template edits by the admin don't
- * retroactively touch already-seeded users.
+ * Copies any org template column the user doesn't already have (matched by
+ * templateColumnId, not by name/scope) into their own personalColumns — tagged
+ * fromTemplate so they can't be deleted, only edited. Runs on every load, but is a
+ * no-op past the first time for a given template column: it only ever adds columns
+ * missing by id, so a user who already has one all-scope column (e.g. one they made
+ * themselves before the template existed) still gets the template ones too, and later
+ * template edits by the admin don't retroactively touch columns already seeded.
  */
 async function seedFromTemplateIfNeeded(orgId: string, userId: string, existing: DBPersonalColumn[]): Promise<DBPersonalColumn[]> {
-  if (existing.some((c) => c.scope === 'all')) return existing;
-
   const settingsDoc = await organizationSettingsCollection.doc(orgId).get();
   const settings = settingsDoc.exists ? snapshotToData<DBOrganizationSettings>(settingsDoc) : null;
   const templateColumns = settings?.personalHubTemplate?.columns ?? [];
   if (templateColumns.length === 0) return existing;
 
+  const alreadyHave = new Set(existing.map((c) => c.templateColumnId).filter((id): id is string => !!id));
+  const missing = templateColumns.filter((tc) => !alreadyHave.has(tc.id));
+  if (missing.length === 0) return existing;
+
   const timestamp = admin.firestore.FieldValue.serverTimestamp();
   const batch = db.batch();
   const seeded: DBPersonalColumn[] = [];
-  templateColumns
+  missing
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
     .forEach((tc, i) => {

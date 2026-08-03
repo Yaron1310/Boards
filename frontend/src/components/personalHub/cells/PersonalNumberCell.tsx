@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useUpdatePersonalItemValue } from '../../../hooks/queries/usePersonalHubQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
@@ -19,10 +19,18 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
   const { push: pushUndo } = useUndo();
   const { isRecording, insertRef } = useFormulaRecording();
   const [draft, setDraft] = useState<string>(rawValue != null ? String(rawValue) : '');
+  // Pressing Enter calls stopEdit() to exit edit mode, which unmounts the (still-focused)
+  // input — some browsers fire a native blur on that removal, re-triggering onBlur's commit
+  // a second time with the same stale draft/rawValue. Harmless for a plain number, but this
+  // column may feed a server-side running total keyed off the size of the change, so a
+  // guaranteed single commit per edit matters here. Reset whenever a fresh edit starts.
+  const committedRef = useRef(false);
 
   useEffect(() => { setDraft(rawValue != null ? String(rawValue) : ''); }, [rawValue]);
 
   const commit = (stopEdit: () => void) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
     const parsed = draft === '' ? null : parseFloat(draft);
     const next = parsed != null && !isNaN(parsed) ? parsed : null;
     if (next !== rawValue) {
@@ -74,6 +82,7 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
               step={settings?.precision != null ? Math.pow(10, -settings.precision) : 'any'}
               className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none text-center"
               onChange={(e) => setDraft(e.target.value)}
+              onFocus={() => { committedRef.current = false; }}
               onBlur={() => commit(stopEdit)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') { e.preventDefault(); commit(stopEdit); }
