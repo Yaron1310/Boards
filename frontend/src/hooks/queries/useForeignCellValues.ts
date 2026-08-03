@@ -181,8 +181,12 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     queries: itemTotalPairs.map(({ templateColumnId, itemId }) => ({
       queryKey: queryKeys.personalHubTemplateTotals.oneForItem(templateColumnId, itemId),
       queryFn: () => getPersonalHubTemplateItemTotal(templateColumnId, itemId),
-      staleTime: 15 * 1000,
-      refetchInterval: 15 * 1000,
+      staleTime: 60 * 1000,
+      refetchInterval: 60 * 1000,
+      // Without this, navigating back to a board within `staleTime` of the last fetch reuses
+      // the cached (possibly outdated) total instead of checking the server — refetchOnMount
+      // 'always' forces every mount (e.g. returning from another board) to fetch fresh.
+      refetchOnMount: 'always' as const,
     })),
   });
   const itemTotalsMap = useMemo(() => {
