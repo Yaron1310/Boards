@@ -6,7 +6,7 @@ import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
-import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal } from '@/services/geminiService';
+import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
 import { BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
@@ -20,6 +20,12 @@ const FOREIGN_ITEMS_LIMIT = 500;
  * a reference beyond the cap simply never loads and resolves as unavailable (shown as `#ref`).
  */
 const MAX_HOPS = 4;
+
+/** Above this many distinct items for one item-scoped Personal Hub template column, fetch every
+ *  item's total in a single batched request instead of one request per item — worthwhile once a
+ *  column has enough rows that per-item requests would otherwise fan out heavily, not worth the
+ *  extra code path below it (individual per-item requests cache more precisely and are simpler). */
+const ITEM_TOTAL_BATCH_THRESHOLD = 20;
 
 export interface ForeignValues {
   /** Resolve a ref to a number, null (known but empty/non-numeric), or undefined (loading/broken).
@@ -152,29 +158,45 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId, templateColumnIds.join(','), qc]);
 
-  // 'item'-scoped template totals: computed on demand per (templateColumnId, itemId) pair, not a
-  // maintained counter, so there's no single doc to live-subscribe to — polled on a short interval
-  // instead. Cartesian product of the item-scoped template columns referenced and every item id
-  // the caller says it might resolve against.
+  // 'item'-scoped template totals: computed on demand per (templateColumnId, itemId), not a
+  // maintained counter, so there's no single doc to live-subscribe to — polled instead. Every
+  // item-scoped template column referenced, paired with the distinct item ids the caller says it
+  // might resolve against.
   const itemScopedTemplateColumnIds = useMemo(
     () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope === 'item').map((r) => r.columnId))).sort(),
     [refs],
   );
+  const dedupedContextItemIds = useMemo(
+    () => Array.from(new Set(contextItemIds.filter((id): id is string => !!id))).sort(),
+    [contextItemIds],
+  );
+
+  // Past the threshold, fetch one column's worth of item totals in a single request instead of
+  // fanning out one request per item — e.g. a formula column with many rows all sharing the same
+  // default formula. Below it, per-item requests are simpler and cache more precisely, so keep them.
+  const useBatchFetch = dedupedContextItemIds.length > ITEM_TOTAL_BATCH_THRESHOLD;
+
+  const batchQueries = useQueries({
+    queries: (useBatchFetch ? itemScopedTemplateColumnIds : []).map((templateColumnId) => ({
+      queryKey: queryKeys.personalHubTemplateTotals.batchForItems(templateColumnId, dedupedContextItemIds),
+      queryFn: () => getPersonalHubTemplateItemTotalsBatch(templateColumnId, dedupedContextItemIds),
+      staleTime: 60 * 1000,
+      refetchInterval: 60 * 1000,
+      refetchOnMount: 'always' as const,
+      enabled: dedupedContextItemIds.length > 0,
+    })),
+  });
+
   const itemTotalPairs = useMemo(() => {
-    if (itemScopedTemplateColumnIds.length === 0 || contextItemIds.length === 0) return [] as Array<{ templateColumnId: string; itemId: string }>;
+    if (useBatchFetch || itemScopedTemplateColumnIds.length === 0 || dedupedContextItemIds.length === 0) {
+      return [] as Array<{ templateColumnId: string; itemId: string }>;
+    }
     const pairs: Array<{ templateColumnId: string; itemId: string }> = [];
-    const seen = new Set<string>();
     for (const templateColumnId of itemScopedTemplateColumnIds) {
-      for (const itemId of contextItemIds) {
-        if (!itemId) continue;
-        const key = `${templateColumnId}:${itemId}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        pairs.push({ templateColumnId, itemId });
-      }
+      for (const itemId of dedupedContextItemIds) pairs.push({ templateColumnId, itemId });
     }
     return pairs;
-  }, [itemScopedTemplateColumnIds, contextItemIds]);
+  }, [useBatchFetch, itemScopedTemplateColumnIds, dedupedContextItemIds]);
   const itemTotalPairsKey = itemTotalPairs.map((p) => `${p.templateColumnId}:${p.itemId}`).join(',');
 
   const itemTotalQueries = useQueries({
@@ -191,13 +213,21 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   });
   const itemTotalsMap = useMemo(() => {
     const m = new Map<string, number>();
+    if (useBatchFetch) {
+      itemScopedTemplateColumnIds.forEach((templateColumnId, i) => {
+        const totals = batchQueries[i]?.data?.totals;
+        if (!totals) return;
+        Object.entries(totals).forEach(([itemId, total]) => m.set(`${templateColumnId}:${itemId}`, total));
+      });
+      return m;
+    }
     itemTotalPairs.forEach(({ templateColumnId, itemId }, i) => {
       const data = itemTotalQueries[i]?.data;
       if (data) m.set(`${templateColumnId}:${itemId}`, data.total);
     });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemTotalPairsKey, itemTotalQueries]);
+  }, [useBatchFetch, itemScopedTemplateColumnIds.join(','), batchQueries, itemTotalPairsKey, itemTotalQueries]);
 
   const boardKey = boardIds.join(',');
 
@@ -352,6 +382,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     columnQueries.some((q) => q.isLoading) ||
     templateTotalQueries.some((q) => q.isLoading) ||
     itemTotalQueries.some((q) => q.isLoading) ||
+    batchQueries.some((q) => q.isLoading) ||
     (personalQueries[0]?.isLoading ?? false);
 
   const resolve = useCallback(

@@ -18,3 +18,4 @@ appConfigRouter.get('/personal-hub-template', appConfigController.getPersonalHub
 appConfigRouter.put('/personal-hub-template', requireRole(adminRoles), appConfigController.updatePersonalHubTemplate);
 appConfigRouter.get('/personal-hub-template-totals/:templateColumnId', appConfigController.getPersonalHubTemplateTotal);
 appConfigRouter.get('/personal-hub-template-totals/:templateColumnId/items/:itemId', appConfigController.getPersonalHubTemplateItemTotal);
+appConfigRouter.post('/personal-hub-template-totals/:templateColumnId/items-batch', appConfigController.getPersonalHubTemplateItemTotalsBatch);

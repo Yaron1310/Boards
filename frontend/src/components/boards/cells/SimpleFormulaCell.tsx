@@ -57,7 +57,11 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
     () => extractForeignRefs(cellFormula),
     [cellFormula],
   );
-  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId, [item.id]);
+  // Every row's own cell passes the *whole* board's item ids (not just its own) so that when the
+  // same default formula is applied to many rows, their per-item Personal Hub template total
+  // requests share one query/batch instead of each cell fetching its own item in isolation.
+  const boardItemIds = useMemo(() => visibleItems.map((it) => it.id), [visibleItems]);
+  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId, boardItemIds);
 
   const formulaContext = useMemo(
     () => ({

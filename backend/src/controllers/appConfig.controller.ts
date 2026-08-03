@@ -274,6 +274,61 @@ export const getPersonalHubTemplateItemTotal = async (req: Request, res: Respons
     }
 };
 
+// Batched form of the per-item total above: one request for many items instead of one request
+// per item, for a formula column with enough rows that per-item requests would otherwise fan out.
+const ITEM_TOTALS_BATCH_MAX = 500;
+const VALUE_DOC_GET_CHUNK = 300; // Firestore getAll() is called in chunks to stay well under any request-size limit.
+
+export const getPersonalHubTemplateItemTotalsBatch = async (req: Request, res: Response) => {
+    const user = req.user as JwtUserPayload;
+    const { templateColumnId } = req.params;
+    const { itemIds } = req.body;
+
+    if (!Array.isArray(itemIds)) {
+        return res.status(400).json({ message: 'itemIds must be an array.' });
+    }
+    const ids = Array.from(new Set(itemIds.filter((id): id is string => typeof id === 'string' && !!id))).slice(0, ITEM_TOTALS_BATCH_MAX);
+    if (ids.length === 0) return res.json({ totals: {} });
+
+    try {
+        const totals: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
+
+        const columnsSnap = await personalColumnsCollection(user.orgId)
+            .where('templateColumnId', '==', templateColumnId)
+            .get();
+        if (columnsSnap.empty) return res.json({ totals });
+
+        const userColumnPairs = columnsSnap.docs.map((d) => ({ userId: (d.data() as { userId: string }).userId, columnId: d.id }));
+
+        const refs: FirebaseFirestore.DocumentReference[] = [];
+        const refMeta: Array<{ itemId: string; columnId: string }> = [];
+        for (const itemId of ids) {
+            for (const { userId, columnId } of userColumnPairs) {
+                refs.push(personalItemValuesCollection(user.orgId).doc(`${userId}_${itemId}`));
+                refMeta.push({ itemId, columnId });
+            }
+        }
+
+        for (let i = 0; i < refs.length; i += VALUE_DOC_GET_CHUNK) {
+            const chunkRefs = refs.slice(i, i + VALUE_DOC_GET_CHUNK);
+            const chunkMeta = refMeta.slice(i, i + VALUE_DOC_GET_CHUNK);
+            const docs = await personalItemValuesCollection(user.orgId).firestore.getAll(...chunkRefs);
+            docs.forEach((doc, idx) => {
+                if (!doc.exists) return;
+                const { itemId, columnId } = chunkMeta[idx];
+                const raw = (doc.data()?.values as Record<string, unknown> | undefined)?.[columnId];
+                const n = Number(raw);
+                if (raw != null && raw !== '' && !isNaN(n)) totals[itemId] += n;
+            });
+        }
+
+        res.json({ totals });
+    } catch (error) {
+        logger.error('Error fetching personal hub template item totals batch:', error);
+        res.status(500).json({ message: 'Failed to fetch personal hub template item totals.' });
+    }
+};
+
 export const regenerateApiKey = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     try {

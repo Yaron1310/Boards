@@ -62,7 +62,10 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     () => extractForeignRefs(cellFormula),
     [cellFormula],
   );
-  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId, [itemId]);
+  // Pass every row's item id (not just this cell's own), so when the same default formula is
+  // applied across many rows, their per-item Personal Hub template total requests can share one
+  // batched query instead of each cell fetching its own item in isolation.
+  const { resolve: resolveForeign, isLoading: foreignLoading } = useForeignCellValues(foreignRefs, orgId, gridContext.rowOrder);
 
   const formulaContext = useMemo(
     () => ({
