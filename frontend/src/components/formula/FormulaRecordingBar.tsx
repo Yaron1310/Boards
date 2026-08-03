@@ -322,17 +322,52 @@ const FormulaRecordingBar: React.FC = () => {
         >
           <FiX size={13} aria-hidden="true" /> Cancel
         </button>
-        <button
-          type="button"
-          onClick={requestSaveWithScopeChoice}
-          className="ml-1 p-1.5 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 rounded transition-colors"
-          aria-label="Save and choose which cells this formula applies to (all cells or just this one)"
-          title="Choose where to apply: all cells in the column or just this cell"
-        >
-          <FiEdit2 size={14} aria-hidden="true" />
-        </button>
+        <ApplyScopeToggle onActivate={requestSaveWithScopeChoice} />
       </div>
     </div>
+  );
+};
+
+/** Toggle-styled affordance next to Save — clicking it still immediately saves via the
+ *  scope-choice flow (pick all cells in the column vs. just this one), same as before; only the
+ *  look (a toggle-shaped icon button instead of a plain flat one) and the tooltip (an instant,
+ *  styled tooltip instead of the native `title`, which has a delay and can't be styled) changed. */
+const ApplyScopeToggle: React.FC<{ onActivate: () => void }> = ({ onActivate }) => {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number } | null>(null);
+
+  const show = () => {
+    const rect = btnRef.current?.getBoundingClientRect();
+    if (rect) setTooltipPos({ top: rect.bottom, left: rect.left + rect.width / 2 });
+  };
+  const hide = () => setTooltipPos(null);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={onActivate}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        aria-pressed={false}
+        className="ml-1 flex items-center justify-center w-7 h-7 rounded-full border border-indigo-300 text-indigo-500 hover:text-indigo-700 hover:bg-indigo-100 hover:border-indigo-400 transition-colors"
+        aria-label="Save and choose which cells this formula applies to (all cells or just this one)"
+      >
+        <FiEdit2 size={13} aria-hidden="true" />
+      </button>
+      {tooltipPos && ReactDOM.createPortal(
+        <div className="fixed z-[9999] -translate-x-1/2 pointer-events-none" style={{ top: tooltipPos.top + 6, left: tooltipPos.left }}>
+          <div className="w-2 h-2 bg-gray-800 rotate-45 mx-auto -mb-1" />
+          <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 shadow-xl whitespace-nowrap">
+            Choose where to apply: all cells in the column or just this cell
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 };
 
