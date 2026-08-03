@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { serializeRef, type CellRef } from '../utils/formulaEngine';
+import type { SimpleFormulaColumnSettings } from '../types';
 
 /** Identity of the formula cell being recorded. Kept in a route-independent context so the
  *  session survives navigation to other boards while the user picks cells. */
@@ -11,9 +12,19 @@ export interface RecordingOrigin {
   itemName: string;
   /** True when the formula lives on a Personal Hub column. */
   isPersonal: boolean;
+  /** Personal Hub formulas only: whose hub this column belongs to — undefined for your own.
+   *  Needed so the apply-scope toggle (which persists directly, without the origin cell
+   *  necessarily being mounted) can patch the right owner's personal column. */
+  personalOwnerId?: string;
+  /** The column's settings at the moment recording began (unit, precision, etc., alongside the
+   *  current defaultFormula/applyScope) — a snapshot the apply-scope toggle can spread into its
+   *  patch without needing its own query, since the origin cell may not be mounted while the
+   *  toggle is used (recording can continue on a different board). */
+  columnSettings?: SimpleFormulaColumnSettings;
   /** The column's current apply-scope decision at the moment recording began ('all' cells share
    *  one default formula, 'perCell' means each cell keeps its own), or undefined if this column
-   *  has never had a formula saved before — i.e. the choice hasn't been made yet. */
+   *  has never had a formula saved before — i.e. the choice hasn't been made yet. Kept in sync
+   *  by the apply-scope toggle as the user flips it, so the toggle's own display stays correct. */
   applyScope?: 'all' | 'perCell';
 }
 
@@ -32,10 +43,6 @@ export interface RecordingSession {
    *  user navigate within the formula with arrow keys or a mouse click instead of always
    *  editing at the end. */
   cursor: number;
-  /** Set by the apply-scope toggle once the column already has a scope decision on record — the
-   *  origin cell applies this scope directly on save, skipping the all-cells/just-this modal
-   *  entirely (that modal is reserved for the column's very first formula). */
-  forcedApplyScope?: 'all' | 'perCell';
 }
 
 interface FormulaRecordingContextValue {
@@ -53,10 +60,11 @@ interface FormulaRecordingContextValue {
   cancel: () => void;
   /** User pressed Save: switch to 'awaiting-origin' so the origin cell finishes on its board. */
   requestSave: () => void;
-  /** Flip between "all cells" and "just this cell" and save immediately — no chooser. Only
-   *  meaningful once the column already has a scope decision (see RecordingOrigin.applyScope);
-   *  before that, behaves like a plain save (the modal decides the first scope, same as always). */
-  toggleApplyScope: () => void;
+  /** Records the apply-scope toggle's outcome on the session, so its own display (and any later
+   *  Save) reflects the new scope, without ending the recording session or touching the draft —
+   *  the toggle persists the column's scope itself (see FormulaRecordingBar), this just updates
+   *  what's shown here. */
+  setOriginApplyScope: (scope: 'all' | 'perCell') => void;
   /** Called by the origin cell once it has committed (or the user cancelled the finish). */
   endSession: () => void;
 }
@@ -122,15 +130,8 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
     setSession((s) => (s ? { ...s, phase: 'awaiting-origin' } : s));
   }, []);
 
-  const toggleApplyScope = useCallback(() => {
-    setSession((s) => {
-      if (!s) return s;
-      const current = s.forcedApplyScope ?? s.origin.applyScope;
-      // No scope decided yet for this column — nothing to flip, so just save normally; the
-      // column's very first formula always shows the all-cells/just-this modal regardless.
-      const next = current ? (current === 'all' ? 'perCell' : 'all') : undefined;
-      return { ...s, phase: 'awaiting-origin', forcedApplyScope: next };
-    });
+  const setOriginApplyScope = useCallback((scope: 'all' | 'perCell') => {
+    setSession((s) => (s ? { ...s, origin: { ...s.origin, applyScope: scope } } : s));
   }, []);
 
   // Global keyboard while recording: Esc cancels; Enter saves; digits/operators/parens build the
@@ -231,10 +232,10 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
       insertRef,
       cancel,
       requestSave,
-      toggleApplyScope,
+      setOriginApplyScope,
       endSession,
     }),
-    [session, begin, setDraft, setCursor, insertRef, cancel, requestSave, toggleApplyScope, endSession],
+    [session, begin, setDraft, setCursor, insertRef, cancel, requestSave, setOriginApplyScope, endSession],
   );
 
   return <FormulaRecordingContext.Provider value={value}>{children}</FormulaRecordingContext.Provider>;

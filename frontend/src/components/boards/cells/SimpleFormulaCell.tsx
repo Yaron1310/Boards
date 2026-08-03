@@ -102,8 +102,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
     }
   };
 
-  /** Applies a formula decision the same way the modal's two buttons do, but callable directly
-   *  (used when the apply-scope toggle already flipped a decided scope, skipping the modal). */
+  /** Applies a formula decision the same way the modal's two buttons do. */
   const applyScopeDecision = async (formula: string, scope: 'all' | 'perCell') => {
     if (scope === 'all') {
       const relativeFormula = makeRelativeIdFormula(formula, homeBoardId);
@@ -127,17 +126,12 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
 
   /** Turn the recorded draft into a stored value, matching the single-board commit semantics.
    *  When the column has no default yet, defer to the apply-to-all / just-this choice. */
-  const commitDraft = (draft: string, forcedScope?: 'all' | 'perCell') => {
+  const commitDraft = (draft: string) => {
     const trimmed = draft.trim();
-    // The apply-scope toggle already decided the scope (only possible once the column has a
-    // scope on record) — apply it directly, no modal.
-    if (trimmed && forcedScope) {
-      void applyScopeDecision(trimmed, forcedScope);
-      return;
-    }
     // Ask "all cells / just this cell" only the first time this column ever gets a formula (no
     // scope decision recorded yet). Once a scope is chosen it's remembered on the column, so the
-    // question never resurfaces on its own — the apply-scope toggle flips it directly instead.
+    // question never resurfaces on its own — the apply-scope toggle flips it directly instead
+    // (and persists immediately, independent of Save — see FormulaRecordingBar).
     const isFirstFormula = !settings?.applyScope;
     if (trimmed && isFirstFormula) {
       setPendingFormula(trimmed);
@@ -154,10 +148,9 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   const finish = () => {
     if (finishGuard.current) return;
     const draft = sessionRef.current?.draft ?? '';
-    const forcedScope = sessionRef.current?.forcedApplyScope;
     finishGuard.current = true;
     endSession();
-    commitDraft(draft, forcedScope);
+    commitDraft(draft);
   };
 
   const startRecording = (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -180,6 +173,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
         itemName: item.name,
         isPersonal: false,
         applyScope: settings?.applyScope,
+        columnSettings: settings,
       },
       idFormula,
     );
