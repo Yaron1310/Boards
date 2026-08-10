@@ -11,6 +11,7 @@ import { getPersonalItemValues } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
 import { aggregateSummary, BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, type CellRef } from '@/utils/formulaEngine';
 import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
+import { formulaLog, formulaRefLog } from '@/utils/formulaDebug';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
 
@@ -131,7 +132,22 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     enabled: hasPersonalSummaryRefs && hubItemIds.length > 0,
     staleTime: 60 * 1000,
   });
-  const { data: personalColumnDefs } = usePersonalColumns(undefined, hasPersonalSummaryRefs);
+  const personalColumnsQuery = usePersonalColumns(undefined, hasPersonalSummaryRefs);
+  const personalColumnDefs = personalColumnsQuery.data;
+
+  // Trace what the three hub loads are doing — a personal summary can only resolve once all of
+  // them have landed, so this is where to look first when a token stays at "…".
+  useEffect(() => {
+    if (!hasPersonalSummaryRefs) return;
+    formulaLog('personal hub data', {
+      viewerId: viewerId ?? '(none — assigned-items load is disabled)',
+      columns: { status: personalColumnsQuery.status, count: personalColumnDefs?.length ?? 0, error: personalColumnsQuery.error?.message },
+      assignedItems: { status: hubItemsQuery.status, count: hubItems.length, error: hubItemsQuery.error?.message },
+      values: { status: hubValuesQuery.status, items: Object.keys(hubValuesQuery.data ?? {}).length, error: hubValuesQuery.error?.message },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPersonalSummaryRefs, viewerId, personalColumnsQuery.status, personalColumnsQuery.data,
+      hubItemsQuery.status, hubItemsQuery.data, hubValuesQuery.status, hubValuesQuery.data]);
 
   // Personal Hub template totals — org-wide running sums, not tied to any board. Referenced by
   // templateColumnId (held in `columnId` for 'ph' refs). Global (whole-org) scope only here —
@@ -454,7 +470,19 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         if (r.agg && r.kind === 'p') {
           const col = personalColumnDefs?.find((c) => c.id === r.columnId);
           const hubValues = hubValuesQuery.data;
-          if (!col || !hubValues) return undefined; // hub not loaded yet
+          if (!col || !hubValues) {
+            formulaRefLog(r, 'unresolved',
+              !personalColumnDefs ? 'your personal columns have not loaded'
+                : !col ? 'no personal column has this id'
+                : 'your personal values have not loaded',
+              {
+                lookingForColumnId: r.columnId,
+                knownPersonalColumnIds: (personalColumnDefs ?? []).map((c) => c.id),
+                assignedItemsLoaded: hubItems.length,
+                valuesLoaded: !!hubValues,
+              });
+            return undefined;
+          }
           const scoped = (r.groupId === BOARD_TOTAL_GROUP_ID
             ? hubItems
             : hubItems.filter((i) => i.boardId === r.boardId)
@@ -462,7 +490,17 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
             const rows = scoped.map((i) => ({ id: i.id, values: hubValues[i.id] ?? {} }));
-            return computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+            const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+            formulaRefLog(r, total === null ? 'empty' : 'ok',
+              total === null ? 'no row in this scope has a value for the column' : 'aggregated',
+              {
+                column: col.name,
+                scope: r.groupId === BOARD_TOTAL_GROUP_ID ? 'whole hub' : `board ${r.boardId}`,
+                rowsInScope: scoped.length,
+                rowsWithAValue: rows.filter((row) => row.values[r.columnId] != null && row.values[r.columnId] !== '').length,
+                total,
+              });
+            return total;
           }
 
           // A personal formula column holds formula text, not values, so totalling it means
@@ -491,22 +529,48 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             const v = hubValues[id]?.[col.id];
             return typeof v === 'string' ? v : '';
           })];
-          if (formulas.some((f) => f && hasAbsolutePositionalRefs(f))) return undefined;
+          if (formulas.some((f) => f && hasAbsolutePositionalRefs(f))) {
+            formulaRefLog(r, 'unresolved',
+              'the column uses absolute positional refs like {C3}, which need the Hub’s exact row order',
+              { column: col.name });
+            return undefined;
+          }
 
           const evalRow = makePersonalFormulaEvaluator(col, grid, (ref, itemId) => inner(ref, itemId, nextVisited));
           const vals = scoped
             .map((i) => evalRow(i))
             .filter((n): n is number => n !== null && !isNaN(n));
-          return aggregateSummary(vals, r.agg);
+          const total = aggregateSummary(vals, r.agg);
+          formulaRefLog(r, total === null ? 'empty' : 'ok',
+            total === null ? 'no row in this scope produced a formula value' : 'aggregated',
+            {
+              column: col.name,
+              gridRows: grid.rowOrder.length,
+              gridColumns: grid.columns.map((c) => c.name),
+              rowsInScope: scoped.length,
+              rowsThatEvaluated: vals.length,
+              total,
+            });
+          return total;
         }
 
         // Group-summary reference: aggregate a column across a group. Board columns only.
         if (r.agg) {
-          if (r.kind !== 'b') return undefined;
+          if (r.kind !== 'b') {
+            formulaRefLog(r, 'unresolved', `summary refs of kind '${r.kind}' have no resolver here`);
+            return undefined;
+          }
           const items = boardItemsList.get(r.boardId);
           const cols = boardColumnsMap.get(r.boardId);
           const col = cols?.find((c) => c.id === r.columnId);
-          if (!items || !cols || !col) return undefined; // board items/columns not loaded yet
+          if (!items || !cols || !col) {
+            formulaRefLog(r, 'unresolved',
+              !items ? 'the source board’s items have not loaded'
+                : !cols ? 'the source board’s columns have not loaded'
+                : 'no column on that board has this id',
+              { boardId: r.boardId, lookingForColumnId: r.columnId, knownColumnIds: (cols ?? []).map((c) => c.id) });
+            return undefined; // board items/columns not loaded yet
+          }
           const rows = r.groupId === BOARD_TOTAL_GROUP_ID ? items : items.filter((i) => i.groupId === r.groupId);
 
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
@@ -597,10 +661,28 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         }
 
         const row = personalValues[itemId];
-        if (!row) return undefined;
+        if (!row) {
+          formulaRefLog(r, 'unresolved', 'personal values for this item were not fetched', {
+            itemId,
+            itemsFetched: Object.keys(personalValues),
+          });
+          return undefined;
+        }
         const raw = row[r.columnId];
-        if (raw == null || raw === '') return null;
+        if (raw == null || raw === '') {
+          // The single most useful line for a personal cell that reads 0: `columnsWithAValue`
+          // lists the column ids this item DOES hold, so a mismatch against the id being asked
+          // for is visible at a glance rather than inferred.
+          formulaRefLog(r, 'empty', 'this item holds no value for that personal column', {
+            itemId,
+            lookingForColumnId: r.columnId,
+            columnsWithAValue: Object.keys(row),
+          });
+          return null;
+        }
         const n = Number(raw);
+        formulaRefLog(r, isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'stored value is not a number' : 'read from your hub',
+          { itemId, raw });
         return isNaN(n) ? null : n;
       };
 

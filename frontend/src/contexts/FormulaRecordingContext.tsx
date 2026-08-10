@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { serializeRef, type CellRef } from '../utils/formulaEngine';
+import { formulaLog } from '../utils/formulaDebug';
 import type { SimpleFormulaColumnSettings } from '../types';
 
 /** Identity of the formula cell being recorded. Kept in a route-independent context so the
@@ -113,6 +114,7 @@ export const FormulaRecordingProvider: React.FC<{ children: React.ReactNode }> =
   }, []);
 
   const insertRef = useCallback((ref: CellRef) => {
+    formulaLog('inserted reference', { token: serializeRef(ref), ...ref });
     setSession((s) => {
       if (!s) return s;
       // A ref placed right after another value auto-multiplies — {20} then {3} → {20}*{3}.
