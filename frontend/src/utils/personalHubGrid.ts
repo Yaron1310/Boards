@@ -72,6 +72,7 @@ export const makePersonalFormulaEvaluator = (
       // grid, which spans every board. Passing it is what lets same-table references resolve
       // here instead of being treated as pointing somewhere else entirely.
       homeBoardId: grid.boardId ?? '',
+      hubOwnerId: grid.ownerId,
       resolveRef: resolveRef ? (ref) => resolveRef(ref, item.id) : undefined,
     });
     return r !== null && !isNaN(r) ? r : null;

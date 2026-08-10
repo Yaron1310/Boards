@@ -46,6 +46,12 @@ export interface CellRef {
    *  regardless of item. 'item' scopes the sum to only the values entered against the same
    *  item as the row the formula is evaluated for (relative — like `itemId: null` for 'b'/'p'). */
   phScope?: 'global' | 'item';
+  /** 'p' refs only: whose Personal Hub this points at. Absent means the viewer's own — the
+   *  original reading, and still what a reference picked from your own hub records, so existing
+   *  formulas keep working untouched. Set when the reference was picked while viewing someone
+   *  else's hub (admins only), where "the viewer's hub" would name a different set of columns
+   *  entirely and could never match. */
+  ownerId?: string;
 }
 
 /** Stable key identifying the DOM cell a ref points at (a specific item's cell, or a group
@@ -182,6 +188,11 @@ export interface FormulaContext {
    *  be aggregated locally in that case — it must fall through to `resolveRef`, which loads the
    *  full source board. Defaults to true (a regular board render always carries every item). */
   groupsComplete?: boolean;
+  /** Whose Personal Hub the rows in `allItems` belong to, when they are hub rows at all. Absent
+   *  means the viewer's own hub (or a plain board). A personal ref only resolves from these rows
+   *  when its owner matches — otherwise it names a different person's columns and has to be
+   *  loaded rather than read from what happens to be on screen. */
+  hubOwnerId?: string;
   /** Resolver for refs the engine cannot satisfy locally (foreign boards, personal-hub, etc.).
    *  Return a number, `null` if the target is known but empty/non-numeric (contributes 0), or
    *  `undefined` if it cannot be resolved yet (data still loading, or the target no longer exists). */
@@ -214,9 +225,12 @@ export function parseRefToken(inner: string): CellRef | null {
   const trimmed = inner.trim();
   if (!trimmed.startsWith('ref:')) return null;
   const parts = trimmed.split(':');
-  if (parts.length !== 5) return null;
-  const [, kind, boardId, columnId, row] = parts;
+  // A 6th part is the Personal Hub owner, present only on references picked from someone else's
+  // hub. Everything written before that stays exactly 5 parts and parses as it always did.
+  if (parts.length !== 5 && parts.length !== 6) return null;
+  const [, kind, boardId, columnId, row, owner] = parts;
   if (kind !== 'b' && kind !== 'p' && kind !== 'ph') return null;
+  const ownerId = kind === 'p' && owner ? owner : undefined;
   // boardId may be empty for Personal Hub "all-groups" columns (no single owning board) and is
   // always empty for 'ph' refs (an org-wide total isn't tied to any board);
   // 'p'/'ph' refs resolve by itemId+columnId (or just columnId, for 'ph') regardless of board.
@@ -230,9 +244,9 @@ export function parseRefToken(inner: string): CellRef | null {
   // Group-summary refs encode the row slot as `sum#<agg>#<groupId>` (Firestore ids carry no ':'/'#').
   if (row.startsWith('sum#')) {
     const [, agg, groupId] = row.split('#');
-    return { kind, boardId, columnId, itemId: null, agg: agg as SummaryCalc, groupId: groupId || undefined };
+    return { kind, boardId, columnId, itemId: null, agg: agg as SummaryCalc, groupId: groupId || undefined, ownerId };
   }
-  return { kind, boardId, columnId, itemId: row === '@' ? null : row };
+  return { kind, boardId, columnId, itemId: row === '@' ? null : row, ownerId };
 }
 
 /** Serialize a CellRef back into its `{ref:...}` token form. */
@@ -241,7 +255,8 @@ export function serializeRef(ref: CellRef): string {
     return `{ref:ph::${ref.columnId}:${ref.phScope === 'item' ? 'item' : '@'}}`;
   }
   const row = ref.agg ? `sum#${ref.agg}#${ref.groupId ?? ''}` : (ref.itemId ?? '@');
-  return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}}`;
+  const owner = ref.kind === 'p' && ref.ownerId ? `:${ref.ownerId}` : '';
+  return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}${owner}}`;
 }
 
 class FormulaParser {
@@ -377,7 +392,7 @@ class FormulaParser {
     // exactly, empty included; requiring a non-empty board id would strand every cross-group
     // personal reference, leaving it to a resolver that can't see the grid it came from.
     const isHome = ref.kind === 'p'
-      ? !!ctx && ref.boardId === (ctx.homeBoardId ?? '')
+      ? !!ctx && ref.boardId === (ctx.homeBoardId ?? '') && (ref.ownerId ?? '') === (ctx.hubOwnerId ?? '')
       : !!ctx?.homeBoardId && ref.boardId === ctx.homeBoardId;
     // A whole-hub personal total spans every board, so it names no board for homeBoardId to
     // match — but a cross-group personal grid holds exactly those rows, so resolve it right here
@@ -386,6 +401,7 @@ class FormulaParser {
     // through isHome (the board-scoped grid) or fall through to the resolver.
     const isLocalPersonalSummary =
       ref.kind === 'p' && !!ref.agg && ref.groupId === BOARD_TOTAL_GROUP_ID &&
+      (ref.ownerId ?? '') === (ctx?.hubOwnerId ?? '') &&
       !!ctx?.columns.some((c) => c.id === ref.columnId);
 
     if (isHome || isLocalPersonalSummary) {

@@ -208,13 +208,13 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   // behavior. The page assembles this across all groups; fall back to this group's own
   // rows only if the page hasn't wired it up.
   const localCrossGroupGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem, boardId }),
-    [displayItemIds, crossGroupColumns, personalValuesByItem, boardId],
+    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem, boardId, ownerId: ownerUserId }),
+    [displayItemIds, crossGroupColumns, personalValuesByItem, boardId, ownerUserId],
   );
   const crossGroupGridContext = pageCrossGroupGridContext ?? localCrossGroupGridContext;
   const boardOnlyGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem, boardId }),
-    [displayItemIds, boardOnlyColumns, personalValuesByItem, boardId],
+    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem, boardId, ownerId: ownerUserId }),
+    [displayItemIds, boardOnlyColumns, personalValuesByItem, boardId, ownerUserId],
   );
 
   // For cumulative cross-group summaries: rows from every board group above this one.
@@ -360,6 +360,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       itemsAbove={crossGroupItemsAbove}
                       numberCols={[]}
                       widthOverride={PERSONAL_COL_WIDTH}
+                      personalOwnerId={ownerUserId}
                       // Page-wide value source so both this group's rows and rows from
                       // groups above (cumulative scope) resolve.
                       getValue={(item) => crossGroupGridContext.valuesByItem[item.id]?.[col.id]}
@@ -378,6 +379,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       items={displayItems}
                       numberCols={[]}
                       widthOverride={PERSONAL_COL_WIDTH}
+                      personalOwnerId={ownerUserId}
                       getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
                       evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, boardOnlyGridContext) : undefined}
                       onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}

@@ -58,12 +58,12 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
         className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center cursor-pointer hover:bg-indigo-100/60 transition-colors"
         onMouseDown={(e) => {
           e.preventDefault();
-          insertRef({ kind: 'p', boardId: gridContext?.boardId ?? '', columnId: column.id, itemId });
+          insertRef({ kind: 'p', boardId: gridContext?.boardId ?? '', columnId: column.id, itemId, ownerId: userId });
         }}
         title="Add this cell to the formula"
         aria-label={`Add ${column.name} for ${itemName} to the formula`}
         data-formula-insertable="true"
-        data-formula-cell-key={formulaRefDomKey({ kind: 'p', boardId: gridContext?.boardId ?? '', columnId: column.id, itemId })}
+        data-formula-cell-key={formulaRefDomKey({ kind: 'p', boardId: gridContext?.boardId ?? '', columnId: column.id, itemId, ownerId: userId })}
       >
         {display != null ? display : <span className="text-gray-300 text-xs">—</span>}
       </div>

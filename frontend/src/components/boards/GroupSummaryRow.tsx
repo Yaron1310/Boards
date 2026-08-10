@@ -334,11 +334,17 @@ interface SummaryCellProps {
    * table (their rows carry no personal-hub group of their own).
    */
   groupId?: string;
+  /**
+   * Personal Hub: whose hub this summary belongs to — undefined for your own, set when an admin
+   * is viewing someone else's. Stamped onto the reference so it keeps naming that person's column
+   * once the formula is evaluated somewhere their hub isn't on screen.
+   */
+  personalOwnerId?: string;
 }
 
 export const SummaryCell: React.FC<SummaryCellProps> = ({
   col, items, numberCols, itemsAbove, widthOverride, getValue, evalFormula, onPersist,
-  cumulative = false, onCumulativeChange, boardTotal = false, groupId,
+  cumulative = false, onCumulativeChange, boardTotal = false, groupId, personalOwnerId,
 }) => {
   const getVal = getValue ?? ((i: Item, colId: string) => i.values[colId]);
   const isCheckbox = col.type === ColumnType.CHECKBOX;
@@ -618,6 +624,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
     groupId: boardTotal
       ? BOARD_TOTAL_GROUP_ID
       : (isPersonalSummary ? undefined : (groupId ?? items[0]?.groupId)),
+    ownerId: isPersonalSummary ? personalOwnerId : undefined,
   };
 
   // What a click needs is a ref that points somewhere — NOT a cell that happens to be showing a

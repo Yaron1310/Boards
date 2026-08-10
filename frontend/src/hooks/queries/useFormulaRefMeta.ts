@@ -1,14 +1,18 @@
 import { useMemo } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
-import { usePersonalColumns } from './usePersonalHubQueries';
+import { useUsersQuery } from './useUserQueries';
 import { useAuth } from '../useAuth';
+import { listPersonalColumns } from '@/services/personalHubService';
 import * as wm from '@/services/workManagementService';
 import { getPersonalHubTemplate } from '@/services/geminiService';
 import type { CellRef, SummaryCalc } from '@/utils/formulaEngine';
 import type { Item, PaginatedResponse } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
+
+/** Stands in for "the viewer's own hub" where `undefined` can't be a map key. */
+const SELF_OWNER = 'self';
 
 export interface RefMeta {
   isPersonal: boolean;
@@ -51,13 +55,39 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
   const { user } = useAuth();
   const userName = (user as { name?: string } | null | undefined)?.name;
 
-  const hasPersonalRefs = useMemo(() => refs.some((r) => r.kind === 'p'), [refs]);
-  const { data: personalColumns } = usePersonalColumns(undefined, hasPersonalRefs);
-  const personalColumnNameMap = useMemo(() => {
-    const m = new Map<string, string>();
-    (personalColumns ?? []).forEach((c) => m.set(c.id, c.name));
+  // Personal column names come from whichever hub each ref points at — your own unless the ref
+  // was picked from someone else's, in which case that hub holds the only matching column.
+  const personalOwners = useMemo(() => {
+    const owners = new Set<string>();
+    refs.forEach((r) => { if (r.kind === 'p') owners.add(r.ownerId && r.ownerId !== user?.id ? r.ownerId : SELF_OWNER); });
+    return Array.from(owners).sort();
+  }, [refs, user?.id]);
+  const personalOwnersKey = personalOwners.join(',');
+
+  const personalColumnQueries = useQueries({
+    queries: personalOwners.map((owner) => ({
+      queryKey: queryKeys.personalHub.columns(owner === SELF_OWNER ? undefined : owner),
+      queryFn: () => listPersonalColumns(owner === SELF_OWNER ? undefined : owner),
+      staleTime: 60 * 1000,
+      retry: owner === SELF_OWNER ? undefined : false,
+    })),
+  });
+  const personalColumnNamesByOwner = useMemo(() => {
+    const m = new Map<string, Map<string, string>>();
+    personalOwners.forEach((owner, i) => {
+      const cols = personalColumnQueries[i]?.data;
+      if (!cols) return;
+      const names = new Map<string, string>();
+      cols.forEach((c) => names.set(c.id, c.name));
+      m.set(owner, names);
+    });
     return m;
-  }, [personalColumns]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalOwnersKey, personalColumnQueries]);
+
+  // Only needed to name whose hub an owner-stamped ref belongs to.
+  const hasOtherHubRefs = personalOwners.some((o) => o !== SELF_OWNER);
+  const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, hasOtherHubRefs);
 
   const hasTemplateRefs = useMemo(() => refs.some((r) => r.kind === 'ph'), [refs]);
   const { data: template } = useQuery({
@@ -206,18 +236,22 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
     }
 
     if (ref.kind === 'p') {
-      const columnName = personalColumnNameMap.get(ref.columnId);
+      const owner = ref.ownerId && ref.ownerId !== user?.id ? ref.ownerId : SELF_OWNER;
+      const columnName = personalColumnNamesByOwner.get(owner)?.get(ref.columnId);
+      const hubUserName = owner === SELF_OWNER
+        ? userName
+        : allUsers.find((u) => u.id === owner)?.name ?? 'another user';
 
       if (ref.agg) {
         if (columnName === undefined) return undefined;
         // A cross-group ("all groups") personal summary isn't scoped to a board, so it carries no
         // board to name — describe it by column and aggregate alone rather than reporting the
         // whole ref as unresolvable, which left the token blank in the recording bar.
-        if (!ref.boardId) return { isPersonal: true, userName, columnName, agg: ref.agg };
+        if (!ref.boardId) return { isPersonal: true, userName: hubUserName, columnName, agg: ref.agg };
         const boardName = boardNameMap.get(ref.boardId);
         const groupName = ref.groupId ? groupNameMap.get(ref.boardId)?.get(ref.groupId) : undefined;
         if (boardName === undefined) return undefined;
-        return { isPersonal: true, userName, boardId: ref.boardId, boardName, groupName, columnName, agg: ref.agg };
+        return { isPersonal: true, userName: hubUserName, boardId: ref.boardId, boardName, groupName, columnName, agg: ref.agg };
       }
 
       const itemId = ref.itemId ?? current ?? currentItemId ?? null;
@@ -227,7 +261,7 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
       const boardName = boardNameMap.get(item.boardId);
       if (boardName === undefined) return undefined;
       const groupName = groupNameMap.get(item.boardId)?.get(item.groupId);
-      return { isPersonal: true, userName, boardId: item.boardId, boardName, groupName, itemName: item.name, columnName };
+      return { isPersonal: true, userName: hubUserName, boardId: item.boardId, boardName, groupName, itemName: item.name, columnName };
     }
 
     const boardName = boardNameMap.get(ref.boardId);

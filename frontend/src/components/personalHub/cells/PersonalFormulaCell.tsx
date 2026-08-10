@@ -73,9 +73,10 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
       columns: gridContext.columns,
       currentRowIndex: rowIndex >= 0 ? rowIndex : undefined,
       homeBoardId,
+      hubOwnerId: userId,
       resolveRef: (ref: Parameters<typeof resolveForeign>[0]) => resolveForeign(ref, itemId),
     }),
-    [allItems, gridContext.columns, rowIndex, homeBoardId, resolveForeign, itemId],
+    [allItems, gridContext.columns, rowIndex, homeBoardId, userId, resolveForeign, itemId],
   );
 
   const { result, hasUnresolved } = useMemo(() => {

@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { collection, doc, query, where, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
-import { usePersonalColumns } from './usePersonalHubQueries';
 import { useAuth } from '../useAuth';
 import * as wm from '@/services/workManagementService';
-import { getPersonalItemValues } from '@/services/personalHubService';
+import { getPersonalItemValues, listPersonalColumns } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
 import { aggregateSummary, BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, type CellRef } from '@/utils/formulaEngine';
 import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
 import { formulaLog, formulaRefLog } from '@/utils/formulaDebug';
 import { ColumnType } from '@/types';
-import type { Column, Item, PaginatedResponse } from '@/types';
+import type { Column, Item, PaginatedResponse, PersonalColumn } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
+
+/** Stands in for "the viewer's own hub" in the per-owner maps, where `undefined` can't be a key. */
+const SELF_OWNER = 'self';
 
 /**
  * Maximum board-hops a formula reference chain may traverse (the formula's own board's direct
@@ -94,64 +96,133 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [directKey]);
 
-  const personalItemIds = useMemo(
-    () =>
-      Array.from(
-        new Set(refs.filter((r) => r.kind === 'p').map((r) => r.itemId).filter((x): x is string => !!x)),
-      ).sort(),
-    [refs],
-  );
-
-  // Personal Hub group summaries. Unlike a per-cell 'p' ref (which names its item), a summary
-  // names a whole slice of the hub, so resolving one outside the Hub means reconstructing that
-  // slice: the viewer's assigned items, their personal values, and the column's type. Personal
-  // data is private, so this is always the viewer's own hub — the same reading every other 'p'
-  // ref already has.
-  const hasPersonalSummaryRefs = useMemo(
-    () => refs.some((r) => r.kind === 'p' && !!r.agg),
-    [refs],
-  );
   const { user } = useAuth();
   const viewerId = (user as { id?: string } | null | undefined)?.id;
 
-  const hubItemsQuery = useQuery({
-    queryKey: queryKeys.items.list({ assignee: viewerId, limit: FOREIGN_ITEMS_LIMIT }),
-    queryFn: () => wm.listItems({ assignee: viewerId, limit: FOREIGN_ITEMS_LIMIT }),
-    enabled: hasPersonalSummaryRefs && !!viewerId,
-    staleTime: 60 * 1000,
-  });
-  const hubItems = useMemo<Item[]>(
-    () => (hubItemsQuery.data as PaginatedResponse<Item> | undefined)?.data ?? [],
-    [hubItemsQuery.data],
-  );
-  const hubItemIds = useMemo(() => hubItems.map((i) => i.id).sort(), [hubItems]);
+  // Every Personal Hub a reference points at. `undefined` (the viewer's own) is the common case
+  // and is kept as the literal 'self' so it shares one cache entry with the Hub page itself; an
+  // explicit owner appears only on references picked from someone else's hub.
+  const personalOwners = useMemo(() => {
+    const owners = new Set<string>();
+    for (const r of refs) {
+      if (r.kind !== 'p') continue;
+      owners.add(r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER);
+    }
+    return Array.from(owners).sort();
+  }, [refs, viewerId]);
+  const personalOwnersKey = personalOwners.join(',');
+  /** The `userId` argument the personal-hub endpoints want: omitted for your own hub. */
+  const ownerParam = (owner: string): string | undefined => (owner === SELF_OWNER ? undefined : owner);
 
-  const hubValuesQuery = useQuery({
-    queryKey: queryKeys.personalHub.itemValues(hubItemIds),
-    queryFn: () => getPersonalItemValues(hubItemIds),
-    enabled: hasPersonalSummaryRefs && hubItemIds.length > 0,
-    staleTime: 60 * 1000,
-  });
-  const personalColumnsQuery = usePersonalColumns(undefined, hasPersonalSummaryRefs);
-  const personalColumnDefs = personalColumnsQuery.data;
+  const personalItemIdsByOwner = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const r of refs) {
+      if (r.kind !== 'p' || !r.itemId) continue;
+      const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+      const list = m.get(owner) ?? [];
+      if (!list.includes(r.itemId)) list.push(r.itemId);
+      m.set(owner, list);
+    }
+    m.forEach((ids) => ids.sort());
+    return m;
+  }, [refs, viewerId]);
 
-  // Trace what the three hub loads are doing — a personal summary can only resolve once all of
-  // them have landed, so this is where to look first when a token stays at "…".
+  // Hubs that need their whole table reconstructed, not just a named cell: a summary covers a
+  // slice of a hub, so resolving one away from the Hub page means loading that hub's assigned
+  // items, values and column definitions.
+  const summaryOwners = useMemo(() => {
+    const owners = new Set<string>();
+    for (const r of refs) {
+      if (r.kind !== 'p' || !r.agg) continue;
+      owners.add(r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER);
+    }
+    return Array.from(owners).sort();
+  }, [refs, viewerId]);
+  const summaryOwnersKey = summaryOwners.join(',');
+
+  // Another user's hub is admin-only server-side, so for a viewer without that access these
+  // simply fail and every reference into that hub reads as unavailable — which is the intended
+  // outcome, not something to retry into.
+  const hubItemsQueries = useQueries({
+    queries: summaryOwners.map((owner) => {
+      const assignee = ownerParam(owner) ?? viewerId;
+      return {
+        queryKey: queryKeys.items.list({ assignee, limit: FOREIGN_ITEMS_LIMIT }),
+        queryFn: () => wm.listItems({ assignee, limit: FOREIGN_ITEMS_LIMIT }),
+        enabled: !!assignee,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+  const hubItemsByOwner = useMemo(() => {
+    const m = new Map<string, Item[]>();
+    summaryOwners.forEach((owner, i) => {
+      m.set(owner, (hubItemsQueries[i]?.data as PaginatedResponse<Item> | undefined)?.data ?? []);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryOwnersKey, hubItemsQueries]);
+
+  const hubValuesQueries = useQueries({
+    queries: summaryOwners.map((owner) => {
+      const ids = (hubItemsByOwner.get(owner) ?? []).map((i) => i.id).sort();
+      return {
+        queryKey: queryKeys.personalHub.itemValues(ids, ownerParam(owner)),
+        queryFn: () => getPersonalItemValues(ids, ownerParam(owner)),
+        enabled: ids.length > 0,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+  const hubValuesByOwner = useMemo(() => {
+    const m = new Map<string, Record<string, Record<string, unknown>>>();
+    summaryOwners.forEach((owner, i) => {
+      const data = hubValuesQueries[i]?.data as Record<string, Record<string, unknown>> | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryOwnersKey, hubValuesQueries]);
+
+  const personalColumnsQueries = useQueries({
+    queries: personalOwners.map((owner) => ({
+      queryKey: queryKeys.personalHub.columns(ownerParam(owner)),
+      queryFn: () => listPersonalColumns(ownerParam(owner)),
+      staleTime: 60 * 1000,
+      retry: owner === SELF_OWNER ? undefined : false,
+    })),
+  });
+  const personalColumnsByOwner = useMemo(() => {
+    const m = new Map<string, PersonalColumn[]>();
+    personalOwners.forEach((owner, i) => {
+      const data = personalColumnsQueries[i]?.data as PersonalColumn[] | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalOwnersKey, personalColumnsQueries]);
+
+  // Trace what each hub's loads are doing — a personal summary can only resolve once all three
+  // have landed, so this is where to look first when a token stays at "…".
   useEffect(() => {
-    if (!hasPersonalSummaryRefs) return;
+    if (personalOwners.length === 0) return;
     formulaLog('personal hub data', {
-      // A personal ref resolves against the viewer's OWN hub. If this page is someone else's hub
-      // (/personal-hub/<other id>), the ids on screen belong to a different hub than the one
-      // being loaded here, and nothing will match.
       page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
-      viewerId: viewerId ?? '(none — assigned-items load is disabled)',
-      columns: { status: personalColumnsQuery.status, count: personalColumnDefs?.length ?? 0, error: personalColumnsQuery.error?.message },
-      assignedItems: { status: hubItemsQuery.status, count: hubItems.length, error: hubItemsQuery.error?.message },
-      values: { status: hubValuesQuery.status, items: Object.keys(hubValuesQuery.data ?? {}).length, error: hubValuesQuery.error?.message },
+      viewerId: viewerId ?? '(none)',
+      hubs: personalOwners.map((owner) => {
+        const si = summaryOwners.indexOf(owner);
+        return {
+          hub: owner === SELF_OWNER ? 'your own' : owner,
+          columns: { status: personalColumnsQueries[personalOwners.indexOf(owner)]?.status, count: personalColumnsByOwner.get(owner)?.length ?? 0 },
+          assignedItems: si < 0 ? '(not needed — no summary ref)' : { status: hubItemsQueries[si]?.status, count: hubItemsByOwner.get(owner)?.length ?? 0 },
+          values: si < 0 ? '(not needed — no summary ref)' : { status: hubValuesQueries[si]?.status, items: Object.keys(hubValuesByOwner.get(owner) ?? {}).length },
+        };
+      }),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPersonalSummaryRefs, viewerId, personalColumnsQuery.status, personalColumnsQuery.data,
-      hubItemsQuery.status, hubItemsQuery.data, hubValuesQuery.status, hubValuesQuery.data]);
+  }, [personalOwnersKey, summaryOwnersKey, viewerId, personalColumnsByOwner, hubItemsByOwner, hubValuesByOwner]);
 
   // Personal Hub template totals — org-wide running sums, not tied to any board. Referenced by
   // templateColumnId (held in `columnId` for 'ph' refs). Global (whole-org) scope only here —
@@ -295,15 +366,18 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     })),
   });
 
+  // Named-cell personal references, fetched per hub they point at.
   const personalQueries = useQueries({
-    queries: [
-      {
-        queryKey: queryKeys.personalHub.itemValues(personalItemIds),
-        queryFn: () => getPersonalItemValues(personalItemIds),
-        enabled: personalItemIds.length > 0,
+    queries: personalOwners.map((owner) => {
+      const ids = personalItemIdsByOwner.get(owner) ?? [];
+      return {
+        queryKey: queryKeys.personalHub.itemValues(ids, ownerParam(owner)),
+        queryFn: () => getPersonalItemValues(ids, ownerParam(owner)),
+        enabled: ids.length > 0,
         staleTime: 60 * 1000,
-      },
-    ],
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
   });
 
   // Columns for every referenced board — needed to (a) type group-summary aggregation and
@@ -426,11 +500,15 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardKey, boardQueries, columnQueries, boardItemsList, boardColumnsMap]);
 
-  const personalData = personalQueries[0]?.data;
-  const personalValues = useMemo(
-    () => (personalData ?? {}) as Record<string, Record<string, unknown>>,
-    [personalData],
-  );
+  const personalValuesByOwner = useMemo(() => {
+    const m = new Map<string, Record<string, Record<string, unknown>>>();
+    personalOwners.forEach((owner, i) => {
+      const data = personalQueries[i]?.data as Record<string, Record<string, unknown>> | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalOwnersKey, personalQueries]);
 
   const isLoading =
     boardQueries.some((q) => q.isLoading) ||
@@ -438,9 +516,10 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     templateTotalQueries.some((q) => q.isLoading) ||
     itemTotalQueries.some((q) => q.isLoading) ||
     batchQueries.some((q) => q.isLoading) ||
-    hubItemsQuery.isLoading ||
-    hubValuesQuery.isLoading ||
-    (personalQueries[0]?.isLoading ?? false);
+    hubItemsQueries.some((q) => q.isLoading) ||
+    hubValuesQueries.some((q) => q.isLoading) ||
+    personalColumnsQueries.some((q) => q.isLoading) ||
+    personalQueries.some((q) => q.isLoading);
 
   const resolve = useCallback(
     (ref: CellRef, currentItemId?: string | null): number | null | undefined => {
@@ -472,8 +551,11 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         // whole-hub total, one board's for a board group's footer, matching the row set the cell
         // itself shows.
         if (r.agg && r.kind === 'p') {
+          const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+          const personalColumnDefs = personalColumnsByOwner.get(owner);
+          const hubItems = hubItemsByOwner.get(owner) ?? [];
           const col = personalColumnDefs?.find((c) => c.id === r.columnId);
-          const hubValues = hubValuesQuery.data;
+          const hubValues = hubValuesByOwner.get(owner);
           if (!col || !hubValues) {
             formulaRefLog(r, 'unresolved',
               !personalColumnDefs ? 'your personal columns have not loaded'
@@ -481,8 +563,9 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
                 : 'your personal values have not loaded',
               {
                 page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
+                hub: owner === SELF_OWNER ? 'your own' : owner,
                 lookingForColumnId: r.columnId,
-                yourPersonalColumns: (personalColumnDefs ?? []).map((c) => `${c.name}=${c.id}`).join(' | ') || '(none)',
+                columnsInThatHub: (personalColumnDefs ?? []).map((c) => `${c.name}=${c.id}`).join(' | ') || '(none)',
                 assignedItemsLoaded: hubItems.length,
                 valuesLoaded: !!hubValues,
               });
@@ -665,6 +748,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           return isNaN(n) ? null : n;
         }
 
+        const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+        const personalValues = personalValuesByOwner.get(owner) ?? {};
         const row = personalValues[itemId];
         if (!row) {
           formulaRefLog(r, 'unresolved', 'personal values for this item were not fetched', {
@@ -694,8 +779,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
       return inner(ref, currentItemId, new Set<string>());
     },
-    [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap, itemTotalsMap,
-     hubItems, hubValuesQuery.data, personalColumnDefs],
+    [boardItemMap, boardItemsList, boardColumnsMap, templateTotalsMap, itemTotalsMap, viewerId,
+     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner],
   );
 
   return { resolve, isLoading };
