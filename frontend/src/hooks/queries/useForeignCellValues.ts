@@ -10,7 +10,7 @@ import { getPersonalItemValues, listPersonalColumns } from '@/services/personalH
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
 import { aggregateSummary, BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, serializeRef, type CellRef } from '@/utils/formulaEngine';
 import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
-import { formulaLog, formulaRefLog } from '@/utils/formulaDebug';
+import { formulaLog, formulaRefLog, sameColumnTrace } from '@/utils/formulaDebug';
 import { ColumnType } from '@/types';
 import type { Column, Group, Item, PaginatedResponse, PersonalColumn } from '@/types';
 
@@ -820,8 +820,18 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
         if (r.kind === 'b') {
           const cols = boardColumnsMap.get(r.boardId);
-          if (!cols) return undefined; // columns not loaded yet (or beyond MAX_HOPS — never will)
+          if (!cols) {
+            sameColumnTrace('L1. LOADER GIVES UP — that board’s columns are not loaded', {
+              token: serializeRef(r), boardId: r.boardId, boardsLoaded: [...boardColumnsMap.keys()].join(','),
+            });
+            return undefined; // columns not loaded yet (or beyond MAX_HOPS — never will)
+          }
           const col = cols.find((c) => c.id === r.columnId);
+          if (!r.agg) {
+            sameColumnTrace('L1. loader has the column', {
+              token: serializeRef(r), columnId: r.columnId, found: !!col, type: col?.type,
+            });
+          }
 
           // A reference to a formula cell on another board: evaluate its formula to its live value,
           // in that board's own row/column context. Same-board refs inside it resolve locally;
@@ -829,16 +839,33 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           // as long as that board made it into the discovered load set (within MAX_HOPS).
           if (col?.type === ColumnType.SIMPLE_FORMULA) {
             const items = boardItemsList.get(r.boardId);
-            if (!items) return undefined;
+            if (!items) {
+              sameColumnTrace('L2. LOADER GIVES UP — that board’s items are not loaded', { boardId: r.boardId });
+              return undefined;
+            }
             const idx = items.findIndex((it) => it.id === itemId);
-            if (idx < 0) return undefined;
+            if (idx < 0) {
+              sameColumnTrace('L2. LOADER GIVES UP — that item is not in the board’s item list', {
+                wantedItemId: itemId, itemsLoaded: items.length,
+              });
+              return undefined;
+            }
             const key = `${r.boardId}:${r.columnId}:${itemId}`;
-            if (visited.has(key)) { cycleFlag.hit = true; return null; } // cross-board cycle → contributes 0
+            if (visited.has(key)) {
+              sameColumnTrace('L3. LOADER RETURNS 0 — circular: this cell is already being computed higher up', {
+                itemId, columnId: r.columnId, stack: [...visited].join(' > '),
+              });
+              cycleFlag.hit = true; return null;
+            } // cross-board cycle → contributes 0
             const nextVisited = new Set(visited);
             nextVisited.add(key);
             const stored = items[idx].values[r.columnId];
             const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
             const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
+            sameColumnTrace('L3. loader found the referenced cell', {
+              itemId, storedType: typeof stored, storedValue: stored,
+              columnDefault: settings?.defaultFormula ?? '(none)', formulaItWillUse: formula || '(empty)',
+            });
             if (!formula.trim()) {
               formulaRefLog(serializeRef(r), 'empty', 'that formula cell has no formula — neither its own nor a column default',
                 { board: r.boardId, column: col.name, itemId });
@@ -853,6 +880,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               cycleFlag,
               resolveRef: (rr) => inner(rr, items[idx].id, nextVisited),
             });
+            sameColumnTrace('L4. loader evaluated it', { itemId, formula, result: formulaResult });
             formulaRefLog(serializeRef(r), formulaResult === null ? 'empty' : 'ok',
               formulaResult === null ? 'the formula did not produce a number' : 'evaluated on its own board',
               { board: r.boardId, column: col.name, itemId, formula, result: formulaResult });

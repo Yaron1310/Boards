@@ -77,3 +77,20 @@ if (typeof window !== 'undefined') {
     reset: () => formulaDebugReset(),
   };
 }
+
+/**
+ * Verbose, undeduplicated trace for one narrow case: a reference to a cell in a SIMPLE_FORMULA
+ * column on the reference's own board — "the cell I clicked in the column I'm recording".
+ *
+ * Deliberately unlike `formulaRefLog`: every call prints, nothing is collapsed into an object the
+ * console can hide, and it goes to console.warn so it survives a default log-level filter. Every
+ * exit on that path reports, including the ones that return a bare 0 with nothing else to show
+ * for it.
+ */
+export function sameColumnTrace(step: string, detail: Record<string, unknown>): void {
+  if (!formulaDebugEnabled()) return;
+  const flat = Object.entries(detail)
+    .map(([k, v]) => `${k}=${v === undefined ? 'undefined' : v === null ? 'null' : typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
+    .join('  ');
+  console.warn(`[formula-trace] ${step}  ${flat}`);
+}

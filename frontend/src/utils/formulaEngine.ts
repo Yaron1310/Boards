@@ -13,7 +13,7 @@
  */
 
 import { ColumnType } from '../types';
-import { formulaRefLog } from './formulaDebug';
+import { formulaRefLog, sameColumnTrace } from './formulaDebug';
 
 export type ColumnValues = Record<string, number | null | undefined>;
 
@@ -415,6 +415,16 @@ class FormulaParser {
       (ref.ownerId ?? '') === (ctx?.hubOwnerId ?? '') &&
       !!ctx?.columns.some((c) => c.id === ref.columnId);
 
+    if (ref.kind === 'b' && !ref.agg) {
+      sameColumnTrace('1. engine sees reference', {
+        token: serializeRef(ref),
+        isHome,
+        homeBoardId: ctx?.homeBoardId,
+        rowsOnScreen: ctx?.allItems.length,
+        hasLoader: !!ctx?.resolveRef,
+      });
+    }
+
     if (isHome || isLocalPersonalSummary) {
       const local = this.resolveLocalById(ref);
       if (local !== undefined) return local;
@@ -441,10 +451,19 @@ class FormulaParser {
     if (ref.agg) return ctx.groupsComplete === false ? undefined : this.resolveLocalSummary(ref);
 
     const col = ctx.columns.find((c) => c.id === ref.columnId);
-    if (!col) return undefined;
+    if (!col) {
+      sameColumnTrace('2. HANDS TO LOADER — that column is not among the columns on screen', {
+        wantedColumnId: ref.columnId, columnsOnScreen: ctx.columns.length,
+      });
+      return undefined;
+    }
+    sameColumnTrace('2. found the column', { columnId: col.id, type: col.type });
     // A reference to another formula cell resolves to its live computed value.
     if (col.type === ColumnType.SIMPLE_FORMULA) return this.resolveLocalFormula(ref, col);
-    if (col.type !== ColumnType.NUMBER) return undefined;
+    if (col.type !== ColumnType.NUMBER) {
+      sameColumnTrace('3. HANDS TO LOADER — column is neither a number nor a formula', { type: col.type });
+      return undefined;
+    }
 
     let item: FormulaRow | undefined;
     if (ref.itemId === null) {
@@ -469,20 +488,44 @@ class FormulaParser {
 
     let idx: number;
     if (ref.itemId === null) {
-      if (ctx.currentRowIndex === undefined) return undefined;
+      if (ctx.currentRowIndex === undefined) {
+        sameColumnTrace('3. GIVES UP — relative reference with no current row', { columnId: col.id });
+        return undefined;
+      }
       idx = ctx.currentRowIndex;
     } else {
       idx = ctx.allItems.findIndex((it) => it.id === ref.itemId);
-      if (idx < 0) return undefined;
+      if (idx < 0) {
+        sameColumnTrace('3. HANDS TO LOADER — that row is not among the rows on screen', {
+          wantedItemId: ref.itemId, rowsOnScreen: ctx.allItems.length,
+        });
+        return undefined;
+      }
     }
     const item = ctx.allItems[idx];
-    if (!item) return undefined;
+    if (!item) {
+      sameColumnTrace('3. HANDS TO LOADER — no row at that position', { idx });
+      return undefined;
+    }
 
     // The cell's own override formula (a string in values) or the column's default.
     const stored = item.values[col.id];
     const settings = col.settings as { defaultFormula?: string } | undefined;
     const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
-    if (!formula.trim()) return 0;
+    sameColumnTrace('3. found the referenced cell', {
+      itemId: item.id,
+      rowIndex: idx,
+      storedType: typeof stored,
+      storedValue: stored,
+      columnDefault: settings?.defaultFormula ?? '(none)',
+      formulaItWillUse: formula || '(empty)',
+    });
+    if (!formula.trim()) {
+      sameColumnTrace('4. RETURNS 0 — that cell has no formula of its own and the column has no default', {
+        itemId: item.id, columnId: col.id,
+      });
+      return 0;
+    }
 
     const key = `${col.id}@${item.id ?? idx}`;
     const evaluating = ctx.evaluating ?? new Set<string>();
@@ -497,6 +540,7 @@ class FormulaParser {
     nextEvaluating.add(key);
 
     const r = evaluateFormula(formula, {}, { ...ctx, currentRowIndex: idx, evaluating: nextEvaluating });
+    sameColumnTrace('4. evaluated that cell', { itemId: item.id, result: r, returning: r ?? 0 });
     return r ?? 0;
   }
 
