@@ -636,7 +636,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           const col = personalColumnDefs?.find((c) => c.id === r.columnId);
           const hubValues = hubValuesByOwner.get(owner);
           if (!col || !hubValues) {
-            formulaRefLog(r, 'unresolved',
+            formulaRefLog(serializeRef(r), 'unresolved',
               !personalColumnDefs ? 'your personal columns have not loaded'
                 : !col ? 'no personal column has this id'
                 : 'your personal values have not loaded',
@@ -658,7 +658,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
             const rows = scoped.map((i) => ({ id: i.id, values: hubValues[i.id] ?? {} }));
             const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
-            formulaRefLog(r, total === null ? 'empty' : 'ok',
+            formulaRefLog(serializeRef(r), total === null ? 'empty' : 'ok',
               total === null ? 'no row in this scope has a value for the column' : 'aggregated',
               {
                 column: col.name,
@@ -697,7 +697,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             return typeof v === 'string' ? v : '';
           })];
           if (formulas.some((f) => f && hasAbsolutePositionalRefs(f))) {
-            formulaRefLog(r, 'unresolved',
+            formulaRefLog(serializeRef(r), 'unresolved',
               'the column uses absolute positional refs like {C3}, which need the Hub’s exact row order',
               { column: col.name });
             return undefined;
@@ -708,7 +708,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             .map((i) => evalRow(i))
             .filter((n): n is number => n !== null && !isNaN(n));
           const total = aggregateSummary(vals, r.agg);
-          formulaRefLog(r, total === null ? 'empty' : 'ok',
+          formulaRefLog(serializeRef(r), total === null ? 'empty' : 'ok',
             total === null ? 'no row in this scope produced a formula value' : 'aggregated',
             {
               column: col.name,
@@ -724,14 +724,14 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         // Group-summary reference: aggregate a column across a group. Board columns only.
         if (r.agg) {
           if (r.kind !== 'b') {
-            formulaRefLog(r, 'unresolved', `summary refs of kind '${r.kind}' have no resolver here`);
+            formulaRefLog(serializeRef(r), 'unresolved', `summary refs of kind '${r.kind}' have no resolver here`);
             return undefined;
           }
           const items = boardItemsList.get(r.boardId);
           const cols = boardColumnsMap.get(r.boardId);
           const col = cols?.find((c) => c.id === r.columnId);
           if (!items || !cols || !col) {
-            formulaRefLog(r, 'unresolved',
+            formulaRefLog(serializeRef(r), 'unresolved',
               !items ? 'the source board’s items have not loaded'
                 : !cols ? 'the source board’s columns have not loaded'
                 : 'no column on that board has this id',
@@ -746,7 +746,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             const groups = hubGroupsByBoard.get(r.boardId);
             const assigned = hubItemsByOwner.get(hubOwner) ?? [];
             if (!groups || assigned.length === 0) {
-              formulaRefLog(r, 'unresolved',
+              formulaRefLog(serializeRef(r), 'unresolved',
                 !groups ? 'that board’s groups have not loaded' : 'that hub’s assigned items have not loaded',
                 { board: r.boardId, hub: hubOwner === SELF_OWNER ? 'your own' : hubOwner });
               return undefined;
@@ -767,7 +767,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
             const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
-            formulaRefLog(r, total === null ? 'empty' : 'ok',
+            formulaRefLog(serializeRef(r), total === null ? 'empty' : 'ok',
               total === null ? 'no row in that group has a value for the column' : 'aggregated',
               { board: r.boardId, column: col.name, group: r.groupId, rowsInGroup: rows.length, total });
             return total;
@@ -805,7 +805,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             if (v !== null) vals.push(v);
           }
           const aggregated = aggregateSummary(vals, r.agg);
-          formulaRefLog(r, aggregated === null ? 'empty' : 'ok',
+          formulaRefLog(serializeRef(r), aggregated === null ? 'empty' : 'ok',
             aggregated === null ? 'no row in that group produced a formula value' : 'aggregated',
             { board: r.boardId, column: col.name, group: r.groupId, rowsInGroup: rows.length, rowsThatEvaluated: vals.length, total: aggregated });
           // Only a cycle-free result generalizes past the stack it was computed on — see the
@@ -840,7 +840,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
             const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
             if (!formula.trim()) {
-              formulaRefLog(r, 'empty', 'that formula cell has no formula — neither its own nor a column default',
+              formulaRefLog(serializeRef(r), 'empty', 'that formula cell has no formula — neither its own nor a column default',
                 { board: r.boardId, column: col.name, itemId });
               return null;
             }
@@ -853,7 +853,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               cycleFlag,
               resolveRef: (rr) => inner(rr, items[idx].id, nextVisited),
             });
-            formulaRefLog(r, formulaResult === null ? 'empty' : 'ok',
+            formulaRefLog(serializeRef(r), formulaResult === null ? 'empty' : 'ok',
               formulaResult === null ? 'the formula did not produce a number' : 'evaluated on its own board',
               { board: r.boardId, column: col.name, itemId, formula, result: formulaResult });
             return formulaResult;
@@ -861,17 +861,17 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
           const map = boardItemMap.get(r.boardId);
           if (!map || !map.has(itemId)) {
-            formulaRefLog(r, 'unresolved', 'that board\'s items are not loaded, or the item was deleted',
+            formulaRefLog(serializeRef(r), 'unresolved', 'that board\'s items are not loaded, or the item was deleted',
               { board: r.boardId, itemId });
             return undefined;
           }
           const raw = map.get(itemId)![r.columnId];
           if (raw == null || raw === '') {
-            formulaRefLog(r, 'empty', 'that cell is empty', { board: r.boardId, itemId, columnId: r.columnId });
+            formulaRefLog(serializeRef(r), 'empty', 'that cell is empty', { board: r.boardId, itemId, columnId: r.columnId });
             return null;
           }
           const n = Number(raw);
-          formulaRefLog(r, isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'cell value is not a number' : 'read from the board',
+          formulaRefLog(serializeRef(r), isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'cell value is not a number' : 'read from the board',
             { board: r.boardId, itemId, raw });
           return isNaN(n) ? null : n;
         }
@@ -880,7 +880,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         const personalValues = personalValuesByOwner.get(owner) ?? {};
         const row = personalValues[itemId];
         if (!row) {
-          formulaRefLog(r, 'unresolved', 'personal values for this item were not fetched', {
+          formulaRefLog(serializeRef(r), 'unresolved', 'personal values for this item were not fetched', {
             itemId,
             itemsFetched: Object.keys(personalValues),
           });
@@ -891,7 +891,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           // The single most useful line for a personal cell that reads 0: `columnsWithAValue`
           // lists the column ids this item DOES hold, so a mismatch against the id being asked
           // for is visible at a glance rather than inferred.
-          formulaRefLog(r, 'empty', 'this item holds no value for that personal column', {
+          formulaRefLog(serializeRef(r), 'empty', 'this item holds no value for that personal column', {
             page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
             itemId,
             lookingForColumnId: r.columnId,
@@ -900,7 +900,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           return null;
         }
         const n = Number(raw);
-        formulaRefLog(r, isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'stored value is not a number' : 'read from your hub',
+        formulaRefLog(serializeRef(r), isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'stored value is not a number' : 'read from your hub',
           { itemId, raw });
         return isNaN(n) ? null : n;
       };

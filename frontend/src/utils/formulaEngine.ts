@@ -13,6 +13,7 @@
  */
 
 import { ColumnType } from '../types';
+import { formulaRefLog } from './formulaDebug';
 
 export type ColumnValues = Record<string, number | null | undefined>;
 
@@ -417,6 +418,9 @@ class FormulaParser {
     if (isHome || isLocalPersonalSummary) {
       const local = this.resolveLocalById(ref);
       if (local !== undefined) return local;
+      formulaRefLog(serializeRef(ref), 'unresolved',
+        'not answerable from the rows on screen — handing it to the loader',
+        { homeBoardId: ctx?.homeBoardId, rowsOnScreen: ctx?.allItems.length });
     }
 
     if (ctx?.resolveRef) {
@@ -482,7 +486,13 @@ class FormulaParser {
 
     const key = `${col.id}@${item.id ?? idx}`;
     const evaluating = ctx.evaluating ?? new Set<string>();
-    if (evaluating.has(key)) { this.markCycle(); return 0; } // cycle — stop here
+    if (evaluating.has(key)) {
+      this.markCycle();
+      formulaRefLog(serializeRef(ref), 'empty',
+        'circular: that formula cell is already being computed further up this same evaluation',
+        { columnId: col.id, itemId: item.id, alreadyEvaluating: [...evaluating] });
+      return 0; // cycle — stop here
+    }
     const nextEvaluating = new Set(evaluating);
     nextEvaluating.add(key);
 

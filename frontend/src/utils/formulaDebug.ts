@@ -1,5 +1,3 @@
-import { serializeRef, type CellRef } from './formulaEngine';
-
 /**
  * Console tracing for formula references — why a token shows a number, a 0, or stays at "…".
  *
@@ -49,13 +47,12 @@ export type RefOutcome = 'ok' | 'empty' | 'unresolved';
 const seen = new Set<string>();
 
 export function formulaRefLog(
-  ref: CellRef,
+  token: string,
   outcome: RefOutcome,
   reason: string,
   detail?: Record<string, unknown>,
 ): void {
   if (!formulaDebugEnabled()) return;
-  const token = serializeRef(ref);
   const key = `${token}|${outcome}|${reason}`;
   if (seen.has(key)) return;
   seen.add(key);
