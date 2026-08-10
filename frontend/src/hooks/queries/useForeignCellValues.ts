@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { collection, doc, query, where, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
+import { usePersonalColumns } from './usePersonalHubQueries';
+import { useAuth } from '../useAuth';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
@@ -97,6 +99,43 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       ).sort(),
     [refs],
   );
+
+  // Personal Hub group summaries. Unlike a per-cell 'p' ref (which names its item), a summary
+  // names a whole slice of the hub, so resolving one outside the Hub means reconstructing that
+  // slice: the viewer's assigned items, their personal values, and the column's type. Personal
+  // data is private, so this is always the viewer's own hub — the same reading every other 'p'
+  // ref already has.
+  const hasPersonalSummaryRefs = useMemo(
+    () => refs.some((r) => r.kind === 'p' && !!r.agg),
+    [refs],
+  );
+  const { user } = useAuth();
+  const viewerId = (user as { id?: string } | null | undefined)?.id;
+
+  const hubItemsQuery = useQuery({
+    queryKey: queryKeys.items.list({ assignee: viewerId, limit: FOREIGN_ITEMS_LIMIT }),
+    queryFn: () => wm.listItems({ assignee: viewerId, limit: FOREIGN_ITEMS_LIMIT }),
+    enabled: hasPersonalSummaryRefs && !!viewerId,
+    staleTime: 60 * 1000,
+  });
+  const hubItems = useMemo<Item[]>(
+    () => (hubItemsQuery.data as PaginatedResponse<Item> | undefined)?.data ?? [],
+    [hubItemsQuery.data],
+  );
+  const hubItemIds = useMemo(() => hubItems.map((i) => i.id).sort(), [hubItems]);
+
+  const hubValuesQuery = useQuery({
+    queryKey: queryKeys.personalHub.itemValues(hubItemIds),
+    queryFn: () => getPersonalItemValues(hubItemIds),
+    enabled: hasPersonalSummaryRefs && hubItemIds.length > 0,
+    staleTime: 60 * 1000,
+  });
+  const { data: personalColumnDefs } = usePersonalColumns(undefined, hasPersonalSummaryRefs);
+  const personalColumnTypes = useMemo(() => {
+    const m = new Map<string, ColumnType>();
+    (personalColumnDefs ?? []).forEach((c) => m.set(c.id, c.type));
+    return m;
+  }, [personalColumnDefs]);
 
   // Personal Hub template totals — org-wide running sums, not tied to any board. Referenced by
   // templateColumnId (held in `columnId` for 'ph' refs). Global (whole-org) scope only here —
@@ -383,6 +422,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     templateTotalQueries.some((q) => q.isLoading) ||
     itemTotalQueries.some((q) => q.isLoading) ||
     batchQueries.some((q) => q.isLoading) ||
+    hubItemsQuery.isLoading ||
+    hubValuesQuery.isLoading ||
     (personalQueries[0]?.isLoading ?? false);
 
   const resolve = useCallback(
@@ -411,8 +452,25 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           return data ? data.total : undefined;
         }
 
-        // Group-summary reference: aggregate a column across a group. Board columns only —
-        // personal-hub summaries are resolved locally on the Personal Hub, not cross-context.
+        // A Personal Hub summary: aggregate the viewer's own hub rows — every board's for the
+        // whole-hub total, one board's for a board group's footer, matching the row set the cell
+        // itself shows. Personal SIMPLE_FORMULA columns are the one gap: their formulas address
+        // the hub's grid by row position, which only exists while the Hub is rendered.
+        if (r.agg && r.kind === 'p') {
+          const colType = personalColumnTypes.get(r.columnId);
+          const hubValues = hubValuesQuery.data;
+          if (!colType || !hubValues) return undefined; // hub not loaded yet
+          if (colType === ColumnType.SIMPLE_FORMULA) return undefined;
+          const scoped = r.groupId === BOARD_TOTAL_GROUP_ID
+            ? hubItems
+            : hubItems.filter((i) => i.boardId === r.boardId);
+          const rows = scoped
+            .filter((i) => !i.isArchived)
+            .map((i) => ({ id: i.id, values: hubValues[i.id] ?? {} }));
+          return computeSummaryNumeric(rows, colType, r.columnId, r.agg);
+        }
+
+        // Group-summary reference: aggregate a column across a group. Board columns only.
         if (r.agg) {
           if (r.kind !== 'b') return undefined;
           const items = boardItemsList.get(r.boardId);
@@ -518,7 +576,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
       return inner(ref, currentItemId, new Set<string>());
     },
-    [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap, itemTotalsMap],
+    [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap, itemTotalsMap,
+     hubItems, hubValuesQuery.data, personalColumnTypes],
   );
 
   return { resolve, isLoading };

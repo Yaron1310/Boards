@@ -373,13 +373,14 @@ class FormulaParser {
     // Same-board refs (either kind) resolve from local context: on a regular board `allItems`
     // carry item.values; in the Personal Hub the pseudo-rows carry personalItemValues.
     const isHome = !!ctx?.homeBoardId && ref.boardId === ctx.homeBoardId;
-    // Personal Hub summary refs carry the board of the group whose footer was clicked, but a
-    // cross-group ("all groups") personal grid isn't tied to any one board, so its context has
-    // no homeBoardId to match. Resolve those from the local personal rows whenever the
-    // referenced personal column is part of this grid; otherwise they'd fall through to the
-    // foreign resolver, which has no way to rebuild a private, assignee-filtered hub table.
+    // A whole-hub personal total spans every board, so it names no board for homeBoardId to
+    // match — but a cross-group personal grid holds exactly those rows, so resolve it right here
+    // when the column belongs to this grid. Board-scoped personal summaries deliberately do NOT
+    // qualify: `allItems` would be every board's rows, not the one board asked for, so they go
+    // through isHome (the board-scoped grid) or fall through to the resolver.
     const isLocalPersonalSummary =
-      ref.kind === 'p' && !!ref.agg && !!ctx?.columns.some((c) => c.id === ref.columnId);
+      ref.kind === 'p' && !!ref.agg && ref.groupId === BOARD_TOTAL_GROUP_ID &&
+      !!ctx?.columns.some((c) => c.id === ref.columnId);
 
     if (isHome || isLocalPersonalSummary) {
       const local = this.resolveLocalById(ref);
