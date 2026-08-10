@@ -140,6 +140,10 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   useEffect(() => {
     if (!hasPersonalSummaryRefs) return;
     formulaLog('personal hub data', {
+      // A personal ref resolves against the viewer's OWN hub. If this page is someone else's hub
+      // (/personal-hub/<other id>), the ids on screen belong to a different hub than the one
+      // being loaded here, and nothing will match.
+      page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
       viewerId: viewerId ?? '(none — assigned-items load is disabled)',
       columns: { status: personalColumnsQuery.status, count: personalColumnDefs?.length ?? 0, error: personalColumnsQuery.error?.message },
       assignedItems: { status: hubItemsQuery.status, count: hubItems.length, error: hubItemsQuery.error?.message },
@@ -476,8 +480,9 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
                 : !col ? 'no personal column has this id'
                 : 'your personal values have not loaded',
               {
+                page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
                 lookingForColumnId: r.columnId,
-                knownPersonalColumnIds: (personalColumnDefs ?? []).map((c) => c.id),
+                yourPersonalColumns: (personalColumnDefs ?? []).map((c) => `${c.name}=${c.id}`).join(' | ') || '(none)',
                 assignedItemsLoaded: hubItems.length,
                 valuesLoaded: !!hubValues,
               });
@@ -568,7 +573,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               !items ? 'the source board’s items have not loaded'
                 : !cols ? 'the source board’s columns have not loaded'
                 : 'no column on that board has this id',
-              { boardId: r.boardId, lookingForColumnId: r.columnId, knownColumnIds: (cols ?? []).map((c) => c.id) });
+              { boardId: r.boardId, lookingForColumnId: r.columnId, knownColumnIds: (cols ?? []).map((c) => c.id).join(' | ') || '(none)' });
             return undefined; // board items/columns not loaded yet
           }
           const rows = r.groupId === BOARD_TOTAL_GROUP_ID ? items : items.filter((i) => i.groupId === r.groupId);
@@ -674,9 +679,10 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           // lists the column ids this item DOES hold, so a mismatch against the id being asked
           // for is visible at a glance rather than inferred.
           formulaRefLog(r, 'empty', 'this item holds no value for that personal column', {
+            page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
             itemId,
             lookingForColumnId: r.columnId,
-            columnsWithAValue: Object.keys(row),
+            columnsWithAValue: Object.keys(row).join(' | ') || '(none — this item has no personal values at all)',
           });
           return null;
         }
