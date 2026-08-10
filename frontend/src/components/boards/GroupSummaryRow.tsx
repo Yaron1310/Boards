@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useFlippedPosition } from '../../hooks/useFlippedPosition';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
+import TemplateTotalScopeModal from '../formula/TemplateTotalScopeModal';
 import { ITEM_COL_ID } from './ColumnHeader';
 import { useColumnVisibilityTier, canSeeColumn } from '../../hooks/useColumnVisibility';
 
@@ -283,6 +284,10 @@ export interface SummaryColumn {
   type: ColumnType;
   settings: unknown;
   boardId?: string;
+  /** Personal Hub columns materialized from the org's Personal Hub template carry the id of the
+   *  template column they came from. That id — not this column's own — addresses the org-wide
+   *  running total kept for the template, so a formula outside the Personal Hub can reference it. */
+  templateColumnId?: string;
   width?: number;
   summaryConfig?: { calc: string; unit: string; unitAlign: 'left' | 'right'; cumulative?: boolean };
   /** Independent config for the board-wide total footer, used when `boardTotal` is set. */
@@ -341,9 +346,10 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const summarySource = boardTotal ? col.boardSummaryConfig : col.summaryConfig;
   const [colConfig, setColConfig] = useState<CellConfig>(() => configFromSummary(summarySource, defaultCalc));
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const [templateScopeOpen, setTemplateScopeOpen] = useState(false);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
-  const { columnWidths, visibleItems, columns: boardColumns } = useBoardRender();
+  const { columnWidths, visibleItems, columns: boardColumns, groupsComplete } = useBoardRender();
   const { isRecording, insertRef, session } = useFormulaRecording();
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
@@ -440,6 +446,10 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
               columns: boardColumns,
               currentRowIndex: rowIndex >= 0 ? rowIndex : undefined,
               homeBoardId: col.boardId ?? '',
+              // Matches SimpleFormulaCell: when these rows are only a slice of the board (the
+              // Personal Hub's assignee-filtered view), a same-board summary ref inside the
+              // formula can't be aggregated from them and must go through resolveForeign.
+              groupsComplete,
               resolveRef: (ref) => resolveForeign(ref, i.id),
             });
           })
@@ -580,44 +590,75 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const showActive = isInteractive && config.calc !== 'none';
   const showHoverTrigger = isCountOnly && config.calc === 'none';
 
-  // While a formula is recording, a summary cell can be clicked to add its live aggregate to
-  // the formula — for any column type except SIMPLE_FORMULA. Excluding formula columns is the
-  // data-loop guard: a summary never aggregates a formula column, so no formula → summary →
-  // formula cycle can form. Personal-hub summaries (getValue) insert kind 'p' refs, and are only
-  // offered when the formula itself lives in the Personal Hub — a personal summary can't be
-  // recomputed from a regular board (it depends on the owner's private, assignee-filtered rows),
-  // so it must not be referenced there.
+  // While a formula is recording, a summary cell can be clicked to add its live aggregate to the
+  // formula — including a SIMPLE_FORMULA column's, which the engine aggregates by evaluating each
+  // row's formula. A formula that ends up aggregating its own column is broken by the engine's
+  // cycle guard (the summary joins the evaluation stack and contributes 0 where it closes), so no
+  // formula → summary → formula loop can run away.
+  //
+  // Personal-hub summaries (getValue) insert kind 'p' refs, and those are only offered when the
+  // formula itself lives in the Personal Hub — a personal summary can't be recomputed from a
+  // regular board (it depends on the owner's private, assignee-filtered rows). A column
+  // materialized from the org's Personal Hub template is the exception: the org keeps a running
+  // total for it that any formula can read, so its summary cell inserts THAT ('ph') instead.
   const isPersonalSummary = !!getValue;
+  const isTemplateColumn = isPersonalSummary && !!col.templateColumnId;
+  // Inside the Personal Hub the local 'p' summary is what the cell actually shows, so prefer it;
+  // the org-wide template total is what a formula elsewhere can be given instead.
+  const insertsTemplateTotal = isTemplateColumn && !session?.origin.isPersonal;
   const canInsertSummary =
-    isRecording && col.type !== ColumnType.SIMPLE_FORMULA &&
-    config.calc !== 'none' && value != null && items.length > 0 &&
-    (!isPersonalSummary || !!session?.origin.isPersonal);
+    isRecording &&
+    (insertsTemplateTotal
+      // The org keeps this total on its own, independent of the rows in the hub being viewed —
+      // so it stays insertable even when this user's own summary is empty or switched off.
+      ? true
+      : config.calc !== 'none' && value != null && items.length > 0 &&
+        (!isPersonalSummary || !!session?.origin.isPersonal));
 
-  const summaryRef: CellRef = {
-    kind: getValue ? 'p' : 'b',
-    boardId: col.boardId ?? items[0]?.boardId ?? '',
-    columnId: col.id,
-    itemId: null,
-    agg: config.calc as SummaryCalc,
-    groupId: boardTotal ? BOARD_TOTAL_GROUP_ID : items[0]?.groupId,
-  };
+  const summaryRef: CellRef = insertsTemplateTotal
+    ? { kind: 'ph', boardId: '', columnId: col.templateColumnId ?? '', itemId: null, phScope: 'global' }
+    : {
+        kind: getValue ? 'p' : 'b',
+        boardId: col.boardId ?? items[0]?.boardId ?? '',
+        columnId: col.id,
+        itemId: null,
+        agg: config.calc as SummaryCalc,
+        groupId: boardTotal ? BOARD_TOTAL_GROUP_ID : items[0]?.groupId,
+      };
 
   const insertSummary = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    // The org-wide template total needs its scope picked first (whole org, or only the values
+    // entered against the same item the formula is evaluated for) — same choice, same wording,
+    // as picking one from the admin template editor.
+    if (insertsTemplateTotal) {
+      setTemplateScopeOpen(true);
+      return;
+    }
     insertRef(summaryRef);
+  };
+
+  const chooseTemplateScope = (phScope: 'item' | 'global') => {
+    setTemplateScopeOpen(false);
+    insertRef({ kind: 'ph', boardId: '', columnId: col.templateColumnId ?? '', itemId: null, phScope });
   };
 
   return (
     <div
       role="gridcell"
       aria-label={canInsertSummary
-        ? `Add ${col.name} ${config.calc} to the formula`
+        ? (insertsTemplateTotal
+            ? `Add the org-wide running total of ${col.name} to the formula`
+            : `Add ${col.name} ${config.calc} to the formula`)
         : `${col.name} ${config.calc}: ${value ?? 'none'}`}
       style={{ width: `${colWidth}px` }}
       onMouseDown={canInsertSummary ? insertSummary : undefined}
       data-formula-insertable={canInsertSummary ? 'true' : undefined}
       data-formula-cell-key={canInsertSummary ? formulaRefDomKey(summaryRef) : undefined}
+      title={insertsTemplateTotal
+        ? "Insert this template column's running total across every user's Personal Hub"
+        : undefined}
       className={`group relative flex flex-shrink-0 items-center bg-white border-r border-[#d2d2d4] last:border-r-0 py-2 px-2 min-h-9 ${canInsertSummary ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : ''}`}
     >
       {!canInsertSummary && showActive && (
@@ -661,6 +702,14 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
           isTimeType={isTimeType}
           isCountOnly={isCountOnly}
           hideScope={boardTotal}
+        />
+      )}
+
+      {templateScopeOpen && (
+        <TemplateTotalScopeModal
+          columnName={col.name}
+          onChoose={chooseTemplateScope}
+          onCancel={() => setTemplateScopeOpen(false)}
         />
       )}
     </div>

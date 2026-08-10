@@ -7,7 +7,7 @@ import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
-import { BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
+import { aggregateSummary, BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
 
@@ -387,6 +387,13 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
   const resolve = useCallback(
     (ref: CellRef, currentItemId?: string | null): number | null | undefined => {
+      // Shared by every formula evaluated while resolving this one ref, so a foreign board's
+      // group summaries are aggregated once instead of once per row that references them (a
+      // summary's value doesn't depend on which row is asking). The engine creates these itself
+      // when a caller doesn't supply them; here one set spans the whole cross-board walk.
+      const summaryCache = new Map<string, number>();
+      const cycleFlag = { hit: false };
+
       // `visited` keys the formula cells already on the resolution stack (across boards) so a
       // cross-board reference cycle (A → B → A) terminates by contributing 0 where it closes.
       const inner = (r: CellRef, cid: string | null | undefined, visited: Set<string>): number | null | undefined => {
@@ -409,11 +416,52 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         if (r.agg) {
           if (r.kind !== 'b') return undefined;
           const items = boardItemsList.get(r.boardId);
-          const colType = boardColumnsMap.get(r.boardId)?.find((c) => c.id === r.columnId)?.type;
-          if (!items || !colType) return undefined; // board items/columns not loaded yet
-          if (colType === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
+          const cols = boardColumnsMap.get(r.boardId);
+          const col = cols?.find((c) => c.id === r.columnId);
+          if (!items || !cols || !col) return undefined; // board items/columns not loaded yet
           const rows = r.groupId === BOARD_TOTAL_GROUP_ID ? items : items.filter((i) => i.groupId === r.groupId);
-          return computeSummaryNumeric(rows, colType, r.columnId, r.agg);
+
+          if (col.type !== ColumnType.SIMPLE_FORMULA) {
+            return computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+          }
+
+          // Aggregating a formula column on another board: evaluate each row's formula in that
+          // board's own context, exactly as the board renders it. The summary joins `visited`
+          // so a formula that (directly or through further hops) aggregates its own column
+          // contributes 0 where the cycle closes instead of recursing forever.
+          const summaryKey = `agg:${r.boardId}:${r.columnId}:${r.groupId ?? ''}:${r.agg}`;
+          if (visited.has(summaryKey)) { cycleFlag.hit = true; return null; }
+          const memoized = summaryCache.get(summaryKey);
+          if (memoized !== undefined) return memoized;
+
+          const nextVisited = new Set(visited);
+          nextVisited.add(summaryKey);
+          const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
+          const outerHit = cycleFlag.hit;
+          cycleFlag.hit = false;
+          const vals: number[] = [];
+          for (const row of rows) {
+            const stored = row.values[r.columnId];
+            const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
+            if (!formula.trim()) continue;
+            const idx = items.findIndex((it) => it.id === row.id);
+            const v = evaluateFormula(formula, {}, {
+              allItems: items,
+              columns: cols,
+              currentRowIndex: idx >= 0 ? idx : undefined,
+              homeBoardId: r.boardId,
+              summaryCache,
+              cycleFlag,
+              resolveRef: (rr) => inner(rr, row.id, nextVisited),
+            });
+            if (v !== null) vals.push(v);
+          }
+          const aggregated = aggregateSummary(vals, r.agg);
+          // Only a cycle-free result generalizes past the stack it was computed on — see the
+          // matching rule in the engine's resolveLocalSummary.
+          if (!cycleFlag.hit && aggregated !== null) summaryCache.set(summaryKey, aggregated);
+          cycleFlag.hit = cycleFlag.hit || outerHit;
+          return aggregated;
         }
 
         const itemId = r.itemId ?? cid ?? null;
@@ -434,7 +482,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             const idx = items.findIndex((it) => it.id === itemId);
             if (idx < 0) return undefined;
             const key = `${r.boardId}:${r.columnId}:${itemId}`;
-            if (visited.has(key)) return null; // cross-board cycle → contributes 0
+            if (visited.has(key)) { cycleFlag.hit = true; return null; } // cross-board cycle → contributes 0
             const nextVisited = new Set(visited);
             nextVisited.add(key);
             const stored = items[idx].values[r.columnId];
@@ -446,6 +494,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               columns: cols,
               currentRowIndex: idx,
               homeBoardId: r.boardId,
+              summaryCache,
+              cycleFlag,
               resolveRef: (rr) => inner(rr, items[idx].id, nextVisited),
             });
           }

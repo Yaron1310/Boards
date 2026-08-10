@@ -98,8 +98,12 @@ function mergedDays(intervals: { s: number; e: number }[]): number {
 /**
  * Numeric group-summary matching GroupSummaryRow's aggregation, for any column type:
  * count works for every type; NUMBER/TIME/TIME_RANGE produce numeric aggregates. Returns null
- * for combinations with no numeric meaning (e.g. avg of a text column). SIMPLE_FORMULA is not
- * summarizable here — callers exclude it as the formula→summary→formula data-loop guard.
+ * for combinations with no numeric meaning (e.g. avg of a text column).
+ *
+ * SIMPLE_FORMULA columns hold formula text, not values, so they can only be aggregated when the
+ * caller supplies `evalRow` — a per-row evaluator producing that cell's live computed value (null
+ * for rows with no formula, which are excluded, exactly as the rendered summary cell does). The
+ * caller owns the cycle guard that keeps a formula aggregating its own column from recursing.
  */
 export function computeSummaryNumeric(
   rows: FormulaRow[],
@@ -107,7 +111,13 @@ export function computeSummaryNumeric(
   columnId: string,
   calc: SummaryCalc,
   getVal: (r: FormulaRow, c: string) => unknown = (r, c) => r.values[c],
+  evalRow?: (r: FormulaRow) => number | null,
 ): number | null {
+  if (type === ColumnType.SIMPLE_FORMULA) {
+    if (!evalRow) return null;
+    const vals = rows.map((r) => evalRow(r)).filter((n): n is number => n !== null && !isNaN(n));
+    return aggregateSummary(vals, calc);
+  }
   if (calc === 'count') {
     if (type === ColumnType.CHECKBOX) return rows.filter((r) => Boolean(getVal(r, columnId))).length;
     return rows.filter((r) => {
@@ -181,6 +191,16 @@ export interface FormulaContext {
   /** Formula cells currently being evaluated (keyed `columnId@itemId`) — breaks reference cycles
    *  when one formula references another. Managed by the engine; callers leave it unset. */
   evaluating?: Set<string>;
+  /** Group-summary results already computed during this top-level evaluation, keyed by the ref's
+   *  serialized form. A summary doesn't depend on which row is asking, so one evaluation can reuse
+   *  it — which is what keeps a chain of formula columns that aggregate each other from costing a
+   *  full re-aggregation per row at every level. Managed by the engine; callers leave it unset. */
+  summaryCache?: Map<string, number>;
+  /** Set by the engine whenever a cycle guard truncated part of the current computation. Results
+   *  produced under a truncation depend on where the cycle happened to close, so they are left out
+   *  of `summaryCache` instead of being reused in a context that wouldn't have truncated.
+   *  Managed by the engine; callers leave it unset. */
+  cycleFlag?: { hit: boolean };
 }
 
 /** Sentinel `groupId` for a board-total (footer) summary ref — aggregates every item on the
@@ -353,8 +373,15 @@ class FormulaParser {
     // Same-board refs (either kind) resolve from local context: on a regular board `allItems`
     // carry item.values; in the Personal Hub the pseudo-rows carry personalItemValues.
     const isHome = !!ctx?.homeBoardId && ref.boardId === ctx.homeBoardId;
+    // Personal Hub summary refs carry the board of the group whose footer was clicked, but a
+    // cross-group ("all groups") personal grid isn't tied to any one board, so its context has
+    // no homeBoardId to match. Resolve those from the local personal rows whenever the
+    // referenced personal column is part of this grid; otherwise they'd fall through to the
+    // foreign resolver, which has no way to rebuild a private, assignee-filtered hub table.
+    const isLocalPersonalSummary =
+      ref.kind === 'p' && !!ref.agg && !!ctx?.columns.some((c) => c.id === ref.columnId);
 
-    if (isHome) {
+    if (isHome || isLocalPersonalSummary) {
       const local = this.resolveLocalById(ref);
       if (local !== undefined) return local;
     }
@@ -422,7 +449,7 @@ class FormulaParser {
 
     const key = `${col.id}@${item.id ?? idx}`;
     const evaluating = ctx.evaluating ?? new Set<string>();
-    if (evaluating.has(key)) return 0; // cycle — stop here
+    if (evaluating.has(key)) { this.markCycle(); return 0; } // cycle — stop here
     const nextEvaluating = new Set(evaluating);
     nextEvaluating.add(key);
 
@@ -430,14 +457,17 @@ class FormulaParser {
     return r ?? 0;
   }
 
-  /** Aggregate a NUMBER column across one group from local context. Only NUMBER columns are
-   *  summarizable — this is the data-loop guard: a summary never aggregates a formula column,
-   *  so a formula → summary → formula cycle cannot form. */
+  /** Aggregate a column across one group from local context. */
   private resolveLocalSummary(ref: CellRef): number | undefined {
     const ctx = this.context;
     if (!ctx || !ref.agg) return undefined;
     const col = ctx.columns.find((c) => c.id === ref.columnId);
-    if (!col || col.type === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
+    if (!col) return undefined;
+
+    const cacheKey = serializeRef(ref);
+    const cached = ctx.summaryCache?.get(cacheKey);
+    if (cached !== undefined) return cached;
+
     // Board summaries aggregate one group; a board-total ref (BOARD_TOTAL_GROUP_ID) aggregates
     // every item on the board; Personal Hub summaries aggregate the whole table (its rows are
     // already the one board's items — personal rows carry no board groupId).
@@ -445,7 +475,72 @@ class FormulaParser {
       ref.kind === 'p' || ref.groupId === BOARD_TOTAL_GROUP_ID
         ? ctx.allItems
         : ctx.allItems.filter((it) => it.groupId === ref.groupId);
-    return computeSummaryNumeric(rows, col.type, col.id, ref.agg) ?? 0;
+
+    if (col.type !== ColumnType.SIMPLE_FORMULA) {
+      const plain = computeSummaryNumeric(rows, col.type, col.id, ref.agg) ?? 0;
+      ctx.summaryCache?.set(cacheKey, plain);
+      return plain;
+    }
+
+    // Aggregating a formula column means evaluating every row's formula. That can loop back
+    // here — a formula cell whose own column is the one being aggregated, directly or through
+    // another formula. So the summary itself joins the `evaluating` guard set: re-entering the
+    // same summary while it is being computed contributes 0 and the chain terminates, the same
+    // way a cell-to-cell reference cycle is broken in resolveLocalFormula.
+    const summaryKey = `agg@${cacheKey}`;
+    const evaluating = ctx.evaluating ?? new Set<string>();
+    if (evaluating.has(summaryKey)) {
+      this.markCycle();
+      return 0;
+    }
+    const guard = new Set(evaluating);
+    guard.add(summaryKey);
+
+    // Only a cycle-free result is worth remembering: one produced under a truncation reflects
+    // where that cycle closed, which a later caller outside the cycle wouldn't reproduce.
+    const flag = ctx.cycleFlag;
+    const outerHit = flag?.hit ?? false;
+    if (flag) flag.hit = false;
+
+    const result = computeSummaryNumeric(rows, col.type, col.id, ref.agg, undefined, (row) =>
+      this.evaluateRowFormula(col, row, guard),
+    ) ?? 0;
+
+    if (flag) {
+      if (!flag.hit) ctx.summaryCache?.set(cacheKey, result);
+      flag.hit = flag.hit || outerHit;
+    }
+    return result;
+  }
+
+  /** Records that a cycle guard truncated the computation in progress — see FormulaContext.cycleFlag. */
+  private markCycle() {
+    if (this.context?.cycleFlag) this.context.cycleFlag.hit = true;
+  }
+
+  /** Live value of one row's cell in a SIMPLE_FORMULA column, or null when that row has no
+   *  formula at all (so it stays out of an aggregate rather than counting as 0). `evaluating`
+   *  carries the cycle guard down from the caller. */
+  private evaluateRowFormula(col: FormulaColumn, row: FormulaRow, evaluating: Set<string>): number | null {
+    const ctx = this.context;
+    if (!ctx) return null;
+
+    const stored = row.values[col.id];
+    const settings = col.settings as { defaultFormula?: string } | undefined;
+    const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
+    if (!formula.trim()) return null;
+
+    const idx = ctx.allItems.indexOf(row);
+    const key = `${col.id}@${row.id ?? idx}`;
+    if (evaluating.has(key)) { this.markCycle(); return 0; } // cycle — stop here
+    const nextEvaluating = new Set(evaluating);
+    nextEvaluating.add(key);
+
+    return evaluateFormula(formula, {}, {
+      ...ctx,
+      currentRowIndex: idx >= 0 ? idx : undefined,
+      evaluating: nextEvaluating,
+    });
   }
 
   private resolveCellRef(cellRef: string): number {
@@ -497,7 +592,15 @@ export function evaluateFormula(
 ): number | null {
   if (!formula || !formula.trim()) return null;
   try {
-    const parser = new FormulaParser(formula, columnValues, context);
+    // The summary memo and its cycle flag live for one top-level evaluation: created here when a
+    // caller supplies neither, and carried down untouched by the engine's own nested evaluations
+    // (which spread the context they were given).
+    const ctx: FormulaContext | undefined = context && {
+      ...context,
+      summaryCache: context.summaryCache ?? new Map<string, number>(),
+      cycleFlag: context.cycleFlag ?? { hit: false },
+    };
+    const parser = new FormulaParser(formula, columnValues, ctx);
     const result = parser.parse();
     if (result === null || !isFinite(result) || isNaN(result)) return null;
     return result;
