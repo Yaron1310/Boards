@@ -264,11 +264,15 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
       return { isPersonal: true, userName: hubUserName, boardId: item.boardId, boardName, groupName, itemName: item.name, columnName };
     }
 
+    // Each piece is fetched separately and any of them can be unavailable on its own — the
+    // board's own record in particular needs read access the values never ask for, so a board
+    // you can read items from but not open would otherwise leave the whole tooltip blank.
+    // Report whatever resolved and let the tooltip show the rest as unknown.
     const boardName = boardNameMap.get(ref.boardId);
     const columnName = columnNameMap.get(ref.boardId)?.get(ref.columnId);
 
     if (ref.agg) {
-      if (boardName === undefined || columnName === undefined) return undefined;
+      if (boardName === undefined && columnName === undefined) return undefined;
       const groupName = ref.groupId ? groupNameMap.get(ref.boardId)?.get(ref.groupId) : undefined;
       return { isPersonal: false, boardId: ref.boardId, boardName, groupName, columnName, agg: ref.agg };
     }
@@ -276,10 +280,18 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
     const itemId = ref.itemId ?? current ?? currentItemId ?? null;
     if (!itemId) return undefined;
     const item = itemMap.get(ref.boardId)?.get(itemId);
-    if (boardName === undefined || columnName === undefined || !item) return undefined;
-    const groupName = groupNameMap.get(ref.boardId)?.get(item.groupId);
-    return { isPersonal: false, boardId: ref.boardId, boardName, groupName, itemName: item.name, columnName };
+    if (boardName === undefined && columnName === undefined && !item) return undefined;
+    const groupName = item ? groupNameMap.get(ref.boardId)?.get(item.groupId) : undefined;
+    return { isPersonal: false, boardId: ref.boardId, boardName, groupName, itemName: item?.name, columnName };
   }
 
-  return { resolveMeta };
+  const isLoading =
+    personalColumnQueries.some((q) => q.isLoading) ||
+    looseItemQueries.some((q) => q.isLoading) ||
+    boardQueries.some((q) => q.isLoading) ||
+    columnQueries.some((q) => q.isLoading) ||
+    groupQueries.some((q) => q.isLoading) ||
+    itemQueries.some((q) => q.isLoading);
+
+  return { resolveMeta, isLoading };
 }

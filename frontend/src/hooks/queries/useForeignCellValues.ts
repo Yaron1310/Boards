@@ -662,7 +662,11 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           const rows = r.groupId === BOARD_TOTAL_GROUP_ID ? items : items.filter((i) => i.groupId === r.groupId);
 
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
-            return computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+            const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+            formulaRefLog(r, total === null ? 'empty' : 'ok',
+              total === null ? 'no row in that group has a value for the column' : 'aggregated',
+              { board: r.boardId, column: col.name, group: r.groupId, rowsInGroup: rows.length, total });
+            return total;
           }
 
           // Aggregating a formula column on another board: evaluate each row's formula in that
@@ -697,6 +701,9 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             if (v !== null) vals.push(v);
           }
           const aggregated = aggregateSummary(vals, r.agg);
+          formulaRefLog(r, aggregated === null ? 'empty' : 'ok',
+            aggregated === null ? 'no row in that group produced a formula value' : 'aggregated',
+            { board: r.boardId, column: col.name, group: r.groupId, rowsInGroup: rows.length, rowsThatEvaluated: vals.length, total: aggregated });
           // Only a cycle-free result generalizes past the stack it was computed on — see the
           // matching rule in the engine's resolveLocalSummary.
           if (!cycleFlag.hit && aggregated !== null) summaryCache.set(summaryKey, aggregated);
@@ -728,8 +735,12 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             const stored = items[idx].values[r.columnId];
             const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
             const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
-            if (!formula.trim()) return null;
-            return evaluateFormula(formula, {}, {
+            if (!formula.trim()) {
+              formulaRefLog(r, 'empty', 'that formula cell has no formula — neither its own nor a column default',
+                { board: r.boardId, column: col.name, itemId });
+              return null;
+            }
+            const formulaResult = evaluateFormula(formula, {}, {
               allItems: items,
               columns: cols,
               currentRowIndex: idx,
@@ -738,13 +749,26 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               cycleFlag,
               resolveRef: (rr) => inner(rr, items[idx].id, nextVisited),
             });
+            formulaRefLog(r, formulaResult === null ? 'empty' : 'ok',
+              formulaResult === null ? 'the formula did not produce a number' : 'evaluated on its own board',
+              { board: r.boardId, column: col.name, itemId, formula, result: formulaResult });
+            return formulaResult;
           }
 
           const map = boardItemMap.get(r.boardId);
-          if (!map || !map.has(itemId)) return undefined; // not loaded yet, or deleted
+          if (!map || !map.has(itemId)) {
+            formulaRefLog(r, 'unresolved', 'that board\'s items are not loaded, or the item was deleted',
+              { board: r.boardId, itemId });
+            return undefined;
+          }
           const raw = map.get(itemId)![r.columnId];
-          if (raw == null || raw === '') return null;
+          if (raw == null || raw === '') {
+            formulaRefLog(r, 'empty', 'that cell is empty', { board: r.boardId, itemId, columnId: r.columnId });
+            return null;
+          }
           const n = Number(raw);
+          formulaRefLog(r, isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'cell value is not a number' : 'read from the board',
+            { board: r.boardId, itemId, raw });
           return isNaN(n) ? null : n;
         }
 
