@@ -209,10 +209,14 @@ export function useFormulaRefMeta(refs: CellRef[], currentItemId: string | null 
       const columnName = personalColumnNameMap.get(ref.columnId);
 
       if (ref.agg) {
-        if (!ref.boardId) return undefined;
+        if (columnName === undefined) return undefined;
+        // A cross-group ("all groups") personal summary isn't scoped to a board, so it carries no
+        // board to name — describe it by column and aggregate alone rather than reporting the
+        // whole ref as unresolvable, which left the token blank in the recording bar.
+        if (!ref.boardId) return { isPersonal: true, userName, columnName, agg: ref.agg };
         const boardName = boardNameMap.get(ref.boardId);
         const groupName = ref.groupId ? groupNameMap.get(ref.boardId)?.get(ref.groupId) : undefined;
-        if (boardName === undefined || columnName === undefined) return undefined;
+        if (boardName === undefined) return undefined;
         return { isPersonal: true, userName, boardId: ref.boardId, boardName, groupName, columnName, agg: ref.agg };
       }
 

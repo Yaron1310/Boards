@@ -719,6 +719,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             <GroupSummaryRow
               items={items}
               columns={columns}
+              groupId={group.id}
               itemsAbove={itemsAbove}
               cumulativeByColumn={group.summaryCumulative}
               onSetCumulative={(columnId, cumulative) => {

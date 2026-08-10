@@ -330,11 +330,20 @@ interface SummaryCellProps {
    * hidden (the footer already spans every group).
    */
   boardTotal?: boolean;
+  /**
+   * The group this footer belongs to. A formula referencing the cell needs it to say WHICH
+   * group to aggregate, and it has to come from the caller rather than the rows: a group with
+   * nothing in it yet is still a perfectly good thing to point a formula at, and reading the id
+   * off `items[0]` would leave exactly those cells unreferenceable. Board group rows only —
+   * the board-total footer spans every group, and Personal Hub summaries aggregate their whole
+   * table (their rows carry no personal-hub group of their own).
+   */
+  groupId?: string;
 }
 
 export const SummaryCell: React.FC<SummaryCellProps> = ({
   col, items, numberCols, itemsAbove, widthOverride, getValue, evalFormula, onPersist,
-  cumulative = false, onCumulativeChange, boardTotal = false,
+  cumulative = false, onCumulativeChange, boardTotal = false, groupId,
 }) => {
   const getVal = getValue ?? ((i: Item, colId: string) => i.values[colId]);
   const isCheckbox = col.type === ColumnType.CHECKBOX;
@@ -606,14 +615,6 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   // Inside the Personal Hub the local 'p' summary is what the cell actually shows, so prefer it;
   // the org-wide template total is what a formula elsewhere can be given instead.
   const insertsTemplateTotal = isTemplateColumn && !session?.origin.isPersonal;
-  const canInsertSummary =
-    isRecording &&
-    (insertsTemplateTotal
-      // The org keeps this total on its own, independent of the rows in the hub being viewed —
-      // so it stays insertable even when this user's own summary is empty or switched off.
-      ? true
-      : config.calc !== 'none' && value != null && items.length > 0 &&
-        (!isPersonalSummary || !!session?.origin.isPersonal));
 
   const summaryRef: CellRef = insertsTemplateTotal
     ? { kind: 'ph', boardId: '', columnId: col.templateColumnId ?? '', itemId: null, phScope: 'global' }
@@ -623,8 +624,27 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
         columnId: col.id,
         itemId: null,
         agg: config.calc as SummaryCalc,
-        groupId: boardTotal ? BOARD_TOTAL_GROUP_ID : items[0]?.groupId,
+        groupId: boardTotal ? BOARD_TOTAL_GROUP_ID : (groupId ?? items[0]?.groupId),
       };
+
+  // What a click needs is a ref that points somewhere — NOT a cell that happens to be showing a
+  // number today. A summary sitting at "—" because nobody has filled the column in yet is still
+  // a valid thing to aggregate; gating on the displayed value made those cells swallow the click
+  // with no feedback, which reads as "this cell can't be selected". An empty aggregate simply
+  // contributes 0 until values arrive. A board ref still needs its board and group to address
+  // one; a personal ref resolves by column against the hub's own rows.
+  const refIsAddressable = isPersonalSummary
+    ? true
+    : !!summaryRef.boardId && (boardTotal || !!summaryRef.groupId);
+
+  const canInsertSummary =
+    isRecording &&
+    (insertsTemplateTotal
+      // The org keeps this total on its own, independent of the rows in the hub being viewed —
+      // so it stays insertable even when this user's own summary is empty or switched off.
+      ? true
+      : config.calc !== 'none' && refIsAddressable &&
+        (!isPersonalSummary || !!session?.origin.isPersonal));
 
   const insertSummary = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -721,6 +741,9 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
 interface Props {
   items: Item[];
   columns: Column[];
+  /** The group being summarized — see SummaryCell's `groupId`. Board groups only; the Personal
+   *  Hub's groups are whole boards, whose summaries aggregate the table rather than a group. */
+  groupId?: string;
   /** Items from every group above this one (for cumulative "this + groups above" summaries). */
   itemsAbove?: Item[];
   /** Per-group cumulative flags keyed by column id (independent of the shared column config). */
@@ -745,7 +768,7 @@ interface Props {
   minWidth?: number;
 }
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulativeByColumn, onSetCumulative, leadingExtraCells, trailingExtraCells, minWidth }) => {
+const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupId, itemsAbove, cumulativeByColumn, onSetCumulative, leadingExtraCells, trailingExtraCells, minWidth }) => {
   const { columnWidths } = useBoardRender();
   const boardId = columns[0]?.boardId ?? items[0]?.boardId;
   const viewerTier = useColumnVisibilityTier(boardId);
@@ -785,6 +808,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, itemsAbove, cumulati
           key={col.id}
           col={col}
           items={nonArchived}
+          groupId={groupId}
           itemsAbove={nonArchivedAbove}
           numberCols={numberCols}
           cumulative={cumulativeByColumn?.[col.id] ?? false}

@@ -33,8 +33,11 @@ function metaToTooltip(meta: RefMeta | undefined): string {
   const board = meta.boardName ?? '—';
   const group = meta.groupName ?? '—';
   const root = meta.isPersonal ? (meta.userName ? `${meta.userName}’s Personal Hub` : 'Personal Hub') : null;
+  const aggOf = meta.agg ? `${AGG_LABEL[meta.agg] ?? meta.agg} of ${meta.columnName ?? '—'}` : '';
   const path = meta.agg
-    ? `${board} › ${group} › ${AGG_LABEL[meta.agg] ?? meta.agg} of ${meta.columnName ?? '—'}`
+    // A cross-group personal summary spans every board group at once, so it has no single
+    // board/group to name — saying so beats printing two em dashes for segments that don't exist.
+    ? (meta.boardName ? `${board} › ${group} › ${aggOf}` : `All groups › ${aggOf}`)
     : `${board} › ${group} › ${meta.itemName ?? '—'} › ${meta.columnName ?? '—'}`;
   return root ? `${root} › ${path}` : path;
 }
