@@ -219,6 +219,13 @@ export interface FormulaContext {
  *  all") so a board-total ref round-trips through `serializeRef`/`parseRefToken` like any other. */
 export const BOARD_TOTAL_GROUP_ID = '*';
 
+/** Sentinel `groupId` for a summary picked from a Personal Hub board group. Those footers total
+ *  the rows that hub shows for one board — items assigned to its owner, drawn from several groups
+ *  of the source board at once — so neither a single group nor the whole board describes them.
+ *  Resolving one means loading that owner's assigned items, which only the foreign resolver can
+ *  do; the engine leaves it alone. */
+export const HUB_ROWS_GROUP_ID = '~';
+
 /** Parse the inner text of a `{ref:...}` token into a CellRef, or null if malformed.
  *  boardId/columnId/itemId are generated IDs (UUIDs / Firestore auto-ids) and never contain ':'. */
 export function parseRefToken(inner: string): CellRef | null {
@@ -230,7 +237,7 @@ export function parseRefToken(inner: string): CellRef | null {
   if (parts.length !== 5 && parts.length !== 6) return null;
   const [, kind, boardId, columnId, row, owner] = parts;
   if (kind !== 'b' && kind !== 'p' && kind !== 'ph') return null;
-  const ownerId = kind === 'p' && owner ? owner : undefined;
+  const ownerId = owner || undefined;
   // boardId may be empty for Personal Hub "all-groups" columns (no single owning board) and is
   // always empty for 'ph' refs (an org-wide total isn't tied to any board);
   // 'p'/'ph' refs resolve by itemId+columnId (or just columnId, for 'ph') regardless of board.
@@ -255,7 +262,7 @@ export function serializeRef(ref: CellRef): string {
     return `{ref:ph::${ref.columnId}:${ref.phScope === 'item' ? 'item' : '@'}}`;
   }
   const row = ref.agg ? `sum#${ref.agg}#${ref.groupId ?? ''}` : (ref.itemId ?? '@');
-  const owner = ref.kind === 'p' && ref.ownerId ? `:${ref.ownerId}` : '';
+  const owner = ref.kind !== 'ph' && ref.ownerId ? `:${ref.ownerId}` : '';
   return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}${owner}}`;
 }
 
@@ -484,6 +491,8 @@ class FormulaParser {
   private resolveLocalSummary(ref: CellRef): number | undefined {
     const ctx = this.context;
     if (!ctx || !ref.agg) return undefined;
+    // A hub-rows summary depends on who is assigned what, which isn't in this context.
+    if (ref.groupId === HUB_ROWS_GROUP_ID) return undefined;
     const col = ctx.columns.find((c) => c.id === ref.columnId);
     if (!col) return undefined;
 
@@ -712,11 +721,18 @@ export function hasAbsolutePositionalRefs(formula: string): boolean {
 }
 
 /** Relativize same-board refs (itemId → '@') so a formula can serve as a column-wide default,
- *  matching the legacy makeRelativeFormula behavior. Foreign refs stay absolute. */
-export function makeRelativeIdFormula(formula: string, homeBoardId: string): string {
+ *  matching the legacy makeRelativeFormula behavior. Foreign refs stay absolute.
+ *
+ *  `selfColumnId` is the column the formula is becoming the default for. A reference into that
+ *  same column must NOT be relativized: "that cell" would turn into "this row's cell", which is
+ *  the cell being computed — every row would reference itself, the cycle guard would break it,
+ *  and the term would silently contribute 0. Such a reference stays pointed at the exact cell
+ *  that was picked. */
+export function makeRelativeIdFormula(formula: string, homeBoardId: string, selfColumnId?: string): string {
   return formula.replace(/\{(ref:[^}]*)\}/g, (whole, inner: string) => {
     const ref = parseRefToken(inner);
     if (!ref) return whole;
+    if (selfColumnId && ref.columnId === selfColumnId && !ref.agg) return whole;
     // Make same-table references row-relative so the formula fills down correctly. This applies
     // to board ('b') and Personal Hub ('p') cells alike — a personal same-table ref is home when
     // its boardId matches. Cross-board/foreign refs (different boardId) and group-summary refs

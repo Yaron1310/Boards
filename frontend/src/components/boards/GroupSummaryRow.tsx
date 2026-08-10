@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
-import { BOARD_TOTAL_GROUP_ID, evaluateFormula, extractForeignRefs, formulaRefDomKey, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
+import { BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, evaluateFormula, extractForeignRefs, formulaRefDomKey, serializeRef, type SummaryCalc, type CellRef } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
 import type { Column, Item, SimpleFormulaColumnSettings, TimeRangeValue } from '../../types';
 import { calculateColumnWidth } from '../../utils/columnWidths';
@@ -340,11 +340,18 @@ interface SummaryCellProps {
    * once the formula is evaluated somewhere their hub isn't on screen.
    */
   personalOwnerId?: string;
+  /**
+   * Personal Hub: these rows are the hub's own slice for one board — the owner's assigned items,
+   * drawn from several of that board's groups at once. A reference to this footer has to say so,
+   * or it would claim to be one group's total and hand back a different number than the one on
+   * screen. Absent on a real board, where a footer really is one group.
+   */
+  hubRows?: boolean;
 }
 
 export const SummaryCell: React.FC<SummaryCellProps> = ({
   col, items, numberCols, itemsAbove, widthOverride, getValue, evalFormula, onPersist,
-  cumulative = false, onCumulativeChange, boardTotal = false, groupId, personalOwnerId,
+  cumulative = false, onCumulativeChange, boardTotal = false, groupId, personalOwnerId, hubRows = false,
 }) => {
   const getVal = getValue ?? ((i: Item, colId: string) => i.values[colId]);
   const isCheckbox = col.type === ColumnType.CHECKBOX;
@@ -623,8 +630,10 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
     agg: config.calc as SummaryCalc,
     groupId: boardTotal
       ? BOARD_TOTAL_GROUP_ID
-      : (isPersonalSummary ? undefined : (groupId ?? items[0]?.groupId)),
-    ownerId: isPersonalSummary ? personalOwnerId : undefined,
+      : isPersonalSummary ? undefined
+      : hubRows ? HUB_ROWS_GROUP_ID
+      : (groupId ?? items[0]?.groupId),
+    ownerId: isPersonalSummary || hubRows ? personalOwnerId : undefined,
   };
 
   // What a click needs is a ref that points somewhere — NOT a cell that happens to be showing a
@@ -635,7 +644,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   // one; a personal ref needs its board unless it is the whole-hub total.
   const refIsAddressable = isPersonalSummary
     ? boardTotal || !!summaryRef.boardId
-    : !!summaryRef.boardId && (boardTotal || !!summaryRef.groupId);
+    : !!summaryRef.boardId && (boardTotal || hubRows || !!summaryRef.groupId);
 
   const canInsertSummary = isRecording && config.calc !== 'none' && refIsAddressable;
 
@@ -712,6 +721,10 @@ interface Props {
   /** The group being summarized — see SummaryCell's `groupId`. Board groups only; the Personal
    *  Hub's groups are whole boards, whose summaries aggregate the table rather than a group. */
   groupId?: string;
+  /** Personal Hub: these rows are one hub slice rather than a board group — see SummaryCell. */
+  hubRows?: boolean;
+  /** Personal Hub: whose hub, for `hubRows`. */
+  hubOwnerId?: string;
   /** Items from every group above this one (for cumulative "this + groups above" summaries). */
   itemsAbove?: Item[];
   /** Per-group cumulative flags keyed by column id (independent of the shared column config). */
@@ -736,7 +749,7 @@ interface Props {
   minWidth?: number;
 }
 
-const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupId, itemsAbove, cumulativeByColumn, onSetCumulative, leadingExtraCells, trailingExtraCells, minWidth }) => {
+const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupId, hubRows, hubOwnerId, itemsAbove, cumulativeByColumn, onSetCumulative, leadingExtraCells, trailingExtraCells, minWidth }) => {
   const { columnWidths } = useBoardRender();
   const boardId = columns[0]?.boardId ?? items[0]?.boardId;
   const viewerTier = useColumnVisibilityTier(boardId);
@@ -777,6 +790,8 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupId, itemsAbove,
           col={col}
           items={nonArchived}
           groupId={groupId}
+          hubRows={hubRows}
+          personalOwnerId={hubOwnerId}
           itemsAbove={nonArchivedAbove}
           numberCols={numberCols}
           cumulative={cumulativeByColumn?.[col.id] ?? false}

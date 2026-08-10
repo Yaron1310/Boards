@@ -350,6 +350,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
             <GroupSummaryRow
               items={displayItems}
               columns={columns}
+              hubRows
+              hubOwnerId={ownerUserId}
               minWidth={groupMinWidth}
               leadingExtraCells={crossGroupColumns.length > 0
                 ? crossGroupColumns.map((col) => (

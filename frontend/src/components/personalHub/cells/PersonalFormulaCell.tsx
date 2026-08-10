@@ -106,7 +106,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
   /** Applies a formula decision the same way the modal's two buttons do. */
   const applyScopeDecision = async (formula: string, scope: 'all' | 'perCell') => {
     if (scope === 'all') {
-      const relativeFormula = makeRelativeIdFormula(formula, homeBoardId);
+      const relativeFormula = makeRelativeIdFormula(formula, homeBoardId, column.id);
       try {
         await updateColumn({ id: column.id, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
         persistValue(null);

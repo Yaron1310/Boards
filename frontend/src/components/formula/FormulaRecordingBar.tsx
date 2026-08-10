@@ -190,7 +190,7 @@ const FormulaRecordingBar: React.FC = () => {
     setIsTogglingScope(true);
     try {
       if (nextScope === 'all') {
-        const relativeFormula = makeRelativeIdFormula(trimmed, origin.boardId);
+        const relativeFormula = makeRelativeIdFormula(trimmed, origin.boardId, origin.columnId);
         if (origin.isPersonal) {
           await updatePersonalColumnMutation({ id: origin.columnId, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
           await updatePersonalItemValueMutation({ itemId: origin.itemId, columnId: origin.columnId, value: null });

@@ -8,7 +8,7 @@ import { useAuth } from '../useAuth';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues, listPersonalColumns } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
-import { aggregateSummary, BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, serializeRef, type CellRef } from '@/utils/formulaEngine';
+import { aggregateSummary, BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, serializeRef, type CellRef } from '@/utils/formulaEngine';
 import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
 import { formulaLog, formulaRefLog } from '@/utils/formulaDebug';
 import { ColumnType } from '@/types';
@@ -154,7 +154,9 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   const summaryOwners = useMemo(() => {
     const owners = new Set<string>();
     for (const r of allRefs) {
-      if (r.kind !== 'p' || !r.agg) continue;
+      const isPersonalSummary = r.kind === 'p' && !!r.agg;
+      const isHubRowsSummary = r.kind === 'b' && !!r.agg && r.groupId === HUB_ROWS_GROUP_ID;
+      if (!isPersonalSummary && !isHubRowsSummary) continue;
       owners.add(r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER);
     }
     return Array.from(owners).sort();
@@ -706,7 +708,20 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               { boardId: r.boardId, lookingForColumnId: r.columnId, knownColumnIds: (cols ?? []).map((c) => c.id).join(' | ') || '(none)' });
             return undefined; // board items/columns not loaded yet
           }
-          const rows = r.groupId === BOARD_TOTAL_GROUP_ID ? items : items.filter((i) => i.groupId === r.groupId);
+          // A Personal Hub board group totals the rows that hub shows for this board — its
+          // owner's assigned items — rather than one group of the board.
+          const hubOwner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+          const hubRowIds = r.groupId === HUB_ROWS_GROUP_ID
+            ? new Set((hubItemsByOwner.get(hubOwner) ?? []).filter((i) => i.boardId === r.boardId && !i.isArchived).map((i) => i.id))
+            : null;
+          if (hubRowIds && hubRowIds.size === 0 && (hubItemsByOwner.get(hubOwner) ?? []).length === 0) {
+            formulaRefLog(r, 'unresolved', 'that hub’s assigned items have not loaded',
+              { board: r.boardId, hub: hubOwner === SELF_OWNER ? 'your own' : hubOwner });
+            return undefined;
+          }
+          const rows = hubRowIds ? items.filter((i) => hubRowIds.has(i.id))
+            : r.groupId === BOARD_TOTAL_GROUP_ID ? items
+            : items.filter((i) => i.groupId === r.groupId);
 
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
             const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
