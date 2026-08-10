@@ -12,7 +12,7 @@ import { aggregateSummary, BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, computeSumma
 import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
 import { formulaLog, formulaRefLog } from '@/utils/formulaDebug';
 import { ColumnType } from '@/types';
-import type { Column, Item, PaginatedResponse, PersonalColumn } from '@/types';
+import type { Column, Group, Item, PaginatedResponse, PersonalColumn } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
 
@@ -208,6 +208,36 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summaryOwnersKey, hubValuesQueries]);
+
+  // Boards whose hub footer is referenced. Working out which rows such a footer covers needs the
+  // board's groups: an assigned SUBITEM isn't shown as its own row in a hub — its hosting item is
+  // shown instead — and a group knows whether it belongs to a parent item.
+  const hubRowsBoardIds = useMemo(
+    () => Array.from(new Set(
+      allRefs.filter((r) => r.kind === 'b' && r.agg && r.groupId === HUB_ROWS_GROUP_ID).map((r) => r.boardId),
+    )).sort(),
+    [allRefs],
+  );
+  const hubRowsBoardKey = hubRowsBoardIds.join(',');
+
+  const hubGroupQueries = useQueries({
+    queries: hubRowsBoardIds.map((boardId) => ({
+      queryKey: queryKeys.groups.all(boardId),
+      queryFn: () => wm.listGroups(boardId, false),
+      enabled: !!boardId,
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  const hubGroupsByBoard = useMemo(() => {
+    const m = new Map<string, Map<string, Group>>();
+    hubRowsBoardIds.forEach((boardId, i) => {
+      const groups = hubGroupQueries[i]?.data as Group[] | undefined;
+      if (!groups) return;
+      m.set(boardId, new Map(groups.map((g) => [g.id, g])));
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hubRowsBoardKey, hubGroupQueries]);
 
   const personalColumnsQueries = useQueries({
     queries: personalOwners.map((owner) => ({
@@ -711,15 +741,27 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           // A Personal Hub board group totals the rows that hub shows for this board — its
           // owner's assigned items — rather than one group of the board.
           const hubOwner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
-          const hubRowIds = r.groupId === HUB_ROWS_GROUP_ID
-            ? new Set((hubItemsByOwner.get(hubOwner) ?? []).filter((i) => i.boardId === r.boardId && !i.isArchived).map((i) => i.id))
-            : null;
-          if (hubRowIds && hubRowIds.size === 0 && (hubItemsByOwner.get(hubOwner) ?? []).length === 0) {
-            formulaRefLog(r, 'unresolved', 'that hub’s assigned items have not loaded',
-              { board: r.boardId, hub: hubOwner === SELF_OWNER ? 'your own' : hubOwner });
-            return undefined;
+          let hubRowIds: Set<string> | null = null;
+          if (r.groupId === HUB_ROWS_GROUP_ID) {
+            const groups = hubGroupsByBoard.get(r.boardId);
+            const assigned = hubItemsByOwner.get(hubOwner) ?? [];
+            if (!groups || assigned.length === 0) {
+              formulaRefLog(r, 'unresolved',
+                !groups ? 'that board’s groups have not loaded' : 'that hub’s assigned items have not loaded',
+                { board: r.boardId, hub: hubOwner === SELF_OWNER ? 'your own' : hubOwner });
+              return undefined;
+            }
+            // An assigned subitem never appears as its own row in a hub — the item hosting it does,
+            // and any value shown on that row belongs to the host. Counting the subitem instead
+            // leaves the host's row out of the total entirely.
+            hubRowIds = new Set<string>();
+            for (const it of assigned) {
+              if (it.boardId !== r.boardId) continue;
+              const host = groups.get(it.groupId)?.parentItemId;
+              hubRowIds.add(host ?? it.id);
+            }
           }
-          const rows = hubRowIds ? items.filter((i) => hubRowIds.has(i.id))
+          const rows = hubRowIds ? items.filter((i) => hubRowIds!.has(i.id) && !i.isArchived)
             : r.groupId === BOARD_TOTAL_GROUP_ID ? items
             : items.filter((i) => i.groupId === r.groupId);
 
@@ -866,7 +908,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       return inner(ref, currentItemId, new Set<string>());
     },
     [boardItemMap, boardItemsList, boardColumnsMap, templateTotalsMap, itemTotalsMap, viewerId,
-     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner],
+     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner, hubGroupsByBoard],
   );
 
   return { resolve, isLoading };
