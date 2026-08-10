@@ -9,7 +9,8 @@ import { useAuth } from '../useAuth';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
-import { aggregateSummary, BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
+import { aggregateSummary, BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, type CellRef } from '@/utils/formulaEngine';
+import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
 import { ColumnType } from '@/types';
 import type { Column, Item, PaginatedResponse } from '@/types';
 
@@ -131,11 +132,6 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     staleTime: 60 * 1000,
   });
   const { data: personalColumnDefs } = usePersonalColumns(undefined, hasPersonalSummaryRefs);
-  const personalColumnTypes = useMemo(() => {
-    const m = new Map<string, ColumnType>();
-    (personalColumnDefs ?? []).forEach((c) => m.set(c.id, c.type));
-    return m;
-  }, [personalColumnDefs]);
 
   // Personal Hub template totals — org-wide running sums, not tied to any board. Referenced by
   // templateColumnId (held in `columnId` for 'ph' refs). Global (whole-org) scope only here —
@@ -454,20 +450,54 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
         // A Personal Hub summary: aggregate the viewer's own hub rows — every board's for the
         // whole-hub total, one board's for a board group's footer, matching the row set the cell
-        // itself shows. Personal SIMPLE_FORMULA columns are the one gap: their formulas address
-        // the hub's grid by row position, which only exists while the Hub is rendered.
+        // itself shows.
         if (r.agg && r.kind === 'p') {
-          const colType = personalColumnTypes.get(r.columnId);
+          const col = personalColumnDefs?.find((c) => c.id === r.columnId);
           const hubValues = hubValuesQuery.data;
-          if (!colType || !hubValues) return undefined; // hub not loaded yet
-          if (colType === ColumnType.SIMPLE_FORMULA) return undefined;
-          const scoped = r.groupId === BOARD_TOTAL_GROUP_ID
+          if (!col || !hubValues) return undefined; // hub not loaded yet
+          const scoped = (r.groupId === BOARD_TOTAL_GROUP_ID
             ? hubItems
-            : hubItems.filter((i) => i.boardId === r.boardId);
-          const rows = scoped
-            .filter((i) => !i.isArchived)
-            .map((i) => ({ id: i.id, values: hubValues[i.id] ?? {} }));
-          return computeSummaryNumeric(rows, colType, r.columnId, r.agg);
+            : hubItems.filter((i) => i.boardId === r.boardId)
+          ).filter((i) => !i.isArchived);
+
+          if (col.type !== ColumnType.SIMPLE_FORMULA) {
+            const rows = scoped.map((i) => ({ id: i.id, values: hubValues[i.id] ?? {} }));
+            return computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+          }
+
+          // A personal formula column holds formula text, not values, so totalling it means
+          // rebuilding the grid those formulas are written against and evaluating each row —
+          // the same grid and the same evaluator the Hub uses, so both arrive at one number.
+          const summaryKey = `pagg:${r.boardId}:${r.columnId}:${r.groupId ?? ''}:${r.agg}`;
+          if (visited.has(summaryKey)) { cycleFlag.hit = true; return null; }
+          const nextVisited = new Set(visited);
+          nextVisited.add(summaryKey);
+
+          const gridBoardId = col.scope === 'board' ? col.boardId : undefined;
+          const gridItems = gridBoardId ? hubItems.filter((i) => i.boardId === gridBoardId) : hubItems;
+          const grid = {
+            rowOrder: hubRowOrder(gridItems),
+            columns: hubGridColumns(personalColumnDefs ?? [], gridBoardId),
+            valuesByItem: hubValues,
+            boardId: gridBoardId ?? '',
+          };
+
+          // Absolute positional formulas ({C3}) only mean the right cell in the exact row order
+          // they were written against, and this order is reconstructed rather than read off the
+          // rendered Hub. Rather than return a number that looks fine and isn't, leave the whole
+          // summary unresolved so it reads as unavailable.
+          const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
+          const formulas = [settings?.defaultFormula ?? '', ...grid.rowOrder.map((id) => {
+            const v = hubValues[id]?.[col.id];
+            return typeof v === 'string' ? v : '';
+          })];
+          if (formulas.some((f) => f && hasAbsolutePositionalRefs(f))) return undefined;
+
+          const evalRow = makePersonalFormulaEvaluator(col, grid, (ref, itemId) => inner(ref, itemId, nextVisited));
+          const vals = scoped
+            .map((i) => evalRow(i))
+            .filter((n): n is number => n !== null && !isNaN(n));
+          return aggregateSummary(vals, r.agg);
         }
 
         // Group-summary reference: aggregate a column across a group. Board columns only.
@@ -577,7 +607,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       return inner(ref, currentItemId, new Set<string>());
     },
     [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap, itemTotalsMap,
-     hubItems, hubValuesQuery.data, personalColumnTypes],
+     hubItems, hubValuesQuery.data, personalColumnDefs],
   );
 
   return { resolve, isLoading };

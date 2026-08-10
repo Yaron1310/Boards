@@ -372,7 +372,13 @@ class FormulaParser {
     const ctx = this.context;
     // Same-board refs (either kind) resolve from local context: on a regular board `allItems`
     // carry item.values; in the Personal Hub the pseudo-rows carry personalItemValues.
-    const isHome = !!ctx?.homeBoardId && ref.boardId === ctx.homeBoardId;
+    // A cross-group personal grid spans every board, so it names none — and its refs are
+    // serialized with that same empty board. For 'p' refs, then, "home" is the two matching
+    // exactly, empty included; requiring a non-empty board id would strand every cross-group
+    // personal reference, leaving it to a resolver that can't see the grid it came from.
+    const isHome = ref.kind === 'p'
+      ? !!ctx && ref.boardId === (ctx.homeBoardId ?? '')
+      : !!ctx?.homeBoardId && ref.boardId === ctx.homeBoardId;
     // A whole-hub personal total spans every board, so it names no board for homeBoardId to
     // match — but a cross-group personal grid holds exactly those rows, so resolve it right here
     // when the column belongs to this grid. Board-scoped personal summaries deliberately do NOT
@@ -670,6 +676,23 @@ export function convertLegacyToIdRefs(
     }
     return whole;
   });
+}
+
+/**
+ * True when a formula still addresses a cell by absolute grid position ({C3}) rather than by
+ * stable id. Those only mean the right cell if the rows are in exactly the order the formula was
+ * written against, so a caller reproducing a table from scratch (rather than reading the one on
+ * screen) should decline to evaluate them instead of risking a plausible-looking wrong number.
+ * Row-relative positions ({C}) are unaffected — they resolve within whichever row is being
+ * evaluated, whatever the order.
+ */
+export function hasAbsolutePositionalRefs(formula: string): boolean {
+  const re = /\{([^}]*)\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(formula)) !== null) {
+    if (/^[A-Za-z]+\d+$/.test(m[1].trim())) return true;
+  }
+  return false;
 }
 
 /** Relativize same-board refs (itemId → '@') so a formula can serve as a column-wide default,
