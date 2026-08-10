@@ -8,7 +8,7 @@ import { useAuth } from '../useAuth';
 import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues, listPersonalColumns } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
-import { aggregateSummary, BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, type CellRef } from '@/utils/formulaEngine';
+import { aggregateSummary, BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, serializeRef, type CellRef } from '@/utils/formulaEngine';
 import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
 import { formulaLog, formulaRefLog } from '@/utils/formulaDebug';
 import { ColumnType } from '@/types';
@@ -99,45 +99,66 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   const { user } = useAuth();
   const viewerId = (user as { id?: string } | null | undefined)?.id;
 
+  /**
+   * References found inside OTHER boards' formula cells. A formula on board B may itself read a
+   * Personal Hub value, and evaluating B's cell here means resolving that too — but it isn't in
+   * the formula being displayed, so nothing would otherwise load it and the term would quietly
+   * contribute 0, handing back a smaller number that looks perfectly plausible. Discovered by the
+   * effect below once a board's items and columns are in, and folded into the loading sets that
+   * follow exactly as if they had been written in the formula directly.
+   */
+  const [nestedRefs, setNestedRefs] = useState<CellRef[]>([]);
+  /** Row ids of the boards those nested references were found on — what a row-relative one
+   *  ({ref:p:…:@}) resolves against, since it means "the row this formula is evaluated for". */
+  const [nestedRowIds, setNestedRowIds] = useState<string[]>([]);
+
+  const allRefs = useMemo(() => [...refs, ...nestedRefs], [refs, nestedRefs]);
+
   // Every Personal Hub a reference points at. `undefined` (the viewer's own) is the common case
   // and is kept as the literal 'self' so it shares one cache entry with the Hub page itself; an
   // explicit owner appears only on references picked from someone else's hub.
   const personalOwners = useMemo(() => {
     const owners = new Set<string>();
-    for (const r of refs) {
+    for (const r of allRefs) {
       if (r.kind !== 'p') continue;
       owners.add(r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER);
     }
     return Array.from(owners).sort();
-  }, [refs, viewerId]);
+  }, [allRefs, viewerId]);
   const personalOwnersKey = personalOwners.join(',');
   /** The `userId` argument the personal-hub endpoints want: omitted for your own hub. */
   const ownerParam = (owner: string): string | undefined => (owner === SELF_OWNER ? undefined : owner);
 
   const personalItemIdsByOwner = useMemo(() => {
     const m = new Map<string, string[]>();
-    for (const r of refs) {
-      if (r.kind !== 'p' || !r.itemId) continue;
-      const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+    const add = (owner: string, itemId: string) => {
       const list = m.get(owner) ?? [];
-      if (!list.includes(r.itemId)) list.push(r.itemId);
+      if (!list.includes(itemId)) list.push(itemId);
       m.set(owner, list);
+    };
+    for (const r of allRefs) {
+      if (r.kind !== 'p') continue;
+      const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+      if (r.itemId) add(owner, r.itemId);
+      // A row-relative personal reference names no item: it resolves against whichever row is
+      // being evaluated, so every row of the boards it was found on is a candidate.
+      else if (!r.agg) nestedRowIds.forEach((id) => add(owner, id));
     }
     m.forEach((ids) => ids.sort());
     return m;
-  }, [refs, viewerId]);
+  }, [allRefs, nestedRowIds, viewerId]);
 
   // Hubs that need their whole table reconstructed, not just a named cell: a summary covers a
   // slice of a hub, so resolving one away from the Hub page means loading that hub's assigned
   // items, values and column definitions.
   const summaryOwners = useMemo(() => {
     const owners = new Set<string>();
-    for (const r of refs) {
+    for (const r of allRefs) {
       if (r.kind !== 'p' || !r.agg) continue;
       owners.add(r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER);
     }
     return Array.from(owners).sort();
-  }, [refs, viewerId]);
+  }, [allRefs, viewerId]);
   const summaryOwnersKey = summaryOwners.join(',');
 
   // Another user's hub is admin-only server-side, so for a viewer without that access these
@@ -229,8 +250,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   // 'item'-scoped refs are handled separately below, since they need a (templateColumnId, itemId)
   // pair rather than just a templateColumnId.
   const templateColumnIds = useMemo(
-    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope !== 'item').map((r) => r.columnId))).sort(),
-    [refs],
+    () => Array.from(new Set(allRefs.filter((r) => r.kind === 'ph' && r.phScope !== 'item').map((r) => r.columnId))).sort(),
+    [allRefs],
   );
   const templateTotalQueries = useQueries({
     queries: templateColumnIds.map((templateColumnId) => ({
@@ -289,12 +310,12 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   // item-scoped template column referenced, paired with the distinct item ids the caller says it
   // might resolve against.
   const itemScopedTemplateColumnIds = useMemo(
-    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope === 'item').map((r) => r.columnId))).sort(),
-    [refs],
+    () => Array.from(new Set(allRefs.filter((r) => r.kind === 'ph' && r.phScope === 'item').map((r) => r.columnId))).sort(),
+    [allRefs],
   );
   const dedupedContextItemIds = useMemo(
-    () => Array.from(new Set(contextItemIds.filter((id): id is string => !!id))).sort(),
-    [contextItemIds],
+    () => Array.from(new Set([...contextItemIds, ...nestedRowIds].filter((id): id is string => !!id))).sort(),
+    [contextItemIds, nestedRowIds],
   );
 
   // Past the threshold, fetch one column's worth of item totals in a single request instead of
@@ -499,6 +520,32 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardKey, boardQueries, columnQueries, boardItemsList, boardColumnsMap]);
+
+  // Personal Hub and template references living inside those boards' formula cells. Board
+  // references drive the hop expansion above; these drive the personal/template loading sets, so
+  // that a formula reading someone's hub value still resolves it when reached through another
+  // board's cell rather than written in the formula on screen.
+  useEffect(() => {
+    const found: CellRef[] = [];
+    const rowIds = new Set<string>();
+    for (const boardId of boardIds) {
+      const items = boardItemsList.get(boardId);
+      const cols = boardColumnsMap.get(boardId);
+      if (!items || !cols) continue;
+      let anyHere = false;
+      for (const r of formulaRefsInBoard(items, cols)) {
+        if (r.kind === 'b') continue;
+        found.push(r);
+        anyHere = true;
+      }
+      if (anyHere) items.forEach((i) => rowIds.add(i.id));
+    }
+    const nextRefs = found.map((r) => serializeRef(r)).sort().join('|');
+    const nextRows = Array.from(rowIds).sort();
+    setNestedRefs((prev) => (prev.map((r) => serializeRef(r)).sort().join('|') === nextRefs ? prev : found));
+    setNestedRowIds((prev) => (prev.join(',') === nextRows.join(',') ? prev : nextRows));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardKey, boardItemsList, boardColumnsMap]);
 
   const personalValuesByOwner = useMemo(() => {
     const m = new Map<string, Record<string, Record<string, unknown>>>();
