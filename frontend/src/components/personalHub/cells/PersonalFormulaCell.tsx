@@ -79,11 +79,12 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     [allItems, gridContext.columns, rowIndex, homeBoardId, userId, resolveForeign, itemId],
   );
 
-  const { result, hasUnresolved } = useMemo(() => {
-    if (!cellFormula) return { result: null as number | null, hasUnresolved: false };
+  const { result, hasUnresolved, hitCycle } = useMemo(() => {
+    if (!cellFormula) return { result: null as number | null, hasUnresolved: false, hitCycle: false };
     let missing = false;
-    const v = evaluateFormula(cellFormula, {}, { ...formulaContext, onUnresolvedRef: () => { missing = true; } });
-    return { result: v, hasUnresolved: missing };
+    const cycleFlag = { hit: false };
+    const v = evaluateFormula(cellFormula, {}, { ...formulaContext, cycleFlag, onUnresolvedRef: () => { missing = true; } });
+    return { result: v, hasUnresolved: missing, hitCycle: cycleFlag.hit };
   }, [cellFormula, formulaContext]);
 
   const formatNumber = (n: number) => {
@@ -221,7 +222,9 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
               ? <span className="text-gray-300 text-xs">…</span>
               : hasUnresolved
                 ? <span className="text-amber-500 text-xs" title="A referenced cell is unavailable or no longer exists">#ref</span>
-                : result != null
+                : hitCycle
+                  ? <span className="text-amber-500 text-xs" title="This formula refers back to itself, directly or through another cell. The circular part counts as 0, so the result is missing it.">#loop</span>
+                  : result != null
                   ? formatNumber(result)
                   : <span className="text-gray-300 text-xs">—</span>}
         </span>
