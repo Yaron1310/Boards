@@ -262,7 +262,10 @@ export function serializeRef(ref: CellRef): string {
     return `{ref:ph::${ref.columnId}:${ref.phScope === 'item' ? 'item' : '@'}}`;
   }
   const row = ref.agg ? `sum#${ref.agg}#${ref.groupId ?? ''}` : (ref.itemId ?? '@');
-  const owner = ref.kind !== 'ph' && ref.ownerId ? `:${ref.ownerId}` : '';
+  // The owner is meaningful on a personal reference (whose hub) and on a hub-rows summary (whose
+  // assigned rows). On an ordinary board cell it means nothing, so it is left off entirely.
+  const carriesOwner = ref.kind === 'p' || (ref.kind === 'b' && ref.groupId === HUB_ROWS_GROUP_ID);
+  const owner = carriesOwner && ref.ownerId ? `:${ref.ownerId}` : '';
   return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}${owner}}`;
 }
 
