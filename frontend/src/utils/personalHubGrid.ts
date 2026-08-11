@@ -73,7 +73,7 @@ export const makePersonalFormulaEvaluator = (
       // here instead of being treated as pointing somewhere else entirely.
       homeBoardId: grid.boardId ?? '',
       hubOwnerId: grid.ownerId,
-      resolveRef: resolveRef ? (ref) => resolveRef(ref, item.id) : undefined,
+      resolveRef: resolveRef ? (ref, forItemId) => resolveRef(ref, forItemId ?? item.id) : undefined,
     });
     return r !== null && !isNaN(r) ? r : null;
   };

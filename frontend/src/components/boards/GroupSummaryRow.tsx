@@ -466,7 +466,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
               // Personal Hub's assignee-filtered view), a same-board summary ref inside the
               // formula can't be aggregated from them and must go through resolveForeign.
               groupsComplete,
-              resolveRef: (ref) => resolveForeign(ref, i.id),
+              resolveRef: (ref, forItemId) => resolveForeign(ref, forItemId ?? i.id),
             });
           })
           .filter((v): v is number => v !== null);

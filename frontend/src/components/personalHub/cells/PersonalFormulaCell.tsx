@@ -75,7 +75,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
       homeBoardId,
       hubOwnerId: userId,
       traceLabel: `SAVED PERSONAL HUB CELL (row ${itemId})`,
-      resolveRef: (ref: Parameters<typeof resolveForeign>[0]) => resolveForeign(ref, itemId),
+      resolveRef: (ref: Parameters<typeof resolveForeign>[0], forItemId?: string | null) => resolveForeign(ref, forItemId ?? itemId),
     }),
     [allItems, gridContext.columns, rowIndex, homeBoardId, userId, resolveForeign, itemId],
   );

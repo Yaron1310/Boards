@@ -261,7 +261,7 @@ const FormulaRecordingBar: React.FC = () => {
             allItems: [],
             columns: [],
             traceLabel: 'RECORDING BAR (the row of tokens at the top)',
-            resolveRef: (ref) => resolve(ref, currentItemId),
+            resolveRef: (ref, forItemId) => resolve(ref, forItemId ?? currentItemId),
           })
         : null,
     [session, draft, resolve, currentItemId],

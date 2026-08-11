@@ -200,8 +200,13 @@ export interface FormulaContext {
   hubOwnerId?: string;
   /** Resolver for refs the engine cannot satisfy locally (foreign boards, personal-hub, etc.).
    *  Return a number, `null` if the target is known but empty/non-numeric (contributes 0), or
-   *  `undefined` if it cannot be resolved yet (data still loading, or the target no longer exists). */
-  resolveRef?: (ref: CellRef) => number | null | undefined;
+   *  `undefined` if it cannot be resolved yet (data still loading, or the target no longer exists).
+   *
+   *  `forItemId` is the row currently being evaluated, which is NOT always the row the caller was
+   *  built for: reading another cell's value evaluates that cell's formula, and a reference meaning
+   *  "this row" inside it means THAT row. Callers must honour it over their own row, or such a
+   *  reference silently answers for the wrong row. */
+  resolveRef?: (ref: CellRef, forItemId?: string | null) => number | null | undefined;
   /** Called for every ref the engine could not resolve — lets the caller drive loading/error UI. */
   onUnresolvedRef?: (ref: CellRef) => void;
   /** Formula cells currently being evaluated (keyed `columnId@itemId`) — breaks reference cycles
@@ -439,7 +444,12 @@ class FormulaParser {
     }
 
     if (ctx?.resolveRef) {
-      const v = ctx.resolveRef(ref);
+      // The row being evaluated right now — which differs from the caller's own row whenever this
+      // evaluation descended into another cell's formula.
+      const currentRowId = ctx.currentRowIndex !== undefined
+        ? ctx.allItems[ctx.currentRowIndex]?.id
+        : undefined;
+      const v = ctx.resolveRef(ref, currentRowId);
       if (v !== undefined) return v ?? 0;
     }
 

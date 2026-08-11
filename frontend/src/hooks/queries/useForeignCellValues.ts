@@ -801,7 +801,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               homeBoardId: r.boardId,
               summaryCache,
               cycleFlag,
-              resolveRef: (rr) => inner(rr, row.id, nextVisited),
+              resolveRef: (rr, forItemId) => inner(rr, forItemId ?? row.id, nextVisited),
               onUnresolvedRef: () => { rowMissing = true; },
             });
             if (v !== null) vals.push(v);
@@ -887,7 +887,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               homeBoardId: r.boardId,
               summaryCache,
               cycleFlag,
-              resolveRef: (rr) => inner(rr, items[idx].id, nextVisited),
+              resolveRef: (rr, forItemId) => inner(rr, forItemId ?? items[idx].id, nextVisited),
               onUnresolvedRef: () => { nestedMissing = true; },
             });
             // That cell's own formula reaches somewhere this evaluation cannot follow — usually
