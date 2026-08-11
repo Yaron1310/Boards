@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  FiFileText, FiEdit, FiPlusCircle, FiArchive, FiCheckCircle, FiAlertCircle, FiBarChart2,
+  FiFileText, FiEdit, FiPlusCircle, FiArchive, FiCheckCircle, FiAlertCircle, FiAlertTriangle, FiBarChart2,
 } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useAuthSession } from '../../hooks/useAuthSession';
@@ -10,6 +10,7 @@ import {
   useForms, useCreateForm, useUpdateForm, useArchiveForm, useRestoreForm,
 } from '../../hooks/queries/useFormQueries';
 import ArchiveRestoreModal from '../admin/shared/ArchiveRestoreModal';
+import { ModalWrapper } from '../admin/shared/ModalWrapper';
 import FormBuilderModal from './FormBuilderModal';
 import FormResultsModal from './FormResultsModal';
 
@@ -32,13 +33,16 @@ const FormsPage: React.FC = () => {
   const [resultsForm, setResultsForm] = useState<Form | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  // Set when archiving a form that's still attached to items — the confirm modal
+  // lists them and re-issues the archive with confirm:true once the user agrees.
+  const [archiveWarning, setArchiveWarning] = useState<{ form: Form; items: { id: string; name: string }[] } | null>(null);
 
   const { data: forms = [], isLoading } = useForms();
   // Archived forms are only needed once the restore modal is open.
   const { data: archivedForms = [], refetch: refetchArchived } = useForms(true, isArchiveModalOpen);
   const { mutateAsync: createForm, isPending: isCreating } = useCreateForm();
   const { mutateAsync: updateForm, isPending: isUpdating } = useUpdateForm();
-  const { mutateAsync: archiveForm } = useArchiveForm();
+  const { mutateAsync: archiveForm, isPending: isArchiving } = useArchiveForm();
   const { mutateAsync: restoreForm } = useRestoreForm();
 
   useEffect(() => {
@@ -73,11 +77,32 @@ const FormsPage: React.FC = () => {
     if (!formToEdit) return;
     setModalError(null);
     try {
-      await archiveForm(formToEdit.id);
+      await archiveForm({ id: formToEdit.id });
       setFeedback({ type: 'success', text: `Form "${formToEdit.name}" archived.` });
       closeBuilder();
     } catch (err) {
+      // The form is still attached to items — surface the warning modal instead
+      // of a plain error, offering to archive anyway (which detaches it from them).
+      const dependencies = (err as { dependencies?: { items?: { id: string; name: string }[] } } | undefined)?.dependencies;
+      if (dependencies?.items?.length) {
+        setArchiveWarning({ form: formToEdit, items: dependencies.items });
+        return;
+      }
       setModalError(err instanceof Error ? err.message : 'Failed to archive the form.');
+    }
+  };
+
+  const confirmArchiveAnyway = async () => {
+    if (!archiveWarning) return;
+    setModalError(null);
+    try {
+      await archiveForm({ id: archiveWarning.form.id, confirm: true });
+      setFeedback({ type: 'success', text: `Form "${archiveWarning.form.name}" archived and removed from its items.` });
+      setArchiveWarning(null);
+      closeBuilder();
+    } catch (err) {
+      setModalError(err instanceof Error ? err.message : 'Failed to archive the form.');
+      setArchiveWarning(null);
     }
   };
 
@@ -200,13 +225,49 @@ const FormsPage: React.FC = () => {
           onClose={closeBuilder}
           onSave={handleSave}
           onArchive={formToEdit ? handleArchive : undefined}
-          isSaving={isCreating || isUpdating}
+          isSaving={isCreating || isUpdating || isArchiving}
           error={modalError}
         />
       )}
 
       {resultsForm && (
         <FormResultsModal form={resultsForm} onClose={() => setResultsForm(null)} />
+      )}
+
+      {archiveWarning && (
+        <ModalWrapper title="Archive this form?" onClose={() => setArchiveWarning(null)} size="max-w-md">
+          <div className="flex items-start gap-3 mb-4">
+            <FiAlertTriangle className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0" aria-hidden="true" />
+            <p className="text-sm text-gray-700">
+              "{archiveWarning.form.name}" is currently attached to {archiveWarning.items.length} item{archiveWarning.items.length !== 1 ? 's' : ''}.
+              Archiving it will remove it from:
+            </p>
+          </div>
+          <ul className="list-disc pl-9 text-sm text-gray-600 space-y-1 max-h-40 overflow-y-auto mb-2">
+            {archiveWarning.items.map((it) => <li key={it.id}>{it.name}</li>)}
+          </ul>
+          <p className="text-xs text-gray-400 mb-4 pl-9">
+            Already-submitted answers are kept and still show in the form's results.
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setArchiveWarning(null)}
+              disabled={isArchiving}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmArchiveAnyway()}
+              disabled={isArchiving}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+            >
+              {isArchiving ? 'Archiving…' : 'Archive'}
+            </button>
+          </div>
+        </ModalWrapper>
       )}
 
       {canManage && (
