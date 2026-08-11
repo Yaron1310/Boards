@@ -24,8 +24,9 @@ function formatTimestamp(ts: Date | string | undefined): string {
 const FormResultsModal: React.FC<FormResultsModalProps> = ({ form, onClose }) => {
   const { data, isLoading, error } = useFormResults(form.id);
 
+  // The backend only ever returns submitted responses here — drafts are private to
+  // whoever is filling the form in and never leave their browser.
   const responses = data?.responses ?? [];
-  const submittedCount = responses.filter((r) => r.response.submittedAt).length;
 
   // Each response is collapsed by default — a form can collect many responses, so
   // showing every answer set expanded at once would be an unreadable wall of text.
@@ -53,7 +54,7 @@ const FormResultsModal: React.FC<FormResultsModalProps> = ({ form, onClose }) =>
             <p className="text-sm text-gray-500 mt-0.5">
               {isLoading
                 ? 'Loading…'
-                : `${responses.length} response${responses.length !== 1 ? 's' : ''} · ${submittedCount} submitted`}
+                : `${responses.length} response${responses.length !== 1 ? 's' : ''}`}
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 flex-shrink-0" aria-label="Close">
@@ -106,16 +107,9 @@ const FormResultsModal: React.FC<FormResultsModalProps> = ({ form, onClose }) =>
                         {row.itemName ?? '(deleted item)'}
                       </p>
                       <p className="text-[11px] text-gray-400">
-                        {row.response.submittedAt
-                          ? `Submitted by ${row.response.submittedByName ?? 'someone'} · ${formatTimestamp(row.response.submittedAt)}`
-                          : `Draft · last edited ${formatTimestamp(row.response.updatedAt)}`}
+                        Submitted by {row.response.submittedByName ?? 'someone'} · {formatTimestamp(row.response.submittedAt)}
                       </p>
                     </div>
-                    {!row.response.submittedAt && (
-                      <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                        Draft
-                      </span>
-                    )}
                     <FiChevronDown
                       size={16}
                       className={`flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}

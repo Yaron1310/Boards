@@ -332,7 +332,13 @@ export const listFormResponses = async (req: Request, res: Response) => {
       .get();
 
     const orgItemsPrefix = `organizations/${user.orgId}/items/`;
-    const docs = snap.docs.filter(d => d.ref.path.startsWith(orgItemsPrefix));
+    // Drafts are personal scratch space for whoever is filling the form in — they're
+    // never sent to the server at all now, but older rows saved before that change (or
+    // any future data that slips through) must still never surface here. Only a
+    // submitted response is a record other people are allowed to see.
+    const docs = snap.docs.filter(
+      d => d.ref.path.startsWith(orgItemsPrefix) && !!(d.data() as DBFormResponse).submittedAt,
+    );
 
     // Item names for display — one read per distinct item, deduplicated.
     const itemIds = [...new Set(docs.map(d => (d.data() as DBFormResponse).itemId).filter(Boolean))];
@@ -352,13 +358,11 @@ export const listFormResponses = async (req: Request, res: Response) => {
         const response = snapshotToData<DBFormResponse>(d)!;
         return { response, itemId: response.itemId, itemName: itemNames.get(response.itemId) ?? null };
       })
-      // Submitted first, newest first within each group.
+      // Every row here is submitted (drafts are filtered out above) — newest first.
       .sort((a, b) => {
-        const aSubmitted = a.response.submittedAt ? 1 : 0;
-        const bSubmitted = b.response.submittedAt ? 1 : 0;
         const aTime = millis(a.response.submittedAt) || millis(a.response.updatedAt);
         const bTime = millis(b.response.submittedAt) || millis(b.response.updatedAt);
-        return bSubmitted - aSubmitted || bTime - aTime;
+        return bTime - aTime;
       });
 
     res.json({

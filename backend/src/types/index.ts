@@ -849,4 +849,10 @@ export interface DBFormResponse {
   submittedByName?: string;
   submittedAt?: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
+  /**
+   * Set when a submitted form is removed from its item. The response document is kept
+   * (rather than deleted) so its answers still show up in the form's results, but it no
+   * longer counts as "attached" — listItemForms and attachFormToItem both ignore it.
+   */
+  detachedAt?: admin.firestore.Timestamp | Date | any;
 }

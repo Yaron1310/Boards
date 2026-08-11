@@ -85,8 +85,7 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
     (user?.role === UserRole.WORKSPACE_ADMIN && selectedWorkspace?.id === item.workspaceId);
-  // Submitted answers are a record: removing the form would destroy them.
-  const canRemoveForm = canManageAttachment && !isSubmitted;
+  const canRemoveForm = canManageAttachment;
 
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [editing, setEditing] = useState(false);
@@ -219,6 +218,7 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
                   onClick={() => void handleRemove()}
                   className="px-2 py-1 text-xs font-medium rounded-full hover:bg-indigo-500 transition-colors"
                   aria-label={`Confirm removing ${form.name} from this item`}
+                  title={isSubmitted ? "Submitted answers are kept and still shown in the form's results" : undefined}
                 >
                   Remove
                 </button>
@@ -261,6 +261,15 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
           <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-600" aria-label="Dismiss error">
             <FiX size={14} aria-hidden="true" />
           </button>
+        </div>
+      )}
+
+      {confirmRemove && isSubmitted && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-800 text-xs border-b border-amber-100">
+          <FiAlertCircle size={13} aria-hidden="true" className="flex-shrink-0" />
+          <span className="flex-1">
+            This form's submitted answers will be kept and still show in the form's results — only its link to this item is removed.
+          </span>
         </div>
       )}
 
