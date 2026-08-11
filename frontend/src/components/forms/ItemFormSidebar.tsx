@@ -189,10 +189,11 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
               <button
                 type="button"
                 onClick={() => setConfirmRemove(true)}
-                className="p-1.5 rounded-full hover:bg-indigo-500 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full hover:bg-indigo-500 transition-colors"
                 aria-label={`Remove ${form.name} from this item`}
               >
-                <FiTrash2 size={15} aria-hidden="true" />
+                <FiTrash2 size={13} aria-hidden="true" />
+                Remove form
               </button>
             )
           )}
