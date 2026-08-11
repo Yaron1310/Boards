@@ -31,12 +31,12 @@ const OPTION_FIELD_TYPES = new Set<FormFieldType>([
 ]);
 
 /**
- * Form definitions are structural, org-wide objects — same rule as columns and
- * groups: WORKSPACE_ADMIN+ or ORG_EDITOR may author them, everyone may read
- * and fill them in.
+ * Forms are an administrative surface, gated like Templates: WorkHub admins and
+ * org admins author them and read their results. Everyone else can still fill in
+ * a form that an admin has attached to an item.
  */
 function canManageForms(user: JwtUserPayload): boolean {
-  return isAtLeast(user.role, UserRole.WORKSPACE_ADMIN) || user.role === UserRole.ORG_EDITOR;
+  return isAtLeast(user.role, UserRole.WORKSPACE_ADMIN);
 }
 
 function makeId(prefix: string): string {

@@ -20,13 +20,12 @@ const CARD_COLORS = ['#4299E133', '#48BB7833', '#9F7AEA33', '#ED893633', '#38B2A
 const FormsPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuthSession();
-  // Forms are structural like columns/groups: admins and org editors author them,
-  // everyone else can still open and fill them in from an item.
+  // Same bar as Templates — the route already restricts the page to these roles;
+  // this keeps the page's own actions consistent if that ever loosens.
   const canManage =
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.WORKSPACE_ADMIN ||
-    user?.role === UserRole.SYSTEM_ADMIN ||
-    user?.role === UserRole.ORG_EDITOR;
+    user?.role === UserRole.SYSTEM_ADMIN;
 
   const [builderOpen, setBuilderOpen] = useState(false);
   const [formToEdit, setFormToEdit] = useState<Form | null>(null);
