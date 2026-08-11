@@ -84,6 +84,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
   const formSubmitted = item.formSubmitted === true;
+  const formAttached = (item.formResponseCount ?? 0) > 0;
 
   const {
     attributes,
@@ -317,13 +318,18 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         {/* Forms + chat — hidden in the public view, where neither is available */}
         {!isPublicView && (
           <div className="flex items-center pr-1.5 flex-shrink-0" role="gridcell">
-            {/* Form — always visible, same as chat icon; once submitted the icon
-                turns blue instead of showing a dot */}
+            {/* Form — visible on row hover, but stays visible once a form is attached
+                (same as the always-on chat icon); once submitted the icon turns blue
+                instead of showing a dot */}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openForms(item); }}
-              className={`relative flex items-center justify-center w-6 h-6 rounded transition-colors ${
-                formSubmitted ? 'text-blue-600 hover:bg-indigo-50' : 'text-gray-400 hover:text-indigo-600 hover:bg-indigo-50'
+              className={`relative flex items-center justify-center w-6 h-6 rounded transition-all ${
+                formSubmitted
+                  ? 'text-blue-600 hover:bg-indigo-50'
+                  : `text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 ${
+                      formAttached ? '' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+                    }`
               }`}
               aria-label={`Open form for ${item.name}${formSubmitted ? ' (submitted)' : ''}`}
             >
