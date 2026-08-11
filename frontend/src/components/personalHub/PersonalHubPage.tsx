@@ -24,6 +24,7 @@ import DashboardFilterBar, { DateRangePresetPicker, filterReducer, INITIAL_FILTE
 import { DashboardFilterChip } from '../boards/BoardDashboardView';
 import ItemDetailPanel from '../boards/ItemDetailPanel';
 import ItemChatModal from '../boards/ItemChatModal';
+import ItemFormSidebar from '../forms/ItemFormSidebar';
 import UndoButton from '../boards/UndoButton';
 import AddColumnModal from '../boards/AddColumnModal';
 import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
@@ -118,6 +119,7 @@ const PersonalHubPageInner: React.FC = () => {
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [chatItem, setChatItem] = useState<Item | null>(null);
+  const [formsItem, setFormsItem] = useState<Item | null>(null);
   const [showAddCrossGroupColumn, setShowAddCrossGroupColumn] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [activeFilters, setActiveFilters] = useState<PersonalHubActiveFilter[]>([]);
@@ -535,6 +537,7 @@ const PersonalHubPageInner: React.FC = () => {
                 boardView={viewMode as BoardView}
                 onOpenDetail={setDetailItem}
                 onOpenChat={setChatItem}
+                onOpenForms={setFormsItem}
                 onBoardResolved={registerBoardName}
                 crossGroupGridContext={pageCrossGroupGridContext}
                 onRowsResolved={handleRowsResolved}
@@ -556,7 +559,7 @@ const PersonalHubPageInner: React.FC = () => {
               viewed by an admin — the same way the normal board's total always shows. */}
           {crossGroupColumns.length > 0 && (
             <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pt-1">
-              <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem}>
+              <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem} openForms={setFormsItem}>
                 {/* No outer "card" wrapper here (unlike the real board's footer) — this
                     row's minWidth stretches it to the full scroll width so its sticky
                     label stays pinned past the fetched columns, and a width:max-content
@@ -610,7 +613,7 @@ const PersonalHubPageInner: React.FC = () => {
 
       {detailItem && (
         <DependencyProvider items={items}>
-          <BoardRenderProvider visibleItems={items} columns={[]} openChat={setChatItem}>
+          <BoardRenderProvider visibleItems={items} columns={[]} openChat={setChatItem} openForms={setFormsItem}>
             <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
           </BoardRenderProvider>
         </DependencyProvider>
@@ -618,6 +621,11 @@ const PersonalHubPageInner: React.FC = () => {
 
       {chatItem && createPortal(
         <ItemChatModal item={chatItem} onClose={() => setChatItem(null)} />,
+        document.body,
+      )}
+
+      {formsItem && createPortal(
+        <ItemFormSidebar item={formsItem} onClose={() => setFormsItem(null)} />,
         document.body,
       )}
 

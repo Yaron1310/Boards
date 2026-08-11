@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader, FiMessageSquare } from 'react-icons/fi';
+import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader, FiMessageSquare, FiFileText } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useItem, useUpdateItem, useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
 import { useUndo } from '../../contexts/UndoContext';
@@ -19,7 +19,7 @@ interface ItemDetailPanelProps {
 
 const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, onClose }) => {
   const { user, isPublicView } = useAuthSession();
-  const { openChat } = useBoardRender();
+  const { openChat, openForms } = useBoardRender();
   const { data: columns = [] } = useColumns(initialItem.boardId);
   const { data: liveItem } = useItem(initialItem.id);
   const item = liveItem ?? initialItem;
@@ -35,6 +35,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
+  const formSubmitted = item.formSubmitted === true;
   const nameInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef);
@@ -145,9 +146,24 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
               </h2>
             )}
           </div>
-          {/* Chat isn't available in the public read-only view — the row's own chat button is
-              hidden there too, and this panel is the fallback a viewer lands on. */}
+          {/* Forms and chat aren't available in the public read-only view — the row's own
+              buttons are hidden there too, and this panel is the fallback a viewer lands on. */}
           {!isPublicView && (
+          <>
+          <button
+            type="button"
+            onClick={() => openForms(item)}
+            className="relative flex items-center justify-center p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors flex-shrink-0"
+            aria-label={`Open form for ${item.name}${formSubmitted ? ' (submitted)' : ''}`}
+          >
+            <FiFileText size={16} aria-hidden="true" />
+            {formSubmitted && (
+              <span
+                className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full"
+                aria-hidden="true"
+              />
+            )}
+          </button>
           <button
             type="button"
             onClick={() => openChat(item)}
@@ -164,6 +180,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
               </span>
             )}
           </button>
+          </>
           )}
           <button
             type="button"

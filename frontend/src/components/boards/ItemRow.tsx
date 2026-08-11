@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiEdit2, FiChevronRight } from 'react-icons/fi';
+import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiFileText, FiEdit2, FiChevronRight } from 'react-icons/fi';
 import SubitemGroup from './SubitemGroup';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -44,7 +44,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
   const { data: columns = [] } = useColumns(item.boardId);
   const viewerTier = useColumnVisibilityTier(item.boardId);
   const visibleColumns = columns.filter((col) => canSeeColumn(col, viewerTier));
-  const { boardView, columnWidths, openChat } = useBoardRender();
+  const { boardView, columnWidths, openChat, openForms } = useBoardRender();
   const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
   const { mutateAsync: archiveItem, isPending: isArchiving } = useArchiveItem();
@@ -83,6 +83,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
   };
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
+  const formSubmitted = item.formSubmitted === true;
 
   const {
     attributes,
@@ -313,9 +314,27 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
           )}
         </div>
 
-        {/* Chat bubble — always visible, except in the public view where chat isn't available */}
+        {/* Forms + chat — hidden in the public view, where neither is available */}
         {!isPublicView && (
           <div className="flex items-center pr-1.5 flex-shrink-0" role="gridcell">
+            {/* Form — revealed on row hover; once its form is submitted the icon stays
+                visible and carries a red dot */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); openForms(item); }}
+              className={`relative flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all ${
+                formSubmitted ? '' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+              }`}
+              aria-label={`Open form for ${item.name}${formSubmitted ? ' (submitted)' : ''}`}
+            >
+              <FiFileText size={15} aria-hidden="true" />
+              {formSubmitted && (
+                <span
+                  className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openChat(item); }}

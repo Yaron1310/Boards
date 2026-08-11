@@ -38,6 +38,7 @@ interface Props {
   boardView: BoardView;
   onOpenDetail: (item: Item) => void;
   onOpenChat: (item: Item) => void;
+  onOpenForms: (item: Item) => void;
   onBoardResolved?: (boardId: string, name: string) => void;
   /**
    * Page-wide grid context for cross-group ("all groups") personal columns —
@@ -124,7 +125,7 @@ const renderPersonalCells = (
  * board, and the user expands its chevron to reach the assigned subitem via
  * the real SubitemGroup panel (same one the source board uses).
  */
-const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId, groupMinWidth }) => {
+const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onOpenForms, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId, groupMinWidth }) => {
   const navigate = useNavigate();
   const { mutate: updatePersonalColumn } = useUpdatePersonalColumn(ownerUserId);
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
@@ -311,7 +312,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
           {groupMinWidth ? <div className="flex-1 bg-gray-100 rounded-tr-lg" aria-hidden="true" /> : null}
         </div>
 
-        <BoardRenderProvider visibleItems={displayItems} columns={columns} boardView={boardView} openChat={onOpenChat} groupsComplete={false}>
+        <BoardRenderProvider visibleItems={displayItems} columns={columns} boardView={boardView} openChat={onOpenChat} openForms={onOpenForms} groupsComplete={false}>
           <DependencyProvider items={displayItems}>
           <DndContext onDragEnd={() => {}}>
             <div role="rowgroup" aria-label={`Items assigned to you in ${board.name}`} className="w-max">

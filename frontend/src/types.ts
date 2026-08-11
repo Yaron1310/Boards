@@ -416,6 +416,10 @@ export interface Item {
   chatMessageCount?: number;
   chatLastMessageAt?: Date | string;
   chatSeenBy?: Record<string, number>;
+  // Forms state. An item holds at most one form; formSubmitted flips true once its
+  // answers are submitted and drives the red marker on the row's form icon.
+  formResponseCount?: number;
+  formSubmitted?: boolean;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: Date | string;
@@ -680,4 +684,88 @@ export interface Notification {
   resourceId: string;
   read: boolean;
   createdAt: Date | string;
+}
+
+// =============================================================================
+// FORMS
+// =============================================================================
+
+/** Input kinds available in the Forms builder. */
+export enum FormFieldType {
+  SHORT_TEXT    = 'short_text',
+  LONG_TEXT     = 'long_text',
+  NUMBER        = 'number',
+  DATE          = 'date',
+  EMAIL         = 'email',
+  PHONE         = 'phone',
+  DROPDOWN      = 'dropdown',
+  SINGLE_SELECT = 'single_select',
+  MULTI_SELECT  = 'multi_select',
+  CHECKBOX      = 'checkbox',
+}
+
+export interface FormFieldOption {
+  id: string;
+  label: string;
+}
+
+export interface FormField {
+  id: string;
+  type: FormFieldType;
+  label: string;
+  description?: string;
+  placeholder?: string;
+  required?: boolean;
+  /** Only for dropdown / single_select / multi_select. */
+  options?: FormFieldOption[];
+}
+
+export interface Form {
+  id: string;
+  name: string;
+  description?: string;
+  fields: FormField[];
+  createdBy: string;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  isArchived?: boolean;
+}
+
+/** A single answer. Arrays only come from multi_select fields. */
+export type FormAnswerValue = string | number | boolean | string[] | null;
+
+/** A form attached to an item, together with the answers filled in on it. */
+export interface FormResponse {
+  id: string;
+  itemId: string;
+  formId: string;
+  formName: string;
+  values: Record<string, FormAnswerValue>;
+  attachedBy: string;
+  attachedAt: Date | string;
+  submittedBy?: string;
+  submittedByName?: string;
+  submittedAt?: Date | string;
+  updatedAt: Date | string;
+}
+
+/** One entry in an item's form sidebar. `form` is null when the definition was deleted. */
+export interface ItemFormEntry {
+  response: FormResponse;
+  form: Form | null;
+}
+
+/** One collected answer set, as shown on the Forms page results modal. */
+export interface FormResponseRow {
+  response: FormResponse;
+  itemId: string;
+  /** Null when the item was deleted after the form was filled in. */
+  itemName: string | null;
+}
+
+export interface FormResults {
+  form: Form;
+  responses: FormResponseRow[];
+  /** True when the org has more responses than the endpoint's page limit. */
+  truncated: boolean;
 }

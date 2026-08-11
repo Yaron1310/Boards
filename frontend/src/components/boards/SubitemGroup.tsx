@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiPlus, FiLoader, FiTrash2, FiMessageSquare, FiMoreVertical, FiEdit2, FiSettings, FiRefreshCw } from 'react-icons/fi';
+import { FiPlus, FiLoader, FiTrash2, FiMessageSquare, FiFileText, FiMoreVertical, FiEdit2, FiSettings, FiRefreshCw } from 'react-icons/fi';
 import AddColumnModal from './AddColumnModal';
 import EditColumnConfigModal from './EditColumnConfigModal';
 import { useQueryClient } from '@tanstack/react-query';
@@ -228,7 +228,7 @@ const SubitemColumnHeader: React.FC<{
 
 const SubitemRow: React.FC<{ item: Item; columns: Column[]; canManageItems: boolean }> = ({ item, columns, canManageItems }) => {
   const { user, isPublicView } = useAuthSession();
-  const { openChat } = useBoardRender();
+  const { openChat, openForms } = useBoardRender();
   const { mutateAsync: archiveItem } = useArchiveItem();
   const { mutateAsync: updateItem } = useUpdateItem();
   const [editingName, setEditingName] = useState(false);
@@ -251,6 +251,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[]; canManageItems: bool
   };
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
+  const formSubmitted = item.formSubmitted === true;
 
   // Mirrors ItemRow's gating for top-level rows, and the backend's own split: renaming is
   // open to editor-tier users plus the subitem's creator/assignees, while archiving needs
@@ -291,8 +292,28 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[]; canManageItems: bool
           </span>
         )}
 
-        {/* Chat button — chat isn't available in the public read-only view */}
+        {/* Form + chat — neither is available in the public read-only view */}
         {!isPublicView && (
+        <>
+        {/* Form button */}
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); openForms(item); }}
+          className={`relative flex items-center justify-center w-5 h-5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors flex-shrink-0 ${
+            formSubmitted ? '' : 'opacity-0 group-hover:opacity-100'
+          }`}
+          aria-label={`Open form for ${item.name}${formSubmitted ? ' (submitted)' : ''}`}
+        >
+          <FiFileText size={12} aria-hidden="true" />
+          {formSubmitted && (
+            <span
+              className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full"
+              aria-hidden="true"
+            />
+          )}
+        </button>
+
+        {/* Chat button */}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); openChat(item); }}
@@ -309,6 +330,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[]; canManageItems: bool
             </span>
           )}
         </button>
+        </>
         )}
 
         {/* Delete button — archiving is editor-tier only, matching the backend */}
