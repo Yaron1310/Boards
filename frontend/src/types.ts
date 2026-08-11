@@ -754,3 +754,18 @@ export interface ItemFormEntry {
   response: FormResponse;
   form: Form | null;
 }
+
+/** One collected answer set, as shown on the Forms page results modal. */
+export interface FormResponseRow {
+  response: FormResponse;
+  itemId: string;
+  /** Null when the item was deleted after the form was filled in. */
+  itemName: string | null;
+}
+
+export interface FormResults {
+  form: Form;
+  responses: FormResponseRow[];
+  /** True when the org has more responses than the endpoint's page limit. */
+  truncated: boolean;
+}

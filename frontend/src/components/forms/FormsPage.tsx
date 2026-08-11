@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  FiFileText, FiEdit, FiPlusCircle, FiArchive, FiCheckCircle, FiAlertCircle,
+  FiFileText, FiEdit, FiPlusCircle, FiArchive, FiCheckCircle, FiAlertCircle, FiBarChart2,
 } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useAuthSession } from '../../hooks/useAuthSession';
@@ -11,6 +11,7 @@ import {
 } from '../../hooks/queries/useFormQueries';
 import ArchiveRestoreModal from '../admin/shared/ArchiveRestoreModal';
 import FormBuilderModal from './FormBuilderModal';
+import FormResultsModal from './FormResultsModal';
 import { fieldTypeLabel } from './formFieldTypes';
 
 /** Same palette the WorkHubs cards cycle through, so the two pages read as a set. */
@@ -30,6 +31,7 @@ const FormsPage: React.FC = () => {
   const [builderOpen, setBuilderOpen] = useState(false);
   const [formToEdit, setFormToEdit] = useState<Form | null>(null);
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [resultsForm, setResultsForm] = useState<Form | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -172,12 +174,24 @@ const FormsPage: React.FC = () => {
                 </div>
               </button>
               {canManage && (
-                <span
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-                  aria-hidden="true"
-                >
-                  <FiEdit size={14} />
-                </span>
+                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => setResultsForm(form)}
+                    className="p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                    aria-label={`View results for ${form.name}`}
+                    title="View results"
+                  >
+                    <FiBarChart2 size={14} aria-hidden="true" />
+                  </button>
+                  {/* The card itself is the edit target; this is just its affordance. */}
+                  <span
+                    className="p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 pointer-events-none"
+                    aria-hidden="true"
+                  >
+                    <FiEdit size={14} />
+                  </span>
+                </div>
               )}
             </div>
           ))}
@@ -193,6 +207,10 @@ const FormsPage: React.FC = () => {
           isSaving={isCreating || isUpdating}
           error={modalError}
         />
+      )}
+
+      {resultsForm && (
+        <FormResultsModal form={resultsForm} onClose={() => setResultsForm(null)} />
       )}
 
       {canManage && (

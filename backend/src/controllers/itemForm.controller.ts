@@ -11,6 +11,7 @@ import {
 } from '../db/collections.js';
 import {
   JwtUserPayload,
+  UserRole,
   DBItem,
   DBUser,
   DBBoardMember,
@@ -20,7 +21,7 @@ import {
   FormAnswerValue,
   FormFieldType,
 } from '../types/index.js';
-import { assertItemAccess } from '../utils/workManagementAuth.js';
+import { assertItemAccess, isAtLeast } from '../utils/workManagementAuth.js';
 
 const MAX_TEXT_ANSWER_LENGTH = 5000;
 
@@ -45,6 +46,16 @@ async function loadItemWithAccess(
   const memberData = memberDoc.exists ? (memberDoc.data() as DBBoardMember) : null;
   assertItemAccess(user, item, op, memberData);
   return item;
+}
+
+/**
+ * Deciding *which* form belongs on an item is an administrative act, narrower than
+ * editing the item itself: org admins anywhere, and a WorkHub admin only within
+ * their own WorkHub. Filling the form in stays open to anyone who can edit the item.
+ */
+function canManageItemForm(user: JwtUserPayload, item: DBItem): boolean {
+  if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) return true;
+  return user.role === UserRole.WORKSPACE_ADMIN && user.selectedWorkspaceId === item.workspaceId;
 }
 
 /**
@@ -195,7 +206,10 @@ export const attachFormToItem = async (req: Request, res: Response) => {
   if (!formId) return res.status(400).json({ message: 'formId is required.' });
 
   try {
-    await loadItemWithAccess(user, itemId, 'update');
+    const item = await loadItemWithAccess(user, itemId, 'update');
+    if (!canManageItemForm(user, item)) {
+      return res.status(403).json({ message: 'Only org admins and WorkHub admins can add a form to an item.' });
+    }
 
     const formSnap = await formsCollection(user.orgId).doc(formId).get();
     if (!formSnap.exists) return res.status(404).json({ message: 'Form not found.' });
@@ -297,18 +311,27 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // DELETE /items/:itemId/forms/:formId
 //
-// Detaches the form from the item, discarding its answers.
+// Detaches the form from the item, discarding its answers. Refused once the form
+// has been submitted.
 // ---------------------------------------------------------------------------
 export const detachFormFromItem = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { itemId, formId } = req.params;
 
   try {
-    await loadItemWithAccess(user, itemId, 'update');
+    const item = await loadItemWithAccess(user, itemId, 'update');
+    if (!canManageItemForm(user, item)) {
+      return res.status(403).json({ message: 'Only org admins and WorkHub admins can remove a form from an item.' });
+    }
 
     const responseRef = itemFormResponsesCollection(user.orgId, itemId).doc(formId);
     const snap = await responseRef.get();
     if (!snap.exists) return res.status(404).json({ message: 'This form is not attached to the item.' });
+
+    // Submitted answers are a record — removing the form would destroy them.
+    if ((snap.data() as DBFormResponse).submittedAt) {
+      return res.status(409).json({ message: 'A submitted form cannot be removed from the item.' });
+    }
 
     await responseRef.delete();
     await itemsCollection(user.orgId).doc(itemId).update({

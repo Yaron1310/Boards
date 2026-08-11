@@ -2,7 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import {
   FiX, FiTrash2, FiSave, FiCheck, FiLoader, FiFileText, FiEdit2, FiAlertCircle, FiLock,
 } from 'react-icons/fi';
+import { UserRole } from '../../types';
 import type { Item, FormAnswerValue, ItemFormEntry } from '../../types';
+import { useAuthSession } from '../../hooks/useAuthSession';
 import {
   useForms, useItemForms, useAttachFormToItem, useSaveItemFormResponse, useDetachFormFromItem,
 } from '../../hooks/queries/useFormQueries';
@@ -34,6 +36,7 @@ function formatTimestamp(ts: Date | string | undefined): string {
 }
 
 const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
+  const { user, selectedWorkspace } = useAuthSession();
   const { data: entries = [], isLoading } = useItemForms(item.id);
   const { data: availableForms = [] } = useForms();
   const { mutateAsync: attachForm, isPending: isAttaching } = useAttachFormToItem(item.id);
@@ -45,6 +48,16 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
   const form = entry?.form ?? null;
   const response = entry?.response ?? null;
   const isSubmitted = !!response?.submittedAt;
+
+  // Mirrors canManageItemForm on the backend: choosing which form sits on an item is
+  // for org admins, and for a WorkHub admin only inside their own WorkHub. Everyone
+  // else can still fill in a form that's already there.
+  const canManageAttachment =
+    user?.role === UserRole.ORGANIZATION_ADMIN ||
+    user?.role === UserRole.SYSTEM_ADMIN ||
+    (user?.role === UserRole.WORKSPACE_ADMIN && selectedWorkspace?.id === item.workspaceId);
+  // Submitted answers are a record: removing the form would destroy them.
+  const canRemoveForm = canManageAttachment && !isSubmitted;
 
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [editing, setEditing] = useState(false);
@@ -152,7 +165,7 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
           </span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          {form && (
+          {form && canRemoveForm && (
             confirmRemove ? (
               <>
                 <button
@@ -218,7 +231,13 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
         {isLoading && <div className="text-center text-sm text-gray-400 py-8">Loading form…</div>}
 
         {/* Nothing attached yet — pick a form to start filling it in */}
-        {!isLoading && !entry && (
+        {!isLoading && !entry && !canManageAttachment && (
+          <p className="text-sm text-gray-400 italic py-6 text-center">
+            No form has been added to this item yet. An org or WorkHub admin can add one.
+          </p>
+        )}
+
+        {!isLoading && !entry && canManageAttachment && (
           <div>
             <p className="text-sm text-gray-500 mb-3">Choose a form to add to this item:</p>
             {availableForms.length === 0 ? (

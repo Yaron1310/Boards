@@ -1,14 +1,16 @@
 import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
-import { querySnapshotToArray } from '../services/firestore.service.js';
-import { formsCollection } from '../db/collections.js';
+import { db, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
+import { formsCollection, itemsCollection } from '../db/collections.js';
 import {
   JwtUserPayload,
   UserRole,
   DBForm,
   DBFormField,
   DBFormFieldOption,
+  DBFormResponse,
+  DBItem,
   FormFieldType,
 } from '../types/index.js';
 import { isAtLeast } from '../utils/workManagementAuth.js';
@@ -298,5 +300,74 @@ export const deleteForm = async (req: Request, res: Response) => {
   } catch (err) {
     logger.error(`deleteForm error for ${id}:`, err);
     res.status(500).json({ message: 'Failed to delete form.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /forms/:id/responses
+//
+// Every answer set collected for this form, across all items in the org.
+//
+// Responses live in per-item subcollections, so this is a collection-group query
+// filtered by formId. Firestore collection groups span the whole database, so
+// results are additionally filtered to documents under this org's items path —
+// tenant isolation never rests on formIds being unique.
+// ---------------------------------------------------------------------------
+const MAX_RESPONSES = 500;
+
+export const listFormResponses = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  if (!canManageForms(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+
+  const { id } = req.params;
+
+  try {
+    const formSnap = await formsCollection(user.orgId).doc(id).get();
+    if (!formSnap.exists) return res.status(404).json({ message: 'Form not found.' });
+
+    const snap = await db
+      .collectionGroup('formResponses')
+      .where('formId', '==', id)
+      .limit(MAX_RESPONSES)
+      .get();
+
+    const orgItemsPrefix = `organizations/${user.orgId}/items/`;
+    const docs = snap.docs.filter(d => d.ref.path.startsWith(orgItemsPrefix));
+
+    // Item names for display — one read per distinct item, deduplicated.
+    const itemIds = [...new Set(docs.map(d => (d.data() as DBFormResponse).itemId).filter(Boolean))];
+    const itemSnaps = await Promise.all(itemIds.map(itemId => itemsCollection(user.orgId).doc(itemId).get()));
+    const itemNames = new Map<string, string>();
+    itemSnaps.forEach((itemSnap, i) => {
+      if (itemSnap.exists) itemNames.set(itemIds[i], (itemSnap.data() as DBItem).name);
+    });
+
+    // snapshotToData converts Firestore Timestamps to Dates, so the client receives
+    // ISO strings like every other endpoint rather than raw {_seconds} objects.
+    const millis = (value: unknown): number =>
+      value instanceof Date ? value.getTime() : 0;
+
+    const responses = docs
+      .map(d => {
+        const response = snapshotToData<DBFormResponse>(d)!;
+        return { response, itemId: response.itemId, itemName: itemNames.get(response.itemId) ?? null };
+      })
+      // Submitted first, newest first within each group.
+      .sort((a, b) => {
+        const aSubmitted = a.response.submittedAt ? 1 : 0;
+        const bSubmitted = b.response.submittedAt ? 1 : 0;
+        const aTime = millis(a.response.submittedAt) || millis(a.response.updatedAt);
+        const bTime = millis(b.response.submittedAt) || millis(b.response.updatedAt);
+        return bSubmitted - aSubmitted || bTime - aTime;
+      });
+
+    res.json({
+      form: snapshotToData<DBForm>(formSnap),
+      responses,
+      truncated: snap.size >= MAX_RESPONSES,
+    });
+  } catch (err) {
+    logger.error(`listFormResponses error for form ${id}:`, err);
+    res.status(500).json({ message: 'Failed to fetch form results.' });
   }
 };

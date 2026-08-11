@@ -64,6 +64,14 @@ export const useDeleteForm = () => {
   });
 };
 
+export const useFormResults = (id: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.forms.results(id),
+    queryFn: () => wm.getFormResults(id),
+    enabled: enabled && !!id,
+    staleTime: 0,
+  });
+
 // --- Forms attached to an item (the item form sidebar) ---
 
 export const useItemForms = (itemId: string) =>
