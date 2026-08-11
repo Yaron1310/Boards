@@ -53,6 +53,13 @@ export const queryKeys = {
   chat: {
     messages: (itemId: string) => ['chat', itemId, 'messages'] as const,
   },
+  forms: {
+    all: ['forms'] as const,
+    list: (includeArchived = false) => ['forms', { includeArchived }] as const,
+    one: (id: string) => ['forms', id] as const,
+    /** Forms attached to one item (the item's form sidebar). */
+    forItem: (itemId: string) => ['forms', 'item', itemId] as const,
+  },
   personalHub: {
     // Prefixes for broad invalidation (match every user variant below).
     columnsRoot: ['personalHub', 'columns'] as const,

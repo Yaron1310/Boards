@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, ColumnVisibility, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode, CustomDashboard, CustomDashboardDataPoint } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, ColumnVisibility, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode, CustomDashboard, CustomDashboardDataPoint, Form, FormField, FormAnswerValue, ItemFormEntry } from '../types';
 import { fetchWithAuth } from './authFetch';
 
 // ─── BOARDS ──────────────────────────────────────────────────────────────────
@@ -489,3 +489,60 @@ export const getCustomDashboardData = (
   const qs = p.toString();
   return fetchWithAuth(`/api/custom-dashboards/${id}/data${qs ? `?${qs}` : ''}`);
 };
+
+// ─── FORMS ────────────────────────────────────────────────────────────────────
+
+export interface CreateFormData {
+  name: string;
+  description?: string;
+  fields: FormField[];
+}
+
+export interface UpdateFormData {
+  name?: string;
+  description?: string;
+  fields?: FormField[];
+}
+
+export const listForms = (includeArchived = false): Promise<Form[]> =>
+  fetchWithAuth(`/api/forms${includeArchived ? '?includeArchived=true' : ''}`);
+
+export const getForm = (id: string): Promise<Form> =>
+  fetchWithAuth(`/api/forms/${id}`);
+
+export const createForm = (data: CreateFormData): Promise<Form> =>
+  fetchWithAuth('/api/forms', { method: 'POST', body: JSON.stringify(data) });
+
+export const updateForm = (id: string, patch: UpdateFormData): Promise<Form> =>
+  fetchWithAuth(`/api/forms/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+
+export const archiveForm = (id: string): Promise<null> =>
+  fetchWithAuth(`/api/forms/${id}/archive`, { method: 'PATCH' });
+
+export const restoreForm = (id: string): Promise<Form> =>
+  fetchWithAuth(`/api/forms/${id}/restore`, { method: 'PATCH' });
+
+export const deleteForm = (id: string): Promise<null> =>
+  fetchWithAuth(`/api/forms/${id}`, { method: 'DELETE' });
+
+// --- Forms attached to an item ---
+
+export const listItemForms = (itemId: string): Promise<ItemFormEntry[]> =>
+  fetchWithAuth(`/api/items/${itemId}/forms`);
+
+export const attachFormToItem = (itemId: string, formId: string): Promise<ItemFormEntry> =>
+  fetchWithAuth(`/api/items/${itemId}/forms`, { method: 'POST', body: JSON.stringify({ formId }) });
+
+export const saveItemFormResponse = (
+  itemId: string,
+  formId: string,
+  values: Record<string, FormAnswerValue>,
+  submit = false,
+): Promise<ItemFormEntry> =>
+  fetchWithAuth(`/api/items/${itemId}/forms/${formId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ values, submit }),
+  });
+
+export const detachFormFromItem = (itemId: string, formId: string): Promise<null> =>
+  fetchWithAuth(`/api/items/${itemId}/forms/${formId}`, { method: 'DELETE' });

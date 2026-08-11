@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader, FiMessageSquare } from 'react-icons/fi';
+import { FiX, FiArchive, FiRotateCcw, FiTrash2, FiLoader, FiMessageSquare, FiFileText } from 'react-icons/fi';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useItem, useUpdateItem, useArchiveItem, useRestoreItem, useDeleteItem } from '../../hooks/queries/useItemQueries';
 import { useUndo } from '../../contexts/UndoContext';
@@ -19,7 +19,7 @@ interface ItemDetailPanelProps {
 
 const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, onClose }) => {
   const { user } = useAuthSession();
-  const { openChat } = useBoardRender();
+  const { openChat, openForms } = useBoardRender();
   const { data: columns = [] } = useColumns(initialItem.boardId);
   const { data: liveItem } = useItem(initialItem.id);
   const item = liveItem ?? initialItem;
@@ -35,6 +35,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
+  const formCount = item.formResponseCount ?? 0;
   const nameInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef);
@@ -145,6 +146,22 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
               </h2>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => openForms(item)}
+            className="relative flex items-center justify-center p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors flex-shrink-0"
+            aria-label={`Open forms for ${item.name}`}
+          >
+            <FiFileText size={16} aria-hidden="true" />
+            {formCount > 0 && (
+              <span
+                className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-indigo-500 text-white text-[9px] font-bold rounded-full leading-none"
+                aria-label={`${formCount} form${formCount !== 1 ? 's' : ''} attached`}
+              >
+                {formCount > 9 ? '9+' : formCount}
+              </span>
+            )}
+          </button>
           <button
             type="button"
             onClick={() => openChat(item)}

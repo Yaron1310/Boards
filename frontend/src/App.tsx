@@ -41,6 +41,7 @@ const BoardListPage = React.lazy(() => import('./components/boards/BoardListPage
 const BoardViewPage = React.lazy(() => import('./components/boards/BoardViewPage'));
 const PersonalHubPage = React.lazy(() => import('./components/personalHub/PersonalHubPage'));
 const DashboardPage = React.lazy(() => import('./components/dashboard/DashboardPage'));
+const FormsPage = React.lazy(() => import('./components/forms/FormsPage'));
 
 // -- System-admin chunk --
 const AcademyManagementPage = React.lazy(() => import('./components/admin/AcademyManagementPage'));
@@ -251,6 +252,14 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/forms"
+              element={
+                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                  <FormsPage />
                 </ProtectedRoute>
               }
             />

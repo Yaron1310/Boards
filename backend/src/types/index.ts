@@ -501,6 +501,8 @@ export interface DBItem {
   chatLastMessageAt?: admin.firestore.Timestamp | Date | any;
   // Per-user seen counts for unread badge: { [userId]: seenCount }
   chatSeenBy?: Record<string, number>;
+  // Forms denormalized counters (number of forms attached to this item)
+  formResponseCount?: number;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: admin.firestore.Timestamp | Date | any;
@@ -627,7 +629,8 @@ export type AuditResourceType =
   | 'board'
   | 'group'
   | 'item'
-  | 'column';
+  | 'column'
+  | 'form';
 
 export interface DBAuditLog {
   id: string;
@@ -763,4 +766,85 @@ export interface DBNotification {
   boardName: string;
   read: boolean;
   createdAt: admin.firestore.Timestamp;
+}
+
+// --- FORMS ---
+
+/**
+ * Field types supported by the Forms builder.
+ *   short_text   — single-line text input
+ *   long_text    — multi-line textarea
+ *   number       — numeric input
+ *   date         — date picker
+ *   email/phone  — validated single-line inputs
+ *   dropdown     — <select> with one chosen option
+ *   single_select — radio list (exactly one option)
+ *   multi_select  — checkbox list (zero or more options)
+ *   checkbox     — a single yes/no toggle
+ */
+export enum FormFieldType {
+  SHORT_TEXT    = 'short_text',
+  LONG_TEXT     = 'long_text',
+  NUMBER        = 'number',
+  DATE          = 'date',
+  EMAIL         = 'email',
+  PHONE         = 'phone',
+  DROPDOWN      = 'dropdown',
+  SINGLE_SELECT = 'single_select',
+  MULTI_SELECT  = 'multi_select',
+  CHECKBOX      = 'checkbox',
+}
+
+export interface DBFormFieldOption {
+  id: string;
+  label: string;
+}
+
+export interface DBFormField {
+  id: string;
+  type: FormFieldType;
+  label: string;
+  description?: string;
+  placeholder?: string;
+  required?: boolean;
+  /** Only for dropdown / single_select / multi_select. */
+  options?: DBFormFieldOption[];
+}
+
+/**
+ * A form definition, stored org-wide:
+ * /organizations/{orgId}/forms/{formId}
+ */
+export interface DBForm {
+  id: string;
+  name: string;
+  description?: string;
+  fields: DBFormField[];
+  createdBy: string;
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+  isArchived?: boolean;
+}
+
+/** A single answer value. Arrays are only produced by multi_select fields. */
+export type FormAnswerValue = string | number | boolean | string[] | null;
+
+/**
+ * A form attached to (and filled in on) an item. One doc per (item, form),
+ * keyed by formId:
+ * /organizations/{orgId}/items/{itemId}/formResponses/{formId}
+ */
+export interface DBFormResponse {
+  id: string;
+  itemId: string;
+  formId: string;
+  /** Denormalized so the sidebar can label a response without a form fetch. */
+  formName: string;
+  values: Record<string, FormAnswerValue>;
+  attachedBy: string;
+  attachedAt: admin.firestore.Timestamp | Date | any;
+  submittedBy?: string;
+  submittedByName?: string;
+  submittedAt?: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
 }
