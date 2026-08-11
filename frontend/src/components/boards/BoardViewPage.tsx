@@ -41,6 +41,7 @@ import { BoardSummaryRow, hasSummarizableColumns } from './GroupSummaryRow';
 import AddGroupForm from './AddGroupForm';
 import ItemDetailPanel from './ItemDetailPanel';
 import ItemChatModal from './ItemChatModal';
+import ItemFormSidebar from '../forms/ItemFormSidebar';
 import AddColumnModal from './AddColumnModal';
 import BoardArchiveModal from './BoardArchiveModal';
 import BoardFilterDropdown, { itemMatchesSearch, itemMatchesFilters } from './BoardFilterDropdown';
@@ -144,6 +145,7 @@ interface BoardContentProps {
   handleDragEnd: (e: import('@dnd-kit/core').DragEndEvent) => void;
   setDetailItem: (item: Item | null) => void;
   openChat: (item: Item) => void;
+  openForms: (item: Item) => void;
   setShowAddColumn: (v: boolean) => void;
   allItems: Item[];
   searchText: string;
@@ -213,6 +215,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
   handleDragEnd,
   setDetailItem,
   openChat,
+  openForms,
   setShowAddColumn,
   allItems,
   searchText,
@@ -375,7 +378,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                   <p>No groups yet. Add a group to start organising items.</p>
                 </div>
               ) : (
-                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat}>
+                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat} openForms={openForms}>
                   <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
                     {localGroups.map((group, groupIdx) => (
                       <GroupSection
@@ -449,7 +452,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
               automatically), using each column's own summary calc. */}
           {!groupsLoading && localGroups.length > 0 && hasSummarizableColumns(columns) && (
             <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pt-1">
-              <BoardRenderProvider visibleItems={allItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat}>
+              <BoardRenderProvider visibleItems={allItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat} openForms={openForms}>
                 <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max">
                   <BoardSummaryRow items={allItems} columns={columns} />
                 </div>
@@ -530,6 +533,7 @@ const BoardViewPage: React.FC = () => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [detailItem, setDetailItem] = useState<Item | null>(null);
   const [chatItem, setChatItem] = useState<Item | null>(null);
+  const [formsItem, setFormsItem] = useState<Item | null>(null);
   const [searchText, setSearchText] = useState('');
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [boardView, setBoardView] = useState<BoardView>(() => {
@@ -1191,6 +1195,7 @@ const BoardViewPage: React.FC = () => {
               handleDragEnd={handleDragEnd}
               setDetailItem={setDetailItem}
               openChat={setChatItem}
+              openForms={setFormsItem}
               setShowAddColumn={setShowAddColumn}
               allItems={allItems}
               searchText={searchText}
@@ -1210,7 +1215,7 @@ const BoardViewPage: React.FC = () => {
 
       {detailItem && (
         <DependencyProvider items={allItems}>
-          <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem}>
+          <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem} openForms={setFormsItem}>
             <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
           </BoardRenderProvider>
         </DependencyProvider>
@@ -1235,6 +1240,11 @@ const BoardViewPage: React.FC = () => {
 
       {chatItem && createPortal(
         <ItemChatModal item={chatItem} onClose={() => setChatItem(null)} />,
+        document.body,
+      )}
+
+      {formsItem && createPortal(
+        <ItemFormSidebar item={formsItem} onClose={() => setFormsItem(null)} />,
         document.body,
       )}
 

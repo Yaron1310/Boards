@@ -1,0 +1,302 @@
+import type { Request, Response } from 'express';
+import * as logger from 'firebase-functions/logger';
+import admin from 'firebase-admin';
+import { querySnapshotToArray } from '../services/firestore.service.js';
+import { formsCollection } from '../db/collections.js';
+import {
+  JwtUserPayload,
+  UserRole,
+  DBForm,
+  DBFormField,
+  DBFormFieldOption,
+  FormFieldType,
+} from '../types/index.js';
+import { isAtLeast } from '../utils/workManagementAuth.js';
+import { logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
+
+const MAX_FIELDS = 50;
+const MAX_OPTIONS = 50;
+const MAX_LABEL_LENGTH = 200;
+const MAX_DESCRIPTION_LENGTH = 1000;
+
+const FIELD_TYPES: FormFieldType[] = Object.values(FormFieldType);
+
+/** Field types whose answers come from a fixed option list. */
+const OPTION_FIELD_TYPES = new Set<FormFieldType>([
+  FormFieldType.DROPDOWN,
+  FormFieldType.SINGLE_SELECT,
+  FormFieldType.MULTI_SELECT,
+]);
+
+/**
+ * Form definitions are structural, org-wide objects — same rule as columns and
+ * groups: WORKSPACE_ADMIN+ or ORG_EDITOR may author them, everyone may read
+ * and fill them in.
+ */
+function canManageForms(user: JwtUserPayload): boolean {
+  return isAtLeast(user.role, UserRole.WORKSPACE_ADMIN) || user.role === UserRole.ORG_EDITOR;
+}
+
+function makeId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Validates and normalizes the incoming fields array. Returns either the
+ * sanitized fields or an error message to send back as a 400.
+ */
+function sanitizeFields(raw: unknown): { fields: DBFormField[] } | { error: string } {
+  if (!Array.isArray(raw)) return { error: 'fields must be an array.' };
+  if (raw.length === 0) return { error: 'A form needs at least one field.' };
+  if (raw.length > MAX_FIELDS) return { error: `A form may have at most ${MAX_FIELDS} fields.` };
+
+  const fields: DBFormField[] = [];
+  const seenIds = new Set<string>();
+
+  for (const [i, entry] of raw.entries()) {
+    if (!entry || typeof entry !== 'object') return { error: `fields[${i}]: must be an object.` };
+    const f = entry as Record<string, unknown>;
+
+    if (!FIELD_TYPES.includes(f.type as FormFieldType)) return { error: `fields[${i}]: invalid type.` };
+    const type = f.type as FormFieldType;
+
+    if (typeof f.label !== 'string' || !f.label.trim()) return { error: `fields[${i}]: label is required.` };
+    const label = f.label.trim().slice(0, MAX_LABEL_LENGTH);
+
+    // Preserve client-supplied ids so saved answers keep pointing at their field
+    // across edits; mint one when a field is new or its id collides.
+    let id = typeof f.id === 'string' && f.id.trim() ? f.id.trim() : makeId('fld');
+    if (seenIds.has(id)) id = makeId('fld');
+    seenIds.add(id);
+
+    const field: DBFormField = { id, type, label };
+
+    if (typeof f.description === 'string' && f.description.trim()) {
+      field.description = f.description.trim().slice(0, MAX_DESCRIPTION_LENGTH);
+    }
+    if (typeof f.placeholder === 'string' && f.placeholder.trim()) {
+      field.placeholder = f.placeholder.trim().slice(0, MAX_LABEL_LENGTH);
+    }
+    if (f.required === true) field.required = true;
+
+    if (OPTION_FIELD_TYPES.has(type)) {
+      if (!Array.isArray(f.options) || f.options.length === 0) {
+        return { error: `fields[${i}]: "${label}" needs at least one option.` };
+      }
+      if (f.options.length > MAX_OPTIONS) {
+        return { error: `fields[${i}]: at most ${MAX_OPTIONS} options allowed.` };
+      }
+      const options: DBFormFieldOption[] = [];
+      const seenOptionIds = new Set<string>();
+      for (const [oi, rawOption] of (f.options as unknown[]).entries()) {
+        if (!rawOption || typeof rawOption !== 'object') return { error: `fields[${i}].options[${oi}]: must be an object.` };
+        const o = rawOption as Record<string, unknown>;
+        if (typeof o.label !== 'string' || !o.label.trim()) {
+          return { error: `fields[${i}].options[${oi}]: label is required.` };
+        }
+        let optionId = typeof o.id === 'string' && o.id.trim() ? o.id.trim() : makeId('opt');
+        if (seenOptionIds.has(optionId)) optionId = makeId('opt');
+        seenOptionIds.add(optionId);
+        options.push({ id: optionId, label: o.label.trim().slice(0, MAX_LABEL_LENGTH) });
+      }
+      field.options = options;
+    }
+
+    fields.push(field);
+  }
+
+  return { fields };
+}
+
+// ---------------------------------------------------------------------------
+// GET /forms
+// ---------------------------------------------------------------------------
+export const listForms = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const includeArchived = req.query.includeArchived === 'true';
+
+  try {
+    const snap = await formsCollection(user.orgId).orderBy('createdAt', 'asc').get();
+    const all = querySnapshotToArray<DBForm>(snap);
+    res.json(includeArchived ? all.filter(f => f.isArchived) : all.filter(f => !f.isArchived));
+  } catch (err) {
+    logger.error('listForms error:', err);
+    res.status(500).json({ message: 'Failed to list forms.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /forms/:id
+// ---------------------------------------------------------------------------
+export const getForm = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+
+  try {
+    const snap = await formsCollection(user.orgId).doc(req.params.id).get();
+    if (!snap.exists) return res.status(404).json({ message: 'Form not found.' });
+    res.json({ id: snap.id, ...snap.data() });
+  } catch (err) {
+    logger.error(`getForm error for ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to fetch form.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /forms
+// ---------------------------------------------------------------------------
+export const createForm = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  if (!canManageForms(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+
+  const { name, description, fields } = req.body as Record<string, unknown>;
+
+  if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: 'name is required.' });
+
+  const sanitized = sanitizeFields(fields);
+  if ('error' in sanitized) return res.status(400).json({ message: sanitized.error });
+
+  try {
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    const docRef = formsCollection(user.orgId).doc();
+    const form: Omit<DBForm, 'id'> = {
+      name: name.trim().slice(0, MAX_LABEL_LENGTH),
+      ...(typeof description === 'string' && description.trim()
+        ? { description: description.trim().slice(0, MAX_DESCRIPTION_LENGTH) }
+        : {}),
+      fields: sanitized.fields,
+      createdBy: user.id,
+      createdAt: now,
+      updatedAt: now,
+      isArchived: false,
+    };
+    await docRef.set(form);
+
+    void logAuditAndCheckAnomaly({
+      actorUserId: user.id, actorRole: user.role, action: 'CREATE',
+      resourceType: 'form', resourceId: docRef.id,
+      workspaceId: user.orgId, orgId: user.orgId,
+      ipAddress: getClientIp(req), userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    res.status(201).json({ id: docRef.id, ...form });
+  } catch (err) {
+    logger.error('createForm error:', err);
+    res.status(500).json({ message: 'Failed to create form.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /forms/:id
+// ---------------------------------------------------------------------------
+export const updateForm = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  if (!canManageForms(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+
+  const { id } = req.params;
+  const { name, description, fields } = req.body as Record<string, unknown>;
+  const patch: Record<string, unknown> = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ message: 'name must be a non-empty string.' });
+    patch.name = name.trim().slice(0, MAX_LABEL_LENGTH);
+  }
+  if (description !== undefined) {
+    if (typeof description !== 'string') return res.status(400).json({ message: 'description must be a string.' });
+    // An emptied description is stored as '' rather than deleted so the client
+    // round-trip stays a plain overwrite.
+    patch.description = description.trim().slice(0, MAX_DESCRIPTION_LENGTH);
+  }
+  if (fields !== undefined) {
+    const sanitized = sanitizeFields(fields);
+    if ('error' in sanitized) return res.status(400).json({ message: sanitized.error });
+    patch.fields = sanitized.fields;
+  }
+
+  try {
+    const docRef = formsCollection(user.orgId).doc(id);
+    const snap = await docRef.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Form not found.' });
+
+    await docRef.update(patch);
+
+    void logAuditAndCheckAnomaly({
+      actorUserId: user.id, actorRole: user.role, action: 'UPDATE',
+      resourceType: 'form', resourceId: id,
+      workspaceId: user.orgId, orgId: user.orgId,
+      ipAddress: getClientIp(req), userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    res.json({ ...(snap.data() as DBForm), ...patch, id });
+  } catch (err) {
+    logger.error(`updateForm error for ${id}:`, err);
+    res.status(500).json({ message: 'Failed to update form.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /forms/:id/archive  |  PATCH /forms/:id/restore
+// ---------------------------------------------------------------------------
+async function setArchived(req: Request, res: Response, isArchived: boolean) {
+  const user = req.user as JwtUserPayload;
+  if (!canManageForms(user)) return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+
+  const { id } = req.params;
+  try {
+    const docRef = formsCollection(user.orgId).doc(id);
+    const snap = await docRef.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Form not found.' });
+
+    await docRef.update({ isArchived, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+
+    void logAuditAndCheckAnomaly({
+      actorUserId: user.id, actorRole: user.role, action: 'UPDATE',
+      resourceType: 'form', resourceId: id,
+      workspaceId: user.orgId, orgId: user.orgId,
+      ipAddress: getClientIp(req), userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    if (isArchived) return res.status(204).send();
+    res.json({ ...(snap.data() as DBForm), id, isArchived: false });
+  } catch (err) {
+    logger.error(`setArchived(${isArchived}) error for form ${id}:`, err);
+    res.status(500).json({ message: `Failed to ${isArchived ? 'archive' : 'restore'} form.` });
+  }
+}
+
+export const archiveForm = (req: Request, res: Response) => setArchived(req, res, true);
+export const restoreForm = (req: Request, res: Response) => setArchived(req, res, false);
+
+// ---------------------------------------------------------------------------
+// DELETE /forms/:id
+//
+// Hard delete of the definition only. Responses already filled in on items keep
+// their denormalized formName and stored answers, so an item's history survives
+// a deleted form.
+// ---------------------------------------------------------------------------
+export const deleteForm = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  if (!isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) {
+    return res.status(403).json({ message: 'Forbidden: Insufficient permissions.' });
+  }
+
+  const { id } = req.params;
+  try {
+    const docRef = formsCollection(user.orgId).doc(id);
+    const snap = await docRef.get();
+    if (!snap.exists) return res.status(404).json({ message: 'Form not found.' });
+
+    await docRef.delete();
+
+    void logAuditAndCheckAnomaly({
+      actorUserId: user.id, actorRole: user.role, action: 'DELETE',
+      resourceType: 'form', resourceId: id,
+      workspaceId: user.orgId, orgId: user.orgId,
+      ipAddress: getClientIp(req), userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    res.status(204).send();
+  } catch (err) {
+    logger.error(`deleteForm error for ${id}:`, err);
+    res.status(500).json({ message: 'Failed to delete form.' });
+  }
+};

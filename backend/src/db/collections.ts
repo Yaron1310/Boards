@@ -53,6 +53,16 @@ export const notificationsCollection = (orgId: string) =>
 export const itemChatMessagesCollection = (orgId: string, itemId: string) =>
   itemsCollection(orgId).doc(itemId).collection('chatMessages');
 
+// Forms (org-level definitions):
+// /organizations/{orgId}/forms/{formId}
+export const formsCollection = (orgId: string) =>
+  db.collection('organizations').doc(orgId).collection('forms');
+
+// Filled-in forms attached to an item (doc id = formId):
+// /organizations/{orgId}/items/{itemId}/formResponses/{formId}
+export const itemFormResponsesCollection = (orgId: string, itemId: string) =>
+  itemsCollection(orgId).doc(itemId).collection('formResponses');
+
 // Webhooks (top-level collection for O(1) public lookup by webhookId):
 // /webhooks/{webhookId}
 export const webhooksCollection = db.collection('webhooks');

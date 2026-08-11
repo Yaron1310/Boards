@@ -30,6 +30,9 @@ import { notificationRouter } from './notification.routes.js';
 import { itemChatRouter } from './itemChat.routes.js';
 // Personal Hub
 import { personalHubRouter } from './personalHub.routes.js';
+// Forms
+import { formRouter } from './form.routes.js';
+import { itemFormRouter } from './itemForm.routes.js';
 
 export const mainRouter = Router();
 
@@ -66,3 +69,6 @@ mainRouter.use('/notifications', notificationRouter);
 mainRouter.use('/items/:itemId/chat', itemChatRouter);
 // Personal Hub
 mainRouter.use('/personal-hub', personalHubRouter);
+// Forms
+mainRouter.use('/forms', formRouter);
+mainRouter.use('/items/:itemId/forms', itemFormRouter);
