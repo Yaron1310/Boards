@@ -28,7 +28,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
   const { begin, endSession, isRecording, insertRef, session } = useFormulaRecording();
-  const { visibleItems, columns: boardColumns, groupsComplete } = useBoardRender();
+  const { visibleItems, columns: boardColumns, groupsComplete, isBoardReadOnly } = useBoardRender();
   const colWidth = calculateColumnWidth(column.name, column.type);
 
   const settings = column.settings as SimpleFormulaColumnSettings;
@@ -193,7 +193,9 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   }, [awaitingHere]);
 
   const hasOverride = storedValue !== null;
-  const active = isRecordingHere || awaitingHere;
+  // A read-only board never enters the recording UI: no click starts one here, and a session
+  // that somehow targets this cell must not turn it into an editor.
+  const active = !isBoardReadOnly && (isRecordingHere || awaitingHere);
 
   const clearOverride = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -219,7 +221,8 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   // Works same-board and cross-board: a cross-board formula reference is evaluated by the
   // foreign-value resolver, which loads the target board's items + columns and computes it.
   // Without this branch, a click would start a new recording session instead of feeding the current one.
-  if (isRecording && !isOrigin) {
+  // A read-only board can't host a recording of its own, and its cells must not feed one either.
+  if (isRecording && !isOrigin && !isBoardReadOnly) {
     return (
       <div
         role="gridcell"
@@ -248,13 +251,15 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
         data-formula-origin={active ? 'true' : undefined}
         aria-label={`${column.name}: ${result != null ? formatNumber(result) : storedValue === '' ? 'empty' : 'no value'}`}
         style={{ width: `${colWidth}px` }}
-        className={`relative flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0 cursor-pointer group/formula ${
-          active ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : 'bg-gray-50/60 hover:bg-indigo-50/30'
+        className={`relative flex flex-shrink-0 items-center justify-center border-r border-[#d2d2d4] last:border-r-0 group/formula ${
+          isBoardReadOnly
+            ? 'bg-gray-50/60'
+            : `cursor-pointer ${active ? 'ring-2 ring-inset ring-indigo-500 bg-indigo-50' : 'bg-gray-50/60 hover:bg-indigo-50/30'}`
         }`}
-        onClick={active ? undefined : startRecording}
-        tabIndex={0}
-        onKeyDown={(e) => { if (!active && (e.key === 'Enter' || e.key === ' ')) startRecording(e); }}
-        title={active ? 'Recording — click cells on any board, then Save' : cellFormula ? '= (formula)' : 'Click to enter formula'}
+        onClick={active || isBoardReadOnly ? undefined : startRecording}
+        tabIndex={isBoardReadOnly ? undefined : 0}
+        onKeyDown={isBoardReadOnly ? undefined : (e) => { if (!active && (e.key === 'Enter' || e.key === ' ')) startRecording(e); }}
+        title={isBoardReadOnly ? undefined : active ? 'Recording — click cells on any board, then Save' : cellFormula ? '= (formula)' : 'Click to enter formula'}
       >
         <span className={`text-sm text-gray-600 px-3 text-center ${active ? 'whitespace-normal break-words leading-tight' : 'truncate'}`}>
           {active
@@ -269,7 +274,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
                     ? formatNumber(result)
                     : <span className="text-gray-300 text-xs">—</span>}
         </span>
-        {hasOverride && !active && (
+        {hasOverride && !active && !isBoardReadOnly && (
           <button
             type="button"
             onClick={clearOverride}

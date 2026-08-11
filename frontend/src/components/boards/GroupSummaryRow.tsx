@@ -365,7 +365,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
-  const { columnWidths, visibleItems, columns: boardColumns, groupsComplete } = useBoardRender();
+  const { columnWidths, visibleItems, columns: boardColumns, groupsComplete, isBoardReadOnly } = useBoardRender();
   const { isRecording, insertRef } = useFormulaRecording();
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
@@ -666,7 +666,18 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
       data-formula-cell-key={canInsertSummary ? formulaRefDomKey(summaryRef) : undefined}
       className={`group relative flex flex-shrink-0 items-center bg-white border-r border-[#d2d2d4] last:border-r-0 py-2 px-2 min-h-9 ${canInsertSummary ? 'cursor-pointer hover:bg-indigo-100/60 transition-colors' : ''}`}
     >
-      {!canInsertSummary && showActive && (
+      {/* Read-only: the badge still labels which aggregate is shown, but it no longer
+          opens the settings popover — configuring a summary writes to the column. */}
+      {!canInsertSummary && showActive && isBoardReadOnly && (
+        <span
+          className="absolute left-2 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-normal leading-none select-none flex-shrink-0"
+          style={{ backgroundColor: config.cumulative ? '#fdba74' : '#3b82f6cf', color: 'white' }}
+          aria-label={`${col.name} summary: ${config.calc}${config.cumulative ? ' (includes groups above)' : ''}`}
+        >
+          {badge}
+        </span>
+      )}
+      {!canInsertSummary && showActive && !isBoardReadOnly && (
         <button
           ref={btnRef}
           type="button"
@@ -680,7 +691,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
           {badge}
         </button>
       )}
-      {showHoverTrigger && (
+      {showHoverTrigger && !isBoardReadOnly && (
         <button
           ref={btnRef}
           type="button"

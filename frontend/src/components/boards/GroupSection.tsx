@@ -56,10 +56,13 @@ const GroupSection: React.FC<GroupSectionProps> = ({
 }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(boardId);
-  const { columnWidths } = useBoardRender();
+  const { columnWidths, isBoardReadOnly } = useBoardRender();
   const groupSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 
-  const isCollapsed = group.isCollapsed ?? false;
+  // Collapsing is a viewing convenience, so a read-only viewer keeps it — it just stays in
+  // this component instead of being persisted on the group (which they can't write to).
+  const [localCollapsed, setLocalCollapsed] = useState<boolean | null>(null);
+  const isCollapsed = localCollapsed ?? group.isCollapsed ?? false;
 
   const { mutateAsync: updateGroup, isPending: isUpdating } = useUpdateGroup();
   const { mutateAsync: archiveGroup, isPending: isArchiving } = useArchiveGroup();
@@ -231,6 +234,10 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   }, [colorPickerOpen]);
 
   const toggleCollapse = async () => {
+    if (isBoardReadOnly) {
+      setLocalCollapsed(!isCollapsed);
+      return;
+    }
     await updateGroup({ boardId, groupId: group.id, patch: { isCollapsed: !isCollapsed } });
   };
 

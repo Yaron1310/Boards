@@ -320,6 +320,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
           columns={columns}
           onItemUpdate={onGanttItemUpdate}
           workingDays={workingDays}
+          isReadOnly={isBoardReadOnly}
         />
       ) : (
         <div
