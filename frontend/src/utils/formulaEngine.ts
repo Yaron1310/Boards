@@ -189,6 +189,10 @@ export interface FormulaContext {
    *  be aggregated locally in that case — it must fall through to `resolveRef`, which loads the
    *  full source board. Defaults to true (a regular board render always carries every item). */
   groupsComplete?: boolean;
+  /** Names the screen doing the evaluating, for tracing only — the recording bar and a saved cell
+   *  run the same code over the same reference and can otherwise only be told apart by reading a
+   *  stack trace. */
+  traceLabel?: string;
   /** Whose Personal Hub the rows in `allItems` belong to, when they are hub rows at all. Absent
    *  means the viewer's own hub (or a plain board). A personal ref only resolves from these rows
    *  when its owner matches — otherwise it names a different person's columns and has to be
@@ -417,6 +421,7 @@ class FormulaParser {
 
     if (ref.kind === 'b' && !ref.agg) {
       sameColumnTrace('1. engine sees reference', {
+        where: ctx?.traceLabel ?? '(unlabelled)',
         token: serializeRef(ref),
         isHome,
         homeBoardId: ctx?.homeBoardId,

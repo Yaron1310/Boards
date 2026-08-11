@@ -74,7 +74,7 @@ if (typeof window !== 'undefined') {
   (window as FormulaDebugWindow).formulaDebug = {
     on: () => { setEnabled(true); seen.clear(); console.log('[formula] tracing on'); },
     off: () => { setEnabled(false); console.log('[formula] tracing off'); },
-    reset: () => formulaDebugReset(),
+    reset: () => { tracedLines.clear(); formulaDebugReset(); },
   };
 }
 
@@ -87,10 +87,20 @@ if (typeof window !== 'undefined') {
  * exit on that path reports, including the ones that return a bare 0 with nothing else to show
  * for it.
  */
+const tracedLines = new Set<string>();
+
 export function sameColumnTrace(step: string, detail: Record<string, unknown>): void {
   if (!formulaDebugEnabled()) return;
   const flat = Object.entries(detail)
     .map(([k, v]) => `${k}=${v === undefined ? 'undefined' : v === null ? 'null' : typeof v === 'object' ? JSON.stringify(v) : String(v)}`)
     .join('  ');
-  console.warn(`[formula-trace] ${step}  ${flat}`);
+  const line = `[formula-trace] ${step}  ${flat}`;
+  // Re-renders repeat the same evaluation verbatim. An identical line carries no new information,
+  // and dozens of them bury the handful that do — but a line whose VALUES changed still prints,
+  // which is the part worth seeing.
+  if (tracedLines.has(line)) return;
+  tracedLines.add(line);
+  // console.log rather than warn: Chrome staples a stack trace to every warning, and those stacks
+  // were the bulk of the noise.
+  console.log(line);
 }

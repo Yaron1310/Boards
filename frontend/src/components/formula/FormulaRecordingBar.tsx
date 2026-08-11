@@ -260,6 +260,7 @@ const FormulaRecordingBar: React.FC = () => {
         ? evaluateFormula(draft, {}, {
             allItems: [],
             columns: [],
+            traceLabel: 'RECORDING BAR (the row of tokens at the top)',
             resolveRef: (ref) => resolve(ref, currentItemId),
           })
         : null,

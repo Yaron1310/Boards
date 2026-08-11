@@ -70,6 +70,7 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
       currentRowIndex: rowIndex,
       homeBoardId,
       groupsComplete,
+      traceLabel: `SAVED BOARD CELL (row ${item.id})`,
       resolveRef: (ref: Parameters<typeof resolveForeign>[0]) => resolveForeign(ref, item.id),
     }),
     [visibleItems, boardColumns, rowIndex, homeBoardId, groupsComplete, resolveForeign, item.id],
