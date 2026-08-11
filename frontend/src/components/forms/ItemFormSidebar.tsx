@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  FiX, FiPlus, FiTrash2, FiSave, FiCheck, FiLoader, FiFileText, FiChevronDown, FiChevronRight,
-  FiAlertCircle,
+  FiX, FiTrash2, FiSave, FiCheck, FiLoader, FiFileText, FiEdit2, FiAlertCircle, FiLock,
 } from 'react-icons/fi';
-import type { Item, Form, FormAnswerValue, ItemFormEntry } from '../../types';
+import type { Item, FormAnswerValue, ItemFormEntry } from '../../types';
 import {
   useForms, useItemForms, useAttachFormToItem, useSaveItemFormResponse, useDetachFormFromItem,
 } from '../../hooks/queries/useFormQueries';
@@ -38,103 +37,101 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
   const { data: entries = [], isLoading } = useItemForms(item.id);
   const { data: availableForms = [] } = useForms();
   const { mutateAsync: attachForm, isPending: isAttaching } = useAttachFormToItem(item.id);
-  const { mutateAsync: saveResponse } = useSaveItemFormResponse(item.id);
+  const { mutateAsync: saveResponse, isPending: isSaving } = useSaveItemFormResponse(item.id);
   const { mutateAsync: detachForm } = useDetachFormFromItem(item.id);
 
-  // Per-form editing state, keyed by formId.
-  const [answers, setAnswers] = useState<Record<string, AnswerMap>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [fieldErrors, setFieldErrors] = useState<Record<string, Record<string, string>>>({});
-  const [savingFormId, setSavingFormId] = useState<string | null>(null);
-  const [confirmDetachId, setConfirmDetachId] = useState<string | null>(null);
-  const [attachOpen, setAttachOpen] = useState(false);
+  // An item holds at most one form.
+  const entry: ItemFormEntry | null = entries[0] ?? null;
+  const form = entry?.form ?? null;
+  const response = entry?.response ?? null;
+  const isSubmitted = !!response?.submittedAt;
+
+  const [answers, setAnswers] = useState<AnswerMap>({});
+  const [editing, setEditing] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load server answers into local state for forms not being edited yet. Forms
-  // already in `answers` keep the user's in-progress edits across refetches.
+  // Seed answers once per attached form. Keyed by formId rather than by the entry
+  // object so a refetch after saving doesn't wipe in-progress edits.
+  const seededFormId = useRef<string | null>(null);
   useEffect(() => {
-    setAnswers((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const entry of entries) {
-        if (!(entry.response.formId in next)) {
-          next[entry.response.formId] = initialAnswers(entry);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-    // A single attached form starts open — with several, the list stays collapsed.
-    setExpanded((prev) => {
-      if (entries.length !== 1 || Object.keys(prev).length > 0) return prev;
-      return { [entries[0].response.formId]: true };
-    });
-  }, [entries]);
+    if (!entry) {
+      seededFormId.current = null;
+      return;
+    }
+    if (seededFormId.current === entry.response.formId) return;
+    setAnswers(initialAnswers(entry));
+    seededFormId.current = entry.response.formId;
+  }, [entry]);
 
-  const attachedIds = useMemo(() => new Set(entries.map((e) => e.response.formId)), [entries]);
-  const attachable = availableForms.filter((f) => !attachedIds.has(f.id));
+  // A submitted form is read-only until the user explicitly chooses to edit it.
+  const locked = isSubmitted && !editing;
 
-  const setAnswer = (formId: string, fieldId: string, value: FormAnswerValue) => {
-    setAnswers((prev) => ({ ...prev, [formId]: { ...(prev[formId] ?? {}), [fieldId]: value } }));
+  const setAnswer = (fieldId: string, value: FormAnswerValue) => {
+    setAnswers((prev) => ({ ...prev, [fieldId]: value }));
     setFieldErrors((prev) => {
-      if (!prev[formId]?.[fieldId]) return prev;
-      const next = { ...prev, [formId]: { ...prev[formId] } };
-      delete next[formId][fieldId];
+      if (!prev[fieldId]) return prev;
+      const next = { ...prev };
+      delete next[fieldId];
       return next;
     });
   };
 
   const handleAttach = async (formId: string) => {
     setError(null);
-    setAttachOpen(false);
     try {
-      const entry = await attachForm(formId);
-      setAnswers((prev) => ({ ...prev, [formId]: initialAnswers(entry) }));
-      setExpanded((prev) => ({ ...prev, [formId]: true }));
+      const attached = await attachForm(formId);
+      setAnswers(initialAnswers(attached));
+      seededFormId.current = formId;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to attach the form.');
+      setError(err instanceof Error ? err.message : 'Failed to add the form.');
     }
   };
 
-  const handleSave = async (form: Form, submit: boolean) => {
+  const handleSave = async (submit: boolean) => {
+    if (!form) return;
     setError(null);
-    const values = answers[form.id] ?? {};
 
     if (submit) {
       const missing: Record<string, string> = {};
       for (const field of form.fields) {
-        if (field.required && !isAnswered(field, values[field.id] ?? null)) {
+        if (field.required && !isAnswered(field, answers[field.id] ?? null)) {
           missing[field.id] = 'This field is required.';
         }
       }
       if (Object.keys(missing).length > 0) {
-        setFieldErrors((prev) => ({ ...prev, [form.id]: missing }));
+        setFieldErrors(missing);
         setError('Fill in the required fields before submitting.');
         return;
       }
     }
 
-    setSavingFormId(form.id);
     try {
-      await saveResponse({ formId: form.id, values, submit });
-      setFieldErrors((prev) => ({ ...prev, [form.id]: {} }));
+      await saveResponse({ formId: form.id, values: answers, submit });
+      setFieldErrors({});
+      if (submit) setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save your answers.');
-    } finally {
-      setSavingFormId(null);
     }
   };
 
-  const handleDetach = async (formId: string) => {
+  const handleCancelEdit = () => {
+    if (entry) setAnswers(initialAnswers(entry));
+    setFieldErrors({});
+    setEditing(false);
     setError(null);
-    setConfirmDetachId(null);
+  };
+
+  const handleRemove = async () => {
+    if (!form) return;
+    setConfirmRemove(false);
+    setError(null);
     try {
-      await detachForm(formId);
-      setAnswers((prev) => {
-        const next = { ...prev };
-        delete next[formId];
-        return next;
-      });
+      await detachForm(form.id);
+      setAnswers({});
+      setEditing(false);
+      seededFormId.current = null;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove the form.');
     }
@@ -144,24 +141,57 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
     <div
       className="fixed right-0 top-0 bottom-0 z-[10200] w-full max-w-[34rem] bg-white shadow-2xl flex flex-col"
       role="region"
-      aria-label={`Forms for ${item.name}`}
+      aria-label={`Form for ${item.name}`}
     >
       {/* Header — mirrors the chat sidebar */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-indigo-600 text-white flex-shrink-0">
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-semibold truncate">{item.name}</span>
-          <span className="text-xs text-indigo-200">
-            {entries.length} form{entries.length !== 1 ? 's' : ''} attached
+          <span className="text-xs text-indigo-200 truncate">
+            {form ? form.name : 'No form yet'}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="ml-2 flex-shrink-0 p-1.5 rounded-full hover:bg-indigo-500 transition-colors"
-          aria-label="Close forms"
-        >
-          <FiX size={16} aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {form && (
+            confirmRemove ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void handleRemove()}
+                  className="p-1.5 rounded-full hover:bg-indigo-500 transition-colors"
+                  aria-label={`Confirm removing ${form.name} from this item`}
+                >
+                  <FiCheck size={16} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmRemove(false)}
+                  className="p-1.5 rounded-full hover:bg-indigo-500 transition-colors"
+                  aria-label="Cancel removing form"
+                >
+                  <FiX size={16} aria-hidden="true" />
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmRemove(true)}
+                className="p-1.5 rounded-full hover:bg-indigo-500 transition-colors"
+                aria-label={`Remove ${form.name} from this item`}
+              >
+                <FiTrash2 size={15} aria-hidden="true" />
+              </button>
+            )
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full hover:bg-indigo-500 transition-colors"
+            aria-label="Close form"
+          >
+            <FiX size={16} aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -174,170 +204,131 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
         </div>
       )}
 
-      {/* Attached forms */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50">
-        {isLoading && <div className="text-center text-sm text-gray-400 py-8">Loading forms…</div>}
+      {/* Submitted banner — states plainly why the fields are read-only */}
+      {isSubmitted && !editing && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-800 text-xs border-b border-green-100">
+          <FiLock size={13} aria-hidden="true" className="flex-shrink-0" />
+          <span className="flex-1">
+            Submitted by {response?.submittedByName ?? 'someone'} · {formatTimestamp(response?.submittedAt)}
+          </span>
+        </div>
+      )}
 
-        {!isLoading && entries.length === 0 && (
-          <div className="text-center text-sm text-gray-400 py-8">
-            No forms on this item yet. Add one below.
+      <div className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50">
+        {isLoading && <div className="text-center text-sm text-gray-400 py-8">Loading form…</div>}
+
+        {/* Nothing attached yet — pick a form to start filling it in */}
+        {!isLoading && !entry && (
+          <div>
+            <p className="text-sm text-gray-500 mb-3">Choose a form to add to this item:</p>
+            {availableForms.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">
+                No forms have been created yet. An admin can add one on the Forms page.
+              </p>
+            ) : (
+              <ul className="space-y-2" role="list" aria-label="Available forms">
+                {availableForms.map((f) => (
+                  <li key={f.id}>
+                    <button
+                      type="button"
+                      onClick={() => void handleAttach(f.id)}
+                      disabled={isAttaching}
+                      className="w-full text-left px-3 py-2.5 bg-white border border-gray-200 rounded-lg hover:border-indigo-300 hover:shadow-sm transition-all disabled:opacity-50"
+                      aria-label={`Add form ${f.name} to this item`}
+                    >
+                      <span className="flex items-center gap-2">
+                        <FiFileText size={15} className="text-indigo-500 flex-shrink-0" aria-hidden="true" />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-gray-800 truncate">{f.name}</span>
+                          <span className="block text-xs text-gray-400 truncate">
+                            {f.fields.length} field{f.fields.length !== 1 ? 's' : ''}
+                            {f.description ? ` · ${f.description}` : ''}
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
-        {entries.map((entry) => {
-          const { response, form } = entry;
-          const formId = response.formId;
-          const isOpen = expanded[formId] ?? false;
-          const errors = fieldErrors[formId] ?? {};
-          const isSaving = savingFormId === formId;
+        {/* The attached form, always open and ready to fill */}
+        {!isLoading && entry && !form && (
+          <p className="text-sm text-gray-500 italic">
+            This form was deleted. Its saved answers are kept, but it can no longer be edited.
+          </p>
+        )}
 
-          return (
-            <section key={formId} className="bg-white rounded-lg border border-gray-200 shadow-sm">
-              <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
+        {!isLoading && form && (
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm px-4 py-4">
+            {form.description && <p className="text-xs text-gray-500 mb-4">{form.description}</p>}
+            <div className="space-y-4">
+              {form.fields.map((field) => (
+                <FormFieldInput
+                  key={field.id}
+                  field={field}
+                  value={answers[field.id] ?? emptyAnswer(field.type)}
+                  onChange={(value) => setAnswer(field.id, value)}
+                  disabled={locked || isSaving}
+                  error={fieldErrors[field.id]}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Action bar */}
+      {form && (
+        <div className="flex justify-end gap-2 border-t border-gray-200 bg-white px-4 py-3 flex-shrink-0">
+          {locked ? (
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center transition-colors"
+              aria-label={`Edit answers for ${form.name}`}
+            >
+              <FiEdit2 className="mr-1.5" size={13} aria-hidden="true" /> Edit answers
+            </button>
+          ) : (
+            <>
+              {isSubmitted && (
                 <button
                   type="button"
-                  onClick={() => setExpanded((prev) => ({ ...prev, [formId]: !isOpen }))}
-                  className="flex items-center gap-2 min-w-0 flex-1 text-left"
-                  aria-expanded={isOpen}
-                  aria-label={`${isOpen ? 'Collapse' : 'Expand'} form ${response.formName}`}
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                  aria-label="Cancel editing answers"
                 >
-                  {isOpen
-                    ? <FiChevronDown size={15} className="text-gray-400 flex-shrink-0" aria-hidden="true" />
-                    : <FiChevronRight size={15} className="text-gray-400 flex-shrink-0" aria-hidden="true" />}
-                  <FiFileText size={15} className="text-indigo-500 flex-shrink-0" aria-hidden="true" />
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-gray-800 truncate">{response.formName}</span>
-                    <span className="block text-[11px] text-gray-400">
-                      {response.submittedAt
-                        ? `Submitted by ${response.submittedByName ?? 'someone'} · ${formatTimestamp(response.submittedAt)}`
-                        : 'Not submitted yet'}
-                    </span>
-                  </span>
+                  Cancel
                 </button>
-
-                {confirmDetachId === formId ? (
-                  <span className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => void handleDetach(formId)}
-                      className="p-1 text-red-500 hover:text-red-700 rounded transition-colors"
-                      aria-label={`Confirm removing ${response.formName} from this item`}
-                    >
-                      <FiCheck size={14} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmDetachId(null)}
-                      className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
-                      aria-label="Cancel removing form"
-                    >
-                      <FiX size={14} aria-hidden="true" />
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmDetachId(formId)}
-                    className="p-1 text-gray-400 hover:text-red-500 rounded transition-colors flex-shrink-0"
-                    aria-label={`Remove ${response.formName} from this item`}
-                  >
-                    <FiTrash2 size={14} aria-hidden="true" />
-                  </button>
-                )}
-              </div>
-
-              {isOpen && (
-                form ? (
-                  <div className="px-3 py-3">
-                    {form.description && (
-                      <p className="text-xs text-gray-500 mb-3">{form.description}</p>
-                    )}
-                    <div className="space-y-4">
-                      {form.fields.map((field) => (
-                        <FormFieldInput
-                          key={field.id}
-                          field={field}
-                          value={answers[formId]?.[field.id] ?? emptyAnswer(field.type)}
-                          onChange={(value) => setAnswer(formId, field.id, value)}
-                          disabled={isSaving}
-                          error={errors[field.id]}
-                        />
-                      ))}
-                    </div>
-
-                    <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-gray-100">
-                      <button
-                        type="button"
-                        onClick={() => void handleSave(form, false)}
-                        disabled={isSaving}
-                        className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 flex items-center transition-colors"
-                        aria-label={`Save draft answers for ${form.name}`}
-                      >
-                        {isSaving ? <FiLoader className="animate-spin mr-1.5" size={13} aria-hidden="true" /> : <FiSave className="mr-1.5" size={13} aria-hidden="true" />}
-                        Save draft
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleSave(form, true)}
-                        disabled={isSaving}
-                        className="px-3 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center transition-colors"
-                        aria-label={`Submit ${form.name}`}
-                      >
-                        {isSaving ? <FiLoader className="animate-spin mr-1.5" size={13} aria-hidden="true" /> : <FiCheck className="mr-1.5" size={13} aria-hidden="true" />}
-                        Submit
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="px-3 py-4 text-sm text-gray-500 italic">
-                    This form was deleted. Its saved answers are kept, but it can no longer be edited.
-                  </p>
-                )
               )}
-            </section>
-          );
-        })}
-      </div>
-
-      {/* Attach a form */}
-      <div className="border-t border-gray-200 bg-white px-3 py-2.5 flex-shrink-0 relative">
-        <button
-          type="button"
-          onClick={() => setAttachOpen((v) => !v)}
-          disabled={isAttaching || attachable.length === 0}
-          className="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          aria-haspopup="menu"
-          aria-expanded={attachOpen}
-          aria-label="Add a form to this item"
-        >
-          {isAttaching ? <FiLoader className="animate-spin" size={14} aria-hidden="true" /> : <FiPlus size={14} aria-hidden="true" />}
-          {attachable.length === 0 ? 'All forms already added' : 'Add form'}
-        </button>
-
-        {attachOpen && attachable.length > 0 && (
-          <div
-            className="absolute bottom-full left-3 right-3 mb-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-64 overflow-y-auto z-10"
-            role="menu"
-            aria-label="Available forms"
-          >
-            {attachable.map((form) => (
               <button
-                key={form.id}
                 type="button"
-                role="menuitem"
-                onClick={() => void handleAttach(form.id)}
-                className="w-full text-left px-3 py-2 hover:bg-indigo-50 transition-colors"
+                onClick={() => void handleSave(false)}
+                disabled={isSaving}
+                className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 flex items-center transition-colors"
+                aria-label={`Save draft answers for ${form.name}`}
               >
-                <span className="block text-sm text-gray-800 truncate">{form.name}</span>
-                <span className="block text-xs text-gray-400 truncate">
-                  {form.fields.length} field{form.fields.length !== 1 ? 's' : ''}
-                  {form.description ? ` · ${form.description}` : ''}
-                </span>
+                {isSaving ? <FiLoader className="animate-spin mr-1.5" size={13} aria-hidden="true" /> : <FiSave className="mr-1.5" size={13} aria-hidden="true" />}
+                Save draft
               </button>
-            ))}
-          </div>
-        )}
-      </div>
+              <button
+                type="button"
+                onClick={() => void handleSave(true)}
+                disabled={isSaving}
+                className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center transition-colors"
+                aria-label={`Submit ${form.name}`}
+              >
+                {isSaving ? <FiLoader className="animate-spin mr-1.5" size={13} aria-hidden="true" /> : <FiCheck className="mr-1.5" size={13} aria-hidden="true" />}
+                {isSubmitted ? 'Save changes' : 'Submit'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 };

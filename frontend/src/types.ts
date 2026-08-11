@@ -416,8 +416,10 @@ export interface Item {
   chatMessageCount?: number;
   chatLastMessageAt?: Date | string;
   chatSeenBy?: Record<string, number>;
-  // Number of forms attached to this item (drives the row's form badge)
+  // Forms state. An item holds at most one form; formSubmitted flips true once its
+  // answers are submitted and drives the red marker on the row's form icon.
   formResponseCount?: number;
+  formSubmitted?: boolean;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: Date | string;

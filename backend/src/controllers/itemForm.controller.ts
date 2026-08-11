@@ -183,8 +183,9 @@ export const listItemForms = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /items/:itemId/forms   body: { formId }
 //
-// Attaches a form to an item, creating its (empty) response document. Attaching
-// an already-attached form is a no-op that returns the existing response.
+// Attaches a form to an item, creating its (empty) response document. An item
+// holds at most one form: re-attaching the same one is a no-op, attaching a
+// different one is rejected until the current form is detached.
 // ---------------------------------------------------------------------------
 export const attachFormToItem = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
@@ -202,9 +203,15 @@ export const attachFormToItem = async (req: Request, res: Response) => {
     if (form.isArchived) return res.status(400).json({ message: 'This form is archived.' });
 
     const responseRef = itemFormResponsesCollection(user.orgId, itemId).doc(formId);
-    const existing = await responseRef.get();
-    if (existing.exists) {
-      return res.status(200).json({ response: snapshotToData<DBFormResponse>(existing), form });
+    const attached = await itemFormResponsesCollection(user.orgId, itemId).limit(1).get();
+    if (!attached.empty) {
+      const attachedDoc = attached.docs[0];
+      if (attachedDoc.id === formId) {
+        return res.status(200).json({ response: snapshotToData<DBFormResponse>(attachedDoc), form });
+      }
+      return res.status(409).json({
+        message: 'This item already has a form. Remove it before adding a different one.',
+      });
     }
 
     const now = admin.firestore.FieldValue.serverTimestamp();
@@ -220,6 +227,7 @@ export const attachFormToItem = async (req: Request, res: Response) => {
     await responseRef.set(response);
     await itemsCollection(user.orgId).doc(itemId).update({
       formResponseCount: admin.firestore.FieldValue.increment(1),
+      formSubmitted: false,
       updatedAt: now,
     });
 
@@ -273,6 +281,9 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
     }
 
     await responseRef.update(patch);
+    if (submit) {
+      await itemsCollection(user.orgId).doc(itemId).update({ formSubmitted: true, updatedAt: now });
+    }
     const updated = await responseRef.get();
 
     res.json({ response: snapshotToData<DBFormResponse>(updated), form });
@@ -302,6 +313,7 @@ export const detachFormFromItem = async (req: Request, res: Response) => {
     await responseRef.delete();
     await itemsCollection(user.orgId).doc(itemId).update({
       formResponseCount: admin.firestore.FieldValue.increment(-1),
+      formSubmitted: false,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 

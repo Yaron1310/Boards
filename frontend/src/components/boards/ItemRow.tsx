@@ -83,7 +83,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
   };
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
-  const formCount = item.formResponseCount ?? 0;
+  const formSubmitted = item.formSubmitted === true;
 
   const {
     attributes,
@@ -317,23 +317,22 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         {/* Forms + chat — hidden in the public view, where neither is available */}
         {!isPublicView && (
           <div className="flex items-center pr-1.5 flex-shrink-0" role="gridcell">
-            {/* Forms — revealed on row hover, but stays visible while forms are attached */}
+            {/* Form — revealed on row hover; once its form is submitted the icon stays
+                visible and carries a red dot */}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); openForms(item); }}
               className={`relative flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-all ${
-                formCount > 0 ? '' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
+                formSubmitted ? '' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'
               }`}
-              aria-label={`Open forms for ${item.name}`}
+              aria-label={`Open form for ${item.name}${formSubmitted ? ' (submitted)' : ''}`}
             >
               <FiFileText size={15} aria-hidden="true" />
-              {formCount > 0 && (
+              {formSubmitted && (
                 <span
-                  className="absolute -top-1 -right-1 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-indigo-500 text-white text-[9px] font-bold rounded-full leading-none"
-                  aria-label={`${formCount} form${formCount !== 1 ? 's' : ''} attached`}
-                >
-                  {formCount > 9 ? '9+' : formCount}
-                </span>
+                  className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full"
+                  aria-hidden="true"
+                />
               )}
             </button>
             <button

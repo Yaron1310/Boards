@@ -501,8 +501,10 @@ export interface DBItem {
   chatLastMessageAt?: admin.firestore.Timestamp | Date | any;
   // Per-user seen counts for unread badge: { [userId]: seenCount }
   chatSeenBy?: Record<string, number>;
-  // Forms denormalized counters (number of forms attached to this item)
+  // Forms denormalized state. An item holds at most one form; formSubmitted flips
+  // true once its answers are submitted and drives the row's red marker.
   formResponseCount?: number;
+  formSubmitted?: boolean;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: admin.firestore.Timestamp | Date | any;
