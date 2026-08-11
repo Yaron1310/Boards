@@ -307,8 +307,10 @@ export interface BoardParticipant {
 export const getBoardMembers = (boardId: string): Promise<BoardMember[]> =>
   fetchWithAuth(`/api/boards/${boardId}/members`);
 
-export const getBoardParticipants = (boardId: string): Promise<BoardParticipant[]> =>
-  fetchWithAuth(`/api/boards/${boardId}/participants`);
+/** Board members + workspace/org admins. With `includeWorkspaceMembers` the result widens to
+ *  everyone who can see the board, including plain members of the board's workspace. */
+export const getBoardParticipants = (boardId: string, includeWorkspaceMembers = false): Promise<BoardParticipant[]> =>
+  fetchWithAuth(`/api/boards/${boardId}/participants${includeWorkspaceMembers ? '?includeWorkspaceMembers=true' : ''}`);
 
 export const addBoardMember = (boardId: string, userId: string, role: BoardRole): Promise<BoardMember> =>
   fetchWithAuth(`/api/boards/${boardId}/members`, { method: 'POST', body: JSON.stringify({ userId, role }) });

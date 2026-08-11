@@ -4,10 +4,10 @@ import * as wms from '@/services/workManagementService';
 import * as api from '@/services/geminiService';
 import type { BoardRole } from '@/types';
 
-export const useBoardParticipants = (boardId: string, enabled = true) =>
+export const useBoardParticipants = (boardId: string, enabled = true, includeWorkspaceMembers = false) =>
   useQuery({
-    queryKey: ['boardParticipants', boardId],
-    queryFn: () => wms.getBoardParticipants(boardId),
+    queryKey: ['boardParticipants', boardId, includeWorkspaceMembers],
+    queryFn: () => wms.getBoardParticipants(boardId, includeWorkspaceMembers),
     enabled: enabled && !!boardId,
     staleTime: 60_000,
   });
