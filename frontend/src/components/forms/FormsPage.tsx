@@ -168,19 +168,21 @@ const FormsPage: React.FC = () => {
                 </div>
               </button>
               {canManage && (
-                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                <div className="absolute top-2 right-2 flex items-center gap-1 pointer-events-none opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                   <button
                     type="button"
                     onClick={() => setResultsForm(form)}
-                    className="p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                    className="pointer-events-auto p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
                     aria-label={`View results for ${form.name}`}
                     title="View results"
                   >
                     <FiBarChart2 size={14} aria-hidden="true" />
                   </button>
-                  {/* The card itself is the edit target; this is just its affordance. */}
+                  {/* The card itself is the edit target; this is just its affordance — the
+                      whole row is pointer-events-none so hover/cursor fall through to the
+                      card button underneath, with the results button opting back in above. */}
                   <span
-                    className="p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 pointer-events-none"
+                    className="p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500"
                     aria-hidden="true"
                   >
                     <FiEdit size={14} />
