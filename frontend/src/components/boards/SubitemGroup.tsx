@@ -226,8 +226,8 @@ const SubitemColumnHeader: React.FC<{
   );
 };
 
-const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns }) => {
-  const { user } = useAuthSession();
+const SubitemRow: React.FC<{ item: Item; columns: Column[]; canManageItems: boolean }> = ({ item, columns, canManageItems }) => {
+  const { user, isPublicView } = useAuthSession();
   const { openChat } = useBoardRender();
   const { mutateAsync: archiveItem } = useArchiveItem();
   const { mutateAsync: updateItem } = useUpdateItem();
@@ -252,6 +252,15 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
 
+  // Mirrors ItemRow's gating for top-level rows, and the backend's own split: renaming is
+  // open to editor-tier users plus the subitem's creator/assignees, while archiving needs
+  // editor tier. A read-only viewer (public link included) is none of those, so the row
+  // renders as plain text with no actions.
+  const canRename =
+    canManageItems ||
+    item.createdBy === user?.id ||
+    (item.assignees ?? []).includes(user?.id ?? '');
+
   return (
     <div
       role="row"
@@ -263,7 +272,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
         style={{ width: '220px', minWidth: '220px' }}
         role="gridcell"
       >
-        {editingName ? (
+        {editingName && canRename ? (
           <input
             ref={inputRef}
             value={nameValue}
@@ -275,14 +284,15 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
           />
         ) : (
           <span
-            className="text-xs text-gray-700 truncate cursor-text flex-1"
-            onClick={() => setEditingName(true)}
+            className={`text-xs text-gray-700 truncate flex-1 ${canRename ? 'cursor-text' : ''}`}
+            onClick={canRename ? () => setEditingName(true) : undefined}
           >
             {item.name}
           </span>
         )}
 
-        {/* Chat button */}
+        {/* Chat button — chat isn't available in the public read-only view */}
+        {!isPublicView && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); openChat(item); }}
@@ -299,8 +309,10 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
             </span>
           )}
         </button>
+        )}
 
-        {/* Delete button */}
+        {/* Delete button — archiving is editor-tier only, matching the backend */}
+        {canManageItems && (
         <button
           type="button"
           onClick={() => void archiveItem(item.id)}
@@ -309,6 +321,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
         >
           <FiTrash2 size={11} aria-hidden="true" />
         </button>
+        )}
       </div>
 
       {/* Dynamic column cells — width is controlled by ColumnCell internally */}
@@ -661,7 +674,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         ) : (
           <>
             {displayedItems.map((item) => (
-              <SubitemRow key={item.id} item={item} columns={columns} />
+              <SubitemRow key={item.id} item={item} columns={columns} canManageItems={canManageItems} />
             ))}
             {pendingItems.map((p) => (
               <div key={p.tempId} role="row" className="flex items-center gap-2 border-b border-[#e5e7eb] px-3 py-1.5 opacity-60">
