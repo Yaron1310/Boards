@@ -258,7 +258,7 @@ const App: React.FC = () => {
             <Route
               path="/forms"
               element={
-                <ProtectedRoute allowedRoles={[UserRole.REGULAR_USER, UserRole.ORG_EDITOR, UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]}>
+                <ProtectedRoute allowedRoles={[UserRole.ORGANIZATION_ADMIN, UserRole.WORKSPACE_ADMIN, UserRole.SYSTEM_ADMIN]}>
                   <FormsPage />
                 </ProtectedRoute>
               }
