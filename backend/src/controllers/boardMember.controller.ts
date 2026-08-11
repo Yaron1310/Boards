@@ -257,17 +257,25 @@ export const removeMember = async (req: Request, res: Response) => {
 // GET /boards/:boardId/participants
 // Returns all users who have implicit or explicit access to the board:
 // explicit board members + workspace admins + org admins.
+//
+// With ?includeWorkspaceMembers=true the list widens to everyone who can *see*
+// the board — i.e. it also covers regular members of the board's workspace (who
+// reach the board through workspace access rather than an explicit membership),
+// minus those whose membership is board-restricted to other boards, plus org
+// editors, who get editor access on every board in the organization. This
+// mirrors effectiveBoardRole() in workManagementAuth.
 // ---------------------------------------------------------------------------
 export const listParticipants = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { boardId } = req.params;
+  const includeWorkspaceMembers = req.query.includeWorkspaceMembers === 'true';
 
   try {
     const boardDoc = await boardsCollection(user.orgId).doc(boardId).get();
     if (!boardDoc.exists) return res.status(404).json({ message: 'Board not found.' });
     const board = snapshotToData<DBBoard>(boardDoc)!;
 
-    const [membersSnap, workspaceMembershipsSnap, orgAdminMembershipsSnap] = await Promise.all([
+    const [membersSnap, workspaceMembershipsSnap, orgAdminMembershipsSnap, orgEditorMembershipsSnap] = await Promise.all([
       boardMembersCollection(user.orgId, boardId).get(),
       membershipsCollection
         .where('orgId', '==', user.orgId)
@@ -277,6 +285,12 @@ export const listParticipants = async (req: Request, res: Response) => {
         .where('orgId', '==', user.orgId)
         .where('role', '==', UserRole.ORGANIZATION_ADMIN)
         .get(),
+      includeWorkspaceMembers
+        ? membershipsCollection
+            .where('orgId', '==', user.orgId)
+            .where('role', '==', UserRole.ORG_EDITOR)
+            .get()
+        : Promise.resolve(null),
     ]);
 
     const participantMap = new Map<string, { id: string; name: string; email: string; profileImageUrl?: string; role?: string }>();
@@ -293,24 +307,43 @@ export const listParticipants = async (req: Request, res: Response) => {
       }
     }
 
+    // `overwriteRole` is false for the widening pass below, so a user who is already
+    // listed as an admin doesn't get downgraded by a plain workspace membership.
+    const addMembership = (m: DBMembership, overwriteRole = true) => {
+      const existing = participantMap.get(m.userId);
+      if (existing) {
+        if (overwriteRole || !existing.role) existing.role = m.role;
+      } else {
+        participantMap.set(m.userId, {
+          id: m.userId,
+          name: m.userName ?? '',
+          email: m.userEmail ?? '',
+          profileImageUrl: m.userProfileImageUrl ?? undefined,
+          role: m.role,
+        });
+      }
+    };
+
     const adminMembershipDocs = [...workspaceMembershipsSnap.docs, ...orgAdminMembershipsSnap.docs];
     for (const doc of adminMembershipDocs) {
       const m = doc.data() as DBMembership;
       if (
         [UserRole.WORKSPACE_ADMIN, UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN].includes(m.role as UserRole)
       ) {
-        const existing = participantMap.get(m.userId);
-        if (existing) {
-          existing.role = m.role;
-        } else {
-          participantMap.set(m.userId, {
-            id: m.userId,
-            name: m.userName ?? '',
-            email: m.userEmail ?? '',
-            profileImageUrl: m.userProfileImageUrl ?? undefined,
-            role: m.role,
-          });
-        }
+        addMembership(m);
+      }
+    }
+
+    if (includeWorkspaceMembers) {
+      for (const doc of workspaceMembershipsSnap.docs) {
+        const m = doc.data() as DBMembership;
+        // Board-restricted members (boardOnlyAccess) only reach the boards their
+        // membership names — everyone else in the workspace can see this board.
+        if (m.boardIds !== undefined && !m.boardIds.includes(boardId)) continue;
+        addMembership(m, false);
+      }
+      for (const doc of orgEditorMembershipsSnap!.docs) {
+        addMembership(doc.data() as DBMembership, false);
       }
     }
 

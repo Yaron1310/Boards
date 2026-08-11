@@ -242,6 +242,8 @@ COLUMN_TYPE_GROUPS.forEach(({ label, types }) => {
   types.forEach((t) => { TYPE_TO_GROUP[t] = label; });
 });
 
+const DEFAULT_COLUMN_TYPE = ColumnType.TEXT;
+
 const STATUS_PALETTE = [
   '#6B7280', '#10B981', '#F59E0B', '#EF4444',
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
@@ -284,9 +286,24 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
-  const [name, setName] = useState('');
-  const [type, setType] = useState<ColumnType>(ColumnType.TEXT);
+  const [name, setName] = useState(COLUMN_TYPE_LABELS[DEFAULT_COLUMN_TYPE]);
+  const [type, setType] = useState<ColumnType>(DEFAULT_COLUMN_TYPE);
   const [error, setError] = useState('');
+
+  // The name field is pre-filled with the selected type's label ("Status", "Number", …) and
+  // keeps following the type picker until the user types a name of their own. Emptying the
+  // field counts as "not customised", so the suggestion comes back on the next type change.
+  const hasCustomNameRef = useRef(false);
+
+  const handleNameChange = (value: string) => {
+    hasCustomNameRef.current = value.trim() !== '';
+    setName(value);
+  };
+
+  const handleTypeChange = (nextType: ColumnType) => {
+    setType(nextType);
+    if (!hasCustomNameRef.current) setName(COLUMN_TYPE_LABELS[nextType]);
+  };
 
   // "Change type" data handling — computed once (the cache won't meaningfully change while this
   // modal is open) so re-renders while picking a type/name don't keep re-scanning every item.
@@ -631,7 +648,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                             <button
                               key={ct}
                               type="button"
-                              onClick={() => setType(ct)}
+                              onClick={() => handleTypeChange(ct)}
                               aria-pressed={isSelected}
                               aria-label={`${COLUMN_TYPE_LABELS[ct]} column type`}
                               className={[
@@ -708,7 +725,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                 id="col-name"
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g. Priority"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 aria-required="true"

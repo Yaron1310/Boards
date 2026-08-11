@@ -1,9 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useUsersQuery } from '../../../hooks/queries/useUserQueries';
+import { useBoardParticipants } from '../../../hooks/queries/useBoardMemberQueries';
 import { useAuthSession } from '../../../hooks/useAuthSession';
 import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import { UserRole } from '../../../types';
@@ -151,12 +152,18 @@ interface PersonPickerMenuProps {
   multiple: boolean;
   toggle: (userId: string) => void;
   onClose: () => void;
+  /** "Only people with access to this board" filter — hidden when the board's viewer list
+   *  isn't available (e.g. it failed to load), since it then has nothing to filter by. */
+  boardMembersOnly: boolean;
+  setBoardMembersOnly: (v: boolean) => void;
+  canFilterByBoardAccess: boolean;
 }
 
 const PICKER_W = 224; // w-56
 
 const PersonPickerMenu: React.FC<PersonPickerMenuProps> = ({
   anchorEl, column, search, setSearch, filtered, selected, multiple, toggle, onClose,
+  boardMembersOnly, setBoardMembersOnly, canFilterByBoardAccess,
 }) => {
   const anchorRect = anchorEl?.getBoundingClientRect() ?? null;
   const { ref: menuRef, style: menuPos } = useFlippedPosition<HTMLDivElement>(anchorRect, PICKER_W);
@@ -183,6 +190,21 @@ const PersonPickerMenu: React.FC<PersonPickerMenuProps> = ({
             onClick={(e) => e.stopPropagation()}
             aria-label="Search people"
           />
+          {canFilterByBoardAccess && (
+            <label
+              className="flex items-center gap-1.5 mt-2 text-[11px] text-gray-600 cursor-pointer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={boardMembersOnly}
+                onChange={(e) => setBoardMembersOnly(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                aria-label="Show only people with access to this board"
+              />
+              Only people with board access
+            </label>
+          )}
         </div>
         <ul className="max-h-48 overflow-y-auto py-1">
           {filtered.map((u) => {
@@ -204,7 +226,9 @@ const PersonPickerMenu: React.FC<PersonPickerMenuProps> = ({
             );
           })}
           {filtered.length === 0 && (
-            <li className="px-3 py-2 text-xs text-gray-400">No users found</li>
+            <li className="px-3 py-2 text-xs text-gray-400">
+              {boardMembersOnly && canFilterByBoardAccess ? 'No users with board access found' : 'No users found'}
+            </li>
           )}
         </ul>
       </div>
@@ -226,6 +250,16 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   const { isBoardReadOnly } = useBoardRender();
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, !isBoardReadOnly);
   const { user: authUser } = useAuthSession();
+  const [boardMembersOnly, setBoardMembersOnly] = useState(true);
+  const boardId = column.boardId || item.boardId;
+  // Everyone who can see this board: explicit board members, workspace members,
+  // org editors and admins. Used to keep the picker to people who could actually
+  // act on what they're assigned to.
+  const { data: boardParticipants, isSuccess: participantsLoaded } = useBoardParticipants(
+    boardId ?? '',
+    !isBoardReadOnly && !!boardId,
+    true,
+  );
   const navigate = useNavigate();
   const isOrgAdmin = authUser?.role === UserRole.ORGANIZATION_ADMIN || authUser?.role === UserRole.SYSTEM_ADMIN;
 
@@ -238,7 +272,17 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
   };
 
   const selectedUsers = allUsers.filter((u) => selected.includes(u.id));
-  const filtered = allUsers.filter((u) => typeof u.name === 'string' && u.name.toLowerCase().includes(search.toLowerCase()));
+
+  const boardUserIds = useMemo(
+    () => new Set((boardParticipants ?? []).map((p) => p.id)),
+    [boardParticipants],
+  );
+  // Already-assigned people always stay listed, even without board access — otherwise
+  // they couldn't be unassigned from here.
+  const candidates = boardMembersOnly && participantsLoaded
+    ? allUsers.filter((u) => boardUserIds.has(u.id) || selected.includes(u.id))
+    : allUsers;
+  const filtered = candidates.filter((u) => typeof u.name === 'string' && u.name.toLowerCase().includes(search.toLowerCase()));
 
   const toggle = (userId: string, stopEdit: () => void) => {
     const prev = selected;
@@ -325,6 +369,9 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
                 multiple={multiple}
                 toggle={(userId) => toggle(userId, stopEdit)}
                 onClose={stopEdit}
+                boardMembersOnly={boardMembersOnly}
+                setBoardMembersOnly={setBoardMembersOnly}
+                canFilterByBoardAccess={participantsLoaded}
               />
             )}
           </>
