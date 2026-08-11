@@ -12,7 +12,6 @@ import {
 import ArchiveRestoreModal from '../admin/shared/ArchiveRestoreModal';
 import FormBuilderModal from './FormBuilderModal';
 import FormResultsModal from './FormResultsModal';
-import { fieldTypeLabel } from './formFieldTypes';
 
 /** Same palette the WorkHubs cards cycle through, so the two pages read as a set. */
 const CARD_COLORS = ['#4299E133', '#48BB7833', '#9F7AEA33', '#ED893633', '#38B2AC33', '#667EEA33'];
@@ -155,7 +154,7 @@ const FormsPage: React.FC = () => {
                 onClick={() => { setFormToEdit(form); setBuilderOpen(true); }}
                 disabled={!canManage}
                 aria-label={canManage ? `Edit form ${form.name}` : `Form ${form.name}`}
-                className="w-full text-left flex items-start gap-4 p-5 rounded-xl shadow-sm border border-gray-200 hover:shadow-md hover:border-indigo-300 transition-all disabled:cursor-default disabled:hover:shadow-sm"
+                className="w-full min-h-[6.5rem] text-left flex items-start gap-4 p-5 rounded-xl shadow-sm border border-gray-200 cursor-pointer hover:shadow-md hover:border-indigo-300 transition-all disabled:cursor-default disabled:hover:shadow-sm"
                 style={{ backgroundColor: CARD_COLORS[index % CARD_COLORS.length] }}
               >
                 <div className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center bg-white bg-opacity-60">
@@ -166,10 +165,6 @@ const FormsPage: React.FC = () => {
                   {form.description && (
                     <p className="text-xs text-gray-600 line-clamp-2 mt-0.5">{form.description}</p>
                   )}
-                  <p className="text-xs text-gray-500 mt-1">
-                    {form.fields.length} field{form.fields.length !== 1 ? 's' : ''}
-                    {form.fields.length > 0 && ` · ${fieldTypeLabel(form.fields[0].type)}${form.fields.length > 1 ? '…' : ''}`}
-                  </p>
                 </div>
               </button>
               {canManage && (
