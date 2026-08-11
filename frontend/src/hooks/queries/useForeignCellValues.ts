@@ -239,6 +239,46 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hubRowsBoardKey, hubGroupQueries]);
 
+  // A board's group list deliberately omits subitem groups, so an assigned subitem's group is
+  // simply absent above — and without it there is no way to know which item hosts that subitem,
+  // which is the row a hub actually shows. Fetch those groups by id, the same way the Hub does.
+  const missingGroupRefs = useMemo(() => {
+    const out: Array<{ boardId: string; groupId: string }> = [];
+    const seen = new Set<string>();
+    for (const boardId of hubRowsBoardIds) {
+      const known = hubGroupsByBoard.get(boardId);
+      if (!known) continue;
+      for (const owner of summaryOwners) {
+        for (const it of hubItemsByOwner.get(owner) ?? []) {
+          const key = `${boardId}:${it.groupId}`;
+          if (it.boardId !== boardId || known.has(it.groupId) || seen.has(key)) continue;
+          seen.add(key);
+          out.push({ boardId, groupId: it.groupId });
+        }
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hubRowsBoardKey, summaryOwnersKey, hubGroupsByBoard, hubItemsByOwner]);
+  const missingGroupKey = missingGroupRefs.map((g) => `${g.boardId}:${g.groupId}`).join(',');
+
+  const missingGroupQueries = useQueries({
+    queries: missingGroupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  const subitemGroups = useMemo(() => {
+    const m = new Map<string, Group>();
+    missingGroupRefs.forEach(({ boardId, groupId }, i) => {
+      const g = missingGroupQueries[i]?.data as Group | undefined;
+      if (g) m.set(`${boardId}:${groupId}`, g);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingGroupKey, missingGroupQueries]);
+
   const personalColumnsQueries = useQueries({
     queries: personalOwners.map((owner) => ({
       queryKey: queryKeys.personalHub.columns(ownerParam(owner)),
@@ -755,11 +795,29 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             // and any value shown on that row belongs to the host. Counting the subitem instead
             // leaves the host's row out of the total entirely.
             hubRowIds = new Set<string>();
+            let unknownGroup: string | null = null;
             for (const it of assigned) {
               if (it.boardId !== r.boardId) continue;
-              const host = groups.get(it.groupId)?.parentItemId;
-              hubRowIds.add(host ?? it.id);
+              const group = groups.get(it.groupId) ?? subitemGroups.get(`${r.boardId}:${it.groupId}`);
+              if (!group) { unknownGroup = it.groupId; continue; }
+              hubRowIds.add(group.parentItemId ?? it.id);
             }
+            if (unknownGroup) {
+              // Without that group we cannot tell whether its item is a row of its own or a
+              // subitem standing in for the row that hosts it — and guessing drops a row and its
+              // value silently, which is exactly how this total came out short before.
+              sameColumnTrace('S. SUMMARY REPORTS UNKNOWN — a row’s group is still loading', {
+                board: r.boardId, groupId: unknownGroup,
+              });
+              return undefined;
+            }
+            sameColumnTrace('S. summary rebuilt the hub rows it totals', {
+              board: r.boardId,
+              hub: hubOwner === SELF_OWNER ? 'your own' : hubOwner,
+              assignedOnThisBoard: assigned.filter((i) => i.boardId === r.boardId).length,
+              rowsAfterSubitemSwap: hubRowIds.size,
+              rowIds: [...hubRowIds].join(','),
+            });
           }
           const rows = hubRowIds ? items.filter((i) => hubRowIds!.has(i.id) && !i.isArchived)
             : r.groupId === BOARD_TOTAL_GROUP_ID ? items
@@ -813,6 +871,11 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             return undefined;
           }
           const aggregated = aggregateSummary(vals, r.agg);
+          if (hubRowIds) {
+            sameColumnTrace('S. summary totalled these rows', {
+              rowsFound: rows.length, valuesUsed: vals.join(' + ') || '(none)', total: aggregated,
+            });
+          }
           formulaRefLog(serializeRef(r), aggregated === null ? 'empty' : 'ok',
             aggregated === null ? 'no row in that group produced a formula value' : 'aggregated',
             { board: r.boardId, column: col.name, group: r.groupId, rowsInGroup: rows.length, rowsThatEvaluated: vals.length, total: aggregated });
@@ -956,7 +1019,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       return inner(ref, currentItemId, new Set<string>());
     },
     [boardItemMap, boardItemsList, boardColumnsMap, templateTotalsMap, itemTotalsMap, viewerId,
-     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner, hubGroupsByBoard],
+     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner, hubGroupsByBoard, subitemGroups],
   );
 
   return { resolve, isLoading };
