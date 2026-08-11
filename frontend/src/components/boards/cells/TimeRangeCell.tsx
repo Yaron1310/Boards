@@ -4,6 +4,7 @@ import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import type { Item, Column, TimeRangeValue, TimeRangeDependency } from '../../../types';
 import { useDependency } from '../../../contexts/DependencyContext';
 import { useUndo } from '../../../contexts/UndoContext';
+import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import CellWrapper from './CellWrapper';
 
 interface Props { item: Item; column: Column; groupColor?: string }
@@ -455,6 +456,10 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
   const rawValue = item.values[column.id] as TimeRangeValue | null | undefined;
   const { mutate } = useUpdateItem();
   const { push: pushUndo } = useUndo();
+  // Dependencies live outside CellWrapper's edit gate — drawing links, the removal
+  // popovers and the connector handle are all reachable without entering edit mode,
+  // so they need their own read-only check.
+  const { isBoardReadOnly } = useBoardRender();
   const [start, setStart] = useState(toDateInput(rawValue?.start));
   const [end, setEnd] = useState(toDateInput(rawValue?.end));
   const [hovered, setHovered] = useState(false);
@@ -510,8 +515,8 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
   };
 
   const cellRefId = { itemId: item.id, columnId: column.id };
-  const isDrawing = drawState !== null;
-  const isSource = drawState?.source.itemId === item.id && drawState?.source.columnId === column.id;
+  const isDrawing = !isBoardReadOnly && drawState !== null;
+  const isSource = !isBoardReadOnly && drawState?.source.itemId === item.id && drawState?.source.columnId === column.id;
   const isValidTarget = isDrawing && !isSource;
   const hasDepsOut = getDepsFrom(item.id, column.id).length > 0;
   const hasDepsIn = getDepsTo(item.id, column.id).length > 0;
@@ -826,8 +831,29 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
                   })()
               })()}
 
+              {/* Dependency markers — read-only viewers still see that links exist,
+                  but the dots are inert indicators rather than remove buttons. */}
+              {isBoardReadOnly && hasDepsIn && (
+                <span
+                  className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow"
+                  style={{ zIndex: 10000 }}
+                  role="img"
+                  aria-label="Has an incoming dependency"
+                  title="Incoming dependency"
+                />
+              )}
+              {isBoardReadOnly && hasDepsOut && (
+                <span
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow"
+                  style={{ zIndex: 10000 }}
+                  role="img"
+                  aria-label="Has an outgoing dependency"
+                  title="Outgoing dependency"
+                />
+              )}
+
               {/* Incoming dependency dot */}
-              {hasDepsIn && !isDrawing && (
+              {hasDepsIn && !isDrawing && !isBoardReadOnly && (
                 <button
                   type="button"
                   className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
@@ -844,7 +870,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
               )}
 
               {/* Outgoing dependency dot */}
-              {hasDepsOut && !isDrawing && (
+              {hasDepsOut && !isDrawing && !isBoardReadOnly && (
                 <button
                   type="button"
                   className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
@@ -861,7 +887,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
               )}
 
               {/* Connector handle */}
-              {(hovered || isHoveredCell || isSource) && !isDrawing && (
+              {(hovered || isHoveredCell || isSource) && !isDrawing && !isBoardReadOnly && (
                 <button
                   type="button"
                   className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125"
@@ -885,7 +911,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
           )}
 
           {/* Dependency removal popover */}
-          {showDepMenu && menuAnchor && createPortal(
+          {showDepMenu && menuAnchor && !isBoardReadOnly && createPortal(
             <>
               <div
                 style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
