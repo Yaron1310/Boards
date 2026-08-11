@@ -43,6 +43,8 @@ interface GanttViewProps {
   columns: Column[];
   onItemUpdate: (itemId: string, groupId: string, colId: string, start: string, end: string) => void;
   workingDays?: number[];
+  /** Read-only board: bars render and can be inspected, but not moved or resized. */
+  isReadOnly?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -91,7 +93,7 @@ function formatDragDate(d: Date): string {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, onItemUpdate, workingDays }) => {
+const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, onItemUpdate, workingDays, isReadOnly = false }) => {
   const workingDaySet = workingDays ? new Set(workingDays) : DEFAULT_WORKING_DAYS;
   const timeRangeCol = columns.find((c) => c.type === ColumnType.TIME_RANGE);
 
@@ -100,6 +102,8 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
   const [preview, setPreview] = useState<Record<string, { start: Date; end: Date }>>({});
   const [dragLabel, setDragLabel] = useState<{ x: number; y: number; text: string } | null>(null);
   const [showFullScope, setShowFullScope] = useState(false);
+  // Bars are inert in full-scope mode (too small to aim at) and on a read-only board.
+  const dragDisabled = showFullScope || isReadOnly;
   const [containerClientWidth, setContainerClientWidth] = useState(0);
   const [containerClientHeight, setContainerClientHeight] = useState(0);
   const dragRef = useRef<DragState | null>(null);
@@ -572,12 +576,12 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                               boxShadow: isBeingDragged
                                 ? '0 4px 16px rgba(99,102,241,0.45)'
                                 : '0 2px 8px rgba(0,0,0,0.1)',
-                              cursor: showFullScope ? 'default' : 'move',
+                              cursor: dragDisabled ? 'default' : 'move',
                               zIndex: 5,
                               transition: isBeingDragged ? 'none' : 'left 0.15s, width 0.15s',
                             }}
                             aria-label={`${item.name}: ${formatTooltipDate(dates.start)} to ${formatTooltipDate(dates.end)}`}
-                            onMouseDown={showFullScope ? undefined : (e) => handleMoveStart(e, item, dates.start, dates.end)}
+                            onMouseDown={dragDisabled ? undefined : (e) => handleMoveStart(e, item, dates.start, dates.end)}
                             onMouseEnter={(e) => {
                               if (!isCurrentlyDragging) {
                                 setTooltip({ x: e.clientX, y: e.clientY, startDate: dates.start, endDate: dates.end });
@@ -590,8 +594,8 @@ const GanttView: React.FC<GanttViewProps> = ({ groups, itemsByGroup, columns, on
                             }}
                             onMouseLeave={() => setTooltip(null)}
                           >
-                            {/* Drag handles — hidden in full scope */}
-                            {!showFullScope && (
+                            {/* Drag handles — hidden in full scope and on a read-only board */}
+                            {!dragDisabled && (
                               <>
                                 <div
                                   className="absolute top-0 bottom-0 z-10 flex items-center justify-center rounded-l-[6px]"

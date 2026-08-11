@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { MdOutlineEditNote } from 'react-icons/md';
 import { useUpdateItem } from '../../../hooks/queries/useItemQueries';
 import { useUndo } from '../../../contexts/UndoContext';
+import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import type { Item, Column, TextColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
 import { getTextDir } from '../../../utils/textDir';
@@ -20,6 +21,11 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
   const settings = column.settings as TextColumnSettings;
   const { mutate } = useUpdateItem();
   const { push: pushUndo } = useUndo();
+  // Long and rich text open their own modal/sidebar, which is why the wrapper is handed
+  // isReadOnly — its edit gate never fires for them, so both surfaces check this instead.
+  // They still open on a read-only board: the content is longer than the cell can show,
+  // and reading it is exactly what a viewer is there for.
+  const { isBoardReadOnly } = useBoardRender();
   const [draft, setDraft] = useState(rawValue);
   const [modalOpen, setModalOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -97,6 +103,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
                   <div className="flex-1 min-w-0 pr-7 text-center">
                     <span className="text-gray-300 text-xs">—</span>
                   </div>
+                  {!isBoardReadOnly && (
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); setSidebarOpen(true); }}
@@ -105,6 +112,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
                   >
                     <MdOutlineEditNote size={16} aria-hidden="true" />
                   </button>
+                  )}
                 </div>
               );
             }}
@@ -117,6 +125,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
               value={rawValue}
               onSave={saveValue}
               onClose={() => setSidebarOpen(false)}
+              readOnly={isBoardReadOnly}
             />
           )}
         </>
@@ -137,6 +146,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
               <div dir={getTextDir(preview)} className="flex-1 min-w-0 pr-7 text-sm text-gray-700 truncate text-center">
                 {preview}
               </div>
+              {!isBoardReadOnly && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setSidebarOpen(true); }}
@@ -145,6 +155,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
               >
                 <MdOutlineEditNote size={16} aria-hidden="true" />
               </button>
+              )}
             </div>
           )}
         </CellWrapper>
@@ -156,6 +167,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
             value={rawValue}
             onSave={saveValue}
             onClose={() => setSidebarOpen(false)}
+            readOnly={isBoardReadOnly}
           />
         )}
       </>
@@ -235,7 +247,7 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
           className="fixed inset-0 bg-black/40 flex items-center justify-center z-[9998]"
           role="dialog"
           aria-modal="true"
-          aria-label={`Edit ${column.name}`}
+          aria-label={isBoardReadOnly ? column.name : `Edit ${column.name}`}
         >
           <div
             className="bg-white rounded-xl shadow-2xl p-5 w-96 max-w-[90vw] flex flex-col gap-3"
@@ -246,33 +258,40 @@ const TextCellInner: React.FC<Props> = ({ item, column }) => {
               autoFocus
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              readOnly={isBoardReadOnly}
               rows={5}
               maxLength={settings?.maxLength ?? DEFAULT_MAX_LENGTH}
               dir={getTextDir(draft)}
-              className="w-full px-3 py-2 text-sm text-gray-800 border border-gray-200 rounded-lg outline-none resize-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-shadow"
+              className={`w-full px-3 py-2 text-sm text-gray-800 border border-gray-200 rounded-lg outline-none resize-none transition-shadow ${
+                isBoardReadOnly ? 'bg-gray-50' : 'focus:ring-2 focus:ring-indigo-400 focus:border-transparent'
+              }`}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') cancelModal();
               }}
               aria-label={column.name}
             />
-            <p className="text-xs text-gray-400 text-right -mt-1">
-              {draft.length} / {settings?.maxLength ?? DEFAULT_MAX_LENGTH}
-            </p>
+            {!isBoardReadOnly && (
+              <p className="text-xs text-gray-400 text-right -mt-1">
+                {draft.length} / {settings?.maxLength ?? DEFAULT_MAX_LENGTH}
+              </p>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={cancelModal}
                 className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                Cancel
+                {isBoardReadOnly ? 'Close' : 'Cancel'}
               </button>
-              <button
-                type="button"
-                onClick={commitModal}
-                className="px-3 py-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-              >
-                Save
-              </button>
+              {!isBoardReadOnly && (
+                <button
+                  type="button"
+                  onClick={commitModal}
+                  className="px-3 py-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                >
+                  Save
+                </button>
+              )}
             </div>
           </div>
         </div>,

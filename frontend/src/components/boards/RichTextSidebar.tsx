@@ -97,6 +97,9 @@ interface RichTextSidebarProps {
   value: string;
   onSave: (html: string) => void;
   onClose: () => void;
+  /** Viewing only (read-only board): the content is still shown in full — a preview cell
+   *  can't display it — but the toolbar, editing and Save are gone. */
+  readOnly?: boolean;
 }
 
 interface ToolbarButtonProps {
@@ -121,7 +124,7 @@ const ToolbarButton: React.FC<ToolbarButtonProps> = ({ label, active, disabled, 
   </button>
 );
 
-const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, value, onSave, onClose }) => {
+const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, value, onSave, onClose, readOnly = false }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const initialHtmlRef = useRef('');
@@ -331,6 +334,7 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
       </div>
 
       {/* Toolbar */}
+      {!readOnly && (
       <div
         className="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-gray-200 bg-gray-50 flex-shrink-0"
         role="toolbar"
@@ -493,20 +497,22 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
           <ClearFormattingIcon size={16} />
         </ToolbarButton>
       </div>
+      )}
 
       {/* Editor area — gray gutter around the white text box */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden bg-gray-100" style={{ paddingLeft: 15, paddingRight: 15, paddingTop: 15, paddingBottom: 15 }}>
         <div
-          className="min-h-full bg-white rounded-lg border border-gray-200 px-4 py-3 cursor-text"
-          onClick={(e) => { if (e.target === e.currentTarget) editorRef.current?.focus(); }}
+          className={`min-h-full bg-white rounded-lg border border-gray-200 px-4 py-3 ${readOnly ? '' : 'cursor-text'}`}
+          onClick={(e) => { if (!readOnly && e.target === e.currentTarget) editorRef.current?.focus(); }}
         >
           <div
             ref={editorRef}
-            contentEditable
+            contentEditable={!readOnly}
             suppressContentEditableWarning
             className="min-h-full text-sm text-gray-800 leading-relaxed outline-none break-words [overflow-wrap:anywhere] [&_ul]:list-disc [&_ul]:ps-8 [&_ol]:list-decimal [&_ol]:ps-8"
             role="textbox"
             aria-multiline="true"
+            aria-readonly={readOnly || undefined}
             aria-label={`${fieldName} rich text content`}
             onInput={() => checkDirty()}
           />
@@ -520,15 +526,17 @@ const RichTextSidebar: React.FC<RichTextSidebarProps> = ({ title, fieldName, val
           onClick={handleCancelClick}
           className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
         >
-          Cancel
+          {readOnly ? 'Close' : 'Cancel'}
         </button>
-        <button
-          type="button"
-          onClick={handleSave}
-          className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-        >
-          Save
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={handleSave}
+            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+          >
+            Save
+          </button>
+        )}
       </div>
 
       {/* Discard confirmation */}

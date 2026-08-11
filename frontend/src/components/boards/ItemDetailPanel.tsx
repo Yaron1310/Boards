@@ -18,7 +18,7 @@ interface ItemDetailPanelProps {
 }
 
 const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, onClose }) => {
-  const { user } = useAuthSession();
+  const { user, isPublicView } = useAuthSession();
   const { openChat } = useBoardRender();
   const { data: columns = [] } = useColumns(initialItem.boardId);
   const { data: liveItem } = useItem(initialItem.id);
@@ -145,6 +145,9 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
               </h2>
             )}
           </div>
+          {/* Chat isn't available in the public read-only view — the row's own chat button is
+              hidden there too, and this panel is the fallback a viewer lands on. */}
+          {!isPublicView && (
           <button
             type="button"
             onClick={() => openChat(item)}
@@ -161,6 +164,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
               </span>
             )}
           </button>
+          )}
           <button
             type="button"
             onClick={onClose}
