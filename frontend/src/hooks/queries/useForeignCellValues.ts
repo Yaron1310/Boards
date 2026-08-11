@@ -788,6 +788,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           const outerHit = cycleFlag.hit;
           cycleFlag.hit = false;
           const vals: number[] = [];
+          let rowMissing = false;
           for (const row of rows) {
             const stored = row.values[r.columnId];
             const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
@@ -801,8 +802,15 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               summaryCache,
               cycleFlag,
               resolveRef: (rr) => inner(rr, row.id, nextVisited),
+              onUnresolvedRef: () => { rowMissing = true; },
             });
             if (v !== null) vals.push(v);
+          }
+          // One row short of its own answer makes the total short too — better unknown than wrong.
+          if (rowMissing) {
+            formulaRefLog(serializeRef(r), 'unresolved',
+              'a row in that group depends on something not available yet', { board: r.boardId, column: col.name });
+            return undefined;
           }
           const aggregated = aggregateSummary(vals, r.agg);
           formulaRefLog(serializeRef(r), aggregated === null ? 'empty' : 'ok',
@@ -871,6 +879,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
                 { board: r.boardId, column: col.name, itemId });
               return null;
             }
+            let nestedMissing = false;
             const formulaResult = evaluateFormula(formula, {}, {
               allItems: items,
               columns: cols,
@@ -879,7 +888,18 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               summaryCache,
               cycleFlag,
               resolveRef: (rr) => inner(rr, items[idx].id, nextVisited),
+              onUnresolvedRef: () => { nestedMissing = true; },
             });
+            // That cell's own formula reaches somewhere this evaluation cannot follow — usually
+            // data still arriving. Its terms are treated as zero inside the engine, so the number
+            // it produced is short by exactly those, and passing it on would bake the shortfall
+            // into whatever referenced it. Report unknown and let it resolve once the data lands.
+            if (nestedMissing) {
+              sameColumnTrace('L4. LOADER REPORTS UNKNOWN — part of that cell’s own formula is not available yet', {
+                itemId, formula, partialResult: formulaResult,
+              });
+              return undefined;
+            }
             sameColumnTrace('L4. loader evaluated it', { itemId, formula, result: formulaResult });
             formulaRefLog(serializeRef(r), formulaResult === null ? 'empty' : 'ok',
               formulaResult === null ? 'the formula did not produce a number' : 'evaluated on its own board',
