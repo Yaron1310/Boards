@@ -13,7 +13,8 @@ import { DependencyProvider } from '../../contexts/DependencyContext';
 import { UndoProvider } from '../../contexts/UndoContext';
 import { UserRole, ColumnType } from '../../types';
 import type { Item, Group } from '../../types';
-import PersonalHubBoardGroup, { makePersonalFormulaEvaluator } from './PersonalHubBoardGroup';
+import PersonalHubBoardGroup from './PersonalHubBoardGroup';
+import { makePersonalFormulaEvaluator } from '../../utils/personalHubGrid';
 import { SummaryCell, BoardSummaryRow, type SummaryColumn } from '../boards/GroupSummaryRow';
 import PersonalHubFilterDropdown from './PersonalHubFilterDropdown';
 import type { PersonalHubActiveFilter } from './PersonalHubFilterDropdown';
@@ -235,8 +236,8 @@ const PersonalHubPageInner: React.FC = () => {
       Object.assign(acc, valuesByBoard[id]);
       return acc;
     }, {});
-    return { rowOrder, columns: crossGroupColumns, valuesByItem };
-  }, [boardIds, rowsByBoard, valuesByBoard, crossGroupColumns]);
+    return { rowOrder, columns: crossGroupColumns, valuesByItem, ownerId: hubOwnerId };
+  }, [boardIds, rowsByBoard, valuesByBoard, crossGroupColumns, hubOwnerId]);
 
   // Rows for the page-level cross-group total. The SummaryCell reads values by id
   // from the page-wide grid, so an {id}-only pseudo-item suffices — but resolve to
@@ -573,6 +574,7 @@ const PersonalHubPageInner: React.FC = () => {
                       items={crossGroupTotalItems}
                       numberCols={[]}
                       widthOverride={PERSONAL_COL_WIDTH}
+                      personalOwnerId={hubOwnerId}
                       getValue={(item) => pageCrossGroupGridContext.valuesByItem[item.id]?.[col.id]}
                       evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, pageCrossGroupGridContext) : undefined}
                       boardTotal

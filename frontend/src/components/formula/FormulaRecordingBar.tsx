@@ -24,17 +24,22 @@ const AGG_LABEL: Record<string, string> = {
   sum: 'Sum', avg: 'Average', median: 'Median', min: 'Min', max: 'Max', count: 'Count',
 };
 
-function metaToTooltip(meta: RefMeta | undefined): string {
-  if (!meta) return 'Loading…';
+function metaToTooltip(meta: RefMeta | undefined, stillLoading: boolean): string {
+  // "Loading…" only while something really is in flight — once the lookups have settled, an
+  // unknown source is unknown, and saying so beats a spinner that never resolves.
+  if (!meta) return stillLoading ? 'Loading…' : 'Source unavailable';
   if (meta.isTemplateTotal) {
     const scope = meta.phScope === 'item' ? 'sum across every user, filtered to this item' : 'sum across every user';
     return `Personal Hub Template › "${meta.columnName ?? '—'}" column (${scope})`;
   }
-  const board = meta.boardName ?? '—';
+  const board = meta.boardName ?? '(board unavailable)';
   const group = meta.groupName ?? '—';
   const root = meta.isPersonal ? (meta.userName ? `${meta.userName}’s Personal Hub` : 'Personal Hub') : null;
+  const aggOf = meta.agg ? `${AGG_LABEL[meta.agg] ?? meta.agg} of ${meta.columnName ?? '—'}` : '';
   const path = meta.agg
-    ? `${board} › ${group} › ${AGG_LABEL[meta.agg] ?? meta.agg} of ${meta.columnName ?? '—'}`
+    // A cross-group personal summary spans every board group at once, so it has no single
+    // board/group to name — saying so beats printing two em dashes for segments that don't exist.
+    ? (meta.boardName ? `${board} › ${group} › ${aggOf}` : `All groups › ${aggOf}`)
     : `${board} › ${group} › ${meta.itemName ?? '—'} › ${meta.columnName ?? '—'}`;
   return root ? `${root} › ${path}` : path;
 }
@@ -44,6 +49,8 @@ interface RefTokenProps {
   currentItemId: string | null;
   resolve: (ref: CellRef, currentItemId?: string | null) => number | null | undefined;
   resolveMeta: (ref: CellRef, currentItemId?: string | null) => RefMeta | undefined;
+  /** True while the name lookups are still in flight — separates "not yet" from "not available". */
+  metaLoading: boolean;
   /** Draft offsets this token spans — tagged on the DOM node so a click can be mapped back to a
    *  cursor position (see FormulaRecordingBar's handleFieldClick). */
   start: number;
@@ -54,7 +61,7 @@ interface RefTokenProps {
  *  plus an instant (no-delay) tooltip naming the value's source, since the native
  *  `title` attribute both has a delay and can't be styled. The tooltip also offers a button
  *  that navigates straight to the source board, when the ref resolves to a real board. */
-const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, resolveMeta, start, end }) => {
+const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, resolveMeta, metaLoading, start, end }) => {
   const spanRef = useRef<HTMLSpanElement>(null);
   const [hoverPos, setHoverPos] = useState<{ top: number; left: number } | null>(null);
   const hideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -63,7 +70,7 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
   const v = resolve(cellRef, currentItemId);
   const display = v === undefined ? '…' : v === null ? '0' : formatNumber(v);
   const meta = resolveMeta(cellRef, currentItemId);
-  const tooltip = metaToTooltip(meta);
+  const tooltip = metaToTooltip(meta, metaLoading);
   const sourceBoardId = meta?.boardId;
   const domKey = formulaRefDomKey(cellRef, currentItemId);
 
@@ -183,7 +190,7 @@ const FormulaRecordingBar: React.FC = () => {
     setIsTogglingScope(true);
     try {
       if (nextScope === 'all') {
-        const relativeFormula = makeRelativeIdFormula(trimmed, origin.boardId);
+        const relativeFormula = makeRelativeIdFormula(trimmed, origin.boardId, origin.columnId);
         if (origin.isPersonal) {
           await updatePersonalColumnMutation({ id: origin.columnId, patch: { settings: { ...settings, defaultFormula: relativeFormula, applyScope: 'all' } } });
           await updatePersonalItemValueMutation({ itemId: origin.itemId, columnId: origin.columnId, value: null });
@@ -217,7 +224,7 @@ const FormulaRecordingBar: React.FC = () => {
   const refs = useMemo(() => extractRefs(draft), [draft]);
   const currentItemId = session?.origin.itemId ?? null;
   const { resolve, isLoading } = useForeignCellValues(refs, orgId, currentItemId ? [currentItemId] : []);
-  const { resolveMeta } = useFormulaRefMeta(refs, currentItemId);
+  const { resolveMeta, isLoading: metaLoading } = useFormulaRefMeta(refs, currentItemId);
 
   // Split into literal text and {ref:...} tokens, each tagged with its start/end offset into the
   // draft, so each resolved value can be rendered as its own hoverable element and the caret /
@@ -253,7 +260,8 @@ const FormulaRecordingBar: React.FC = () => {
         ? evaluateFormula(draft, {}, {
             allItems: [],
             columns: [],
-            resolveRef: (ref) => resolve(ref, currentItemId),
+            traceLabel: 'RECORDING BAR (the row of tokens at the top)',
+            resolveRef: (ref, forItemId) => resolve(ref, forItemId ?? currentItemId),
           })
         : null,
     [session, draft, resolve, currentItemId],
@@ -302,6 +310,7 @@ const FormulaRecordingBar: React.FC = () => {
           cellRef={seg.ref}
           currentItemId={currentItemId}
           resolve={resolve}
+          metaLoading={metaLoading}
           resolveMeta={resolveMeta}
           start={seg.start}
           end={seg.end}

@@ -27,4 +27,8 @@ export interface PersonalGridContext {
   /** Board this personal table belongs to; used to build stable cross-board formula refs.
    *  May be empty for page-wide (cross-group) contexts that span multiple boards. */
   boardId?: string;
+  /** Whose hub these rows belong to — undefined for your own, set when an admin is viewing
+   *  someone else's. Stamped onto references picked here so they keep naming that person's
+   *  columns wherever the formula is later evaluated. */
+  ownerId?: string;
 }

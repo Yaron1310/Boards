@@ -4,14 +4,20 @@ import { collection, doc, query, where, onSnapshot } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { firestoreDb, firebaseAuth } from '../../firebase';
 import { queryKeys } from './queryKeys';
+import { useAuth } from '../useAuth';
 import * as wm from '@/services/workManagementService';
-import { getPersonalItemValues } from '@/services/personalHubService';
+import { getPersonalItemValues, listPersonalColumns } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
-import { BOARD_TOTAL_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, type CellRef } from '@/utils/formulaEngine';
+import { aggregateSummary, BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, serializeRef, type CellRef } from '@/utils/formulaEngine';
+import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
+import { formulaLog, formulaRefLog, sameColumnTrace } from '@/utils/formulaDebug';
 import { ColumnType } from '@/types';
-import type { Column, Item, PaginatedResponse } from '@/types';
+import type { Column, Group, Item, PaginatedResponse, PersonalColumn } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
+
+/** Stands in for "the viewer's own hub" in the per-owner maps, where `undefined` can't be a key. */
+const SELF_OWNER = 'self';
 
 /**
  * Maximum board-hops a formula reference chain may traverse (the formula's own board's direct
@@ -90,21 +96,234 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [directKey]);
 
-  const personalItemIds = useMemo(
-    () =>
-      Array.from(
-        new Set(refs.filter((r) => r.kind === 'p').map((r) => r.itemId).filter((x): x is string => !!x)),
-      ).sort(),
-    [refs],
+  const { user } = useAuth();
+  const viewerId = (user as { id?: string } | null | undefined)?.id;
+
+  /**
+   * References found inside OTHER boards' formula cells. A formula on board B may itself read a
+   * Personal Hub value, and evaluating B's cell here means resolving that too — but it isn't in
+   * the formula being displayed, so nothing would otherwise load it and the term would quietly
+   * contribute 0, handing back a smaller number that looks perfectly plausible. Discovered by the
+   * effect below once a board's items and columns are in, and folded into the loading sets that
+   * follow exactly as if they had been written in the formula directly.
+   */
+  const [nestedRefs, setNestedRefs] = useState<CellRef[]>([]);
+  /** Row ids of the boards those nested references were found on — what a row-relative one
+   *  ({ref:p:…:@}) resolves against, since it means "the row this formula is evaluated for". */
+  const [nestedRowIds, setNestedRowIds] = useState<string[]>([]);
+
+  const allRefs = useMemo(() => [...refs, ...nestedRefs], [refs, nestedRefs]);
+
+  // Every Personal Hub a reference points at. `undefined` (the viewer's own) is the common case
+  // and is kept as the literal 'self' so it shares one cache entry with the Hub page itself; an
+  // explicit owner appears only on references picked from someone else's hub.
+  const personalOwners = useMemo(() => {
+    const owners = new Set<string>();
+    for (const r of allRefs) {
+      if (r.kind !== 'p') continue;
+      owners.add(r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER);
+    }
+    return Array.from(owners).sort();
+  }, [allRefs, viewerId]);
+  const personalOwnersKey = personalOwners.join(',');
+  /** The `userId` argument the personal-hub endpoints want: omitted for your own hub. */
+  const ownerParam = (owner: string): string | undefined => (owner === SELF_OWNER ? undefined : owner);
+
+  const personalItemIdsByOwner = useMemo(() => {
+    const m = new Map<string, string[]>();
+    const add = (owner: string, itemId: string) => {
+      const list = m.get(owner) ?? [];
+      if (!list.includes(itemId)) list.push(itemId);
+      m.set(owner, list);
+    };
+    for (const r of allRefs) {
+      if (r.kind !== 'p') continue;
+      const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+      if (r.itemId) add(owner, r.itemId);
+      // A row-relative personal reference names no item: it resolves against whichever row is
+      // being evaluated, so every row of the boards it was found on is a candidate.
+      else if (!r.agg) nestedRowIds.forEach((id) => add(owner, id));
+    }
+    m.forEach((ids) => ids.sort());
+    return m;
+  }, [allRefs, nestedRowIds, viewerId]);
+
+  // Hubs that need their whole table reconstructed, not just a named cell: a summary covers a
+  // slice of a hub, so resolving one away from the Hub page means loading that hub's assigned
+  // items, values and column definitions.
+  const summaryOwners = useMemo(() => {
+    const owners = new Set<string>();
+    for (const r of allRefs) {
+      const isPersonalSummary = r.kind === 'p' && !!r.agg;
+      const isHubRowsSummary = r.kind === 'b' && !!r.agg && r.groupId === HUB_ROWS_GROUP_ID;
+      if (!isPersonalSummary && !isHubRowsSummary) continue;
+      owners.add(r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER);
+    }
+    return Array.from(owners).sort();
+  }, [allRefs, viewerId]);
+  const summaryOwnersKey = summaryOwners.join(',');
+
+  // Another user's hub is admin-only server-side, so for a viewer without that access these
+  // simply fail and every reference into that hub reads as unavailable — which is the intended
+  // outcome, not something to retry into.
+  const hubItemsQueries = useQueries({
+    queries: summaryOwners.map((owner) => {
+      const assignee = ownerParam(owner) ?? viewerId;
+      return {
+        queryKey: queryKeys.items.list({ assignee, limit: FOREIGN_ITEMS_LIMIT }),
+        queryFn: () => wm.listItems({ assignee, limit: FOREIGN_ITEMS_LIMIT }),
+        enabled: !!assignee,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+  const hubItemsByOwner = useMemo(() => {
+    const m = new Map<string, Item[]>();
+    summaryOwners.forEach((owner, i) => {
+      m.set(owner, (hubItemsQueries[i]?.data as PaginatedResponse<Item> | undefined)?.data ?? []);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryOwnersKey, hubItemsQueries]);
+
+  const hubValuesQueries = useQueries({
+    queries: summaryOwners.map((owner) => {
+      const ids = (hubItemsByOwner.get(owner) ?? []).map((i) => i.id).sort();
+      return {
+        queryKey: queryKeys.personalHub.itemValues(ids, ownerParam(owner)),
+        queryFn: () => getPersonalItemValues(ids, ownerParam(owner)),
+        enabled: ids.length > 0,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+  const hubValuesByOwner = useMemo(() => {
+    const m = new Map<string, Record<string, Record<string, unknown>>>();
+    summaryOwners.forEach((owner, i) => {
+      const data = hubValuesQueries[i]?.data as Record<string, Record<string, unknown>> | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryOwnersKey, hubValuesQueries]);
+
+  // Boards whose hub footer is referenced. Working out which rows such a footer covers needs the
+  // board's groups: an assigned SUBITEM isn't shown as its own row in a hub — its hosting item is
+  // shown instead — and a group knows whether it belongs to a parent item.
+  const hubRowsBoardIds = useMemo(
+    () => Array.from(new Set(
+      allRefs.filter((r) => r.kind === 'b' && r.agg && r.groupId === HUB_ROWS_GROUP_ID).map((r) => r.boardId),
+    )).sort(),
+    [allRefs],
   );
+  const hubRowsBoardKey = hubRowsBoardIds.join(',');
+
+  const hubGroupQueries = useQueries({
+    queries: hubRowsBoardIds.map((boardId) => ({
+      queryKey: queryKeys.groups.all(boardId),
+      queryFn: () => wm.listGroups(boardId, false),
+      enabled: !!boardId,
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  const hubGroupsByBoard = useMemo(() => {
+    const m = new Map<string, Map<string, Group>>();
+    hubRowsBoardIds.forEach((boardId, i) => {
+      const groups = hubGroupQueries[i]?.data as Group[] | undefined;
+      if (!groups) return;
+      m.set(boardId, new Map(groups.map((g) => [g.id, g])));
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hubRowsBoardKey, hubGroupQueries]);
+
+  // A board's group list deliberately omits subitem groups, so an assigned subitem's group is
+  // simply absent above — and without it there is no way to know which item hosts that subitem,
+  // which is the row a hub actually shows. Fetch those groups by id, the same way the Hub does.
+  const missingGroupRefs = useMemo(() => {
+    const out: Array<{ boardId: string; groupId: string }> = [];
+    const seen = new Set<string>();
+    for (const boardId of hubRowsBoardIds) {
+      const known = hubGroupsByBoard.get(boardId);
+      if (!known) continue;
+      for (const owner of summaryOwners) {
+        for (const it of hubItemsByOwner.get(owner) ?? []) {
+          const key = `${boardId}:${it.groupId}`;
+          if (it.boardId !== boardId || known.has(it.groupId) || seen.has(key)) continue;
+          seen.add(key);
+          out.push({ boardId, groupId: it.groupId });
+        }
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hubRowsBoardKey, summaryOwnersKey, hubGroupsByBoard, hubItemsByOwner]);
+  const missingGroupKey = missingGroupRefs.map((g) => `${g.boardId}:${g.groupId}`).join(',');
+
+  const missingGroupQueries = useQueries({
+    queries: missingGroupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  const subitemGroups = useMemo(() => {
+    const m = new Map<string, Group>();
+    missingGroupRefs.forEach(({ boardId, groupId }, i) => {
+      const g = missingGroupQueries[i]?.data as Group | undefined;
+      if (g) m.set(`${boardId}:${groupId}`, g);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missingGroupKey, missingGroupQueries]);
+
+  const personalColumnsQueries = useQueries({
+    queries: personalOwners.map((owner) => ({
+      queryKey: queryKeys.personalHub.columns(ownerParam(owner)),
+      queryFn: () => listPersonalColumns(ownerParam(owner)),
+      staleTime: 60 * 1000,
+      retry: owner === SELF_OWNER ? undefined : false,
+    })),
+  });
+  const personalColumnsByOwner = useMemo(() => {
+    const m = new Map<string, PersonalColumn[]>();
+    personalOwners.forEach((owner, i) => {
+      const data = personalColumnsQueries[i]?.data as PersonalColumn[] | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalOwnersKey, personalColumnsQueries]);
+
+  // Trace what each hub's loads are doing — a personal summary can only resolve once all three
+  // have landed, so this is where to look first when a token stays at "…".
+  useEffect(() => {
+    if (personalOwners.length === 0) return;
+    formulaLog('personal hub data', {
+      page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
+      viewerId: viewerId ?? '(none)',
+      hubs: personalOwners.map((owner) => {
+        const si = summaryOwners.indexOf(owner);
+        return {
+          hub: owner === SELF_OWNER ? 'your own' : owner,
+          columns: { status: personalColumnsQueries[personalOwners.indexOf(owner)]?.status, count: personalColumnsByOwner.get(owner)?.length ?? 0 },
+          assignedItems: si < 0 ? '(not needed — no summary ref)' : { status: hubItemsQueries[si]?.status, count: hubItemsByOwner.get(owner)?.length ?? 0 },
+          values: si < 0 ? '(not needed — no summary ref)' : { status: hubValuesQueries[si]?.status, items: Object.keys(hubValuesByOwner.get(owner) ?? {}).length },
+        };
+      }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalOwnersKey, summaryOwnersKey, viewerId, personalColumnsByOwner, hubItemsByOwner, hubValuesByOwner]);
 
   // Personal Hub template totals — org-wide running sums, not tied to any board. Referenced by
   // templateColumnId (held in `columnId` for 'ph' refs). Global (whole-org) scope only here —
   // 'item'-scoped refs are handled separately below, since they need a (templateColumnId, itemId)
   // pair rather than just a templateColumnId.
   const templateColumnIds = useMemo(
-    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope !== 'item').map((r) => r.columnId))).sort(),
-    [refs],
+    () => Array.from(new Set(allRefs.filter((r) => r.kind === 'ph' && r.phScope !== 'item').map((r) => r.columnId))).sort(),
+    [allRefs],
   );
   const templateTotalQueries = useQueries({
     queries: templateColumnIds.map((templateColumnId) => ({
@@ -163,12 +382,12 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   // item-scoped template column referenced, paired with the distinct item ids the caller says it
   // might resolve against.
   const itemScopedTemplateColumnIds = useMemo(
-    () => Array.from(new Set(refs.filter((r) => r.kind === 'ph' && r.phScope === 'item').map((r) => r.columnId))).sort(),
-    [refs],
+    () => Array.from(new Set(allRefs.filter((r) => r.kind === 'ph' && r.phScope === 'item').map((r) => r.columnId))).sort(),
+    [allRefs],
   );
   const dedupedContextItemIds = useMemo(
-    () => Array.from(new Set(contextItemIds.filter((id): id is string => !!id))).sort(),
-    [contextItemIds],
+    () => Array.from(new Set([...contextItemIds, ...nestedRowIds].filter((id): id is string => !!id))).sort(),
+    [contextItemIds, nestedRowIds],
   );
 
   // Past the threshold, fetch one column's worth of item totals in a single request instead of
@@ -240,15 +459,18 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     })),
   });
 
+  // Named-cell personal references, fetched per hub they point at.
   const personalQueries = useQueries({
-    queries: [
-      {
-        queryKey: queryKeys.personalHub.itemValues(personalItemIds),
-        queryFn: () => getPersonalItemValues(personalItemIds),
-        enabled: personalItemIds.length > 0,
+    queries: personalOwners.map((owner) => {
+      const ids = personalItemIdsByOwner.get(owner) ?? [];
+      return {
+        queryKey: queryKeys.personalHub.itemValues(ids, ownerParam(owner)),
+        queryFn: () => getPersonalItemValues(ids, ownerParam(owner)),
+        enabled: ids.length > 0,
         staleTime: 60 * 1000,
-      },
-    ],
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
   });
 
   // Columns for every referenced board — needed to (a) type group-summary aggregation and
@@ -371,11 +593,41 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardKey, boardQueries, columnQueries, boardItemsList, boardColumnsMap]);
 
-  const personalData = personalQueries[0]?.data;
-  const personalValues = useMemo(
-    () => (personalData ?? {}) as Record<string, Record<string, unknown>>,
-    [personalData],
-  );
+  // Personal Hub and template references living inside those boards' formula cells. Board
+  // references drive the hop expansion above; these drive the personal/template loading sets, so
+  // that a formula reading someone's hub value still resolves it when reached through another
+  // board's cell rather than written in the formula on screen.
+  useEffect(() => {
+    const found: CellRef[] = [];
+    const rowIds = new Set<string>();
+    for (const boardId of boardIds) {
+      const items = boardItemsList.get(boardId);
+      const cols = boardColumnsMap.get(boardId);
+      if (!items || !cols) continue;
+      let anyHere = false;
+      for (const r of formulaRefsInBoard(items, cols)) {
+        if (r.kind === 'b') continue;
+        found.push(r);
+        anyHere = true;
+      }
+      if (anyHere) items.forEach((i) => rowIds.add(i.id));
+    }
+    const nextRefs = found.map((r) => serializeRef(r)).sort().join('|');
+    const nextRows = Array.from(rowIds).sort();
+    setNestedRefs((prev) => (prev.map((r) => serializeRef(r)).sort().join('|') === nextRefs ? prev : found));
+    setNestedRowIds((prev) => (prev.join(',') === nextRows.join(',') ? prev : nextRows));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardKey, boardItemsList, boardColumnsMap]);
+
+  const personalValuesByOwner = useMemo(() => {
+    const m = new Map<string, Record<string, Record<string, unknown>>>();
+    personalOwners.forEach((owner, i) => {
+      const data = personalQueries[i]?.data as Record<string, Record<string, unknown>> | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalOwnersKey, personalQueries]);
 
   const isLoading =
     boardQueries.some((q) => q.isLoading) ||
@@ -383,10 +635,20 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     templateTotalQueries.some((q) => q.isLoading) ||
     itemTotalQueries.some((q) => q.isLoading) ||
     batchQueries.some((q) => q.isLoading) ||
-    (personalQueries[0]?.isLoading ?? false);
+    hubItemsQueries.some((q) => q.isLoading) ||
+    hubValuesQueries.some((q) => q.isLoading) ||
+    personalColumnsQueries.some((q) => q.isLoading) ||
+    personalQueries.some((q) => q.isLoading);
 
   const resolve = useCallback(
     (ref: CellRef, currentItemId?: string | null): number | null | undefined => {
+      // Shared by every formula evaluated while resolving this one ref, so a foreign board's
+      // group summaries are aggregated once instead of once per row that references them (a
+      // summary's value doesn't depend on which row is asking). The engine creates these itself
+      // when a caller doesn't supply them; here one set spans the whole cross-board walk.
+      const summaryCache = new Map<string, number>();
+      const cycleFlag = { hit: false };
+
       // `visited` keys the formula cells already on the resolution stack (across boards) so a
       // cross-board reference cycle (A → B → A) terminates by contributing 0 where it closes.
       const inner = (r: CellRef, cid: string | null | undefined, visited: Set<string>): number | null | undefined => {
@@ -404,16 +666,224 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           return data ? data.total : undefined;
         }
 
-        // Group-summary reference: aggregate a column across a group. Board columns only —
-        // personal-hub summaries are resolved locally on the Personal Hub, not cross-context.
+        // A Personal Hub summary: aggregate the viewer's own hub rows — every board's for the
+        // whole-hub total, one board's for a board group's footer, matching the row set the cell
+        // itself shows.
+        if (r.agg && r.kind === 'p') {
+          const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+          const personalColumnDefs = personalColumnsByOwner.get(owner);
+          const hubItems = hubItemsByOwner.get(owner) ?? [];
+          const col = personalColumnDefs?.find((c) => c.id === r.columnId);
+          const hubValues = hubValuesByOwner.get(owner);
+          if (!col || !hubValues) {
+            formulaRefLog(serializeRef(r), 'unresolved',
+              !personalColumnDefs ? 'your personal columns have not loaded'
+                : !col ? 'no personal column has this id'
+                : 'your personal values have not loaded',
+              {
+                page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
+                hub: owner === SELF_OWNER ? 'your own' : owner,
+                lookingForColumnId: r.columnId,
+                columnsInThatHub: (personalColumnDefs ?? []).map((c) => `${c.name}=${c.id}`).join(' | ') || '(none)',
+                assignedItemsLoaded: hubItems.length,
+                valuesLoaded: !!hubValues,
+              });
+            return undefined;
+          }
+          const scoped = (r.groupId === BOARD_TOTAL_GROUP_ID
+            ? hubItems
+            : hubItems.filter((i) => i.boardId === r.boardId)
+          ).filter((i) => !i.isArchived);
+
+          if (col.type !== ColumnType.SIMPLE_FORMULA) {
+            const rows = scoped.map((i) => ({ id: i.id, values: hubValues[i.id] ?? {} }));
+            const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+            formulaRefLog(serializeRef(r), total === null ? 'empty' : 'ok',
+              total === null ? 'no row in this scope has a value for the column' : 'aggregated',
+              {
+                column: col.name,
+                scope: r.groupId === BOARD_TOTAL_GROUP_ID ? 'whole hub' : `board ${r.boardId}`,
+                rowsInScope: scoped.length,
+                rowsWithAValue: rows.filter((row) => row.values[r.columnId] != null && row.values[r.columnId] !== '').length,
+                total,
+              });
+            return total;
+          }
+
+          // A personal formula column holds formula text, not values, so totalling it means
+          // rebuilding the grid those formulas are written against and evaluating each row —
+          // the same grid and the same evaluator the Hub uses, so both arrive at one number.
+          const summaryKey = `pagg:${r.boardId}:${r.columnId}:${r.groupId ?? ''}:${r.agg}`;
+          if (visited.has(summaryKey)) { cycleFlag.hit = true; return null; }
+          const nextVisited = new Set(visited);
+          nextVisited.add(summaryKey);
+
+          const gridBoardId = col.scope === 'board' ? col.boardId : undefined;
+          const gridItems = gridBoardId ? hubItems.filter((i) => i.boardId === gridBoardId) : hubItems;
+          const grid = {
+            rowOrder: hubRowOrder(gridItems),
+            columns: hubGridColumns(personalColumnDefs ?? [], gridBoardId),
+            valuesByItem: hubValues,
+            boardId: gridBoardId ?? '',
+          };
+
+          // Absolute positional formulas ({C3}) only mean the right cell in the exact row order
+          // they were written against, and this order is reconstructed rather than read off the
+          // rendered Hub. Rather than return a number that looks fine and isn't, leave the whole
+          // summary unresolved so it reads as unavailable.
+          const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
+          const formulas = [settings?.defaultFormula ?? '', ...grid.rowOrder.map((id) => {
+            const v = hubValues[id]?.[col.id];
+            return typeof v === 'string' ? v : '';
+          })];
+          if (formulas.some((f) => f && hasAbsolutePositionalRefs(f))) {
+            formulaRefLog(serializeRef(r), 'unresolved',
+              'the column uses absolute positional refs like {C3}, which need the Hub’s exact row order',
+              { column: col.name });
+            return undefined;
+          }
+
+          const evalRow = makePersonalFormulaEvaluator(col, grid, (ref, itemId) => inner(ref, itemId, nextVisited));
+          const vals = scoped
+            .map((i) => evalRow(i))
+            .filter((n): n is number => n !== null && !isNaN(n));
+          const total = aggregateSummary(vals, r.agg);
+          formulaRefLog(serializeRef(r), total === null ? 'empty' : 'ok',
+            total === null ? 'no row in this scope produced a formula value' : 'aggregated',
+            {
+              column: col.name,
+              gridRows: grid.rowOrder.length,
+              gridColumns: grid.columns.map((c) => c.name),
+              rowsInScope: scoped.length,
+              rowsThatEvaluated: vals.length,
+              total,
+            });
+          return total;
+        }
+
+        // Group-summary reference: aggregate a column across a group. Board columns only.
         if (r.agg) {
-          if (r.kind !== 'b') return undefined;
+          if (r.kind !== 'b') {
+            formulaRefLog(serializeRef(r), 'unresolved', `summary refs of kind '${r.kind}' have no resolver here`);
+            return undefined;
+          }
           const items = boardItemsList.get(r.boardId);
-          const colType = boardColumnsMap.get(r.boardId)?.find((c) => c.id === r.columnId)?.type;
-          if (!items || !colType) return undefined; // board items/columns not loaded yet
-          if (colType === ColumnType.SIMPLE_FORMULA) return undefined; // loop guard
-          const rows = r.groupId === BOARD_TOTAL_GROUP_ID ? items : items.filter((i) => i.groupId === r.groupId);
-          return computeSummaryNumeric(rows, colType, r.columnId, r.agg);
+          const cols = boardColumnsMap.get(r.boardId);
+          const col = cols?.find((c) => c.id === r.columnId);
+          if (!items || !cols || !col) {
+            formulaRefLog(serializeRef(r), 'unresolved',
+              !items ? 'the source board’s items have not loaded'
+                : !cols ? 'the source board’s columns have not loaded'
+                : 'no column on that board has this id',
+              { boardId: r.boardId, lookingForColumnId: r.columnId, knownColumnIds: (cols ?? []).map((c) => c.id).join(' | ') || '(none)' });
+            return undefined; // board items/columns not loaded yet
+          }
+          // A Personal Hub board group totals the rows that hub shows for this board — its
+          // owner's assigned items — rather than one group of the board.
+          const hubOwner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+          let hubRowIds: Set<string> | null = null;
+          if (r.groupId === HUB_ROWS_GROUP_ID) {
+            const groups = hubGroupsByBoard.get(r.boardId);
+            const assigned = hubItemsByOwner.get(hubOwner) ?? [];
+            if (!groups || assigned.length === 0) {
+              formulaRefLog(serializeRef(r), 'unresolved',
+                !groups ? 'that board’s groups have not loaded' : 'that hub’s assigned items have not loaded',
+                { board: r.boardId, hub: hubOwner === SELF_OWNER ? 'your own' : hubOwner });
+              return undefined;
+            }
+            // An assigned subitem never appears as its own row in a hub — the item hosting it does,
+            // and any value shown on that row belongs to the host. Counting the subitem instead
+            // leaves the host's row out of the total entirely.
+            hubRowIds = new Set<string>();
+            let unknownGroup: string | null = null;
+            for (const it of assigned) {
+              if (it.boardId !== r.boardId) continue;
+              const group = groups.get(it.groupId) ?? subitemGroups.get(`${r.boardId}:${it.groupId}`);
+              if (!group) { unknownGroup = it.groupId; continue; }
+              hubRowIds.add(group.parentItemId ?? it.id);
+            }
+            if (unknownGroup) {
+              // Without that group we cannot tell whether its item is a row of its own or a
+              // subitem standing in for the row that hosts it — and guessing drops a row and its
+              // value silently, which is exactly how this total came out short before.
+              sameColumnTrace('S. SUMMARY REPORTS UNKNOWN — a row’s group is still loading', {
+                board: r.boardId, groupId: unknownGroup,
+              });
+              return undefined;
+            }
+            sameColumnTrace('S. summary rebuilt the hub rows it totals', {
+              board: r.boardId,
+              hub: hubOwner === SELF_OWNER ? 'your own' : hubOwner,
+              assignedOnThisBoard: assigned.filter((i) => i.boardId === r.boardId).length,
+              rowsAfterSubitemSwap: hubRowIds.size,
+              rowIds: [...hubRowIds].join(','),
+            });
+          }
+          const rows = hubRowIds ? items.filter((i) => hubRowIds!.has(i.id) && !i.isArchived)
+            : r.groupId === BOARD_TOTAL_GROUP_ID ? items
+            : items.filter((i) => i.groupId === r.groupId);
+
+          if (col.type !== ColumnType.SIMPLE_FORMULA) {
+            const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+            formulaRefLog(serializeRef(r), total === null ? 'empty' : 'ok',
+              total === null ? 'no row in that group has a value for the column' : 'aggregated',
+              { board: r.boardId, column: col.name, group: r.groupId, rowsInGroup: rows.length, total });
+            return total;
+          }
+
+          // Aggregating a formula column on another board: evaluate each row's formula in that
+          // board's own context, exactly as the board renders it. The summary joins `visited`
+          // so a formula that (directly or through further hops) aggregates its own column
+          // contributes 0 where the cycle closes instead of recursing forever.
+          const summaryKey = `agg:${r.boardId}:${r.columnId}:${r.groupId ?? ''}:${r.agg}`;
+          if (visited.has(summaryKey)) { cycleFlag.hit = true; return null; }
+          const memoized = summaryCache.get(summaryKey);
+          if (memoized !== undefined) return memoized;
+
+          const nextVisited = new Set(visited);
+          nextVisited.add(summaryKey);
+          const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
+          const outerHit = cycleFlag.hit;
+          cycleFlag.hit = false;
+          const vals: number[] = [];
+          let rowMissing = false;
+          for (const row of rows) {
+            const stored = row.values[r.columnId];
+            const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
+            if (!formula.trim()) continue;
+            const idx = items.findIndex((it) => it.id === row.id);
+            const v = evaluateFormula(formula, {}, {
+              allItems: items,
+              columns: cols,
+              currentRowIndex: idx >= 0 ? idx : undefined,
+              homeBoardId: r.boardId,
+              summaryCache,
+              cycleFlag,
+              resolveRef: (rr, forItemId) => inner(rr, forItemId ?? row.id, nextVisited),
+              onUnresolvedRef: () => { rowMissing = true; },
+            });
+            if (v !== null) vals.push(v);
+          }
+          // One row short of its own answer makes the total short too — better unknown than wrong.
+          if (rowMissing) {
+            formulaRefLog(serializeRef(r), 'unresolved',
+              'a row in that group depends on something not available yet', { board: r.boardId, column: col.name });
+            return undefined;
+          }
+          const aggregated = aggregateSummary(vals, r.agg);
+          if (hubRowIds) {
+            sameColumnTrace('S. summary totalled these rows', {
+              rowsFound: rows.length, valuesUsed: vals.join(' + ') || '(none)', total: aggregated,
+            });
+          }
+          formulaRefLog(serializeRef(r), aggregated === null ? 'empty' : 'ok',
+            aggregated === null ? 'no row in that group produced a formula value' : 'aggregated',
+            { board: r.boardId, column: col.name, group: r.groupId, rowsInGroup: rows.length, rowsThatEvaluated: vals.length, total: aggregated });
+          // Only a cycle-free result generalizes past the stack it was computed on — see the
+          // matching rule in the engine's resolveLocalSummary.
+          if (!cycleFlag.hit && aggregated !== null) summaryCache.set(summaryKey, aggregated);
+          cycleFlag.hit = cycleFlag.hit || outerHit;
+          return aggregated;
         }
 
         const itemId = r.itemId ?? cid ?? null;
@@ -421,8 +891,18 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
         if (r.kind === 'b') {
           const cols = boardColumnsMap.get(r.boardId);
-          if (!cols) return undefined; // columns not loaded yet (or beyond MAX_HOPS — never will)
+          if (!cols) {
+            sameColumnTrace('L1. LOADER GIVES UP — that board’s columns are not loaded', {
+              token: serializeRef(r), boardId: r.boardId, boardsLoaded: [...boardColumnsMap.keys()].join(','),
+            });
+            return undefined; // columns not loaded yet (or beyond MAX_HOPS — never will)
+          }
           const col = cols.find((c) => c.id === r.columnId);
+          if (!r.agg) {
+            sameColumnTrace('L1. loader has the column', {
+              token: serializeRef(r), columnId: r.columnId, found: !!col, type: col?.type,
+            });
+          }
 
           // A reference to a formula cell on another board: evaluate its formula to its live value,
           // in that board's own row/column context. Same-board refs inside it resolve locally;
@@ -430,45 +910,116 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           // as long as that board made it into the discovered load set (within MAX_HOPS).
           if (col?.type === ColumnType.SIMPLE_FORMULA) {
             const items = boardItemsList.get(r.boardId);
-            if (!items) return undefined;
+            if (!items) {
+              sameColumnTrace('L2. LOADER GIVES UP — that board’s items are not loaded', { boardId: r.boardId });
+              return undefined;
+            }
             const idx = items.findIndex((it) => it.id === itemId);
-            if (idx < 0) return undefined;
+            if (idx < 0) {
+              sameColumnTrace('L2. LOADER GIVES UP — that item is not in the board’s item list', {
+                wantedItemId: itemId, itemsLoaded: items.length,
+              });
+              return undefined;
+            }
             const key = `${r.boardId}:${r.columnId}:${itemId}`;
-            if (visited.has(key)) return null; // cross-board cycle → contributes 0
+            if (visited.has(key)) {
+              sameColumnTrace('L3. LOADER RETURNS 0 — circular: this cell is already being computed higher up', {
+                itemId, columnId: r.columnId, stack: [...visited].join(' > '),
+              });
+              cycleFlag.hit = true; return null;
+            } // cross-board cycle → contributes 0
             const nextVisited = new Set(visited);
             nextVisited.add(key);
             const stored = items[idx].values[r.columnId];
             const settings = col.settings as unknown as { defaultFormula?: string } | undefined;
             const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
-            if (!formula.trim()) return null;
-            return evaluateFormula(formula, {}, {
+            sameColumnTrace('L3. loader found the referenced cell', {
+              itemId, storedType: typeof stored, storedValue: stored,
+              columnDefault: settings?.defaultFormula ?? '(none)', formulaItWillUse: formula || '(empty)',
+            });
+            if (!formula.trim()) {
+              formulaRefLog(serializeRef(r), 'empty', 'that formula cell has no formula — neither its own nor a column default',
+                { board: r.boardId, column: col.name, itemId });
+              return null;
+            }
+            let nestedMissing = false;
+            const formulaResult = evaluateFormula(formula, {}, {
               allItems: items,
               columns: cols,
               currentRowIndex: idx,
               homeBoardId: r.boardId,
-              resolveRef: (rr) => inner(rr, items[idx].id, nextVisited),
+              summaryCache,
+              cycleFlag,
+              resolveRef: (rr, forItemId) => inner(rr, forItemId ?? items[idx].id, nextVisited),
+              onUnresolvedRef: () => { nestedMissing = true; },
             });
+            // That cell's own formula reaches somewhere this evaluation cannot follow — usually
+            // data still arriving. Its terms are treated as zero inside the engine, so the number
+            // it produced is short by exactly those, and passing it on would bake the shortfall
+            // into whatever referenced it. Report unknown and let it resolve once the data lands.
+            if (nestedMissing) {
+              sameColumnTrace('L4. LOADER REPORTS UNKNOWN — part of that cell’s own formula is not available yet', {
+                itemId, formula, partialResult: formulaResult,
+              });
+              return undefined;
+            }
+            sameColumnTrace('L4. loader evaluated it', { itemId, formula, result: formulaResult });
+            formulaRefLog(serializeRef(r), formulaResult === null ? 'empty' : 'ok',
+              formulaResult === null ? 'the formula did not produce a number' : 'evaluated on its own board',
+              { board: r.boardId, column: col.name, itemId, formula, result: formulaResult });
+            return formulaResult;
           }
 
           const map = boardItemMap.get(r.boardId);
-          if (!map || !map.has(itemId)) return undefined; // not loaded yet, or deleted
+          if (!map || !map.has(itemId)) {
+            formulaRefLog(serializeRef(r), 'unresolved', 'that board\'s items are not loaded, or the item was deleted',
+              { board: r.boardId, itemId });
+            return undefined;
+          }
           const raw = map.get(itemId)![r.columnId];
-          if (raw == null || raw === '') return null;
+          if (raw == null || raw === '') {
+            formulaRefLog(serializeRef(r), 'empty', 'that cell is empty', { board: r.boardId, itemId, columnId: r.columnId });
+            return null;
+          }
           const n = Number(raw);
+          formulaRefLog(serializeRef(r), isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'cell value is not a number' : 'read from the board',
+            { board: r.boardId, itemId, raw });
           return isNaN(n) ? null : n;
         }
 
+        const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+        const personalValues = personalValuesByOwner.get(owner) ?? {};
         const row = personalValues[itemId];
-        if (!row) return undefined;
+        if (!row) {
+          formulaRefLog(serializeRef(r), 'unresolved', 'personal values for this item were not fetched', {
+            itemId,
+            itemsFetched: Object.keys(personalValues),
+          });
+          return undefined;
+        }
         const raw = row[r.columnId];
-        if (raw == null || raw === '') return null;
+        if (raw == null || raw === '') {
+          // The single most useful line for a personal cell that reads 0: `columnsWithAValue`
+          // lists the column ids this item DOES hold, so a mismatch against the id being asked
+          // for is visible at a glance rather than inferred.
+          formulaRefLog(serializeRef(r), 'empty', 'this item holds no value for that personal column', {
+            page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
+            itemId,
+            lookingForColumnId: r.columnId,
+            columnsWithAValue: Object.keys(row).join(' | ') || '(none — this item has no personal values at all)',
+          });
+          return null;
+        }
         const n = Number(raw);
+        formulaRefLog(serializeRef(r), isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'stored value is not a number' : 'read from your hub',
+          { itemId, raw });
         return isNaN(n) ? null : n;
       };
 
       return inner(ref, currentItemId, new Set<string>());
     },
-    [boardItemMap, boardItemsList, boardColumnsMap, personalValues, templateTotalsMap, itemTotalsMap],
+    [boardItemMap, boardItemsList, boardColumnsMap, templateTotalsMap, itemTotalsMap, viewerId,
+     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner, hubGroupsByBoard, subitemGroups],
   );
 
   return { resolve, isLoading };

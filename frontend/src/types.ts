@@ -646,6 +646,9 @@ export interface PersonalColumn {
   /** Set when this column was materialized from the org's Personal Hub template — editable,
    *  but the user cannot delete it (only columns they created themselves). */
   fromTemplate?: boolean;
+  /** The template column this one was materialized from. Also the id the org-wide running total
+   *  is kept under, so a formula anywhere can reference that total ('ph' refs). */
+  templateColumnId?: string;
   width?: number;
   /** Per-board cumulative summary scope (boardId -> include board groups above), independent per board group. */
   summaryCumulativeByBoard?: Record<string, boolean>;

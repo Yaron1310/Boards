@@ -13,8 +13,7 @@ import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import { DependencyProvider } from '../../contexts/DependencyContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
-import { evaluateFormula } from '../../utils/formulaEngine';
-import type { FormulaRow } from '../../utils/formulaEngine';
+import { makePersonalFormulaEvaluator } from '../../utils/personalHubGrid';
 import ItemRow from '../boards/ItemRow';
 import GroupSummaryRow, { SummaryCell } from '../boards/GroupSummaryRow';
 import type { SummaryColumn, CellConfig } from '../boards/GroupSummaryRow';
@@ -23,7 +22,7 @@ import { PERSONAL_COL_WIDTH } from './constants';
 import { ColumnType } from '../../types';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import type { PersonalGridContext } from './cells/types';
-import type { Item, PersonalColumn, SimpleFormulaColumnSettings } from '../../types';
+import type { Item, PersonalColumn } from '../../types';
 
 interface Props {
   boardId: string;
@@ -63,30 +62,6 @@ interface Props {
    */
   groupMinWidth?: number;
 }
-
-/**
- * Build a per-item evaluator for a personal Simple Formula column, using the same
- * {Letter}{Row} grid addressing the cells use. Returned per-item so the summary
- * row can aggregate over exactly the items it's scoped to (this group, or this
- * group plus every group above it when cumulative), same as a board formula.
- */
-export const makePersonalFormulaEvaluator = (col: PersonalColumn, gridContext: PersonalGridContext) => {
-  const settings = col.settings as SimpleFormulaColumnSettings;
-  const defaultFormula = settings?.defaultFormula ?? '';
-  const allRows: FormulaRow[] = gridContext.rowOrder.map((id) => ({ values: gridContext.valuesByItem[id] ?? {} }));
-  return (item: Item): number | null => {
-    const stored = gridContext.valuesByItem[item.id]?.[col.id];
-    const formula = typeof stored === 'string' ? stored : defaultFormula;
-    if (!formula) return null;
-    const idx = gridContext.rowOrder.indexOf(item.id);
-    const r = evaluateFormula(formula, {}, {
-      allItems: allRows,
-      columns: gridContext.columns,
-      currentRowIndex: idx >= 0 ? idx : undefined,
-    });
-    return r !== null && !isNaN(r) ? r : null;
-  };
-};
 
 /** Always plain — the interactive rename/settings/delete menu lives only in the page-level header. */
 const PersonalColumnHeaderLabel: React.FC<{ col: PersonalColumn }> = ({ col }) => (
@@ -233,13 +208,13 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   // behavior. The page assembles this across all groups; fall back to this group's own
   // rows only if the page hasn't wired it up.
   const localCrossGroupGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem, boardId }),
-    [displayItemIds, crossGroupColumns, personalValuesByItem, boardId],
+    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem, boardId, ownerId: ownerUserId }),
+    [displayItemIds, crossGroupColumns, personalValuesByItem, boardId, ownerUserId],
   );
   const crossGroupGridContext = pageCrossGroupGridContext ?? localCrossGroupGridContext;
   const boardOnlyGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem, boardId }),
-    [displayItemIds, boardOnlyColumns, personalValuesByItem, boardId],
+    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem, boardId, ownerId: ownerUserId }),
+    [displayItemIds, boardOnlyColumns, personalValuesByItem, boardId, ownerUserId],
   );
 
   // For cumulative cross-group summaries: rows from every board group above this one.
@@ -375,6 +350,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
             <GroupSummaryRow
               items={displayItems}
               columns={columns}
+              hubRows
+              hubOwnerId={ownerUserId}
               minWidth={groupMinWidth}
               leadingExtraCells={crossGroupColumns.length > 0
                 ? crossGroupColumns.map((col) => (
@@ -385,6 +362,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       itemsAbove={crossGroupItemsAbove}
                       numberCols={[]}
                       widthOverride={PERSONAL_COL_WIDTH}
+                      personalOwnerId={ownerUserId}
                       // Page-wide value source so both this group's rows and rows from
                       // groups above (cumulative scope) resolve.
                       getValue={(item) => crossGroupGridContext.valuesByItem[item.id]?.[col.id]}
@@ -403,6 +381,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       items={displayItems}
                       numberCols={[]}
                       widthOverride={PERSONAL_COL_WIDTH}
+                      personalOwnerId={ownerUserId}
                       getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
                       evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, boardOnlyGridContext) : undefined}
                       onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
