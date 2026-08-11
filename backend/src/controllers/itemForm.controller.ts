@@ -11,6 +11,7 @@ import {
 } from '../db/collections.js';
 import {
   JwtUserPayload,
+  UserRole,
   DBItem,
   DBUser,
   DBBoardMember,
@@ -20,7 +21,7 @@ import {
   FormAnswerValue,
   FormFieldType,
 } from '../types/index.js';
-import { assertItemAccess } from '../utils/workManagementAuth.js';
+import { assertItemAccess, isAtLeast } from '../utils/workManagementAuth.js';
 
 const MAX_TEXT_ANSWER_LENGTH = 5000;
 
@@ -45,6 +46,16 @@ async function loadItemWithAccess(
   const memberData = memberDoc.exists ? (memberDoc.data() as DBBoardMember) : null;
   assertItemAccess(user, item, op, memberData);
   return item;
+}
+
+/**
+ * Deciding *which* form belongs on an item is an administrative act, narrower than
+ * editing the item itself: org admins anywhere, and a WorkHub admin only within
+ * their own WorkHub. Filling the form in stays open to anyone who can edit the item.
+ */
+function canManageItemForm(user: JwtUserPayload, item: DBItem): boolean {
+  if (isAtLeast(user.role, UserRole.ORGANIZATION_ADMIN)) return true;
+  return user.role === UserRole.WORKSPACE_ADMIN && user.selectedWorkspaceId === item.workspaceId;
 }
 
 /**
@@ -183,8 +194,9 @@ export const listItemForms = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // POST /items/:itemId/forms   body: { formId }
 //
-// Attaches a form to an item, creating its (empty) response document. Attaching
-// an already-attached form is a no-op that returns the existing response.
+// Attaches a form to an item, creating its (empty) response document. An item
+// holds at most one form: re-attaching the same one is a no-op, attaching a
+// different one is rejected until the current form is detached.
 // ---------------------------------------------------------------------------
 export const attachFormToItem = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
@@ -194,7 +206,10 @@ export const attachFormToItem = async (req: Request, res: Response) => {
   if (!formId) return res.status(400).json({ message: 'formId is required.' });
 
   try {
-    await loadItemWithAccess(user, itemId, 'update');
+    const item = await loadItemWithAccess(user, itemId, 'update');
+    if (!canManageItemForm(user, item)) {
+      return res.status(403).json({ message: 'Only org admins and WorkHub admins can add a form to an item.' });
+    }
 
     const formSnap = await formsCollection(user.orgId).doc(formId).get();
     if (!formSnap.exists) return res.status(404).json({ message: 'Form not found.' });
@@ -202,9 +217,15 @@ export const attachFormToItem = async (req: Request, res: Response) => {
     if (form.isArchived) return res.status(400).json({ message: 'This form is archived.' });
 
     const responseRef = itemFormResponsesCollection(user.orgId, itemId).doc(formId);
-    const existing = await responseRef.get();
-    if (existing.exists) {
-      return res.status(200).json({ response: snapshotToData<DBFormResponse>(existing), form });
+    const attached = await itemFormResponsesCollection(user.orgId, itemId).limit(1).get();
+    if (!attached.empty) {
+      const attachedDoc = attached.docs[0];
+      if (attachedDoc.id === formId) {
+        return res.status(200).json({ response: snapshotToData<DBFormResponse>(attachedDoc), form });
+      }
+      return res.status(409).json({
+        message: 'This item already has a form. Remove it before adding a different one.',
+      });
     }
 
     const now = admin.firestore.FieldValue.serverTimestamp();
@@ -220,6 +241,7 @@ export const attachFormToItem = async (req: Request, res: Response) => {
     await responseRef.set(response);
     await itemsCollection(user.orgId).doc(itemId).update({
       formResponseCount: admin.firestore.FieldValue.increment(1),
+      formSubmitted: false,
       updatedAt: now,
     });
 
@@ -273,6 +295,9 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
     }
 
     await responseRef.update(patch);
+    if (submit) {
+      await itemsCollection(user.orgId).doc(itemId).update({ formSubmitted: true, updatedAt: now });
+    }
     const updated = await responseRef.get();
 
     res.json({ response: snapshotToData<DBFormResponse>(updated), form });
@@ -286,22 +311,32 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // DELETE /items/:itemId/forms/:formId
 //
-// Detaches the form from the item, discarding its answers.
+// Detaches the form from the item, discarding its answers. Refused once the form
+// has been submitted.
 // ---------------------------------------------------------------------------
 export const detachFormFromItem = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
   const { itemId, formId } = req.params;
 
   try {
-    await loadItemWithAccess(user, itemId, 'update');
+    const item = await loadItemWithAccess(user, itemId, 'update');
+    if (!canManageItemForm(user, item)) {
+      return res.status(403).json({ message: 'Only org admins and WorkHub admins can remove a form from an item.' });
+    }
 
     const responseRef = itemFormResponsesCollection(user.orgId, itemId).doc(formId);
     const snap = await responseRef.get();
     if (!snap.exists) return res.status(404).json({ message: 'This form is not attached to the item.' });
 
+    // Submitted answers are a record — removing the form would destroy them.
+    if ((snap.data() as DBFormResponse).submittedAt) {
+      return res.status(409).json({ message: 'A submitted form cannot be removed from the item.' });
+    }
+
     await responseRef.delete();
     await itemsCollection(user.orgId).doc(itemId).update({
       formResponseCount: admin.firestore.FieldValue.increment(-1),
+      formSubmitted: false,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 

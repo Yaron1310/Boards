@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  FiFileText, FiEdit, FiPlusCircle, FiArchive, FiCheckCircle, FiAlertCircle,
+  FiFileText, FiEdit, FiPlusCircle, FiArchive, FiCheckCircle, FiAlertCircle, FiBarChart2,
 } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { useAuthSession } from '../../hooks/useAuthSession';
@@ -11,6 +11,7 @@ import {
 } from '../../hooks/queries/useFormQueries';
 import ArchiveRestoreModal from '../admin/shared/ArchiveRestoreModal';
 import FormBuilderModal from './FormBuilderModal';
+import FormResultsModal from './FormResultsModal';
 import { fieldTypeLabel } from './formFieldTypes';
 
 /** Same palette the WorkHubs cards cycle through, so the two pages read as a set. */
@@ -19,17 +20,17 @@ const CARD_COLORS = ['#4299E133', '#48BB7833', '#9F7AEA33', '#ED893633', '#38B2A
 const FormsPage: React.FC = () => {
   const { t } = useTranslation();
   const { user } = useAuthSession();
-  // Forms are structural like columns/groups: admins and org editors author them,
-  // everyone else can still open and fill them in from an item.
+  // Same bar as Templates — the route already restricts the page to these roles;
+  // this keeps the page's own actions consistent if that ever loosens.
   const canManage =
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.WORKSPACE_ADMIN ||
-    user?.role === UserRole.SYSTEM_ADMIN ||
-    user?.role === UserRole.ORG_EDITOR;
+    user?.role === UserRole.SYSTEM_ADMIN;
 
   const [builderOpen, setBuilderOpen] = useState(false);
   const [formToEdit, setFormToEdit] = useState<Form | null>(null);
   const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [resultsForm, setResultsForm] = useState<Form | null>(null);
   const [modalError, setModalError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -172,12 +173,24 @@ const FormsPage: React.FC = () => {
                 </div>
               </button>
               {canManage && (
-                <span
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-                  aria-hidden="true"
-                >
-                  <FiEdit size={14} />
-                </span>
+                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={() => setResultsForm(form)}
+                    className="p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                    aria-label={`View results for ${form.name}`}
+                    title="View results"
+                  >
+                    <FiBarChart2 size={14} aria-hidden="true" />
+                  </button>
+                  {/* The card itself is the edit target; this is just its affordance. */}
+                  <span
+                    className="p-1.5 rounded-full bg-white shadow-sm border border-gray-200 text-gray-500 pointer-events-none"
+                    aria-hidden="true"
+                  >
+                    <FiEdit size={14} />
+                  </span>
+                </div>
               )}
             </div>
           ))}
@@ -193,6 +206,10 @@ const FormsPage: React.FC = () => {
           isSaving={isCreating || isUpdating}
           error={modalError}
         />
+      )}
+
+      {resultsForm && (
+        <FormResultsModal form={resultsForm} onClose={() => setResultsForm(null)} />
       )}
 
       {canManage && (

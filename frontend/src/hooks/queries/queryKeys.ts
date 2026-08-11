@@ -59,6 +59,8 @@ export const queryKeys = {
     one: (id: string) => ['forms', id] as const,
     /** Forms attached to one item (the item's form sidebar). */
     forItem: (itemId: string) => ['forms', 'item', itemId] as const,
+    /** Collected answers for one form, across every item. */
+    results: (id: string) => ['forms', id, 'results'] as const,
   },
   personalHub: {
     // Prefixes for broad invalidation (match every user variant below).

@@ -1,4 +1,4 @@
-import type { Board, Group, Item, Column, ColumnType, ColumnSettings, ColumnVisibility, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode, CustomDashboard, CustomDashboardDataPoint, Form, FormField, FormAnswerValue, ItemFormEntry } from '../types';
+import type { Board, Group, Item, Column, ColumnType, ColumnSettings, ColumnVisibility, PaginatedResponse, DashboardParams, DashboardSummary, TimeRangeDependency, BoardMember, BoardRole, ChatMessage, Webhook, WebhookNameMode, CustomDashboard, CustomDashboardDataPoint, Form, FormField, FormAnswerValue, ItemFormEntry, FormResults } from '../types';
 import { fetchWithAuth } from './authFetch';
 
 // ─── BOARDS ──────────────────────────────────────────────────────────────────
@@ -524,6 +524,10 @@ export const restoreForm = (id: string): Promise<Form> =>
 
 export const deleteForm = (id: string): Promise<null> =>
   fetchWithAuth(`/api/forms/${id}`, { method: 'DELETE' });
+
+/** Every answer set collected for a form, across all items. Admin-only. */
+export const getFormResults = (id: string): Promise<FormResults> =>
+  fetchWithAuth(`/api/forms/${id}/responses`);
 
 // --- Forms attached to an item ---
 

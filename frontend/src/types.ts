@@ -416,8 +416,10 @@ export interface Item {
   chatMessageCount?: number;
   chatLastMessageAt?: Date | string;
   chatSeenBy?: Record<string, number>;
-  // Number of forms attached to this item (drives the row's form badge)
+  // Forms state. An item holds at most one form; formSubmitted flips true once its
+  // answers are submitted and drives the red marker on the row's form icon.
   formResponseCount?: number;
+  formSubmitted?: boolean;
   // Dynamic column values
   values: ColumnValueMap;
   createdAt: Date | string;
@@ -751,4 +753,19 @@ export interface FormResponse {
 export interface ItemFormEntry {
   response: FormResponse;
   form: Form | null;
+}
+
+/** One collected answer set, as shown on the Forms page results modal. */
+export interface FormResponseRow {
+  response: FormResponse;
+  itemId: string;
+  /** Null when the item was deleted after the form was filled in. */
+  itemName: string | null;
+}
+
+export interface FormResults {
+  form: Form;
+  responses: FormResponseRow[];
+  /** True when the org has more responses than the endpoint's page limit. */
+  truncated: boolean;
 }

@@ -251,7 +251,7 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
   };
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
-  const formCount = item.formResponseCount ?? 0;
+  const formSubmitted = item.formSubmitted === true;
 
   return (
     <div
@@ -283,23 +283,21 @@ const SubitemRow: React.FC<{ item: Item; columns: Column[] }> = ({ item, columns
           </span>
         )}
 
-        {/* Forms button */}
+        {/* Form button */}
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); openForms(item); }}
           className={`relative flex items-center justify-center w-5 h-5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors flex-shrink-0 ${
-            formCount > 0 ? '' : 'opacity-0 group-hover:opacity-100'
+            formSubmitted ? '' : 'opacity-0 group-hover:opacity-100'
           }`}
-          aria-label={`Open forms for ${item.name}`}
+          aria-label={`Open form for ${item.name}${formSubmitted ? ' (submitted)' : ''}`}
         >
           <FiFileText size={12} aria-hidden="true" />
-          {formCount > 0 && (
+          {formSubmitted && (
             <span
-              className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[10px] h-[10px] px-0.5 bg-indigo-500 text-white text-[7px] font-bold rounded-full leading-none"
-              aria-label={`${formCount} form${formCount !== 1 ? 's' : ''} attached`}
-            >
-              {formCount > 9 ? '9+' : formCount}
-            </span>
+              className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full"
+              aria-hidden="true"
+            />
           )}
         </button>
 

@@ -44,3 +44,16 @@ export const isAnswered = (field: FormField, value: FormAnswerValue): boolean =>
   if (Array.isArray(value)) return value.length > 0;
   return value !== null && value !== undefined && value !== '';
 };
+
+/** Human-readable rendering of a stored answer, for read-only result views. */
+export const formatAnswer = (field: FormField, value: FormAnswerValue): string => {
+  if (field.type === FormFieldType.CHECKBOX) return value === true ? 'Yes' : 'No';
+  if (Array.isArray(value)) {
+    return value.map((id) => field.options?.find((o) => o.id === id)?.label ?? id).join(', ');
+  }
+  if (value === null || value === undefined || value === '') return '';
+  if (hasOptions(field.type)) {
+    return field.options?.find((o) => o.id === value)?.label ?? String(value);
+  }
+  return String(value);
+};

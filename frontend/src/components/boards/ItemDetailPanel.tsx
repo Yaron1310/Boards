@@ -35,7 +35,7 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
-  const formCount = item.formResponseCount ?? 0;
+  const formSubmitted = item.formSubmitted === true;
   const nameInputRef = useRef<HTMLInputElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useFocusTrap(panelRef);
@@ -150,16 +150,14 @@ const ItemDetailPanel: React.FC<ItemDetailPanelProps> = ({ item: initialItem, on
             type="button"
             onClick={() => openForms(item)}
             className="relative flex items-center justify-center p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors flex-shrink-0"
-            aria-label={`Open forms for ${item.name}`}
+            aria-label={`Open form for ${item.name}${formSubmitted ? ' (submitted)' : ''}`}
           >
             <FiFileText size={16} aria-hidden="true" />
-            {formCount > 0 && (
+            {formSubmitted && (
               <span
-                className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[14px] h-[14px] px-0.5 bg-indigo-500 text-white text-[9px] font-bold rounded-full leading-none"
-                aria-label={`${formCount} form${formCount !== 1 ? 's' : ''} attached`}
-              >
-                {formCount > 9 ? '9+' : formCount}
-              </span>
+                className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full"
+                aria-hidden="true"
+              />
             )}
           </button>
           <button
