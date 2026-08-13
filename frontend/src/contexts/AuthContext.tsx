@@ -597,21 +597,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const availableContexts = useMemo(() => {
     const userForContexts = contextSelectionMode === 'login' ? userForContextSelection : user;
     if (!userForContexts?.workspaces || !userForContexts?.dbRoles) {
-      console.debug('[availableContexts] no user/workspaces/dbRoles — returning []');
       return [];
     }
 
     const contexts: { label: string; value: string; role: UserRole; organizationName: string }[] = [];
 
     const { systemAdmin, organizationAdmin: assignedOrganizationAdmins = [], workspaceAdmin: assignedOrgAdmins = [], orgEditor: assignedOrgEditors = [] } = userForContexts.dbRoles;
-
-    console.debug('[availableContexts] dbRoles:', {
-      systemAdmin,
-      organizationAdmin: assignedOrganizationAdmins,
-      workspaceAdmin: assignedOrgAdmins,
-      orgEditor: assignedOrgEditors,
-    });
-    console.debug('[availableContexts] all workspaces:', userForContexts.workspaces);
 
     // System admin: single global entry
     if (systemAdmin) {
@@ -628,7 +619,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // Collect all orgs the user has any access to (non-personal, non-default)
     const eligibleWorkspaces = userForContexts.workspaces.filter((o: any) => !o.isPersonal && o.name !== 'Default Workspace');
-    console.debug('[availableContexts] eligibleWorkspaces (non-personal, non-default):', eligibleWorkspaces);
 
     // Group workspaces by orgId
     const byOrg = new Map<string, { orgName: string; workspaces: any[] }>();
@@ -636,7 +626,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (!byOrg.has(ws.orgId)) byOrg.set(ws.orgId, { orgName: ws.organizationName || ws.orgId, workspaces: [] });
       byOrg.get(ws.orgId)!.workspaces.push(ws);
     });
-    console.debug('[availableContexts] byOrg keys (orgIds with eligible workspaces):', [...byOrg.keys()]);
 
     // Org admins must always get a context entry even if all their workspaces for that
     // org are personal/templates (e.g. newly created org with no real workspaces yet).
@@ -645,7 +634,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const anyWs = userForContexts.workspaces.find((ws: any) => ws.orgId === orgId);
       if (!anyWs) return;
       const orgName = anyWs.organizationName || orgId;
-      console.debug(`[availableContexts] org admin org ${orgId} has no eligible workspace — using fallback:`, anyWs);
       byOrg.set(orgId, { orgName, workspaces: [anyWs] });
     });
 
@@ -693,7 +681,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     contexts.sort((a, b) => (roleOrder[a.role] ?? 4) - (roleOrder[b.role] ?? 4) || a.organizationName.localeCompare(b.organizationName));
 
-    console.debug('[availableContexts] final contexts count:', contexts.length, contexts.map(c => c.label));
     return [{ groupName: 'Select Organization', contexts }];
   }, [user, userForContextSelection, contextSelectionMode]);
 

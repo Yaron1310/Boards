@@ -171,7 +171,10 @@ export const listItemForms = async (req: Request, res: Response) => {
     await loadItemWithAccess(user, itemId, 'read');
 
     const snap = await itemFormResponsesCollection(user.orgId, itemId).orderBy('attachedAt', 'asc').get();
-    const responses = querySnapshotToArray<DBFormResponse>(snap);
+    // Detached-but-kept responses (a submitted form removed from the item) stay in this
+    // subcollection so their answers still show in the form's results, but they're no
+    // longer "on" the item.
+    const responses = querySnapshotToArray<DBFormResponse>(snap).filter(r => !r.detachedAt);
     if (responses.length === 0) return res.json([]);
 
     const formSnaps = await Promise.all(
@@ -216,18 +219,28 @@ export const attachFormToItem = async (req: Request, res: Response) => {
     const form = { id: formSnap.id, ...formSnap.data() } as DBForm;
     if (form.isArchived) return res.status(400).json({ message: 'This form is archived.' });
 
-    const responseRef = itemFormResponsesCollection(user.orgId, itemId).doc(formId);
-    const attached = await itemFormResponsesCollection(user.orgId, itemId).limit(1).get();
-    if (!attached.empty) {
-      const attachedDoc = attached.docs[0];
-      if (attachedDoc.id === formId) {
-        return res.status(200).json({ response: snapshotToData<DBFormResponse>(attachedDoc), form });
+    const allDocs = (await itemFormResponsesCollection(user.orgId, itemId).get()).docs;
+    const activeDoc = allDocs.find(d => !(d.data() as DBFormResponse).detachedAt);
+    if (activeDoc) {
+      if (activeDoc.id === formId) {
+        return res.status(200).json({ response: snapshotToData<DBFormResponse>(activeDoc), form });
       }
       return res.status(409).json({
         message: 'This item already has a form. Remove it before adding a different one.',
       });
     }
 
+    // A detached-but-kept record (a previously submitted form removed from this item)
+    // may already occupy the formId-keyed doc slot. Move it aside under its own id first
+    // so its answers keep showing in the form's results instead of being overwritten.
+    const staleDoc = allDocs.find(d => d.id === formId);
+    if (staleDoc) {
+      const migratedRef = itemFormResponsesCollection(user.orgId, itemId).doc();
+      await migratedRef.set(staleDoc.data());
+      await staleDoc.ref.delete();
+    }
+
+    const responseRef = itemFormResponsesCollection(user.orgId, itemId).doc(formId);
     const now = admin.firestore.FieldValue.serverTimestamp();
     const response: Omit<DBFormResponse, 'id'> = {
       itemId,
@@ -311,8 +324,11 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
 // ---------------------------------------------------------------------------
 // DELETE /items/:itemId/forms/:formId
 //
-// Detaches the form from the item, discarding its answers. Refused once the form
-// has been submitted.
+// Detaches the form from the item. An unsubmitted response is just discarded —
+// it never held anything but empty draft placeholders (drafts live in the filler's
+// browser, not the server). A submitted response is a record, so it's kept and
+// merely marked detached: it drops off the item but still shows up in the form's
+// results.
 // ---------------------------------------------------------------------------
 export const detachFormFromItem = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
@@ -328,12 +344,11 @@ export const detachFormFromItem = async (req: Request, res: Response) => {
     const snap = await responseRef.get();
     if (!snap.exists) return res.status(404).json({ message: 'This form is not attached to the item.' });
 
-    // Submitted answers are a record — removing the form would destroy them.
     if ((snap.data() as DBFormResponse).submittedAt) {
-      return res.status(409).json({ message: 'A submitted form cannot be removed from the item.' });
+      await responseRef.update({ detachedAt: admin.firestore.FieldValue.serverTimestamp() });
+    } else {
+      await responseRef.delete();
     }
-
-    await responseRef.delete();
     await itemsCollection(user.orgId).doc(itemId).update({
       formResponseCount: admin.firestore.FieldValue.increment(-1),
       formSubmitted: false,

@@ -111,7 +111,7 @@ const FormBuilderModal: React.FC<FormBuilderModalProps> = ({ form, onClose, onSa
   return ReactDOM.createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+        className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-label={form ? `Edit form ${form.name}` : 'Create a new form'}

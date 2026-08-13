@@ -235,8 +235,31 @@ export const updateForm = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * Every item this form is currently attached to (i.e. has an active, non-detached
+ * response doc), across the whole org. Mirrors listFormResponses' collection-group
+ * query, filtered down to attachments still "on" an item.
+ */
+async function findAttachedItems(
+  orgId: string,
+  formId: string,
+): Promise<{ doc: FirebaseFirestore.QueryDocumentSnapshot; itemId: string }[]> {
+  const orgItemsPrefix = `organizations/${orgId}/items/`;
+  const snap = await db.collectionGroup('formResponses').where('formId', '==', formId).get();
+  return snap.docs
+    .filter(d => d.ref.path.startsWith(orgItemsPrefix) && !(d.data() as DBFormResponse).detachedAt)
+    .map(doc => ({ doc, itemId: (doc.data() as DBFormResponse).itemId }));
+}
+
 // ---------------------------------------------------------------------------
 // PATCH /forms/:id/archive  |  PATCH /forms/:id/restore
+//
+// Archiving asks for confirmation first if the form is attached to any item —
+// req.body.confirm must be true to proceed once the caller has seen that list.
+// Confirmed archiving then detaches the form from every one of those items, the
+// same way a manual per-item removal would: a submitted response is kept (so it
+// still shows in the form's results) but marked detached, an unsubmitted one is
+// just discarded.
 // ---------------------------------------------------------------------------
 async function setArchived(req: Request, res: Response, isArchived: boolean) {
   const user = req.user as JwtUserPayload;
@@ -247,6 +270,47 @@ async function setArchived(req: Request, res: Response, isArchived: boolean) {
     const docRef = formsCollection(user.orgId).doc(id);
     const snap = await docRef.get();
     if (!snap.exists) return res.status(404).json({ message: 'Form not found.' });
+
+    if (isArchived) {
+      const attached = await findAttachedItems(user.orgId, id);
+
+      if (attached.length > 0 && req.body?.confirm !== true) {
+        const itemIds = [...new Set(attached.map(a => a.itemId))];
+        const itemSnaps = await Promise.all(itemIds.map(itemId => itemsCollection(user.orgId).doc(itemId).get()));
+        return res.status(409).json({
+          message: 'This form is attached to items. Archiving will remove it from them.',
+          // Reuses the app-wide "archive with dependencies" contract (see e.g.
+          // organization/workspace archive) so the client's existing 409 handling
+          // and confirm-with-dependencies UI apply here unchanged.
+          dependencies: {
+            items: itemSnaps.filter(s => s.exists).map(s => ({ id: s.id, name: (s.data() as DBItem).name })),
+          },
+        });
+      }
+
+      if (attached.length > 0) {
+        const now = admin.firestore.FieldValue.serverTimestamp();
+        const batch = db.batch();
+        const affectedItemIds = new Set<string>();
+        for (const { doc, itemId } of attached) {
+          const data = doc.data() as DBFormResponse;
+          if (data.submittedAt) {
+            batch.update(doc.ref, { detachedAt: now });
+          } else {
+            batch.delete(doc.ref);
+          }
+          affectedItemIds.add(itemId);
+        }
+        for (const itemId of affectedItemIds) {
+          batch.update(itemsCollection(user.orgId).doc(itemId), {
+            formResponseCount: admin.firestore.FieldValue.increment(-1),
+            formSubmitted: false,
+            updatedAt: now,
+          });
+        }
+        await batch.commit();
+      }
+    }
 
     await docRef.update({ isArchived, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
 
@@ -332,7 +396,13 @@ export const listFormResponses = async (req: Request, res: Response) => {
       .get();
 
     const orgItemsPrefix = `organizations/${user.orgId}/items/`;
-    const docs = snap.docs.filter(d => d.ref.path.startsWith(orgItemsPrefix));
+    // Drafts are personal scratch space for whoever is filling the form in — they're
+    // never sent to the server at all now, but older rows saved before that change (or
+    // any future data that slips through) must still never surface here. Only a
+    // submitted response is a record other people are allowed to see.
+    const docs = snap.docs.filter(
+      d => d.ref.path.startsWith(orgItemsPrefix) && !!(d.data() as DBFormResponse).submittedAt,
+    );
 
     // Item names for display — one read per distinct item, deduplicated.
     const itemIds = [...new Set(docs.map(d => (d.data() as DBFormResponse).itemId).filter(Boolean))];
@@ -352,13 +422,11 @@ export const listFormResponses = async (req: Request, res: Response) => {
         const response = snapshotToData<DBFormResponse>(d)!;
         return { response, itemId: response.itemId, itemName: itemNames.get(response.itemId) ?? null };
       })
-      // Submitted first, newest first within each group.
+      // Every row here is submitted (drafts are filtered out above) — newest first.
       .sort((a, b) => {
-        const aSubmitted = a.response.submittedAt ? 1 : 0;
-        const bSubmitted = b.response.submittedAt ? 1 : 0;
         const aTime = millis(a.response.submittedAt) || millis(a.response.updatedAt);
         const bTime = millis(b.response.submittedAt) || millis(b.response.updatedAt);
-        return bSubmitted - aSubmitted || bTime - aTime;
+        return bTime - aTime;
       });
 
     res.json({

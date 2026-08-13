@@ -35,6 +35,35 @@ function formatTimestamp(ts: Date | string | undefined): string {
   return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// Drafts are personal scratch space — they never touch the server. Keyed by user so a
+// shared browser/device doesn't leak one person's in-progress answers to another.
+const draftKey = (userId: string, itemId: string, formId: string) => `formDraft:${userId}:${itemId}:${formId}`;
+
+function loadDraft(userId: string, itemId: string, formId: string): AnswerMap | null {
+  try {
+    const raw = localStorage.getItem(draftKey(userId, itemId, formId));
+    return raw ? (JSON.parse(raw) as AnswerMap) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(userId: string, itemId: string, formId: string, answers: AnswerMap): void {
+  try {
+    localStorage.setItem(draftKey(userId, itemId, formId), JSON.stringify(answers));
+  } catch {
+    // Private mode / storage disabled — the draft just won't persist across reloads.
+  }
+}
+
+function clearDraft(userId: string, itemId: string, formId: string): void {
+  try {
+    localStorage.removeItem(draftKey(userId, itemId, formId));
+  } catch {
+    // No-op — nothing was stored anyway.
+  }
+}
+
 const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
   const { user, selectedWorkspace } = useAuthSession();
   const { data: entries = [], isLoading } = useItemForms(item.id);
@@ -56,27 +85,30 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
     user?.role === UserRole.ORGANIZATION_ADMIN ||
     user?.role === UserRole.SYSTEM_ADMIN ||
     (user?.role === UserRole.WORKSPACE_ADMIN && selectedWorkspace?.id === item.workspaceId);
-  // Submitted answers are a record: removing the form would destroy them.
-  const canRemoveForm = canManageAttachment && !isSubmitted;
+  const canRemoveForm = canManageAttachment;
 
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [editing, setEditing] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [draftSaved, setDraftSaved] = useState(false);
 
   // Seed answers once per attached form. Keyed by formId rather than by the entry
-  // object so a refetch after saving doesn't wipe in-progress edits.
+  // object so a refetch after saving doesn't wipe in-progress edits. A local draft
+  // (unsubmitted, saved only in this browser for this user) takes priority over
+  // whatever the server has, since the server never stores draft values.
   const seededFormId = useRef<string | null>(null);
   useEffect(() => {
-    if (!entry) {
+    if (!entry || !user) {
       seededFormId.current = null;
       return;
     }
     if (seededFormId.current === entry.response.formId) return;
-    setAnswers(initialAnswers(entry));
+    const draft = entry.response.submittedAt ? null : loadDraft(user.id, item.id, entry.response.formId);
+    setAnswers(draft ?? initialAnswers(entry));
     seededFormId.current = entry.response.formId;
-  }, [entry]);
+  }, [entry, user, item.id]);
 
   // A submitted form is read-only until the user explicitly chooses to edit it.
   const locked = isSubmitted && !editing;
@@ -89,13 +121,15 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
       delete next[fieldId];
       return next;
     });
+    setDraftSaved(false);
   };
 
   const handleAttach = async (formId: string) => {
     setError(null);
     try {
       const attached = await attachForm(formId);
-      setAnswers(initialAnswers(attached));
+      const draft = user ? loadDraft(user.id, item.id, formId) : null;
+      setAnswers(draft ?? initialAnswers(attached));
       seededFormId.current = formId;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add the form.');
@@ -103,7 +137,7 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
   };
 
   const handleSave = async (submit: boolean) => {
-    if (!form) return;
+    if (!form || !user) return;
     setError(null);
 
     if (submit) {
@@ -120,10 +154,20 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
       }
     }
 
+    // Drafts are personal scratch space — they're saved only in this browser for this
+    // user, never sent to the server, so nobody else can see in-progress answers.
+    if (!submit) {
+      saveDraft(user.id, item.id, form.id, answers);
+      setFieldErrors({});
+      setDraftSaved(true);
+      return;
+    }
+
     try {
       await saveResponse({ formId: form.id, values: answers, submit });
+      clearDraft(user.id, item.id, form.id);
       setFieldErrors({});
-      if (submit) setEditing(false);
+      setEditing(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save your answers.');
     }
@@ -137,11 +181,12 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
   };
 
   const handleRemove = async () => {
-    if (!form) return;
+    if (!form || !user) return;
     setConfirmRemove(false);
     setError(null);
     try {
       await detachForm(form.id);
+      clearDraft(user.id, item.id, form.id);
       setAnswers({});
       setEditing(false);
       seededFormId.current = null;
@@ -171,18 +216,19 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
                 <button
                   type="button"
                   onClick={() => void handleRemove()}
-                  className="p-1.5 rounded-full hover:bg-indigo-500 transition-colors"
+                  className="px-2 py-1 text-xs font-medium rounded-full hover:bg-indigo-500 transition-colors"
                   aria-label={`Confirm removing ${form.name} from this item`}
+                  title={isSubmitted ? "Submitted answers are kept and still shown in the form's results" : undefined}
                 >
-                  <FiCheck size={16} aria-hidden="true" />
+                  Remove
                 </button>
                 <button
                   type="button"
                   onClick={() => setConfirmRemove(false)}
-                  className="p-1.5 rounded-full hover:bg-indigo-500 transition-colors"
+                  className="px-2 py-1 text-xs font-medium rounded-full hover:bg-indigo-500 transition-colors"
                   aria-label="Cancel removing form"
                 >
-                  <FiX size={16} aria-hidden="true" />
+                  Cancel
                 </button>
               </>
             ) : (
@@ -215,6 +261,15 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
           <button type="button" onClick={() => setError(null)} className="text-red-400 hover:text-red-600" aria-label="Dismiss error">
             <FiX size={14} aria-hidden="true" />
           </button>
+        </div>
+      )}
+
+      {confirmRemove && isSubmitted && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-800 text-xs border-b border-amber-100">
+          <FiAlertCircle size={13} aria-hidden="true" className="flex-shrink-0" />
+          <span className="flex-1">
+            This form's submitted answers will be kept and still show in the form's results — only its link to this item is removed.
+          </span>
         </div>
       )}
 
@@ -328,12 +383,12 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
               <button
                 type="button"
                 onClick={() => void handleSave(false)}
-                disabled={isSaving}
-                className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 flex items-center transition-colors"
-                aria-label={`Save draft answers for ${form.name}`}
+                className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 flex items-center transition-colors"
+                aria-label={`Save draft answers for ${form.name}, kept only on this device`}
+                title="Saved only on this device — not visible to anyone else"
               >
-                {isSaving ? <FiLoader className="animate-spin mr-1.5" size={13} aria-hidden="true" /> : <FiSave className="mr-1.5" size={13} aria-hidden="true" />}
-                Save draft
+                <FiSave className="mr-1.5" size={13} aria-hidden="true" />
+                {draftSaved ? 'Draft saved' : 'Save draft'}
               </button>
               <button
                 type="button"

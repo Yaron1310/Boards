@@ -37,9 +37,12 @@ export const useUpdateForm = () => {
 export const useArchiveForm = () => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => wm.archiveForm(id),
+    mutationFn: ({ id, confirm }: { id: string; confirm?: boolean }) => wm.archiveForm(id, confirm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.forms.all });
+      // Archiving may have detached the form from items, changing their
+      // formResponseCount/formSubmitted — refresh boards so the form icon updates.
+      void qc.invalidateQueries({ queryKey: ['items'] });
     },
   });
 };

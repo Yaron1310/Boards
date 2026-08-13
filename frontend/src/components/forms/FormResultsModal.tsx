@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { FiXCircle, FiLoader, FiFileText, FiAlertCircle } from 'react-icons/fi';
+import { FiXCircle, FiLoader, FiFileText, FiAlertCircle, FiChevronDown } from 'react-icons/fi';
 import type { Form } from '../../types';
 import { useFormResults } from '../../hooks/queries/useFormQueries';
 import { formatAnswer } from './formFieldTypes';
@@ -24,13 +24,26 @@ function formatTimestamp(ts: Date | string | undefined): string {
 const FormResultsModal: React.FC<FormResultsModalProps> = ({ form, onClose }) => {
   const { data, isLoading, error } = useFormResults(form.id);
 
+  // The backend only ever returns submitted responses here — drafts are private to
+  // whoever is filling the form in and never leave their browser.
   const responses = data?.responses ?? [];
-  const submittedCount = responses.filter((r) => r.response.submittedAt).length;
+
+  // Each response is collapsed by default — a form can collect many responses, so
+  // showing every answer set expanded at once would be an unreadable wall of text.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggleExpanded = (key: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   return ReactDOM.createPortal(
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-50">
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+        className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-label={`Results for ${form.name}`}
@@ -41,7 +54,7 @@ const FormResultsModal: React.FC<FormResultsModalProps> = ({ form, onClose }) =>
             <p className="text-sm text-gray-500 mt-0.5">
               {isLoading
                 ? 'Loading…'
-                : `${responses.length} response${responses.length !== 1 ? 's' : ''} · ${submittedCount} submitted`}
+                : `${responses.length} response${responses.length !== 1 ? 's' : ''}`}
             </p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200 flex-shrink-0" aria-label="Close">
@@ -76,42 +89,54 @@ const FormResultsModal: React.FC<FormResultsModalProps> = ({ form, onClose }) =>
           )}
 
           <ul className="space-y-3" role="list" aria-label="Form responses">
-            {responses.map((row) => (
-              <li key={`${row.itemId}-${row.response.formId}`} className="bg-white border border-gray-200 rounded-lg shadow-sm">
-                <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100">
-                  <FiFileText size={14} className="text-indigo-500 flex-shrink-0" aria-hidden="true" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-800 truncate">
-                      {row.itemName ?? '(deleted item)'}
-                    </p>
-                    <p className="text-[11px] text-gray-400">
-                      {row.response.submittedAt
-                        ? `Submitted by ${row.response.submittedByName ?? 'someone'} · ${formatTimestamp(row.response.submittedAt)}`
-                        : `Draft · last edited ${formatTimestamp(row.response.updatedAt)}`}
-                    </p>
-                  </div>
-                  {!row.response.submittedAt && (
-                    <span className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
-                      Draft
-                    </span>
-                  )}
-                </div>
+            {responses.map((row) => {
+              const key = `${row.itemId}-${row.response.formId}`;
+              const isOpen = expanded.has(key);
+              return (
+                <li key={key} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => toggleExpanded(key)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 transition-colors text-left"
+                    aria-expanded={isOpen}
+                    aria-controls={`response-${key}`}
+                  >
+                    <FiFileText size={14} className="text-indigo-500 flex-shrink-0" aria-hidden="true" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {row.itemName ?? '(deleted item)'}
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        Submitted by {row.response.submittedByName ?? 'someone'} · {formatTimestamp(row.response.submittedAt)}
+                      </p>
+                    </div>
+                    <FiChevronDown
+                      size={16}
+                      className={`flex-shrink-0 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+                      aria-hidden="true"
+                    />
+                  </button>
 
-                <dl className="px-4 py-3 space-y-2">
-                  {form.fields.map((field) => {
-                    const answer = formatAnswer(field, row.response.values?.[field.id] ?? null);
-                    return (
-                      <div key={field.id} className="grid grid-cols-1 sm:grid-cols-3 gap-1 sm:gap-3">
-                        <dt className="text-xs text-gray-500 sm:text-right">{field.label}</dt>
-                        <dd className="text-sm text-gray-800 sm:col-span-2 break-words">
-                          {answer === '' ? <span className="text-gray-300">—</span> : answer}
-                        </dd>
-                      </div>
-                    );
-                  })}
-                </dl>
-              </li>
-            ))}
+                  {isOpen && (
+                    <dl id={`response-${key}`} className="px-4 py-3 border-t border-gray-100 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50">
+                      {form.fields.map((field) => {
+                        const answer = formatAnswer(field, row.response.values?.[field.id] ?? null);
+                        return (
+                          <div key={field.id} className="bg-white border border-gray-200 rounded-md px-3 py-2">
+                            <dt className="text-[11px] font-medium text-gray-500 uppercase tracking-wide truncate">
+                              {field.label}
+                            </dt>
+                            <dd className="text-sm text-gray-800 mt-0.5 break-words">
+                              {answer === '' ? <span className="text-gray-300">—</span> : answer}
+                            </dd>
+                          </div>
+                        );
+                      })}
+                    </dl>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
 

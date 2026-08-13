@@ -1,9 +1,9 @@
 /**
  * Console tracing for formula references — why a token shows a number, a 0, or stays at "…".
  *
- * On by default so a deployed build can be diagnosed without a rebuild. Silence it from the
- * console with `formulaDebug.off()` (and `formulaDebug.on()` to bring it back); the choice is
- * remembered per browser.
+ * Off by default to keep the console clean in normal use. Turn it on from the console with
+ * `formulaDebug.on()` (and `formulaDebug.off()` to silence it again) when diagnosing a formula
+ * issue; the choice is remembered per browser.
  */
 
 const PREFIX = '%c[formula]';
@@ -15,9 +15,9 @@ let enabled: boolean | null = null;
 export function formulaDebugEnabled(): boolean {
   if (enabled === null) {
     try {
-      enabled = localStorage.getItem(STORAGE_KEY) !== 'off';
+      enabled = localStorage.getItem(STORAGE_KEY) === 'on';
     } catch {
-      enabled = true;
+      enabled = false;
     }
   }
   return enabled;

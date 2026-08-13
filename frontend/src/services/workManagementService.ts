@@ -516,8 +516,14 @@ export const createForm = (data: CreateFormData): Promise<Form> =>
 export const updateForm = (id: string, patch: UpdateFormData): Promise<Form> =>
   fetchWithAuth(`/api/forms/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 
-export const archiveForm = (id: string): Promise<null> =>
-  fetchWithAuth(`/api/forms/${id}/archive`, { method: 'PATCH' });
+/**
+ * `confirm: true` must be passed once the caller has shown the attached-items
+ * warning and the user chose to proceed — otherwise, if the form is currently
+ * attached to any item, the backend responds 409 with `attachedItems` instead
+ * of archiving.
+ */
+export const archiveForm = (id: string, confirm = false): Promise<null> =>
+  fetchWithAuth(`/api/forms/${id}/archive`, { method: 'PATCH', body: JSON.stringify({ confirm }) });
 
 export const restoreForm = (id: string): Promise<Form> =>
   fetchWithAuth(`/api/forms/${id}/restore`, { method: 'PATCH' });
