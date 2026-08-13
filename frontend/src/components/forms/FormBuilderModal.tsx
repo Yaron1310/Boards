@@ -6,7 +6,8 @@ import {
 } from 'react-icons/fi';
 import { FormFieldType } from '../../types';
 import type { Form, FormField } from '../../types';
-import { FIELD_TYPE_LABELS, hasOptions, makeLocalId } from './formFieldTypes';
+import { FIELD_TYPE_LABELS, hasOptions, makeLocalId, COMPATIBLE_COLUMN_TYPES } from './formFieldTypes';
+import { COLUMN_TYPE_LABELS } from '../boards/AddColumnModal';
 
 interface FormBuilderModalProps {
   /** The form being edited, or null when creating a new one. */
@@ -45,6 +46,11 @@ const FormBuilderModal: React.FC<FormBuilderModalProps> = ({ form, onClose, onSa
           next.options = f.options && f.options.length > 0 ? f.options : [{ id: makeLocalId('opt'), label: '' }];
         } else {
           delete next.options;
+        }
+        // A column connection only makes sense if the new type is still compatible
+        // with the column type it was pointed at.
+        if (next.linkedColumnType && !COMPATIBLE_COLUMN_TYPES[type]?.includes(next.linkedColumnType)) {
+          delete next.linkedColumnType;
         }
         return next;
       }),
@@ -296,6 +302,35 @@ const FormBuilderModal: React.FC<FormBuilderModalProps> = ({ form, onClose, onSa
                               >
                                 <FiPlus size={12} className="mr-1" aria-hidden="true" /> Add option
                               </button>
+                            </div>
+                          )}
+
+                          {COMPATIBLE_COLUMN_TYPES[field.type] && (
+                            <div className="pl-1">
+                              <label htmlFor={`field-column-${field.id}`} className="block text-xs font-medium text-gray-600 mb-1">
+                                Connect column <span className="text-gray-400 font-normal">(optional)</span>
+                              </label>
+                              <select
+                                id={`field-column-${field.id}`}
+                                value={field.linkedColumnType ?? ''}
+                                onChange={(e) =>
+                                  patchField(field.id, {
+                                    linkedColumnType: e.target.value ? (e.target.value as FormField['linkedColumnType']) : undefined,
+                                  })
+                                }
+                                className="w-full sm:w-64 p-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                                aria-label={`Connect ${field.label || `field ${index + 1}`} to a board column`}
+                              >
+                                <option value="">Not connected</option>
+                                {COMPATIBLE_COLUMN_TYPES[field.type]!.map((ct) => (
+                                  <option key={ct} value={ct}>{COLUMN_TYPE_LABELS[ct]}</option>
+                                ))}
+                              </select>
+                              <p className="mt-1 text-[11px] text-gray-400">
+                                {field.linkedColumnType
+                                  ? `On submit, this answer also fills the item's ${COLUMN_TYPE_LABELS[field.linkedColumnType]} column, if its board has one.`
+                                  : "Fill a matching column on the item's board automatically when this form is submitted."}
+                              </p>
                             </div>
                           )}
 

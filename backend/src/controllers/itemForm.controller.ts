@@ -7,6 +7,7 @@ import {
   itemFormResponsesCollection,
   boardMembersCollection,
   formsCollection,
+  columnsCollection,
   usersCollection,
 } from '../db/collections.js';
 import {
@@ -18,6 +19,8 @@ import {
   DBForm,
   DBFormField,
   DBFormResponse,
+  DBColumn,
+  ColumnType,
   FormAnswerValue,
   FormFieldType,
 } from '../types/index.js';
@@ -266,11 +269,46 @@ export const attachFormToItem = async (req: Request, res: Response) => {
   }
 };
 
+/**
+ * For every field with a linkedColumnType, finds that type's first column on the
+ * item's board and returns { columnId: answerValue } for the ones that have a
+ * match. Answer values already match a compatible column's storage format 1:1
+ * (see formColumnSync.ts), so this is a plain copy — no reshaping needed.
+ */
+async function buildColumnSyncPatch(
+  orgId: string,
+  boardId: string,
+  form: DBForm,
+  values: Record<string, FormAnswerValue>,
+): Promise<Record<string, FormAnswerValue>> {
+  const linkedFields = form.fields.filter(f => f.linkedColumnType);
+  if (linkedFields.length === 0) return {};
+
+  const columnsSnap = await columnsCollection(orgId, boardId).get();
+  // First column of each type wins when a board has more than one of the same type.
+  const columnIdByType = new Map<ColumnType, string>();
+  for (const doc of columnsSnap.docs) {
+    const column = doc.data() as DBColumn;
+    if (!columnIdByType.has(column.type)) columnIdByType.set(column.type, doc.id);
+  }
+
+  const patch: Record<string, FormAnswerValue> = {};
+  for (const field of linkedFields) {
+    const columnId = columnIdByType.get(field.linkedColumnType!);
+    if (!columnId) continue;
+    const answer = values[field.id];
+    if (answer === undefined) continue;
+    patch[columnId] = answer;
+  }
+  return patch;
+}
+
 // ---------------------------------------------------------------------------
 // PATCH /items/:itemId/forms/:formId   body: { values, submit? }
 //
 // Saves answers. `submit: true` enforces required fields and stamps the
-// submitter; without it the answers are stored as a draft.
+// submitter; without it the answers are stored as a draft. On submit, any field
+// with a linkedColumnType also gets copied into the matching board column.
 // ---------------------------------------------------------------------------
 export const saveItemFormResponse = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
@@ -278,7 +316,7 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
   const submit = req.body.submit === true;
 
   try {
-    await loadItemWithAccess(user, itemId, 'update');
+    const item = await loadItemWithAccess(user, itemId, 'update');
 
     const responseRef = itemFormResponsesCollection(user.orgId, itemId).doc(formId);
     const [responseSnap, formSnap] = await Promise.all([
@@ -309,7 +347,13 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
 
     await responseRef.update(patch);
     if (submit) {
-      await itemsCollection(user.orgId).doc(itemId).update({ formSubmitted: true, updatedAt: now });
+      const itemUpdate: Record<string, unknown> = { formSubmitted: true, updatedAt: now };
+      const columnPatch = await buildColumnSyncPatch(user.orgId, item.boardId, form, sanitized.values);
+      // Dot-path keys merge into the item's `values` map rather than overwriting it.
+      for (const [columnId, value] of Object.entries(columnPatch)) {
+        itemUpdate[`values.${columnId}`] = value;
+      }
+      await itemsCollection(user.orgId).doc(itemId).update(itemUpdate);
     }
     const updated = await responseRef.get();
 

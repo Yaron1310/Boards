@@ -1244,10 +1244,7 @@ const BoardViewPage: React.FC = () => {
         document.body,
       )}
 
-      {formsItem && createPortal(
-        <ItemFormSidebar item={formsItem} onClose={() => setFormsItem(null)} />,
-        document.body,
-      )}
+      {formsItem && <ItemFormSidebar item={formsItem} onClose={() => setFormsItem(null)} />}
 
       {board && boardMenuTriggerRect && (
         <BoardContextMenu
