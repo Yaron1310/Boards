@@ -1,5 +1,21 @@
-import { FormFieldType } from '../../types';
+import { FormFieldType, ColumnType } from '../../types';
 import type { FormField, FormAnswerValue } from '../../types';
+
+/**
+ * Column types a field's answers can sync into on submit. Limited to column types
+ * whose stored value is a plain string/number/boolean/date-string matching what
+ * this field type already produces — no id-remapping (dropdown/status options,
+ * person ids, …) is attempted, so those column types aren't offered.
+ */
+export const COMPATIBLE_COLUMN_TYPES: Partial<Record<FormFieldType, ColumnType[]>> = {
+  [FormFieldType.SHORT_TEXT]: [ColumnType.TEXT, ColumnType.LINK, ColumnType.EMAIL, ColumnType.PHONE, ColumnType.LOCATION],
+  [FormFieldType.LONG_TEXT]: [ColumnType.TEXT],
+  [FormFieldType.EMAIL]: [ColumnType.EMAIL, ColumnType.TEXT, ColumnType.LINK],
+  [FormFieldType.PHONE]: [ColumnType.PHONE, ColumnType.TEXT, ColumnType.LINK],
+  [FormFieldType.NUMBER]: [ColumnType.NUMBER],
+  [FormFieldType.DATE]: [ColumnType.DATE],
+  [FormFieldType.CHECKBOX]: [ColumnType.CHECKBOX],
+};
 
 /** Field types whose answers come from a fixed option list. */
 export const OPTION_FIELD_TYPES: FormFieldType[] = [

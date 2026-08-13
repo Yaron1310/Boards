@@ -718,6 +718,13 @@ export interface FormField {
   required?: boolean;
   /** Only for dropdown / single_select / multi_select. */
   options?: FormFieldOption[];
+  /**
+   * Optional column type this field's answers should sync to. A form is shared
+   * across boards, so this names a column *type* rather than one specific column
+   * id — on submit, the backend finds the first column of this type on the
+   * item's own board (if any) and writes the answer there too.
+   */
+  linkedColumnType?: ColumnType;
 }
 
 export interface Form {

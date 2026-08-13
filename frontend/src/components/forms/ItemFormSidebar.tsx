@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import {
   FiX, FiTrash2, FiSave, FiCheck, FiLoader, FiFileText, FiEdit2, FiAlertCircle, FiLock,
 } from 'react-icons/fi';
@@ -195,14 +196,16 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
     }
   };
 
-  return (
-    <div
-      className="fixed right-0 top-0 bottom-0 z-[10200] w-full max-w-[34rem] bg-white shadow-2xl flex flex-col"
-      role="region"
-      aria-label={`Form for ${item.name}`}
-    >
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[10200]">
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Form for ${item.name}`}
+      >
       {/* Header — mirrors the chat sidebar */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-indigo-600 text-white flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-indigo-600 text-white flex-shrink-0 rounded-t-lg">
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-semibold truncate">{item.name}</span>
           <span className="text-xs text-indigo-200 truncate">
@@ -357,7 +360,7 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
 
       {/* Action bar */}
       {form && (
-        <div className="flex justify-end gap-2 border-t border-gray-200 bg-white px-4 py-3 flex-shrink-0">
+        <div className="flex justify-end gap-2 border-t border-gray-200 bg-white px-4 py-3 flex-shrink-0 rounded-b-lg">
           {locked ? (
             <button
               type="button"
@@ -404,7 +407,9 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </div>,
+    document.getElementById('modal-root')!,
   );
 };
 

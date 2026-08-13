@@ -12,9 +12,11 @@ import {
   DBFormResponse,
   DBItem,
   FormFieldType,
+  ColumnType,
 } from '../types/index.js';
 import { isAtLeast } from '../utils/workManagementAuth.js';
 import { logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
+import { isCompatibleColumnType } from '../utils/formColumnSync.js';
 
 const MAX_FIELDS = 50;
 const MAX_OPTIONS = 50;
@@ -80,6 +82,14 @@ function sanitizeFields(raw: unknown): { fields: DBFormField[] } | { error: stri
       field.placeholder = f.placeholder.trim().slice(0, MAX_LABEL_LENGTH);
     }
     if (f.required === true) field.required = true;
+
+    if (typeof f.linkedColumnType === 'string') {
+      const columnType = f.linkedColumnType as ColumnType;
+      if (!isCompatibleColumnType(type, columnType)) {
+        return { error: `fields[${i}]: "${label}" can't be connected to a ${columnType} column.` };
+      }
+      field.linkedColumnType = columnType;
+    }
 
     if (OPTION_FIELD_TYPES.has(type)) {
       if (!Array.isArray(f.options) || f.options.length === 0) {

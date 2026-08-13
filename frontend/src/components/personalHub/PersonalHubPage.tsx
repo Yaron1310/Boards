@@ -624,10 +624,7 @@ const PersonalHubPageInner: React.FC = () => {
         document.body,
       )}
 
-      {formsItem && createPortal(
-        <ItemFormSidebar item={formsItem} onClose={() => setFormsItem(null)} />,
-        document.body,
-      )}
+      {formsItem && <ItemFormSidebar item={formsItem} onClose={() => setFormsItem(null)} />}
 
       {showAddCrossGroupColumn && (
         <AddColumnModal mode="personal" personalScope="all" personalOwnerId={hubOwnerId} onClose={() => setShowAddCrossGroupColumn(false)} />
