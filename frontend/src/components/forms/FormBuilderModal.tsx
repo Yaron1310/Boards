@@ -51,7 +51,6 @@ const FormBuilderModal: React.FC<FormBuilderModalProps> = ({ form, onClose, onSa
         // with the column type it was pointed at.
         if (next.linkedColumnType && !COMPATIBLE_COLUMN_TYPES[type]?.includes(next.linkedColumnType)) {
           delete next.linkedColumnType;
-          delete next.linkedColumnName;
         }
         return next;
       }),
@@ -307,54 +306,29 @@ const FormBuilderModal: React.FC<FormBuilderModalProps> = ({ form, onClose, onSa
                           )}
 
                           {COMPATIBLE_COLUMN_TYPES[field.type] && (
-                            <div className="pl-1 flex flex-col sm:flex-row gap-2">
-                              <div className="sm:w-56">
-                                <label htmlFor={`field-column-${field.id}`} className="block text-xs font-medium text-gray-600 mb-1">
-                                  Connect column <span className="text-gray-400 font-normal">(optional)</span>
-                                </label>
-                                <select
-                                  id={`field-column-${field.id}`}
-                                  value={field.linkedColumnType ?? ''}
-                                  onChange={(e) =>
-                                    patchField(field.id, {
-                                      linkedColumnType: e.target.value ? (e.target.value as FormField['linkedColumnType']) : undefined,
-                                      linkedColumnName: e.target.value ? field.linkedColumnName : undefined,
-                                    })
-                                  }
-                                  className="w-full p-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none"
-                                  aria-label={`Connect ${field.label || `field ${index + 1}`} to a board column`}
-                                >
-                                  <option value="">Not connected</option>
-                                  {COMPATIBLE_COLUMN_TYPES[field.type]!.map((ct) => (
-                                    <option key={ct} value={ct}>{COLUMN_TYPE_LABELS[ct]}</option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              {field.linkedColumnType && (
-                                <div className="flex-1 min-w-[10rem]">
-                                  <label htmlFor={`field-column-name-${field.id}`} className="block text-xs font-medium text-gray-600 mb-1">
-                                    Column name <span className="text-gray-400 font-normal">(if the board has more than one)</span>
-                                  </label>
-                                  <input
-                                    id={`field-column-name-${field.id}`}
-                                    type="text"
-                                    value={field.linkedColumnName ?? ''}
-                                    onChange={(e) => patchField(field.id, { linkedColumnName: e.target.value || undefined })}
-                                    placeholder={`e.g. "${COLUMN_TYPE_LABELS[field.linkedColumnType]}"`}
-                                    className="w-full p-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-400 focus:outline-none"
-                                    aria-label={`Exact column name to disambiguate ${COLUMN_TYPE_LABELS[field.linkedColumnType]} columns`}
-                                  />
-                                </div>
-                              )}
-
-                              <p className="basis-full mt-0.5 text-[11px] text-gray-400">
+                            <div className="pl-1">
+                              <label htmlFor={`field-column-${field.id}`} className="block text-xs font-medium text-gray-600 mb-1">
+                                Connect column <span className="text-gray-400 font-normal">(optional)</span>
+                              </label>
+                              <select
+                                id={`field-column-${field.id}`}
+                                value={field.linkedColumnType ?? ''}
+                                onChange={(e) =>
+                                  patchField(field.id, {
+                                    linkedColumnType: e.target.value ? (e.target.value as FormField['linkedColumnType']) : undefined,
+                                  })
+                                }
+                                className="w-full sm:w-64 p-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                                aria-label={`Connect ${field.label || `field ${index + 1}`} to a board column`}
+                              >
+                                <option value="">Not connected</option>
+                                {COMPATIBLE_COLUMN_TYPES[field.type]!.map((ct) => (
+                                  <option key={ct} value={ct}>{COLUMN_TYPE_LABELS[ct]}</option>
+                                ))}
+                              </select>
+                              <p className="mt-1 text-[11px] text-gray-400">
                                 {field.linkedColumnType
-                                  ? `On submit, this answer fills the item's ${COLUMN_TYPE_LABELS[field.linkedColumnType]} column${
-                                      field.linkedColumnName ? ` named "${field.linkedColumnName}"` : ''
-                                    }, if its board has one${
-                                      field.linkedColumnName ? '' : " — leave the name blank only if the board has just one column of this type, otherwise it's skipped to avoid guessing wrong"
-                                    }.`
+                                  ? `On submit, this answer also fills the item's ${COLUMN_TYPE_LABELS[field.linkedColumnType]} column. If the board has more than one, whoever attaches this form to an item picks which.`
                                   : "Fill a matching column on the item's board automatically when this form is submitted."}
                               </p>
                             </div>

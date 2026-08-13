@@ -95,7 +95,7 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}, isRe
   }
   if (!response.ok) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- server-defined conflict payload shape varies by endpoint
-    let errorData: { message?: string; dependencies?: any };
+    let errorData: { message?: string; dependencies?: any; needsColumnSelection?: any };
     try {
       errorData = await response.json();
     } catch {
@@ -107,6 +107,12 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}, isRe
       conflictError.isConflict = true;
       conflictError.dependencies = errorData.dependencies;
       throw conflictError;
+    }
+    if (response.status === 409 && errorData.needsColumnSelection) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- server-defined conflict payload shape varies by endpoint
+      const selectionError = new Error(errorData.message || 'Choose a column for each connected field.') as Error & { needsColumnSelection: any };
+      selectionError.needsColumnSelection = errorData.needsColumnSelection;
+      throw selectionError;
     }
     const httpErr = new Error(errorData.message || `HTTP error! status: ${response.status}`) as Error & { status: number };
     httpErr.status = response.status;

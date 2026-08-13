@@ -814,16 +814,10 @@ export interface DBFormField {
   /**
    * Optional column type this field's answers should sync to. A form is shared
    * across boards, so this names a column *type* rather than one specific column
-   * id — on submit, we find the matching column on the item's own board (if any)
-   * and write the answer there too. See resolveLinkedColumn (formColumnSync.ts).
+   * id — which actual column it resolves to is decided per item, when the form
+   * is attached (see DBFormResponse.columnSelections, formColumnSync.ts).
    */
   linkedColumnType?: ColumnType;
-  /**
-   * Disambiguates which column when a board has more than one column of
-   * linkedColumnType — matched by exact (case-insensitive) name. Ignored when
-   * the board has only one column of that type.
-   */
-  linkedColumnName?: string;
 }
 
 /**
@@ -868,4 +862,11 @@ export interface DBFormResponse {
    * longer counts as "attached" — listItemForms and attachFormToItem both ignore it.
    */
   detachedAt?: admin.firestore.Timestamp | Date | any;
+  /**
+   * Resolved once, at attach time, for every field with a linkedColumnType: fieldId ->
+   * the columnId on this item's board its answers should sync to on submit. Fixed here
+   * rather than re-derived from the type at submit time because a board can have more
+   * than one column of the same type — see findColumnCandidates (formColumnSync.ts).
+   */
+  columnSelections?: Record<string, string>;
 }

@@ -540,8 +540,18 @@ export const getFormResults = (id: string): Promise<FormResults> =>
 export const listItemForms = (itemId: string): Promise<ItemFormEntry[]> =>
   fetchWithAuth(`/api/items/${itemId}/forms`);
 
-export const attachFormToItem = (itemId: string, formId: string): Promise<ItemFormEntry> =>
-  fetchWithAuth(`/api/items/${itemId}/forms`, { method: 'POST', body: JSON.stringify({ formId }) });
+/**
+ * `columnSelections` (fieldId -> columnId) is only needed when the form has a field
+ * linked to a column type this board has more than one of — see itemForm.controller.ts.
+ * Without it in that situation, the request 409s with `needsColumnSelection` describing
+ * what to ask the user, and the caller re-issues this call once they've picked.
+ */
+export const attachFormToItem = (
+  itemId: string,
+  formId: string,
+  columnSelections?: Record<string, string>,
+): Promise<ItemFormEntry> =>
+  fetchWithAuth(`/api/items/${itemId}/forms`, { method: 'POST', body: JSON.stringify({ formId, columnSelections }) });
 
 export const saveItemFormResponse = (
   itemId: string,

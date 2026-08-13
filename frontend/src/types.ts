@@ -721,16 +721,10 @@ export interface FormField {
   /**
    * Optional column type this field's answers should sync to. A form is shared
    * across boards, so this names a column *type* rather than one specific column
-   * id — on submit, the backend finds the matching column on the item's own
-   * board (if any) and writes the answer there too.
+   * id — which actual column it resolves to is decided per item, when the form
+   * is attached (see ItemFormEntry / FormResponse.columnSelections).
    */
   linkedColumnType?: ColumnType;
-  /**
-   * Disambiguates which column when a board has more than one column of
-   * linkedColumnType — matched by exact (case-insensitive) name. Ignored when
-   * the board has only one column of that type.
-   */
-  linkedColumnName?: string;
 }
 
 export interface Form {
@@ -760,6 +754,8 @@ export interface FormResponse {
   submittedByName?: string;
   submittedAt?: Date | string;
   updatedAt: Date | string;
+  /** fieldId -> columnId, resolved once at attach time. See DBFormResponse.columnSelections. */
+  columnSelections?: Record<string, string>;
 }
 
 /** One entry in an item's form sidebar. `form` is null when the definition was deleted. */

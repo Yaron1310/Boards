@@ -25,7 +25,7 @@ import {
   FormFieldType,
 } from '../types/index.js';
 import { assertItemAccess, isAtLeast } from '../utils/workManagementAuth.js';
-import { resolveLinkedColumn, normalizeLinkAnswer } from '../utils/formColumnSync.js';
+import { findColumnCandidates, normalizeLinkAnswer } from '../utils/formColumnSync.js';
 
 const MAX_TEXT_ANSWER_LENGTH = 5000;
 
@@ -199,11 +199,19 @@ export const listItemForms = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// POST /items/:itemId/forms   body: { formId }
+// POST /items/:itemId/forms   body: { formId, columnSelections? }
 //
 // Attaches a form to an item, creating its (empty) response document. An item
 // holds at most one form: re-attaching the same one is a no-op, attaching a
 // different one is rejected until the current form is detached.
+//
+// If the form has fields linked to a column type, this also resolves, once,
+// which actual column on THIS item's board each one targets (see
+// findColumnCandidates, formColumnSync.ts). A field with no matching column on
+// this board is just skipped — nothing to sync here. A field whose board has
+// more than one column of the linked type is ambiguous: the caller must supply
+// columnSelections ({ fieldId: columnId }) or this responds 409 with the
+// candidates for each such field so the UI can ask the user to pick.
 // ---------------------------------------------------------------------------
 export const attachFormToItem = async (req: Request, res: Response) => {
   const user = req.user as JwtUserPayload;
@@ -234,6 +242,53 @@ export const attachFormToItem = async (req: Request, res: Response) => {
       });
     }
 
+    // Resolve which column each linked field targets on this item's board.
+    let columnSelections: Record<string, string> | undefined;
+    const linkedFields = form.fields.filter(f => f.linkedColumnType);
+    if (linkedFields.length > 0) {
+      const columnsSnap = await columnsCollection(user.orgId, item.boardId).get();
+      const columns = columnsSnap.docs.map(d => ({ id: d.id, ...(d.data() as Omit<DBColumn, 'id'>) }));
+      const candidateGroups = findColumnCandidates(linkedFields, columns);
+
+      const provided = (req.body.columnSelections && typeof req.body.columnSelections === 'object')
+        ? req.body.columnSelections as Record<string, unknown>
+        : {};
+
+      const needsColumnSelection: {
+        fieldId: string; fieldLabel: string; columnType: ColumnType; columns: { id: string; name: string }[];
+      }[] = [];
+      const resolved: Record<string, string> = {};
+
+      for (const group of candidateGroups) {
+        if (group.candidates.length === 0) continue; // no matching column on this board — nothing to sync
+        if (group.candidates.length === 1) {
+          resolved[group.fieldId] = group.candidates[0].id;
+          continue;
+        }
+        const pickedId = provided[group.fieldId];
+        const picked = typeof pickedId === 'string' ? group.candidates.find(c => c.id === pickedId) : undefined;
+        if (picked) {
+          resolved[group.fieldId] = picked.id;
+        } else {
+          const field = linkedFields.find(f => f.id === group.fieldId)!;
+          needsColumnSelection.push({
+            fieldId: group.fieldId,
+            fieldLabel: field.label,
+            columnType: group.columnType,
+            columns: group.candidates.map(c => ({ id: c.id, name: c.name })),
+          });
+        }
+      }
+
+      if (needsColumnSelection.length > 0) {
+        return res.status(409).json({
+          message: 'This board has more than one column of the same type as one of this form\'s connected fields. Choose which column each should use.',
+          needsColumnSelection,
+        });
+      }
+      if (Object.keys(resolved).length > 0) columnSelections = resolved;
+    }
+
     // A detached-but-kept record (a previously submitted form removed from this item)
     // may already occupy the formId-keyed doc slot. Move it aside under its own id first
     // so its answers keep showing in the form's results instead of being overwritten.
@@ -254,6 +309,7 @@ export const attachFormToItem = async (req: Request, res: Response) => {
       attachedBy: user.id,
       attachedAt: now,
       updatedAt: now,
+      ...(columnSelections ? { columnSelections } : {}),
     };
     await responseRef.set(response);
     await itemsCollection(user.orgId).doc(itemId).update({
@@ -271,34 +327,29 @@ export const attachFormToItem = async (req: Request, res: Response) => {
 };
 
 /**
- * For every field with a linkedColumnType, resolves which single column on the
- * item's board it should write to (see resolveLinkedColumn — skips fields that
- * are ambiguous, i.e. the board has more than one column of that type and
- * linkedColumnName doesn't pick one out) and returns { columnId: answerValue }
- * for the ones that resolved. Answer values already match a compatible column's
- * storage format 1:1 (see formColumnSync.ts) except LINK, which needs the same
- * https:// normalization a manual edit gets — otherwise the cell shows plain
- * text instead of a clickable link until someone re-saves it by hand.
+ * For every field with a linkedColumnType, looks up which column attach time
+ * resolved it to (response.columnSelections — see findColumnCandidates,
+ * formColumnSync.ts) and returns { columnId: answerValue } for the ones that
+ * have a selection. Answer values already match a compatible column's storage
+ * format 1:1 except LINK, which needs the same https:// normalization a manual
+ * edit gets — otherwise the cell shows plain text instead of a clickable link
+ * until someone re-saves it by hand.
  */
-async function buildColumnSyncPatch(
-  orgId: string,
-  boardId: string,
+function buildColumnSyncPatch(
   form: DBForm,
+  columnSelections: Record<string, string> | undefined,
   values: Record<string, FormAnswerValue>,
-): Promise<Record<string, FormAnswerValue>> {
-  const linkedFields = form.fields.filter(f => f.linkedColumnType);
-  if (linkedFields.length === 0) return {};
-
-  const columnsSnap = await columnsCollection(orgId, boardId).get();
-  const columns = columnsSnap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<DBColumn, 'id'>) }));
+): Record<string, FormAnswerValue> {
+  if (!columnSelections) return {};
 
   const patch: Record<string, FormAnswerValue> = {};
-  for (const field of linkedFields) {
-    const column = resolveLinkedColumn(columns, field.linkedColumnType!, field.linkedColumnName);
-    if (!column) continue;
+  for (const field of form.fields) {
+    if (!field.linkedColumnType) continue;
+    const columnId = columnSelections[field.id];
+    if (!columnId) continue;
     const answer = values[field.id];
     if (answer === undefined) continue;
-    patch[column.id] = column.type === ColumnType.LINK && typeof answer === 'string'
+    patch[columnId] = field.linkedColumnType === ColumnType.LINK && typeof answer === 'string'
       ? normalizeLinkAnswer(answer)
       : answer;
   }
@@ -318,7 +369,7 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
   const submit = req.body.submit === true;
 
   try {
-    const item = await loadItemWithAccess(user, itemId, 'update');
+    await loadItemWithAccess(user, itemId, 'update');
 
     const responseRef = itemFormResponsesCollection(user.orgId, itemId).doc(formId);
     const [responseSnap, formSnap] = await Promise.all([
@@ -350,7 +401,8 @@ export const saveItemFormResponse = async (req: Request, res: Response) => {
     await responseRef.update(patch);
     if (submit) {
       const itemUpdate: Record<string, unknown> = { formSubmitted: true, updatedAt: now };
-      const columnPatch = await buildColumnSyncPatch(user.orgId, item.boardId, form, sanitized.values);
+      const columnSelections = (responseSnap.data() as DBFormResponse).columnSelections;
+      const columnPatch = buildColumnSyncPatch(form, columnSelections, sanitized.values);
       // Dot-path keys merge into the item's `values` map rather than overwriting it.
       for (const [columnId, value] of Object.entries(columnPatch)) {
         itemUpdate[`values.${columnId}`] = value;

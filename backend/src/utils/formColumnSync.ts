@@ -23,28 +23,33 @@ export function isCompatibleColumnType(fieldType: FormFieldType, columnType: Col
 }
 
 /**
- * Which single column, among a board's columns, a linked field's answer should be
- * written to — or null if that can't be determined safely.
- *
- * A board can have more than one column of the same type, so type alone doesn't
- * pick one: with exactly one column of the linked type we use it (the common case,
- * and backward-compatible with fields linked before names were required); with
- * more than one, `linkedColumnName` must exactly match (case-insensitive) one of
- * them, otherwise we skip the sync entirely rather than guess and write to the
- * wrong column.
+ * A form is shared across boards with different column setups, so which column a
+ * linked field targets can't be fixed at form-authoring time — it's resolved once,
+ * per item, when the form is attached: candidates of the linked type are found on
+ * that item's board, and if there's more than one, the caller (attachFormToItem)
+ * must supply a columnId to pick one. The chosen columnId is then stored on the
+ * response doc (DBFormResponse.columnSelections) and reused unchanged on every
+ * later submit, so it doesn't need to be (and can't be) re-decided from a bare
+ * type at submit time.
  */
-export function resolveLinkedColumn<C extends { id: string; name: string; type: ColumnType }>(
-  columns: C[],
-  linkedColumnType: ColumnType,
-  linkedColumnName: string | undefined,
-): C | null {
-  const candidates = columns.filter(c => c.type === linkedColumnType);
-  if (candidates.length === 0) return null;
-  if (candidates.length === 1) return candidates[0];
+export interface ColumnCandidates<C> {
+  fieldId: string;
+  columnType: ColumnType;
+  candidates: C[];
+}
 
-  const wanted = linkedColumnName?.trim().toLowerCase();
-  if (!wanted) return null;
-  return candidates.find(c => c.name.trim().toLowerCase() === wanted) ?? null;
+/** Every linked field's matching columns on one board, keyed by field for the caller to inspect. */
+export function findColumnCandidates<C extends { id: string; type: ColumnType }>(
+  linkedFields: { id: string; linkedColumnType?: ColumnType }[],
+  columns: C[],
+): ColumnCandidates<C>[] {
+  return linkedFields
+    .filter((f): f is { id: string; linkedColumnType: ColumnType } => !!f.linkedColumnType)
+    .map(f => ({
+      fieldId: f.id,
+      columnType: f.linkedColumnType,
+      candidates: columns.filter(c => c.type === f.linkedColumnType),
+    }));
 }
 
 /**
