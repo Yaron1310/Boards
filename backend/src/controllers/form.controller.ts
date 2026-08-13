@@ -89,6 +89,9 @@ function sanitizeFields(raw: unknown): { fields: DBFormField[] } | { error: stri
         return { error: `fields[${i}]: "${label}" can't be connected to a ${columnType} column.` };
       }
       field.linkedColumnType = columnType;
+      if (typeof f.linkedColumnName === 'string' && f.linkedColumnName.trim()) {
+        field.linkedColumnName = f.linkedColumnName.trim().slice(0, MAX_LABEL_LENGTH);
+      }
     }
 
     if (OPTION_FIELD_TYPES.has(type)) {

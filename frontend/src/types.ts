@@ -721,10 +721,16 @@ export interface FormField {
   /**
    * Optional column type this field's answers should sync to. A form is shared
    * across boards, so this names a column *type* rather than one specific column
-   * id — on submit, the backend finds the first column of this type on the
-   * item's own board (if any) and writes the answer there too.
+   * id — on submit, the backend finds the matching column on the item's own
+   * board (if any) and writes the answer there too.
    */
   linkedColumnType?: ColumnType;
+  /**
+   * Disambiguates which column when a board has more than one column of
+   * linkedColumnType — matched by exact (case-insensitive) name. Ignored when
+   * the board has only one column of that type.
+   */
+  linkedColumnName?: string;
 }
 
 export interface Form {

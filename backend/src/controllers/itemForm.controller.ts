@@ -25,6 +25,7 @@ import {
   FormFieldType,
 } from '../types/index.js';
 import { assertItemAccess, isAtLeast } from '../utils/workManagementAuth.js';
+import { resolveLinkedColumn, normalizeLinkAnswer } from '../utils/formColumnSync.js';
 
 const MAX_TEXT_ANSWER_LENGTH = 5000;
 
@@ -270,10 +271,14 @@ export const attachFormToItem = async (req: Request, res: Response) => {
 };
 
 /**
- * For every field with a linkedColumnType, finds that type's first column on the
- * item's board and returns { columnId: answerValue } for the ones that have a
- * match. Answer values already match a compatible column's storage format 1:1
- * (see formColumnSync.ts), so this is a plain copy — no reshaping needed.
+ * For every field with a linkedColumnType, resolves which single column on the
+ * item's board it should write to (see resolveLinkedColumn — skips fields that
+ * are ambiguous, i.e. the board has more than one column of that type and
+ * linkedColumnName doesn't pick one out) and returns { columnId: answerValue }
+ * for the ones that resolved. Answer values already match a compatible column's
+ * storage format 1:1 (see formColumnSync.ts) except LINK, which needs the same
+ * https:// normalization a manual edit gets — otherwise the cell shows plain
+ * text instead of a clickable link until someone re-saves it by hand.
  */
 async function buildColumnSyncPatch(
   orgId: string,
@@ -285,20 +290,17 @@ async function buildColumnSyncPatch(
   if (linkedFields.length === 0) return {};
 
   const columnsSnap = await columnsCollection(orgId, boardId).get();
-  // First column of each type wins when a board has more than one of the same type.
-  const columnIdByType = new Map<ColumnType, string>();
-  for (const doc of columnsSnap.docs) {
-    const column = doc.data() as DBColumn;
-    if (!columnIdByType.has(column.type)) columnIdByType.set(column.type, doc.id);
-  }
+  const columns = columnsSnap.docs.map(doc => ({ id: doc.id, ...(doc.data() as Omit<DBColumn, 'id'>) }));
 
   const patch: Record<string, FormAnswerValue> = {};
   for (const field of linkedFields) {
-    const columnId = columnIdByType.get(field.linkedColumnType!);
-    if (!columnId) continue;
+    const column = resolveLinkedColumn(columns, field.linkedColumnType!, field.linkedColumnName);
+    if (!column) continue;
     const answer = values[field.id];
     if (answer === undefined) continue;
-    patch[columnId] = answer;
+    patch[column.id] = column.type === ColumnType.LINK && typeof answer === 'string'
+      ? normalizeLinkAnswer(answer)
+      : answer;
   }
   return patch;
 }
