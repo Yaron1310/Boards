@@ -21,3 +21,48 @@ export const COMPATIBLE_COLUMN_TYPES: Partial<Record<FormFieldType, ColumnType[]
 export function isCompatibleColumnType(fieldType: FormFieldType, columnType: ColumnType): boolean {
   return !!COMPATIBLE_COLUMN_TYPES[fieldType]?.includes(columnType);
 }
+
+/**
+ * A form is shared across boards with different column setups, so which column a
+ * linked field targets can't be fixed at form-authoring time — it's resolved once,
+ * per item, when the form is attached: candidates of the linked type are found on
+ * that item's board, and if there's more than one, the caller (attachFormToItem)
+ * must supply a columnId to pick one. The chosen columnId is then stored on the
+ * response doc (DBFormResponse.columnSelections) and reused unchanged on every
+ * later submit, so it doesn't need to be (and can't be) re-decided from a bare
+ * type at submit time.
+ */
+export interface ColumnCandidates<C> {
+  fieldId: string;
+  columnType: ColumnType;
+  candidates: C[];
+}
+
+/** Every linked field's matching columns on one board, keyed by field for the caller to inspect. */
+export function findColumnCandidates<C extends { id: string; type: ColumnType }>(
+  linkedFields: { id: string; linkedColumnType?: ColumnType }[],
+  columns: C[],
+): ColumnCandidates<C>[] {
+  return linkedFields
+    .filter((f): f is { id: string; linkedColumnType: ColumnType } => !!f.linkedColumnType)
+    .map(f => ({
+      fieldId: f.id,
+      columnType: f.linkedColumnType,
+      candidates: columns.filter(c => c.type === f.linkedColumnType),
+    }));
+}
+
+/**
+ * Normalizes a plain string answer destined for a LINK column the same way a
+ * manual edit in LinkCell.tsx does (prepend https:// to a bare domain) — writing
+ * the raw, unprefixed form answer would otherwise save a value isValidUrl()
+ * rejects, leaving the cell showing plain text instead of a clickable link until
+ * someone re-saves it by hand.
+ */
+export function normalizeLinkAnswer(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^(www\.|\w[\w-]*\.\w)/i.test(trimmed)) return `https://${trimmed}`;
+  return trimmed;
+}

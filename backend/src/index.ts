@@ -1,9 +1,7 @@
 
 import { onRequest } from "firebase-functions/v2/https";
-import { onInit } from "firebase-functions/v2/core";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { createApp } from "./server.js";
-import { seedDefaultData } from "./db/seed.js";
 import * as logger from "firebase-functions/logger";
 import type { Application } from 'express';
 
@@ -41,18 +39,17 @@ setGlobalOptions({
   region: 'us-central1' // Or your preferred region
 });
 
-// Run the seed on every cold start, guaranteed to complete before any request is handled.
-onInit(async () => {
-  logger.info("Cold start: running database seed check...");
-  try {
-    await seedDefaultData();
-    logger.info("Cold start: seed check complete.");
-  } catch (error) {
-    logger.error("Cold start: seed failed. Admin user may not exist.", error);
-  }
-});
-
-// A promise to ensure the app is initialized only once. This prevents race conditions.
+// A promise to ensure the app is initialized only once per instance. This prevents
+// race conditions.
+//
+// createApp() also runs the one-time seed check (see server.ts step 5) as part of
+// this same lazy initialization. It used to *additionally* run eagerly via onInit(),
+// which the Cloud Functions runtime fires at process startup — before any request
+// arrives. That's also when `firebase deploy` boots this same compiled module
+// locally just to enumerate exports, under a 10s budget: the seed's Firestore access
+// blocked on credential discovery, so the deploy's "determine backend specification"
+// step timed out. Nothing here may run until an actual request lands, so the seed now
+// only happens through createApp() below, never via onInit.
 let appInitializationPromise: Promise<Application> | null = null;
 
 // This is the main Cloud Function entry point.
@@ -63,7 +60,7 @@ export const api = onRequest({ invoker: 'public', timeoutSeconds: 300 }, async (
   }
 
   try {
-    const appInstance = await (appInitializationPromise as Promise<Application>);
+    const appInstance = await appInitializationPromise;
     logger.info("Express app instance is ready. Handling request.");
     return appInstance(request as any, response as any);
   } catch (error) {
