@@ -298,6 +298,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     pushUndo({
       label: `Deleted group "${groupName}"`,
       undo: () => { void restoreGroup({ boardId, groupId }); },
+      persist: { type: 'restoreGroup', boardId, groupId },
     });
   };
 
