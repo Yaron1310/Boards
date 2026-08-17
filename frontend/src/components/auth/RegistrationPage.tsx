@@ -216,14 +216,7 @@ const RegistrationPage: React.FC = () => {
         
         {/* Left Section: Branding (Top on Mobile) */}
         <div className="md:w-1/2 bg-gray-50 p-8 md:p-12 flex flex-col justify-center items-center text-center border-b md:border-b-0 md:border-r border-gray-100">
-          <img src={logoUrl} alt={t('common.appLogoAlt')} className="h-24 w-auto" />
-          <div className="flex items-center justify-center text-ind text-[0.95rem]" style={{ fontWeight: 550 }}>
-            <span>{t('auth.taglineLearn')}</span>
-            <span className="mx-2 text-xl leading-normal">·</span>
-            <span>{t('auth.taglineGrow')}</span>
-            <span className="mx-2 text-xl leading-normal">·</span>
-            <span>{t('auth.taglineTransform')}</span>
-          </div>
+          <img src={logoUrl} alt={t('common.appLogoAlt')} className="w-auto" style={{ height: '8rem' }} />
         </div>
 
         {/* Right Section: Form (Bottom on Mobile) */}
