@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, type ChangeEvent } from 'react';
 import ReactDOM from 'react-dom';
-import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile, FiDownload } from 'react-icons/fi';
+import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile, FiDownload, FiUsers } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '../../hooks/useData';
@@ -179,29 +179,34 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b flex justify-between items-center shrink-0">
-          <div>
-            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-              <FiUserPlus className="text-blue-600" aria-hidden="true" />
-              Invite Users to Organization
-            </h2>
+        <div className="p-6 border-b flex justify-between items-center shrink-0 gap-3">
+          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <FiUserPlus className="text-blue-600" aria-hidden="true" />
+            Invite Users to Organization
+          </h2>
+          <div className="flex items-center gap-2 shrink-0">
             {seatUsage?.seatLimit != null && (
-              <p
-                className={`text-xs mt-1 font-medium ${
-                  seatUsage.usedSeats >= seatUsage.seatLimit ? 'text-red-600' : 'text-gray-400'
+              <span
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold border-2 ${
+                  seatUsage.usedSeats >= seatUsage.seatLimit
+                    ? 'bg-red-50 border-red-300 text-red-700'
+                    : seatUsage.usedSeats >= seatUsage.seatLimit * 0.9
+                      ? 'bg-amber-50 border-amber-300 text-amber-700'
+                      : 'bg-blue-50 border-blue-200 text-blue-700'
                 }`}
               >
-                {seatUsage.usedSeats} / {seatUsage.seatLimit} seats used
-              </p>
+                <FiUsers size={15} aria-hidden="true" />
+                {seatUsage.usedSeats} / {seatUsage.seatLimit} seats
+              </span>
             )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-200 transition-colors"
+              aria-label="Close invite user modal"
+            >
+              <FiXCircle size={24} />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-200 transition-colors"
-            aria-label="Close invite user modal"
-          >
-            <FiXCircle size={24} />
-          </button>
         </div>
 
         {/* Body */}
@@ -225,21 +230,21 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
             <label htmlFor="invite-org-email" className="block text-sm font-medium text-gray-700 mb-1">
               Email address
             </label>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                type="email"
-                id="invite-org-email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="user@example.com"
-                className="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isBusy}
-              />
+            <input
+              type="email"
+              id="invite-org-email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="user@example.com"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isBusy}
+            />
+            <div className="flex gap-3 mt-3">
               <div className="flex gap-2">
                 {(['edit', 'read_only'] as const).map(p => (
                   <label
                     key={p}
-                    className={`flex items-center gap-1.5 px-3 py-2 rounded-md border-2 cursor-pointer transition-colors text-sm font-medium ${manualPermissions === p ? 'border-blue-500 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-md border-2 cursor-pointer transition-colors text-sm font-medium ${manualPermissions === p ? 'border-blue-500 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
                   >
                     <input
                       type="radio"
@@ -258,7 +263,7 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitDisabled}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md shadow-sm flex items-center justify-center transition-colors disabled:opacity-50 shrink-0"
+                className="flex-grow px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md shadow-sm flex items-center justify-center transition-colors disabled:opacity-50"
                 aria-label="Invite user to the organization"
               >
                 {isSubmitting

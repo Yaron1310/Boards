@@ -6,7 +6,7 @@ import { useData } from '../../hooks/useData';
 import { getOrganizationSeatUsage } from '../../services/geminiService';
 import type { WorkHub, PreApprovedUser } from '../../types';
 import type { PreApproveRow } from '../../services/geminiService';
-import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock, FiDownload } from 'react-icons/fi';
+import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock, FiDownload, FiUsers } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 import { PERMISSION_LABELS, parseInviteRows, downloadInviteTemplate } from '../../utils/inviteUsersXlsx';
 
@@ -202,16 +202,25 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
         <>
             <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-                    <div className="p-6 border-b flex justify-between items-center">
-                        <div>
-                            <h2 className="text-xl font-bold text-gray-800">Invite Users — {workspace.name}</h2>
+                    <div className="p-6 border-b flex justify-between items-center gap-3">
+                        <h2 className="text-xl font-bold text-gray-800">Invite Users — {workspace.name}</h2>
+                        <div className="flex items-center gap-2 shrink-0">
                             {seatUsage?.seatLimit != null && (
-                                <p className={`text-xs mt-1 font-medium ${seatUsage.usedSeats >= seatUsage.seatLimit ? 'text-red-600' : 'text-gray-400'}`}>
-                                    {seatUsage.usedSeats} / {seatUsage.seatLimit} seats used
-                                </p>
+                                <span
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold border-2 ${
+                                        seatUsage.usedSeats >= seatUsage.seatLimit
+                                            ? 'bg-red-50 border-red-300 text-red-700'
+                                            : seatUsage.usedSeats >= seatUsage.seatLimit * 0.9
+                                                ? 'bg-amber-50 border-amber-300 text-amber-700'
+                                                : 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                    }`}
+                                >
+                                    <FiUsers size={15} aria-hidden="true" />
+                                    {seatUsage.usedSeats} / {seatUsage.seatLimit} seats
+                                </span>
                             )}
+                            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200" aria-label="Close"><FiXCircle size={24}/></button>
                         </div>
-                        <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200" aria-label="Close"><FiXCircle size={24}/></button>
                     </div>
                     <div className="p-6 flex-grow overflow-y-auto custom-scrollbar space-y-6">
                         {feedback && (
@@ -226,18 +235,18 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                             Bulk uploads set permission per row from the sheet's own column instead. */}
                         <div>
                             <label htmlFor="manual-email-input" className="block text-sm font-medium text-gray-700 mb-1">{t('admin.addSingleEmail')}</label>
-                            <div className="flex flex-col sm:flex-row gap-3">
-                                <input type="email" id="manual-email-input" value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="user@example.com" aria-describedby={feedback?.type === 'error' ? 'preapprove-feedback-error' : undefined} className="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <input type="email" id="manual-email-input" value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="user@example.com" aria-describedby={feedback?.type === 'error' ? 'preapprove-feedback-error' : undefined} className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                            <div className="flex gap-3 mt-3">
                                 <div className="flex gap-2">
                                     {(['edit', 'read_only'] as const).map(p => (
-                                        <label key={p} className={`flex items-center gap-1.5 px-3 py-2 rounded-md border-2 cursor-pointer transition-colors text-sm font-medium ${manualPermissions === p ? 'border-blue-500 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}>
+                                        <label key={p} className={`flex items-center gap-1.5 px-4 py-2 rounded-md border-2 cursor-pointer transition-colors text-sm font-medium ${manualPermissions === p ? 'border-blue-500 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}>
                                             <input type="radio" name="manual-perm" value={p} checked={manualPermissions === p} onChange={() => setManualPermissions(p)} className="accent-blue-600" aria-label={PERMISSION_LABELS[p]} />
                                             {p === 'edit' ? <FiEdit2 size={13} aria-hidden="true" /> : <FiLock size={13} aria-hidden="true" />}
                                             {PERMISSION_LABELS[p]}
                                         </label>
                                     ))}
                                 </div>
-                                <button onClick={handleManualAdd} disabled={!manualEmail.trim() || isUploading || isLoading} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center">
+                                <button onClick={handleManualAdd} disabled={!manualEmail.trim() || isUploading || isLoading} className="flex-grow px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center">
                                     {isLoading || isUploading ? <FiLoader className="animate-spin mr-2"/> : <FiUserPlus className="mr-2"/>} {t('admin.addEmail')}
                                 </button>
                             </div>
