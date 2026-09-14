@@ -173,11 +173,11 @@ export interface PreApproveRow {
 export const preApproveUsersInBulk = async (rows: PreApproveRow[], workspaceId: string): Promise<{ successCount: number; message: string; seatLimitedEmails: string[] }> =>
   fetchWithAuth('/api/users/pre-approve-bulk', { method: 'POST', body: JSON.stringify({ rows, workspaceId }) });
 
-export const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
+export const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string; seatLimitedEmails: string[]}> =>
   fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ email, workspaceIds, permissions }) });
 
-export const inviteUsersToOrgBulk = async (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
-  fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ emails, workspaceIds, permissions }) });
+export const inviteUsersToOrgBulk = async (orgId: string, rows: PreApproveRow[], workspaceIds: string[] | 'all'): Promise<{successCount: number; message: string; seatLimitedEmails: string[]}> =>
+  fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ rows, workspaceIds }) });
 
 export const getPreApprovedUsersFromBackend = async (params?: { limit?: number; cursor?: string; search?: string }): Promise<PaginatedResponse<PreApprovedUser>> => {
     const query = new URLSearchParams();

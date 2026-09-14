@@ -66,8 +66,8 @@ interface DataContextType {
 
   preApprovedUsers: PreApprovedUser[];
   preApproveUsersInBulk: (rows: PreApproveRow[], workspaceId: string) => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
-  inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
-  inviteUsersToOrgBulk: (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
+  inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
+  inviteUsersToOrgBulk: (orgId: string, rows: PreApproveRow[], workspaceIds: string[] | 'all') => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
   revokePreApprovedUser: (preApprovedUserId: string) => Promise<boolean>;
 
   organizationSettings: OrganizationSettings | null;
@@ -329,9 +329,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { inviteUsersToOrg: inviteApi } = await api();
     return handleApiCall(() => inviteApi(orgId, email, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to invite user.');
   };
-  const inviteUsersToOrgBulk = async (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => {
+  const inviteUsersToOrgBulk = async (orgId: string, rows: PreApproveRow[], workspaceIds: string[] | 'all') => {
     const { inviteUsersToOrgBulk: bulkApi } = await api();
-    return handleApiCall(() => bulkApi(orgId, emails, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to bulk invite users.');
+    return handleApiCall(() => bulkApi(orgId, rows, workspaceIds), () => fetchPreApprovedUsers(), 'Failed to bulk invite users.');
   };
   const revokePreApprovedUser = async (preApprovedUserId: string) => {
     const { deletePreApprovedUserFromBackend } = await api();

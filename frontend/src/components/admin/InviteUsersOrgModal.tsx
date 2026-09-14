@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect, type ChangeEvent } from 'react';
 import ReactDOM from 'react-dom';
-import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile } from 'react-icons/fi';
+import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile, FiDownload } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '../../hooks/useData';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import type { WorkHub } from '../../types';
+import { parseInviteRows, downloadInviteTemplate } from '../../utils/inviteUsersXlsx';
 
 interface InviteUsersOrgModalProps {
   isOpen: boolean;
@@ -23,7 +24,8 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
   const [email, setEmail] = useState('');
   const [scope, setScope] = useState<'all' | 'specific'>('all');
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([]);
-  const [permissions, setPermissions] = useState<'edit' | 'read_only'>('edit');
+  // Single-email add only — bulk upload's permission comes from the sheet's own column, per row.
+  const [manualPermissions, setManualPermissions] = useState<'edit' | 'read_only'>('edit');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -33,7 +35,7 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
     setEmail('');
     setScope('all');
     setSelectedWorkspaceIds([]);
-    setPermissions('edit');
+    setManualPermissions('edit');
     setIsSubmitting(false);
     setUploadFile(null);
     setIsUploading(false);
@@ -70,7 +72,7 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
     setFeedback(null);
 
     try {
-      const result = await inviteUsersToOrg(orgId, email.trim(), getTargetWorkspaceIds(), permissions);
+      const result = await inviteUsersToOrg(orgId, email.trim(), getTargetWorkspaceIds(), manualPermissions);
       if (result) {
         setFeedback({ type: 'success', text: result.message });
         setEmail('');
@@ -112,17 +114,17 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
     setFeedback(null);
 
     try {
-      const rows = await readXlsxFile(uploadFile);
-      const emails = rows
-        .map(row => row[0])
-        .filter(cell => typeof cell === 'string' && cell.includes('@'))
-        .map(e => (e as string).trim());
+      const sheetRows = await readXlsxFile(uploadFile);
+      const { rows, invalidPermissionEmails } = parseInviteRows(sheetRows);
+      if (rows.length === 0) throw new Error('No valid emails found in the first column of the Excel sheet.');
 
-      if (emails.length === 0) throw new Error('No valid emails found in the first column of the Excel sheet.');
-
-      const result = await inviteUsersToOrgBulk(orgId, emails, getTargetWorkspaceIds(), permissions);
+      const result = await inviteUsersToOrgBulk(orgId, rows, getTargetWorkspaceIds());
       if (result) {
-        setFeedback({ type: 'success', text: result.message });
+        let text = result.message;
+        if (invalidPermissionEmails.length > 0) {
+          text += ` ${invalidPermissionEmails.length} row(s) had an unrecognized Permission value and defaulted to Edit: ${invalidPermissionEmails.slice(0, 5).join(', ')}${invalidPermissionEmails.length > 5 ? '…' : ''}.`;
+        }
+        setFeedback({ type: 'success', text });
         setUploadFile(null);
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       } else {
@@ -176,12 +178,13 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
             </div>
           )}
 
-          {/* Single email invite */}
+          {/* Single email invite — the only place a manually-picked permission applies. Bulk
+              uploads set permission per row from the sheet's own column instead. */}
           <div>
             <label htmlFor="invite-org-email" className="block text-sm font-medium text-gray-700 mb-1">
               Email address
             </label>
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <input
                 type="email"
                 id="invite-org-email"
@@ -191,6 +194,26 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
                 className="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={isBusy}
               />
+              <div className="flex gap-2">
+                {(['edit', 'read_only'] as const).map(p => (
+                  <label
+                    key={p}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-md border-2 cursor-pointer transition-colors text-sm font-medium ${manualPermissions === p ? 'border-blue-500 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                  >
+                    <input
+                      type="radio"
+                      name="org-invite-perm"
+                      value={p}
+                      checked={manualPermissions === p}
+                      onChange={() => setManualPermissions(p)}
+                      className="accent-blue-600"
+                      aria-label={p === 'edit' ? 'Edit' : 'Read only'}
+                    />
+                    {p === 'edit' ? <FiEdit2 size={13} aria-hidden="true" /> : <FiLock size={13} aria-hidden="true" />}
+                    {p === 'edit' ? 'Edit' : 'Read only'}
+                  </label>
+                ))}
+              </div>
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitDisabled}
@@ -206,7 +229,23 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
 
           {/* Bulk upload */}
           <div className="pt-4 border-t border-gray-200">
-            <p className="text-sm font-medium text-gray-700 mb-3">Send bulk invitations</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-medium text-gray-700">Send bulk invitations</p>
+              <button
+                type="button"
+                onClick={() => void downloadInviteTemplate()}
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+                aria-label="Download invite template"
+              >
+                <FiDownload size={13} aria-hidden="true" />
+                Download template
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Fill in the downloaded sheet — Email is required, Name is optional (used only to
+              label pending invites before they register), and Permission (Edit / Read only,
+              pick from the dropdown) is set per row. Blank permission defaults to Edit.
+            </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <label
                 htmlFor="bulk-org-upload-input"
@@ -281,33 +320,6 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
                 )}
               </div>
             )}
-          </fieldset>
-
-          {/* Permissions */}
-          <fieldset>
-            <legend className="text-sm font-medium text-gray-700 mb-2">Permissions</legend>
-            <div className="flex gap-3">
-              {(['edit', 'read_only'] as const).map(p => (
-                <label
-                  key={p}
-                  className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
-                >
-                  <input
-                    type="radio"
-                    name="org-invite-perm"
-                    value={p}
-                    checked={permissions === p}
-                    onChange={() => setPermissions(p)}
-                    className="accent-blue-600"
-                    aria-label={p === 'edit' ? 'Edit' : 'Read only'}
-                  />
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
-                    {p === 'edit' ? <FiEdit2 size={14} aria-hidden="true" /> : <FiLock size={14} aria-hidden="true" />}
-                    {p === 'edit' ? 'Edit' : 'Read only'}
-                  </span>
-                </label>
-              ))}
-            </div>
           </fieldset>
         </div>
 

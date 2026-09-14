@@ -2,12 +2,12 @@
 import React, { useState, useMemo, ChangeEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
-import ExcelJS from 'exceljs';
 import { useData } from '../../hooks/useData';
 import type { WorkHub, PreApprovedUser } from '../../types';
 import type { PreApproveRow } from '../../services/geminiService';
 import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock, FiDownload } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
+import { PERMISSION_LABELS, parseInviteRows, downloadInviteTemplate } from '../../utils/inviteUsersXlsx';
 
 interface PreApproveUsersModalProps {
     isOpen: boolean;
@@ -16,52 +16,6 @@ interface PreApproveUsersModalProps {
     maxUsers: number | null;
     currentRegularUsersCount: number;
     pendingInvitesCount: number;
-}
-
-const PERMISSION_LABELS = { edit: 'Edit', read_only: 'Read only' } as const;
-
-/** Recognizes the handful of ways someone might type a permission in a spreadsheet cell.
- *  Blank is treated as "unset" (defaults to Edit), anything else unrecognized comes back as
- *  invalid so the row can be flagged instead of silently guessed. */
-function normalizePermissionCell(raw: unknown): { permissions: 'edit' | 'read_only'; wasInvalid: boolean } {
-    if (typeof raw !== 'string' || !raw.trim()) return { permissions: 'edit', wasInvalid: false };
-    const v = raw.trim().toLowerCase();
-    if (['edit', 'editor'].includes(v)) return { permissions: 'edit', wasInvalid: false };
-    if (['read_only', 'read only', 'readonly', 'view', 'viewer'].includes(v)) return { permissions: 'read_only', wasInvalid: false };
-    return { permissions: 'edit', wasInvalid: true };
-}
-
-/** Downloads a ready-to-fill invite sheet: Email / Name / Permission columns, with the
- *  Permission column pre-armed with an Edit/Read only dropdown for a generous number of rows. */
-async function downloadInviteTemplate() {
-    const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Invites');
-    sheet.addRow(['Email', 'Name', 'Permission']);
-    sheet.getRow(1).font = { bold: true };
-    sheet.getColumn(1).width = 32;
-    sheet.getColumn(2).width = 24;
-    sheet.getColumn(3).width = 16;
-
-    const ROW_COUNT = 200;
-    for (let i = 2; i <= ROW_COUNT + 1; i++) {
-        sheet.getCell(`C${i}`).dataValidation = {
-            type: 'list',
-            allowBlank: true,
-            formulae: ['"Edit,Read only"'],
-            showErrorMessage: true,
-            errorTitle: 'Invalid permission',
-            error: 'Choose Edit or Read only from the dropdown.',
-        };
-    }
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'invite-users-template.xlsx';
-    a.click();
-    URL.revokeObjectURL(url);
 }
 
 const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onClose, workspace, maxUsers, currentRegularUsersCount, pendingInvitesCount }) => {
@@ -171,20 +125,8 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
 
         try {
             const sheetRows = await readXlsxFile(uploadFile);
-
-            // Column A = email (any row whose first cell isn't an email — a header row included —
-            // is simply not a data row), column B = name, column C = permission.
-            const dataRows = sheetRows.filter(row => typeof row[0] === 'string' && (row[0] as string).includes('@'));
-            if (dataRows.length === 0) throw new Error('No valid emails found in the first column of the Excel sheet.');
-
-            const invalidPermissionEmails: string[] = [];
-            const rows: PreApproveRow[] = dataRows.map(row => {
-                const email = (row[0] as string).trim();
-                const name = typeof row[1] === 'string' ? row[1].trim() : undefined;
-                const { permissions, wasInvalid } = normalizePermissionCell(row[2]);
-                if (wasInvalid) invalidPermissionEmails.push(email);
-                return { email, name: name || undefined, permissions };
-            });
+            const { rows, invalidPermissionEmails } = parseInviteRows(sheetRows) as { rows: PreApproveRow[]; invalidPermissionEmails: string[] };
+            if (rows.length === 0) throw new Error('No valid emails found in the first column of the Excel sheet.');
 
             if (rows.length > availableSlots && maxUsers !== null) {
                 throw new Error(`Your plan has ${availableSlots} available slot(s), but you are trying to invite ${rows.length} users.`);

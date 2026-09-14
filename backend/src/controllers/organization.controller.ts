@@ -20,7 +20,7 @@ import { sendAccountVerificationEmail, sendUserInvitationEmail } from '../servic
 import { sanitizeText, sanitizeUrl } from '../utils/sanitizer.js';
 import { Buffer } from 'node:buffer';
 import { generateFullLoginResponse } from './auth.controller.js';
-import { countBillableSeats } from '../services/seats.service.js';
+import { countBillableSeats, isMembershipBillable, isUserAlreadyBillable, checkSeatWarningThreshold } from '../services/seats.service.js';
 
 
 export const getAllOrganizations = async (req: Request, res: Response) => {
@@ -543,23 +543,48 @@ export const activateSubscription = async (req: Request, res: Response) => {
     }
 };
 
+interface OrgInviteRow {
+    email: string;
+    name?: string;
+    permissions?: 'edit' | 'read_only';
+}
+
 export const inviteUsersToOrg = async (req: Request, res: Response) => {
     const { orgId } = req.params;
-    const { email, emails, workspaceIds, permissions } = req.body as {
+    // `rows` is the current shape (one permission per email, read from the uploaded sheet's own
+    // column, or the single-add form's picker). `email`/`emails` + a flat `permissions` is still
+    // accepted for any caller on the old contract — normalized into the same row shape below.
+    const { email, emails, rows: rawRows, workspaceIds, permissions: flatPermissions } = req.body as {
         email?: string;
         emails?: string[];
+        rows?: OrgInviteRow[];
         workspaceIds: string[] | 'all';
         permissions?: 'edit' | 'read_only';
     };
     const requestingUser = req.user as JwtUserPayload;
-    const safePermissions: 'edit' | 'read_only' = permissions === 'read_only' ? 'read_only' : 'edit';
 
-    const rawEmails: string[] = Array.isArray(emails) && emails.length > 0
-        ? emails
-        : (email && typeof email === 'string' ? [email] : []);
+    const rawRowsInput: OrgInviteRow[] = Array.isArray(rawRows) && rawRows.length > 0
+        ? rawRows
+        : Array.isArray(emails) && emails.length > 0
+            ? emails.map((e) => ({ email: e, permissions: flatPermissions }))
+            : (email && typeof email === 'string' ? [{ email, permissions: flatPermissions }] : []);
 
-    if (rawEmails.length === 0) {
+    if (rawRowsInput.length === 0) {
         return res.status(400).json({ message: 'At least one valid email is required.' });
+    }
+
+    // Dedupe by email — last occurrence wins, same as a spreadsheet edit further down would expect.
+    const rowsByEmail = new Map<string, { email: string; name?: string; permissions: 'edit' | 'read_only' }>();
+    for (const row of rawRowsInput) {
+        const sanitizedEmail = sanitizeText(row.email ?? '').toLowerCase().trim();
+        if (!sanitizedEmail || !sanitizedEmail.includes('@')) continue;
+        const rowPermissions: 'edit' | 'read_only' = row.permissions === 'read_only' ? 'read_only' : 'edit';
+        const name = typeof row.name === 'string' ? sanitizeText(row.name).trim() : undefined;
+        rowsByEmail.set(sanitizedEmail, { email: sanitizedEmail, name: name || undefined, permissions: rowPermissions });
+    }
+    const rawEmails = [...rowsByEmail.keys()];
+    if (rawEmails.length === 0) {
+        return res.status(400).json({ message: 'No valid email addresses found.' });
     }
 
     try {
@@ -597,12 +622,34 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
         let totalAdded = 0;
         let totalPreApproved = 0;
         let totalSkipped = 0;
+        const seatLimitedEmails: string[] = [];
 
-        for (const rawEmailEntry of rawEmails) {
-            const sanitizedEmail = sanitizeText(rawEmailEntry).toLowerCase().trim();
-            if (!sanitizedEmail || !sanitizedEmail.includes('@')) { totalSkipped++; continue; }
+        // Running counter, not a fresh Firestore read per email — this can be a few hundred
+        // rows from one spreadsheet.
+        const seatLimit = (organizationDoc.data() as DBOrganization).seatLimit;
+        let seatsUsed = seatLimit ? await countBillableSeats(orgId) : 0;
+
+        for (const sanitizedEmail of rawEmails) {
+            const row = rowsByEmail.get(sanitizedEmail)!;
+            const safePermissions = row.permissions;
+            const inviteRole = inviteAll ? UserRole.ORG_EDITOR : UserRole.REGULAR_USER;
+            const isBillableRow = isMembershipBillable(inviteRole, safePermissions);
 
             const userSnap = await usersCollection.where('email', '==', sanitizedEmail).limit(1).get();
+
+            // Seat check up front for this email — one seat per person regardless of how many
+            // workspace memberships this row ends up touching.
+            if (seatLimit && isBillableRow) {
+                const alreadyBillable = !userSnap.empty && await isUserAlreadyBillable(orgId, snapshotToData<DBUser>(userSnap.docs[0])!.id);
+                if (!alreadyBillable) {
+                    if (seatsUsed >= seatLimit) {
+                        seatLimitedEmails.push(sanitizedEmail);
+                        continue;
+                    }
+                    seatsUsed++;
+                }
+            }
+
             const batch = db.batch();
             let addedToExisting = 0;
             let updatedExisting = 0;
@@ -678,6 +725,7 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
                 const docId = Buffer.from(`${sanitizedEmail}_${orgId}_all`).toString('base64');
                 batch.set(preapprovedUsersCollection.doc(docId), {
                     email: sanitizedEmail,
+                    ...(row.name ? { name: row.name } : {}),
                     workspaceId: orgId,
                     orgId,
                     allWorkspaces: true,
@@ -693,6 +741,7 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
                     const docId = Buffer.from(`${sanitizedEmail}_${wsId}`).toString('base64');
                     batch.set(preapprovedUsersCollection.doc(docId), {
                         email: sanitizedEmail,
+                        ...(row.name ? { name: row.name } : {}),
                         workspaceId: wsId,
                         orgId,
                         addedBy: requestingUser.id,
@@ -716,11 +765,18 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
             if (addedToExisting === 0 && updatedExisting === 0 && preApprovedCount === 0) totalSkipped++;
         }
 
-        const processedCount = rawEmails.length - totalSkipped;
-        const message = processedCount > 0
-            ? `${processedCount} user(s) invited with ${safePermissions === 'read_only' ? 'read-only' : 'edit'} access.${totalSkipped > 0 ? ` ${totalSkipped} skipped (already have access or invalid).` : ''}`
-            : 'All users already have access to the selected workhubs.';
-        return res.status(200).json({ message, successCount: processedCount });
+        void checkSeatWarningThreshold(orgId);
+
+        const processedCount = rawEmails.length - totalSkipped - seatLimitedEmails.length;
+        let message = processedCount > 0
+            ? `${processedCount} user(s) invited.${totalSkipped > 0 ? ` ${totalSkipped} skipped (already have access or invalid).` : ''}`
+            : (totalSkipped > 0 || seatLimitedEmails.length > 0)
+                ? 'No users were invited.'
+                : 'All users already have access to the selected workhubs.';
+        if (seatLimitedEmails.length > 0) {
+            message += ` ${seatLimitedEmails.length} email(s) were skipped — seat limit reached (${seatsUsed}/${seatLimit}).`;
+        }
+        return res.status(200).json({ message, successCount: processedCount, seatLimitedEmails });
     } catch (error) {
         logger.error(`Error inviting users to org ${orgId}:`, error);
         return res.status(500).json({ message: 'An internal server error occurred.' });
