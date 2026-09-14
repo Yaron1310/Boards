@@ -93,8 +93,8 @@ export async function checkSeatWarningThreshold(orgId: string): Promise<void> {
   try {
     const orgRef = organizationsCollection.doc(orgId);
     const orgDoc = await orgRef.get();
-    if (!orgDoc.exists) return;
     const org = snapshotToData<DBOrganization>(orgDoc);
+    if (!org) return;
     const seatLimit = org.seatLimit;
     if (!seatLimit) return;
 

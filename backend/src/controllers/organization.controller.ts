@@ -337,8 +337,8 @@ export const getOrganizationSeatUsage = async (req: Request, res: Response) => {
     }
     try {
         const orgDoc = await organizationsCollection.doc(orgId).get();
-        if (!orgDoc.exists) return res.status(404).json({ message: 'Organization not found.' });
         const org = snapshotToData<DBOrganization>(orgDoc);
+        if (!org) return res.status(404).json({ message: 'Organization not found.' });
         const usedSeats = await countBillableSeats(orgId);
         res.json({ usedSeats, seatLimit: org.seatLimit ?? null });
     } catch (error) {
