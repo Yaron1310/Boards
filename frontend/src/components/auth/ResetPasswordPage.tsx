@@ -54,7 +54,7 @@ const ResetPasswordPage: React.FC = () => {
       return;
     }
 
-    const isPasswordValid = newPassword.length >= 8 && /^[!-~]+$/.test(newPassword) && /\d/.test(newPassword) && /[!@#$%^&*]/.test(newPassword);
+    const isPasswordValid = newPassword.length >= 12 && /^[!-~]+$/.test(newPassword) && /\d/.test(newPassword) && /[!@#$%^&*]/.test(newPassword);
     if (!isPasswordValid) {
         setLocalError(t('auth.passwordRequirements'));
         return;

@@ -101,7 +101,7 @@
     "createNewPassword": "צור סיסמה חדשה",
     "newPassword": "סיסמה חדשה",
     "confirmNewPassword": "אישור סיסמה חדשה",
-    "passwordHint": "לפחות 8 תווים, כולל אות גדולה, אות קטנה, מספר וסימן מיוחד",
+    "passwordHint": "לפחות 12 תווים, כולל אות גדולה, אות קטנה, מספר וסימן מיוחד",
     "passwordsDoNotMatch": "הסיסמאות אינן תואמות",
     "passwordRequirements": "הסיסמה אינה עומדת בדרישות",
     "genericError": "אירעה שגיאה. נסה שוב",

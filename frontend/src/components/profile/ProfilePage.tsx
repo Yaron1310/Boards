@@ -255,9 +255,9 @@ const ProfilePage: React.FC = () => {
       return;
     }
 
-    const isPasswordValid = newPassword.length >= 8 && /^[!-~]+$/.test(newPassword) && /\d/.test(newPassword) && /[!@#$%^&*]/.test(newPassword);
+    const isPasswordValid = newPassword.length >= 12 && /^[!-~]+$/.test(newPassword) && /\d/.test(newPassword) && /[!@#$%^&*]/.test(newPassword);
     if (!isPasswordValid) {
-        setProfileUpdateMessage({ type: 'error', text: "Latin characters only (English letters, numbers, and symbols). Password must be at least 8 characters long and contain at least one digit and one special character." });
+        setProfileUpdateMessage({ type: 'error', text: "Latin characters only (English letters, numbers, and symbols). Password must be at least 12 characters long and contain at least one digit and one special character." });
         return;
     }
 
