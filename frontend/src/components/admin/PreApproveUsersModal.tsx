@@ -6,7 +6,7 @@ import { useData } from '../../hooks/useData';
 import { getOrganizationSeatUsage } from '../../services/geminiService';
 import type { WorkHub, PreApprovedUser } from '../../types';
 import type { PreApproveRow } from '../../services/geminiService';
-import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock, FiDownload, FiUsers } from 'react-icons/fi';
+import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock, FiUsers } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 import { PERMISSION_LABELS, parseInviteRows, downloadInviteTemplate } from '../../utils/inviteUsersXlsx';
 
@@ -274,23 +274,22 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
 
                         {/* Bulk invitations */}
                         <div className="pt-4 border-t border-gray-200">
-                            <div className="flex items-center justify-between mb-3">
-                                <p className="text-sm font-medium text-gray-700">Send bulk invitations</p>
-                                <button
-                                    type="button"
-                                    onClick={() => void downloadInviteTemplate()}
-                                    className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
-                                    aria-label="Download invite template"
-                                >
-                                    <FiDownload size={13} aria-hidden="true" />
-                                    Download template
-                                </button>
-                            </div>
-                            <p className="text-xs text-gray-500 mb-3">
-                                Fill in the downloaded sheet — Email is required, Name is optional (used only to
-                                label pending invites before they register), and Permission (Edit / Read only,
-                                pick from the dropdown) is set per row. Blank permission defaults to Edit.
-                            </p>
+                            <p className="text-sm font-medium text-gray-700 mb-2">Send bulk invitations</p>
+                            <ol className="text-sm text-gray-600 space-y-1 mb-3 list-decimal list-inside">
+                                <li>
+                                    Download the{' '}
+                                    <button
+                                        type="button"
+                                        onClick={() => void downloadInviteTemplate()}
+                                        className="font-medium text-indigo-600 hover:text-indigo-700 underline"
+                                        aria-label="Download invite template"
+                                    >
+                                        template xlsx
+                                    </button>.
+                                </li>
+                                <li>Fill in the downloaded sheet with your users (Email, Name, Permission).</li>
+                                <li>Upload the file below.</li>
+                            </ol>
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <label htmlFor="bulk-upload-input" className="flex-grow cursor-pointer inline-flex items-center justify-center px-4 py-2 text-sm border border-gray-300 bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100">
                                     <FiFile className="mr-2"/><span>{uploadFile ? uploadFile.name : t('admin.chooseXlsxFile')}</span>

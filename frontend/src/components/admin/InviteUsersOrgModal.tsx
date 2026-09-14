@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, type ChangeEvent } from 'react';
 import ReactDOM from 'react-dom';
-import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile, FiDownload, FiUsers } from 'react-icons/fi';
+import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile, FiUsers } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '../../hooks/useData';
@@ -275,23 +275,22 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
 
           {/* Bulk upload */}
           <div className="pt-4 border-t border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-medium text-gray-700">Send bulk invitations</p>
-              <button
-                type="button"
-                onClick={() => void downloadInviteTemplate()}
-                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
-                aria-label="Download invite template"
-              >
-                <FiDownload size={13} aria-hidden="true" />
-                Download template
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 mb-3">
-              Fill in the downloaded sheet — Email is required, Name is optional (used only to
-              label pending invites before they register), and Permission (Edit / Read only,
-              pick from the dropdown) is set per row. Blank permission defaults to Edit.
-            </p>
+            <p className="text-sm font-medium text-gray-700 mb-2">Send bulk invitations</p>
+            <ol className="text-sm text-gray-600 space-y-1 mb-3 list-decimal list-inside">
+              <li>
+                Download the{' '}
+                <button
+                  type="button"
+                  onClick={() => void downloadInviteTemplate()}
+                  className="font-medium text-blue-600 hover:text-blue-700 underline"
+                  aria-label="Download invite template"
+                >
+                  template xlsx
+                </button>.
+              </li>
+              <li>Fill in the downloaded sheet with your users (Email, Name, Permission).</li>
+              <li>Upload the file below.</li>
+            </ol>
             <div className="flex flex-col sm:flex-row gap-3">
               <label
                 htmlFor="bulk-org-upload-input"
