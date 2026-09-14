@@ -601,24 +601,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     const contexts: { label: string; value: string; role: UserRole; organizationName: string }[] = [];
+    const systemAdminContexts: { label: string; value: string; role: UserRole; organizationName: string }[] = [];
 
     const { systemAdmin, organizationAdmin: assignedOrganizationAdmins = [], workspaceAdmin: assignedOrgAdmins = [], orgEditor: assignedOrgEditors = [] } = userForContexts.dbRoles;
 
-    // System admin: single global entry
+    // System admin: a dedicated global entry, PLUS (below) one "org admin" context per
+    // existing organization — the backend already grants a system admin org-admin access to
+    // every org (see calculateAvailableContexts / formatUserForFrontend in auth.controller.ts),
+    // so this list must actually offer them, not just the system-wide console.
     if (systemAdmin) {
       const defaultOrg = userForContexts.workspaces.find((o: any) => o.name === 'Default Workspace') || userForContexts.workspaces[0];
       if (defaultOrg) {
-        contexts.push({ label: 'System Administrator', value: JSON.stringify({ role: 'system_admin', workspaceId: defaultOrg.id }), role: 'system_admin', organizationName: 'System-Wide' });
+        systemAdminContexts.push({ label: 'System Administrator', value: JSON.stringify({ role: 'system_admin', workspaceId: defaultOrg.id }), role: 'system_admin', organizationName: 'System-Wide' });
       }
-      return [{ groupName: 'System Administration', contexts }];
     }
 
     // One entry per org. Determine the highest role the user holds in each org,
     // then pick the first eligible workspace as the login workspaceId.
     const roleOrder: Record<string, number> = { org_admin: 0, workspace_admin: 1, org_editor: 2, regular_user: 3 };
 
-    // Collect all orgs the user has any access to (non-personal, non-default)
-    const eligibleWorkspaces = userForContexts.workspaces.filter((o: any) => !o.isPersonal && o.name !== 'Default Workspace');
+    // Collect all orgs the user has any access to. A system admin's `workspaces` list is
+    // already one representative workspace per organization (see formatUserForFrontend), so
+    // keep those as-is even when the representative happens to be personal/Default — otherwise
+    // an org whose only workspace is its Default one would be dropped from the list entirely.
+    const eligibleWorkspaces = systemAdmin
+      ? userForContexts.workspaces
+      : userForContexts.workspaces.filter((o: any) => !o.isPersonal && o.name !== 'Default Workspace');
 
     // Group workspaces by orgId
     const byOrg = new Map<string, { orgName: string; workspaces: any[] }>();
@@ -658,7 +666,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let workspaceId: string;
       let label: string;
 
-      if (isOrgAdmin) {
+      if (systemAdmin) {
+        // A system admin has no real per-org membership rows, so none of the assigned* arrays
+        // above apply — they get org-admin access to every org via the platform-wide bypass.
+        role = UserRole.ORGANIZATION_ADMIN;
+        workspaceId = workspaces[0].id;
+        label = `${orgName} — Admin`;
+      } else if (isOrgAdmin) {
         role = UserRole.ORGANIZATION_ADMIN;
         workspaceId = workspaces[0].id;
         label = `${orgName} — Admin`;
@@ -681,6 +695,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     contexts.sort((a, b) => (roleOrder[a.role] ?? 4) - (roleOrder[b.role] ?? 4) || a.organizationName.localeCompare(b.organizationName));
 
+    if (systemAdmin) {
+      return [
+        { groupName: 'System Administration', contexts: systemAdminContexts },
+        { groupName: 'Select Organization', contexts },
+      ];
+    }
     return [{ groupName: 'Select Organization', contexts }];
   }, [user, userForContextSelection, contextSelectionMode]);
 
