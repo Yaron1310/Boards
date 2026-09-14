@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSettings, TutorialSettings } from '../types';
+import type { PreApproveRow } from '../services/geminiService';
 import { UserRole } from '../types';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { queryKeys } from '../hooks/queries/queryKeys';
@@ -64,7 +65,7 @@ interface DataContextType {
   deleteUser: (userId: string, deletionType: 'soft' | 'hard') => Promise<boolean>;
 
   preApprovedUsers: PreApprovedUser[];
-  preApproveUsersInBulk: (emails: string[], workspaceId: string, permissions?: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
+  preApproveUsersInBulk: (rows: PreApproveRow[], workspaceId: string) => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
   inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
   inviteUsersToOrgBulk: (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
   revokePreApprovedUser: (preApprovedUserId: string) => Promise<boolean>;
@@ -320,9 +321,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
     return success === null;
   };
-  const preApproveUsersInBulk = async (emails: string[], workspaceId: string, permissions: 'edit' | 'read_only' = 'edit') => {
+  const preApproveUsersInBulk = async (rows: PreApproveRow[], workspaceId: string) => {
     const { preApproveUsersInBulk: preApproveApi } = await api();
-    return handleApiCall(() => preApproveApi(emails, workspaceId, permissions), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
+    return handleApiCall(() => preApproveApi(rows, workspaceId), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
   };
   const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => {
     const { inviteUsersToOrg: inviteApi } = await api();

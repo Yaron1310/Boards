@@ -2,9 +2,11 @@
 import React, { useState, useMemo, ChangeEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
+import ExcelJS from 'exceljs';
 import { useData } from '../../hooks/useData';
 import type { WorkHub, PreApprovedUser } from '../../types';
-import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock } from 'react-icons/fi';
+import type { PreApproveRow } from '../../services/geminiService';
+import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock, FiDownload } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 
 interface PreApproveUsersModalProps {
@@ -16,6 +18,52 @@ interface PreApproveUsersModalProps {
     pendingInvitesCount: number;
 }
 
+const PERMISSION_LABELS = { edit: 'Edit', read_only: 'Read only' } as const;
+
+/** Recognizes the handful of ways someone might type a permission in a spreadsheet cell.
+ *  Blank is treated as "unset" (defaults to Edit), anything else unrecognized comes back as
+ *  invalid so the row can be flagged instead of silently guessed. */
+function normalizePermissionCell(raw: unknown): { permissions: 'edit' | 'read_only'; wasInvalid: boolean } {
+    if (typeof raw !== 'string' || !raw.trim()) return { permissions: 'edit', wasInvalid: false };
+    const v = raw.trim().toLowerCase();
+    if (['edit', 'editor'].includes(v)) return { permissions: 'edit', wasInvalid: false };
+    if (['read_only', 'read only', 'readonly', 'view', 'viewer'].includes(v)) return { permissions: 'read_only', wasInvalid: false };
+    return { permissions: 'edit', wasInvalid: true };
+}
+
+/** Downloads a ready-to-fill invite sheet: Email / Name / Permission columns, with the
+ *  Permission column pre-armed with an Edit/Read only dropdown for a generous number of rows. */
+async function downloadInviteTemplate() {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Invites');
+    sheet.addRow(['Email', 'Name', 'Permission']);
+    sheet.getRow(1).font = { bold: true };
+    sheet.getColumn(1).width = 32;
+    sheet.getColumn(2).width = 24;
+    sheet.getColumn(3).width = 16;
+
+    const ROW_COUNT = 200;
+    for (let i = 2; i <= ROW_COUNT + 1; i++) {
+        sheet.getCell(`C${i}`).dataValidation = {
+            type: 'list',
+            allowBlank: true,
+            formulae: ['"Edit,Read only"'],
+            showErrorMessage: true,
+            errorTitle: 'Invalid permission',
+            error: 'Choose Edit or Read only from the dropdown.',
+        };
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'invite-users-template.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
 const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onClose, workspace, maxUsers, currentRegularUsersCount, pendingInvitesCount }) => {
     const { t } = useTranslation();
     const {
@@ -25,9 +73,10 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
         dataError,
         clearDataError,
         isLoading,
-    } = useData(); 
+    } = useData();
 
-    const [permissions, setPermissions] = useState<'edit' | 'read_only'>('edit');
+    // Single-email add only — bulk upload's permission comes from the sheet's own column, per row.
+    const [manualPermissions, setManualPermissions] = useState<'edit' | 'read_only'>('edit');
     const [feedback, setFeedback] = useState<{type: 'success' | 'error', text: string} | null>(null);
     useEffect(() => {
     if (feedback) {
@@ -42,7 +91,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
     const [isUploading, setIsUploading] = useState(false);
     const [userToRevoke, setUserToRevoke] = useState<PreApprovedUser | null>(null);
     const [isRevoking, setIsRevoking] = useState(false);
-    
+
     const availableSlots = useMemo(() => {
         if (maxUsers === null) return Infinity;
         return Math.max(0, maxUsers - ((currentRegularUsersCount ?? 0) + (pendingInvitesCount ?? 0)));
@@ -59,7 +108,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
         setIsUploading(false);
         setUserToRevoke(null);
         setIsRevoking(false);
-        setPermissions('edit');
+        setManualPermissions('edit');
     }, [isOpen, clearDataError]);
 
     const orgPreApprovedUsers = useMemo(() => {
@@ -91,12 +140,12 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
             return;
         }
         if (!workspace?.id) return;
-        
+
         setIsUploading(true);
         setFeedback(null);
 
         try {
-            const result = await preApproveUsersInBulk([manualEmail.trim()], workspace.id, permissions);
+            const result = await preApproveUsersInBulk([{ email: manualEmail.trim(), permissions: manualPermissions }], workspace.id);
             if (result) {
                 setFeedback({ type: 'success', text: result.message });
                 setManualEmail('');
@@ -121,19 +170,33 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
         setFeedback(null);
 
         try {
-            const rows = await readXlsxFile(uploadFile);
-            
-            const emails = rows.map(row => row[0]).filter(cell => typeof cell === 'string' && cell.includes('@')).map(email => (email as string).trim());
+            const sheetRows = await readXlsxFile(uploadFile);
 
-            if (emails.length === 0) throw new Error("No valid emails found in the first column of the Excel sheet.");
+            // Column A = email (any row whose first cell isn't an email — a header row included —
+            // is simply not a data row), column B = name, column C = permission.
+            const dataRows = sheetRows.filter(row => typeof row[0] === 'string' && (row[0] as string).includes('@'));
+            if (dataRows.length === 0) throw new Error('No valid emails found in the first column of the Excel sheet.');
 
-            if (emails.length > availableSlots && maxUsers !== null) {
-                throw new Error(`Your plan has ${availableSlots} available slot(s), but you are trying to invite ${emails.length} users.`);
+            const invalidPermissionEmails: string[] = [];
+            const rows: PreApproveRow[] = dataRows.map(row => {
+                const email = (row[0] as string).trim();
+                const name = typeof row[1] === 'string' ? row[1].trim() : undefined;
+                const { permissions, wasInvalid } = normalizePermissionCell(row[2]);
+                if (wasInvalid) invalidPermissionEmails.push(email);
+                return { email, name: name || undefined, permissions };
+            });
+
+            if (rows.length > availableSlots && maxUsers !== null) {
+                throw new Error(`Your plan has ${availableSlots} available slot(s), but you are trying to invite ${rows.length} users.`);
             }
 
-            const result = await preApproveUsersInBulk(emails, workspace.id, permissions);
+            const result = await preApproveUsersInBulk(rows, workspace.id);
             if (result) {
-                setFeedback({ type: 'success', text: result.message });
+                let text = result.message;
+                if (invalidPermissionEmails.length > 0) {
+                    text += ` ${invalidPermissionEmails.length} row(s) had an unrecognized Permission value and defaulted to Edit: ${invalidPermissionEmails.slice(0, 5).join(', ')}${invalidPermissionEmails.length > 5 ? '…' : ''}.`;
+                }
+                setFeedback({ type: 'success', text });
                 setUploadFile(null);
             } else {
                 throw new Error(dataError || "An unknown error occurred during upload.");
@@ -182,27 +245,21 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                             </div>
                         )}
 
-                        {/* Permissions */}
-                        <fieldset>
-                            <legend className="text-sm font-medium text-gray-700 mb-2">Permissions</legend>
-                            <div className="flex gap-3">
-                                {(['edit', 'read_only'] as const).map(p => (
-                                    <label key={p} className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                                        <input type="radio" name="perm" value={p} checked={permissions === p} onChange={() => setPermissions(p)} className="accent-blue-600" aria-label={p === 'edit' ? 'Edit' : 'Read only'} />
-                                        <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
-                                            {p === 'edit' ? <FiEdit2 size={14} aria-hidden="true" /> : <FiLock size={14} aria-hidden="true" />}
-                                            {p === 'edit' ? 'Edit' : 'Read only'}
-                                        </span>
-                                    </label>
-                                ))}
-                            </div>
-                        </fieldset>
-
-                        {/* Single email invite */}
+                        {/* Single email invite — the only place a manually-picked permission applies.
+                            Bulk uploads set permission per row from the sheet's own column instead. */}
                         <div>
                             <label htmlFor="manual-email-input" className="block text-sm font-medium text-gray-700 mb-1">{t('admin.addSingleEmail')}</label>
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <input type="email" id="manual-email-input" value={manualEmail} onChange={(e) => setManualEmail(e.target.value)} placeholder="user@example.com" aria-describedby={feedback?.type === 'error' ? 'preapprove-feedback-error' : undefined} className="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                                <div className="flex gap-2">
+                                    {(['edit', 'read_only'] as const).map(p => (
+                                        <label key={p} className={`flex items-center gap-1.5 px-3 py-2 rounded-md border-2 cursor-pointer transition-colors text-sm font-medium ${manualPermissions === p ? 'border-blue-500 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}>
+                                            <input type="radio" name="manual-perm" value={p} checked={manualPermissions === p} onChange={() => setManualPermissions(p)} className="accent-blue-600" aria-label={PERMISSION_LABELS[p]} />
+                                            {p === 'edit' ? <FiEdit2 size={13} aria-hidden="true" /> : <FiLock size={13} aria-hidden="true" />}
+                                            {PERMISSION_LABELS[p]}
+                                        </label>
+                                    ))}
+                                </div>
                                 <button onClick={handleManualAdd} disabled={!manualEmail.trim() || isUploading || isLoading} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 transition-colors flex items-center justify-center">
                                     {isLoading || isUploading ? <FiLoader className="animate-spin mr-2"/> : <FiUserPlus className="mr-2"/>} {t('admin.addEmail')}
                                 </button>
@@ -217,7 +274,10 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                                     <ul className="space-y-2">
                                         {orgPreApprovedUsers.map(paUser => (
                                             <li key={paUser.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
-                                                <div className="text-sm text-gray-800"><p>{paUser.email}</p><p className="text-xs text-gray-500 flex items-center mt-1"><FiClock size={12} className="mr-1"/> {t('admin.addedOn')} {new Date(paUser.createdAt).toLocaleDateString()}</p></div>
+                                                <div className="text-sm text-gray-800">
+                                                    <p>{paUser.name ? `${paUser.name} — ${paUser.email}` : paUser.email}</p>
+                                                    <p className="text-xs text-gray-500 flex items-center mt-1"><FiClock size={12} className="mr-1"/> {t('admin.addedOn')} {new Date(paUser.createdAt).toLocaleDateString()}</p>
+                                                </div>
                                                 <button onClick={() => handleRevokeClick(paUser)} disabled={isRevoking || isLoading} className="p-1.5 text-red-600 hover:text-red-800 rounded-full hover:bg-red-100 transition-colors" title="Revoke invitation"><FiTrash2 size={16} /></button>
                                             </li>
                                         ))}
@@ -226,9 +286,25 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                             </div>
                         )}
 
-                        {/* Bulk invitations (moved to bottom) */}
+                        {/* Bulk invitations */}
                         <div className="pt-4 border-t border-gray-200">
-                            <p className="text-sm font-medium text-gray-700 mb-3">Send bulk invitations</p>
+                            <div className="flex items-center justify-between mb-3">
+                                <p className="text-sm font-medium text-gray-700">Send bulk invitations</p>
+                                <button
+                                    type="button"
+                                    onClick={() => void downloadInviteTemplate()}
+                                    className="flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                                    aria-label="Download invite template"
+                                >
+                                    <FiDownload size={13} aria-hidden="true" />
+                                    Download template
+                                </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mb-3">
+                                Fill in the downloaded sheet — Email is required, Name is optional (used only to
+                                label pending invites before they register), and Permission (Edit / Read only,
+                                pick from the dropdown) is set per row. Blank permission defaults to Edit.
+                            </p>
                             <div className="flex flex-col sm:flex-row gap-3">
                                 <label htmlFor="bulk-upload-input" className="flex-grow cursor-pointer inline-flex items-center justify-center px-4 py-2 text-sm border border-gray-300 bg-gray-50 text-gray-700 rounded-md hover:bg-gray-100">
                                     <FiFile className="mr-2"/><span>{uploadFile ? uploadFile.name : t('admin.chooseXlsxFile')}</span>

@@ -165,8 +165,13 @@ export const getUsers = async (params?: { limit?: number; cursor?: string; searc
 };
 export const getUserByIdFromBackend = async (userId: string): Promise<User> => fetchWithAuth(`/api/users/${userId}`);
 export const deleteUserAccount = async (userId: string, deletionType: 'soft' | 'hard'): Promise<null> => fetchWithAuth(`/api/users/${userId}`, { method: 'DELETE', body: JSON.stringify({ deletionType }) });
-export const preApproveUsersInBulk = async (emails: string[], workspaceId: string, permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
-  fetchWithAuth('/api/users/pre-approve-bulk', { method: 'POST', body: JSON.stringify({ emails, workspaceId, permissions }) });
+export interface PreApproveRow {
+  email: string;
+  name?: string;
+  permissions?: 'edit' | 'read_only';
+}
+export const preApproveUsersInBulk = async (rows: PreApproveRow[], workspaceId: string): Promise<{ successCount: number; message: string; seatLimitedEmails: string[] }> =>
+  fetchWithAuth('/api/users/pre-approve-bulk', { method: 'POST', body: JSON.stringify({ rows, workspaceId }) });
 
 export const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
   fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ email, workspaceIds, permissions }) });

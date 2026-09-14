@@ -18,7 +18,7 @@ import {
 import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { JwtUserPayload, DBUser, DBWorkspace, DBPreapprovedUser, UserRole, DBMembership, DBBoard, DBBoardMember, BoardRole, PaginatedResponse } from '../types/index.js';
 import { formatUserForFrontend } from './auth.controller.js';
-import { isMembershipBillable, assertSeatAvailable, checkSeatWarningThreshold } from '../services/seats.service.js';
+import { isMembershipBillable, isUserAlreadyBillable, countBillableSeats, assertSeatAvailable, checkSeatWarningThreshold } from '../services/seats.service.js';
 import { sanitizeText, sanitizeImageUrl } from '../utils/sanitizer.js';
 import { sendUserInvitationEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
@@ -26,13 +26,31 @@ import { parsePaginationParams, buildPaginatedResult } from '../utils/pagination
 import { validatePasswordComplexity } from '../utils/password.js';
 import { logAudit } from '../services/audit.service.js';
 
+interface PreApproveRow {
+    email: string;
+    name?: string;
+    permissions?: 'edit' | 'read_only';
+}
+
 export const preApproveUsersInBulk = async (req: Request, res: Response) => {
-    const { emails, workspaceId, permissions } = req.body as { emails: string[], workspaceId: string, permissions?: 'edit' | 'read_only' };
-    const safePermissions: 'edit' | 'read_only' = permissions === 'read_only' ? 'read_only' : 'edit';
+    // `rows` is the current shape (one permission per email, read from the uploaded sheet's own
+    // column, or from the single-add form). `emails` + a flat `permissions` is accepted too, for
+    // any caller still on the old contract — it's just normalized into the same row shape below.
+    const { rows: rawRows, emails, workspaceId, permissions: flatPermissions } = req.body as {
+        rows?: PreApproveRow[];
+        emails?: string[];
+        workspaceId: string;
+        permissions?: 'edit' | 'read_only';
+    };
     const requestingUser = req.user as JwtUserPayload;
 
-    if (!Array.isArray(emails) || emails.length === 0) {
-        return res.status(400).json({ message: 'A non-empty array of emails is required.' });
+    const rows: PreApproveRow[] = Array.isArray(rawRows)
+        ? rawRows
+        : Array.isArray(emails)
+            ? emails.map((email) => ({ email, permissions: flatPermissions }))
+            : [];
+    if (rows.length === 0) {
+        return res.status(400).json({ message: 'A non-empty list of invites is required.' });
     }
 
     const targetOrgId = (requestingUser.role === UserRole.SYSTEM_ADMIN || requestingUser.role === UserRole.ORGANIZATION_ADMIN) ? workspaceId : requestingUser.selectedWorkspaceId;
@@ -46,13 +64,27 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             return res.status(403).json({ message: 'You do not have permission to approve users for this workspace.' });
         }
 
+        // Dedupe by email — last occurrence in the sheet wins for name/permissions, same as a
+        // normal spreadsheet edit would expect ("I fixed row 40 further down").
+        const rowsByEmail = new Map<string, PreApproveRow>();
+        for (const row of rows) {
+            const email = sanitizeText(row.email ?? '').toLowerCase().trim();
+            if (!email || !email.includes('@')) continue;
+            const permissions: 'edit' | 'read_only' = row.permissions === 'read_only' ? 'read_only' : 'edit';
+            const name = typeof row.name === 'string' ? sanitizeText(row.name).trim() : undefined;
+            rowsByEmail.set(email, { email, name: name || undefined, permissions });
+        }
+        const uniqueEmails = [...rowsByEmail.keys()];
+        if (uniqueEmails.length === 0) {
+            return res.status(400).json({ message: 'No valid email addresses found.' });
+        }
+
         const batch = db.batch();
-        const lowercasedEmails = emails.map(e => sanitizeText(e).toLowerCase().trim()).filter(Boolean);
-        const uniqueEmails = [...new Set(lowercasedEmails)];
 
         let preApprovedCount = 0;
         let updatedUserCount = 0;
         const newlyPreApprovedEmails: string[] = [];
+        const seatLimitedEmails: string[] = [];
 
         const existingUsersMap = new Map<string, DBUser>();
         const emailChunksForProcessing: string[][] = [];
@@ -70,7 +102,16 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             }
         }
 
+        // Seat check up front, run as a running counter through the loop below rather than one
+        // Firestore read per row — this can be a few hundred rows from one spreadsheet.
+        const orgSeatDoc = await organizationsCollection.doc(orgData.orgId).get();
+        const seatLimit = orgSeatDoc.exists ? (orgSeatDoc.data() as { seatLimit?: number }).seatLimit : undefined;
+        let seatsUsed = seatLimit ? await countBillableSeats(orgData.orgId) : 0;
+
         for (const email of uniqueEmails) {
+            const row = rowsByEmail.get(email)!;
+            const isBillableRow = isMembershipBillable(UserRole.REGULAR_USER, row.permissions);
+
             if (existingUsersMap.has(email)) {
                 const user = existingUsersMap.get(email)!;
                 const membershipSnapshot = await membershipsCollection
@@ -79,6 +120,17 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                     .limit(1).get();
 
                 if (membershipSnapshot.empty) {
+                    if (seatLimit && isBillableRow) {
+                        const alreadyBillable = await isUserAlreadyBillable(orgData.orgId, user.id);
+                        if (!alreadyBillable) {
+                            if (seatsUsed >= seatLimit) {
+                                seatLimitedEmails.push(email);
+                                continue;
+                            }
+                            seatsUsed++;
+                        }
+                    }
+
                     const defaultOrgSnapshot = await workspacesCollection
                         .where('orgId', '==', orgData.orgId)
                         .where('name', '==', 'Default Workspace')
@@ -111,21 +163,33 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                         entityId: targetOrgId,
                         entityType: 'workspace',
                         role: UserRole.REGULAR_USER,
-                        permissions: safePermissions,
+                        permissions: row.permissions,
                         orgId: orgData.orgId,
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
                     updatedUserCount++;
                 }
             } else {
+                // Not registered yet — the seat isn't occupied until they actually sign up, but
+                // reserve capacity now so an admin can't queue up more edit invites than the org
+                // will ever be able to seat.
+                if (seatLimit && isBillableRow) {
+                    if (seatsUsed >= seatLimit) {
+                        seatLimitedEmails.push(email);
+                        continue;
+                    }
+                    seatsUsed++;
+                }
+
                 const docId = Buffer.from(`${email}_${targetOrgId}`).toString('base64');
                 const docRef = preapprovedUsersCollection.doc(docId);
                 const preapprovedUserEntry: Omit<DBPreapprovedUser, 'id'> = {
                     email: email,
+                    ...(row.name ? { name: row.name } : {}),
                     workspaceId: targetOrgId,
                     orgId: orgData.orgId,
                     addedBy: requestingUser.id,
-                    permissions: safePermissions,
+                    permissions: row.permissions,
                     createdAt: admin.firestore.FieldValue.serverTimestamp() as admin.firestore.Timestamp,
                 };
                 batch.set(docRef, preapprovedUserEntry);
@@ -147,6 +211,8 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             );
         }
 
+        void checkSeatWarningThreshold(orgData.orgId);
+
         let message = '';
         if (preApprovedCount > 0 && updatedUserCount > 0) {
             message = `${preApprovedCount} new email(s) have been pre-approved. ${updatedUserCount} existing user(s) have been added to the workspace.`;
@@ -154,11 +220,16 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             message = `${preApprovedCount} new email(s) have been pre-approved.`;
         } else if (updatedUserCount > 0) {
             message = `${updatedUserCount} existing user(s) have been added to the workspace.`;
-        } else {
+        } else if (seatLimitedEmails.length === 0) {
             message = 'No new users were pre-approved or added. They may already have access.';
+        } else {
+            message = 'No users were added — the seat limit was reached.';
+        }
+        if (seatLimitedEmails.length > 0) {
+            message += ` ${seatLimitedEmails.length} email(s) were skipped — seat limit reached (${seatsUsed}/${seatLimit}).`;
         }
 
-        res.status(200).json({ message, successCount: preApprovedCount + updatedUserCount });
+        res.status(200).json({ message, successCount: preApprovedCount + updatedUserCount, seatLimitedEmails });
     } catch (error) {
         logger.error("Error pre-approving users in bulk:", error);
         res.status(500).json({ message: "Failed to pre-approve users." });

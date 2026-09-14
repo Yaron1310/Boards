@@ -130,6 +130,9 @@ export type ExtractedFactors = { [key: string]: string };
 export interface PreApprovedUser {
   id: string;
   email: string;
+  /** Display name supplied at invite time — labels this pending invite only, never the name the
+   *  person types for themselves at registration. */
+  name?: string;
   workspaceId: string;
   addedBy: string;
   createdAt: Date;

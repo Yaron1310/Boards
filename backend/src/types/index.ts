@@ -147,6 +147,10 @@ export interface DBMembership {
 export interface DBPreapprovedUser {
   id: string;
   email: string;
+  /** Display name supplied at invite time (bulk-upload "Name" column, or typed manually) — used
+   *  only to label this pending invite in admin UIs. Never overrides the name the person types
+   *  for themselves when they actually register. */
+  name?: string;
   workspaceId: string;
   orgId: string;
   addedBy: string;
