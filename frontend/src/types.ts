@@ -16,6 +16,8 @@ export interface WorkHub {
   isTemplates?: boolean;
   status?: 'active' | 'archived';
   workspacePermissions?: 'edit' | 'read_only';
+  /** Org-level seat cap (system-admin-set, on the organizations doc) — undefined/0 = unlimited. */
+  seatLimit?: number;
 }
 
 export interface OrganizationSettings {

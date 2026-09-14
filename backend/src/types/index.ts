@@ -7,6 +7,13 @@ export interface DBOrganization {
   id: string;
   name: string;
   createdAt: admin.firestore.Timestamp | Date | any;
+  /** Max number of billable seats (editors+) this org may have. undefined/0 = unlimited —
+   *  every org is unlimited until a system admin sets a real cap (see seats.service.ts). */
+  seatLimit?: number;
+  /** Seat-usage percentage bucket (90 or 100) the "approaching your seat limit" email was last
+   *  sent for, so it fires once per crossing instead of on every membership change. Cleared once
+   *  usage drops back below 90%, so climbing past it again re-sends. */
+  seatWarningLevelSent?: number;
 }
 
 export interface DBWorkspace {

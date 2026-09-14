@@ -18,6 +18,7 @@ import {
 import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { JwtUserPayload, DBUser, DBWorkspace, DBPreapprovedUser, UserRole, DBMembership, DBBoard, DBBoardMember, BoardRole, PaginatedResponse } from '../types/index.js';
 import { formatUserForFrontend } from './auth.controller.js';
+import { isMembershipBillable, assertSeatAvailable, checkSeatWarningThreshold } from '../services/seats.service.js';
 import { sanitizeText, sanitizeImageUrl } from '../utils/sanitizer.js';
 import { sendUserInvitationEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
@@ -892,6 +893,22 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
         }
         const allDesiredWsIds = new Set<string>([...fullWsIds, ...boardOnlyWsIds]);
 
+        // Seat check — this endpoint replaces the user's entire set of workspace memberships in
+        // one shot, so look at the desired end state as a whole rather than per-workspace: if
+        // any of it would be billable, see if that's a *new* seat for this user (the helper
+        // no-ops if they already occupy one via their current memberships).
+        const willBeBillableAfter = [...allDesiredWsIds].some((wsId) => {
+            const isFull = fullWsIds.has(wsId);
+            const rawPerm = newWsPermissions?.[wsId];
+            const isAdmin = isFull && rawPerm === 'admin';
+            const wsPerms: 'edit' | 'read_only' = rawPerm === 'read_only' ? 'read_only' : 'edit';
+            const memberRole = isAdmin ? UserRole.WORKSPACE_ADMIN : UserRole.REGULAR_USER;
+            return isMembershipBillable(memberRole, wsPerms);
+        });
+        if (willBeBillableAfter) {
+            await assertSeatAvailable(requestingUser.orgId, userId);
+        }
+
         const batch = db.batch();
 
         // --- Workspace membership changes ---
@@ -974,8 +991,12 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
         });
 
         await batch.commit();
+        void checkSeatWarningThreshold(requestingUser.orgId);
         res.json({ message: 'Permissions updated.' });
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.name === 'SeatLimitError') {
+            return res.status(error.status ?? 403).json({ message: error.message });
+        }
         logger.error('Error updating user board permissions:', error);
         res.status(500).json({ message: 'Failed to update board permissions.' });
     }

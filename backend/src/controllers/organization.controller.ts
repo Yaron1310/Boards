@@ -20,6 +20,7 @@ import { sendAccountVerificationEmail, sendUserInvitationEmail } from '../servic
 import { sanitizeText, sanitizeUrl } from '../utils/sanitizer.js';
 import { Buffer } from 'node:buffer';
 import { generateFullLoginResponse } from './auth.controller.js';
+import { countBillableSeats } from '../services/seats.service.js';
 
 
 export const getAllOrganizations = async (req: Request, res: Response) => {
@@ -295,11 +296,54 @@ export const updateOrganization = async (req: Request, res: Response) => {
     try {
         const organizationRef = organizationsCollection.doc(req.params.id);
         const name = sanitizeText(req.body.name);
-        await organizationRef.update({ name });
+        const patch: { name: string; seatLimit?: number | FirebaseFirestore.FieldValue } = { name };
+
+        // seatLimit: undefined/omitted leaves it untouched; null or 0 clears it back to
+        // unlimited; a positive integer sets the cap. Changing it also clears any previously
+        // sent seat-warning level, so a raised limit can warn again once it's actually close.
+        if ('seatLimit' in req.body) {
+            const raw = req.body.seatLimit;
+            if (raw === null || raw === 0 || raw === '') {
+                patch.seatLimit = admin.firestore.FieldValue.delete();
+            } else {
+                const parsed = Number(raw);
+                if (!Number.isFinite(parsed) || parsed < 1) {
+                    return res.status(400).json({ message: 'seatLimit must be a positive number, or empty/0 for unlimited.' });
+                }
+                patch.seatLimit = Math.floor(parsed);
+            }
+            await organizationRef.update({ ...patch, seatWarningLevelSent: admin.firestore.FieldValue.delete() });
+        } else {
+            await organizationRef.update(patch);
+        }
+
         res.json(snapshotToData(await organizationRef.get()));
     } catch (error) {
         logger.error("Error updating workspace:", error);
         res.status(500).json({ message: "Failed to update workspace." });
+    }
+};
+
+// ---------------------------------------------------------------------------
+// GET /organizations/:id/seat-usage — current billable seat count vs. the org's cap.
+// ---------------------------------------------------------------------------
+export const getOrganizationSeatUsage = async (req: Request, res: Response) => {
+    const orgId = req.params.id;
+    const requestingUser = req.user as JwtUserPayload;
+    if (requestingUser.role !== UserRole.SYSTEM_ADMIN) {
+        if (requestingUser.role !== UserRole.ORGANIZATION_ADMIN || requestingUser.orgId !== orgId) {
+            return res.status(403).json({ message: 'Forbidden: You do not have permission to view seat usage for this organization.' });
+        }
+    }
+    try {
+        const orgDoc = await organizationsCollection.doc(orgId).get();
+        if (!orgDoc.exists) return res.status(404).json({ message: 'Organization not found.' });
+        const org = snapshotToData<DBOrganization>(orgDoc);
+        const usedSeats = await countBillableSeats(orgId);
+        res.json({ usedSeats, seatLimit: org.seatLimit ?? null });
+    } catch (error) {
+        logger.error('Error fetching seat usage:', error);
+        res.status(500).json({ message: 'Failed to fetch seat usage.' });
     }
 };
 

@@ -41,7 +41,7 @@ interface DataContextType {
   organizations: Workspace[];
   fetchAcademies: () => Promise<void>;
   addOrganization: (name: string) => Promise<Workspace | null>;
-  updateOrganization: (id: string, name: string) => Promise<boolean>;
+  updateOrganization: (id: string, name: string, seatLimit?: number | null) => Promise<boolean>;
   deleteOrganization: (id: string) => Promise<boolean>;
   addOrganizationAdmin: (orgId: string, email: string) => Promise<{message: string} | null>;
   removeOrganizationAdmin: (orgId: string, userId: string) => Promise<{message: string} | null>;
@@ -235,9 +235,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { createOrganization } = await api();
     return handleApiCall(() => createOrganization(name), () => fetchAcademies(), 'Failed to add workspace.');
   };
-  const updateOrganization = async (id: string, name: string) => {
+  const updateOrganization = async (id: string, name: string, seatLimit?: number | null) => {
     const { updateOrganization: updateOrganizationApi } = await api();
-    const updated = await handleApiCall(() => updateOrganizationApi(id, name), () => fetchAcademies(), 'Failed to update workspace.');
+    const updated = await handleApiCall(() => updateOrganizationApi(id, name, seatLimit), () => fetchAcademies(), 'Failed to update workspace.');
     return !!updated;
   };
   const deleteOrganization = async (id: string) => {

@@ -121,7 +121,10 @@ export const checkOrganizationNameUniqueness = async (name: string): Promise<{ i
 // --- Academy (Organization) Management (System Admin + Org Admin management) ---
 export const getAcademies = async (): Promise<Workspace[]> => fetchWithAuth('/api/organizations');
 export const createOrganization = async (name: string): Promise<Workspace> => fetchWithAuth('/api/organizations', { method: 'POST', body: JSON.stringify({ name }) });
-export const updateOrganization = async (id: string, name: string): Promise<Workspace> => fetchWithAuth(`/api/organizations/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+export const updateOrganization = async (id: string, name: string, seatLimit?: number | null): Promise<Workspace> =>
+  fetchWithAuth(`/api/organizations/${id}`, { method: 'PUT', body: JSON.stringify({ name, ...(seatLimit !== undefined ? { seatLimit } : {}) }) });
+export const getOrganizationSeatUsage = async (id: string): Promise<{ usedSeats: number; seatLimit: number | null }> =>
+  fetchWithAuth(`/api/organizations/${id}/seat-usage`);
 export const deleteOrganization = async (id: string): Promise<null> => fetchWithAuth(`/api/organizations/${id}`, { method: 'DELETE' });
 export const addOrganizationAdmin = async (orgId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${orgId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
 export const removeOrganizationAdmin = async (orgId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${orgId}/admins/${userId}`, { method: 'DELETE' });
