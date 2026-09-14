@@ -3,6 +3,7 @@ import React, { useState, useMemo, ChangeEvent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactDOM from 'react-dom';
 import { useData } from '../../hooks/useData';
+import { getOrganizationSeatUsage } from '../../services/geminiService';
 import type { WorkHub, PreApprovedUser } from '../../types';
 import type { PreApproveRow } from '../../services/geminiService';
 import { FiUserPlus, FiUploadCloud, FiFile, FiClock, FiTrash2, FiAlertTriangle, FiXCircle, FiCheckCircle as FiSuccessCircle, FiAlertCircle as FiErrorCircle, FiLoader, FiEdit2, FiLock, FiDownload } from 'react-icons/fi';
@@ -45,13 +46,27 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
     const [isUploading, setIsUploading] = useState(false);
     const [userToRevoke, setUserToRevoke] = useState<PreApprovedUser | null>(null);
     const [isRevoking, setIsRevoking] = useState(false);
+    const [seatUsage, setSeatUsage] = useState<{ usedSeats: number; seatLimit: number | null } | null>(null);
 
     const availableSlots = useMemo(() => {
         if (maxUsers === null) return Infinity;
         return Math.max(0, maxUsers - ((currentRegularUsersCount ?? 0) + (pendingInvitesCount ?? 0)));
     }, [maxUsers, currentRegularUsersCount, pendingInvitesCount]);
 
+    useEffect(() => {
+        const orgId = workspace?.orgId;
+        if (!isOpen || !orgId) return;
+        let cancelled = false;
+        getOrganizationSeatUsage(orgId)
+            .then((usage) => { if (!cancelled) setSeatUsage(usage); })
+            .catch(() => { /* purely informational — a failed fetch just hides the badge */ });
+        return () => { cancelled = true; };
+    }, [isOpen, workspace?.orgId]);
 
+    const refreshSeatUsage = () => {
+        const orgId = workspace?.orgId;
+        if (orgId) getOrganizationSeatUsage(orgId).then(setSeatUsage).catch(() => {});
+    };
 
     useEffect(() => {
         // Clear state when modal is opened or closed
@@ -103,6 +118,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
             if (result) {
                 setFeedback({ type: 'success', text: result.message });
                 setManualEmail('');
+                refreshSeatUsage();
             } else {
                 throw new Error(dataError || "An unknown error occurred.");
             }
@@ -132,6 +148,17 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                 throw new Error(`Your plan has ${availableSlots} available slot(s), but you are trying to invite ${rows.length} users.`);
             }
 
+            // Fast pre-flight check with what we already know client-side — a rough upper bound
+            // (it can't tell which rows are already-billable existing users), so a file that
+            // passes this can still be rejected server-side, but one that obviously can't fit is
+            // caught instantly. The server call below is the real, authoritative, all-or-nothing check.
+            if (seatUsage?.seatLimit != null) {
+                const available = Math.max(0, seatUsage.seatLimit - seatUsage.usedSeats);
+                if (rows.length > available) {
+                    throw new Error(`This file has ${rows.length} user(s), but your plan only has ${available} seat(s) available (using ${seatUsage.usedSeats} of ${seatUsage.seatLimit}). Nothing was invited — reduce the file or free up seats first.`);
+                }
+            }
+
             const result = await preApproveUsersInBulk(rows, workspace.id);
             if (result) {
                 let text = result.message;
@@ -140,6 +167,7 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
                 }
                 setFeedback({ type: 'success', text });
                 setUploadFile(null);
+                refreshSeatUsage();
             } else {
                 throw new Error(dataError || "An unknown error occurred during upload.");
             }
@@ -175,7 +203,14 @@ const PreApproveUsersModal: React.FC<PreApproveUsersModalProps> = ({ isOpen, onC
             <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
                     <div className="p-6 border-b flex justify-between items-center">
-                        <h2 className="text-xl font-bold text-gray-800">Invite Users — {workspace.name}</h2>
+                        <div>
+                            <h2 className="text-xl font-bold text-gray-800">Invite Users — {workspace.name}</h2>
+                            {seatUsage?.seatLimit != null && (
+                                <p className={`text-xs mt-1 font-medium ${seatUsage.usedSeats >= seatUsage.seatLimit ? 'text-red-600' : 'text-gray-400'}`}>
+                                    {seatUsage.usedSeats} / {seatUsage.seatLimit} seats used
+                                </p>
+                            )}
+                        </div>
                         <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-200" aria-label="Close"><FiXCircle size={24}/></button>
                     </div>
                     <div className="p-6 flex-grow overflow-y-auto custom-scrollbar space-y-6">

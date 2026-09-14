@@ -20,7 +20,7 @@ import { sendAccountVerificationEmail, sendUserInvitationEmail } from '../servic
 import { sanitizeText, sanitizeUrl } from '../utils/sanitizer.js';
 import { Buffer } from 'node:buffer';
 import { generateFullLoginResponse } from './auth.controller.js';
-import { countBillableSeats, isMembershipBillable, isUserAlreadyBillable, checkSeatWarningThreshold } from '../services/seats.service.js';
+import { countBillableSeats, isMembershipBillable, assertSeatAvailable, assertSeatCapacityForNewInvite, assertSeatCapacityForBulkInvite, checkSeatWarningThreshold } from '../services/seats.service.js';
 
 
 export const getAllOrganizations = async (req: Request, res: Response) => {
@@ -178,13 +178,21 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
 
         if (!userSnapshot.empty) {
             const user = snapshotToData<DBUser>(userSnapshot.docs[0])!;
+            // No-ops if they already hold a billable membership in this org (including
+            // already being this org's admin, the case addAdminRole itself treats as a no-op).
+            await assertSeatAvailable(orgId, user.id);
             const { alreadyAdmin } = await addAdminRole(user.id, user.email, user.name);
             if(alreadyAdmin) return res.status(200).json({ message: `User ${email} is already an admin for this workspace.` });
             const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
             const loginLink = `${env.FRONTEND_URL}/login`;
             void sendAccountVerificationEmail(user.email, user.name, loginLink, organizationName, 'org_admin_notify');
+            void checkSeatWarningThreshold(orgId);
             return res.status(200).json({ message: `Successfully promoted existing user ${email} to Workspace Admin and created a Personal Workspace.` });
         } else {
+            // Checked before creating the pending user doc — an org admin is always billable,
+            // so don't leave a half-created account behind if there's no room for it.
+            await assertSeatCapacityForNewInvite(orgId, true);
+
             const newUserRef = usersCollection.doc();
             const newAdminUser: Omit<DBUser, 'createdAt' | 'googleId' | 'passwordHash'> = {
                 id: newUserRef.id,
@@ -200,9 +208,13 @@ export const addOrganizationAdmin = async (req: Request, res: Response) => {
             const verificationLink = `${env.FRONTEND_URL}/verify-account?token=${verificationToken}`;
             const organizationName = organizationDoc.exists ? (organizationDoc.data()?.name || 'Logyx') : 'Logyx';
             await sendAccountVerificationEmail(email, newAdminUser.name, verificationLink, organizationName, 'org_admin');
+            void checkSeatWarningThreshold(orgId);
             return res.status(201).json({ message: `Successfully created Workspace Admin for ${email}. A verification email and a new Personal Workspace have been prepared.` });
         }
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.name === 'SeatLimitError') {
+            return res.status(error.status ?? 403).json({ message: error.message });
+        }
         logger.error(`Error adding workspace admin for workspace ${orgId}:`, error);
         res.status(500).json({ message: 'An internal server error occurred.' });
     }
@@ -618,45 +630,49 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
 
         const orgName = organizationDoc.data()?.name || 'Logyx';
         const registrationLink = `${env.FRONTEND_URL}/register`;
+        const inviteRole = inviteAll ? UserRole.ORG_EDITOR : UserRole.REGULAR_USER;
+
+        // Look up which emails already have accounts, once, up front — needed both for the
+        // all-or-nothing seat check below and reused in the per-row loop.
+        const existingUsersMap = new Map<string, DBUser>();
+        for (let i = 0; i < rawEmails.length; i += 30) {
+            const chunk = rawEmails.slice(i, i + 30);
+            const existingUsersSnapshot = await usersCollection.where('email', 'in', chunk).get();
+            existingUsersSnapshot.forEach((doc) => {
+                const u = snapshotToData<DBUser>(doc)!;
+                existingUsersMap.set(u.email, u);
+            });
+        }
+
+        // All-or-nothing: this upload either fully succeeds or nothing is written. Throws
+        // SeatLimitError (caught below) before any Firestore write if there isn't room for
+        // every row that would consume a new seat.
+        await assertSeatCapacityForBulkInvite(
+            orgId,
+            rawEmails.map((sanitizedEmail) => {
+                const row = rowsByEmail.get(sanitizedEmail)!;
+                return {
+                    billable: isMembershipBillable(inviteRole, row.permissions),
+                    existingUserId: existingUsersMap.get(sanitizedEmail)?.id,
+                };
+            }),
+        );
 
         let totalAdded = 0;
         let totalPreApproved = 0;
         let totalSkipped = 0;
-        const seatLimitedEmails: string[] = [];
-
-        // Running counter, not a fresh Firestore read per email — this can be a few hundred
-        // rows from one spreadsheet.
-        const seatLimit = (organizationDoc.data() as DBOrganization).seatLimit;
-        let seatsUsed = seatLimit ? await countBillableSeats(orgId) : 0;
 
         for (const sanitizedEmail of rawEmails) {
             const row = rowsByEmail.get(sanitizedEmail)!;
             const safePermissions = row.permissions;
-            const inviteRole = inviteAll ? UserRole.ORG_EDITOR : UserRole.REGULAR_USER;
-            const isBillableRow = isMembershipBillable(inviteRole, safePermissions);
-
-            const userSnap = await usersCollection.where('email', '==', sanitizedEmail).limit(1).get();
-
-            // Seat check up front for this email — one seat per person regardless of how many
-            // workspace memberships this row ends up touching.
-            if (seatLimit && isBillableRow) {
-                const alreadyBillable = !userSnap.empty && await isUserAlreadyBillable(orgId, snapshotToData<DBUser>(userSnap.docs[0])!.id);
-                if (!alreadyBillable) {
-                    if (seatsUsed >= seatLimit) {
-                        seatLimitedEmails.push(sanitizedEmail);
-                        continue;
-                    }
-                    seatsUsed++;
-                }
-            }
+            const existingUser = existingUsersMap.get(sanitizedEmail);
 
             const batch = db.batch();
             let addedToExisting = 0;
             let updatedExisting = 0;
             let preApprovedCount = 0;
 
-            if (!userSnap.empty) {
-                const existingUser = snapshotToData<DBUser>(userSnap.docs[0])!;
+            if (existingUser) {
                 if (inviteAll) {
                     // All-workhubs: create or update org_editor membership
                     const existingSnap = await membershipsCollection
@@ -754,9 +770,9 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
 
             await batch.commit();
 
-            if (userSnap.empty && preApprovedCount > 0) {
+            if (!existingUser && preApprovedCount > 0) {
                 await sendUserInvitationEmail(sanitizedEmail, orgName, orgName, registrationLink).catch(() => {});
-            } else if (!userSnap.empty && (addedToExisting > 0 || updatedExisting > 0)) {
+            } else if (existingUser && (addedToExisting > 0 || updatedExisting > 0)) {
                 await sendUserInvitationEmail(sanitizedEmail, orgName, orgName, `${env.FRONTEND_URL}/login`).catch(() => {});
             }
 
@@ -767,17 +783,15 @@ export const inviteUsersToOrg = async (req: Request, res: Response) => {
 
         void checkSeatWarningThreshold(orgId);
 
-        const processedCount = rawEmails.length - totalSkipped - seatLimitedEmails.length;
-        let message = processedCount > 0
+        const processedCount = rawEmails.length - totalSkipped;
+        const message = processedCount > 0
             ? `${processedCount} user(s) invited.${totalSkipped > 0 ? ` ${totalSkipped} skipped (already have access or invalid).` : ''}`
-            : (totalSkipped > 0 || seatLimitedEmails.length > 0)
-                ? 'No users were invited.'
-                : 'All users already have access to the selected workhubs.';
-        if (seatLimitedEmails.length > 0) {
-            message += ` ${seatLimitedEmails.length} email(s) were skipped — seat limit reached (${seatsUsed}/${seatLimit}).`;
+            : 'All users already have access to the selected workhubs.';
+        return res.status(200).json({ message, successCount: processedCount, seatLimitedEmails: [] });
+    } catch (error: any) {
+        if (error?.name === 'SeatLimitError') {
+            return res.status(error.status ?? 403).json({ message: error.message });
         }
-        return res.status(200).json({ message, successCount: processedCount, seatLimitedEmails });
-    } catch (error) {
         logger.error(`Error inviting users to org ${orgId}:`, error);
         return res.status(500).json({ message: 'An internal server error occurred.' });
     }

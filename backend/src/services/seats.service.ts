@@ -9,8 +9,8 @@ import { getOrganizationName } from '../utils/notificationHelpers.js';
  *  Controllers should catch this and respond 403 with `.message`. */
 export class SeatLimitError extends Error {
   status = 403;
-  constructor(public seatLimit: number, public currentSeats: number) {
-    super(`Seat limit reached (${currentSeats}/${seatLimit}). Free up a seat or ask your org admin to increase the plan.`);
+  constructor(public seatLimit: number, public currentSeats: number, message?: string) {
+    super(message ?? `Seat limit reached (${currentSeats}/${seatLimit}). Free up a seat or ask your org admin to increase the plan.`);
     this.name = 'SeatLimitError';
   }
 }
@@ -24,14 +24,21 @@ export function isMembershipBillable(role: UserRole, permissions?: 'edit' | 'rea
   return true;
 }
 
+/** The set of user ids in the org holding at least one billable membership — the underlying
+ *  data countBillableSeats/isUserAlreadyBillable derive their answers from, exposed directly so
+ *  a bulk operation can check many users against it with a single query instead of one per user. */
+export async function getBillableUserIds(orgId: string): Promise<Set<string>> {
+  const snap = await membershipsCollection.where('orgId', '==', orgId).get();
+  const memberships = querySnapshotToArray<DBMembership>(snap);
+  return new Set(
+    memberships.filter((m) => isMembershipBillable(m.role, m.permissions)).map((m) => m.userId),
+  );
+}
+
 /** Counts unique users in the org holding at least one billable membership — a person with
  *  edit access to two workspaces still occupies exactly one seat. */
 export async function countBillableSeats(orgId: string): Promise<number> {
-  const snap = await membershipsCollection.where('orgId', '==', orgId).get();
-  const memberships = querySnapshotToArray<DBMembership>(snap);
-  const billableUserIds = new Set(
-    memberships.filter((m) => isMembershipBillable(m.role, m.permissions)).map((m) => m.userId),
-  );
+  const billableUserIds = await getBillableUserIds(orgId);
   return billableUserIds.size;
 }
 
@@ -80,6 +87,38 @@ export async function assertSeatCapacityForNewInvite(orgId: string, willBeBillab
   const current = await countBillableSeats(orgId);
   if (current >= seatLimit) {
     throw new SeatLimitError(seatLimit, current);
+  }
+}
+
+/**
+ * All-or-nothing capacity check for a bulk invite (an xlsx upload's worth of rows): counts how
+ * many of the given rows would consume a *new* seat — billable and not already billable via an
+ * existing membership in this org — and throws SeatLimitError up front, before any writes, if
+ * the org doesn't have room for all of them. Callers should run this before touching Firestore
+ * so a bulk upload either fully succeeds or fully fails, never partially processes.
+ */
+export async function assertSeatCapacityForBulkInvite(
+  orgId: string,
+  rows: { billable: boolean; existingUserId?: string }[],
+): Promise<void> {
+  const orgDoc = await organizationsCollection.doc(orgId).get();
+  const org = orgDoc.exists ? snapshotToData<DBOrganization>(orgDoc) : null;
+  const seatLimit = org?.seatLimit;
+  if (!seatLimit) return;
+
+  const billableUserIds = await getBillableUserIds(orgId);
+  const newSeatsNeeded = rows.filter(
+    (r) => r.billable && !(r.existingUserId && billableUserIds.has(r.existingUserId)),
+  ).length;
+
+  const current = billableUserIds.size;
+  if (current + newSeatsNeeded > seatLimit) {
+    const available = Math.max(0, seatLimit - current);
+    throw new SeatLimitError(
+      seatLimit,
+      current,
+      `This upload needs ${newSeatsNeeded} new seat(s), but only ${available} are available (using ${current} of ${seatLimit}). Nothing was invited — free up seats or reduce the file, then try again.`,
+    );
   }
 }
 

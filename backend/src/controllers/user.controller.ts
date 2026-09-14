@@ -18,7 +18,7 @@ import {
 import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { JwtUserPayload, DBUser, DBWorkspace, DBPreapprovedUser, UserRole, DBMembership, DBBoard, DBBoardMember, BoardRole, PaginatedResponse } from '../types/index.js';
 import { formatUserForFrontend } from './auth.controller.js';
-import { isMembershipBillable, isUserAlreadyBillable, countBillableSeats, assertSeatAvailable, checkSeatWarningThreshold } from '../services/seats.service.js';
+import { isMembershipBillable, assertSeatAvailable, assertSeatCapacityForBulkInvite, checkSeatWarningThreshold } from '../services/seats.service.js';
 import { sanitizeText, sanitizeImageUrl } from '../utils/sanitizer.js';
 import { sendUserInvitationEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
@@ -84,7 +84,6 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
         let preApprovedCount = 0;
         let updatedUserCount = 0;
         const newlyPreApprovedEmails: string[] = [];
-        const seatLimitedEmails: string[] = [];
 
         const existingUsersMap = new Map<string, DBUser>();
         const emailChunksForProcessing: string[][] = [];
@@ -102,35 +101,42 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             }
         }
 
-        // Seat check up front, run as a running counter through the loop below rather than one
-        // Firestore read per row — this can be a few hundred rows from one spreadsheet.
-        const orgSeatDoc = await organizationsCollection.doc(orgData.orgId).get();
-        const seatLimit = orgSeatDoc.exists ? (orgSeatDoc.data() as { seatLimit?: number }).seatLimit : undefined;
-        let seatsUsed = seatLimit ? await countBillableSeats(orgData.orgId) : 0;
+        // Also need to know which existing users already have a membership in this workspace —
+        // one whose membership already exists is skipped below (not billed as a new seat either).
+        const membershipExistsForEmail = new Map<string, boolean>();
+        for (const email of uniqueEmails) {
+            const user = existingUsersMap.get(email);
+            if (!user) continue;
+            const membershipSnapshot = await membershipsCollection
+                .where('userId', '==', user.id)
+                .where('entityId', '==', targetOrgId)
+                .limit(1).get();
+            membershipExistsForEmail.set(email, !membershipSnapshot.empty);
+        }
+
+        // All-or-nothing: this upload either fully succeeds or nothing is written. Throws
+        // SeatLimitError (caught below) before any Firestore write if there isn't room for
+        // every row that would consume a new seat.
+        await assertSeatCapacityForBulkInvite(
+            orgData.orgId,
+            uniqueEmails
+                .filter((email) => !membershipExistsForEmail.get(email))
+                .map((email) => {
+                    const row = rowsByEmail.get(email)!;
+                    return {
+                        billable: isMembershipBillable(UserRole.REGULAR_USER, row.permissions),
+                        existingUserId: existingUsersMap.get(email)?.id,
+                    };
+                }),
+        );
 
         for (const email of uniqueEmails) {
             const row = rowsByEmail.get(email)!;
-            const isBillableRow = isMembershipBillable(UserRole.REGULAR_USER, row.permissions);
 
             if (existingUsersMap.has(email)) {
                 const user = existingUsersMap.get(email)!;
-                const membershipSnapshot = await membershipsCollection
-                    .where('userId', '==', user.id)
-                    .where('entityId', '==', targetOrgId)
-                    .limit(1).get();
 
-                if (membershipSnapshot.empty) {
-                    if (seatLimit && isBillableRow) {
-                        const alreadyBillable = await isUserAlreadyBillable(orgData.orgId, user.id);
-                        if (!alreadyBillable) {
-                            if (seatsUsed >= seatLimit) {
-                                seatLimitedEmails.push(email);
-                                continue;
-                            }
-                            seatsUsed++;
-                        }
-                    }
-
+                if (!membershipExistsForEmail.get(email)) {
                     const defaultOrgSnapshot = await workspacesCollection
                         .where('orgId', '==', orgData.orgId)
                         .where('name', '==', 'Default Workspace')
@@ -170,17 +176,6 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                     updatedUserCount++;
                 }
             } else {
-                // Not registered yet — the seat isn't occupied until they actually sign up, but
-                // reserve capacity now so an admin can't queue up more edit invites than the org
-                // will ever be able to seat.
-                if (seatLimit && isBillableRow) {
-                    if (seatsUsed >= seatLimit) {
-                        seatLimitedEmails.push(email);
-                        continue;
-                    }
-                    seatsUsed++;
-                }
-
                 const docId = Buffer.from(`${email}_${targetOrgId}`).toString('base64');
                 const docRef = preapprovedUsersCollection.doc(docId);
                 const preapprovedUserEntry: Omit<DBPreapprovedUser, 'id'> = {
@@ -220,17 +215,15 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             message = `${preApprovedCount} new email(s) have been pre-approved.`;
         } else if (updatedUserCount > 0) {
             message = `${updatedUserCount} existing user(s) have been added to the workspace.`;
-        } else if (seatLimitedEmails.length === 0) {
-            message = 'No new users were pre-approved or added. They may already have access.';
         } else {
-            message = 'No users were added — the seat limit was reached.';
-        }
-        if (seatLimitedEmails.length > 0) {
-            message += ` ${seatLimitedEmails.length} email(s) were skipped — seat limit reached (${seatsUsed}/${seatLimit}).`;
+            message = 'No new users were pre-approved or added. They may already have access.';
         }
 
-        res.status(200).json({ message, successCount: preApprovedCount + updatedUserCount, seatLimitedEmails });
-    } catch (error) {
+        res.status(200).json({ message, successCount: preApprovedCount + updatedUserCount, seatLimitedEmails: [] });
+    } catch (error: any) {
+        if (error?.name === 'SeatLimitError') {
+            return res.status(error.status ?? 403).json({ message: error.message });
+        }
         logger.error("Error pre-approving users in bulk:", error);
         res.status(500).json({ message: "Failed to pre-approve users." });
     }

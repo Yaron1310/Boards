@@ -7,6 +7,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '../../hooks/useData';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { queryKeys } from '../../hooks/queries/queryKeys';
+import { getOrganizationSeatUsage } from '../../services/geminiService';
 import type { WorkHub } from '../../types';
 import { parseInviteRows, downloadInviteTemplate } from '../../utils/inviteUsersXlsx';
 
@@ -30,6 +31,7 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [seatUsage, setSeatUsage] = useState<{ usedSeats: number; seatLimit: number | null } | null>(null);
 
   useEffect(() => {
     setEmail('');
@@ -41,6 +43,21 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
     setIsUploading(false);
     setFeedback(null);
   }, [isOpen]);
+
+  useEffect(() => {
+    const orgId = selectedWorkspace?.orgId;
+    if (!isOpen || !orgId) return;
+    let cancelled = false;
+    getOrganizationSeatUsage(orgId)
+      .then((usage) => { if (!cancelled) setSeatUsage(usage); })
+      .catch(() => { /* purely informational — a failed fetch just hides the badge */ });
+    return () => { cancelled = true; };
+  }, [isOpen, selectedWorkspace?.orgId]);
+
+  const refreshSeatUsage = () => {
+    const orgId = selectedWorkspace?.orgId;
+    if (orgId) getOrganizationSeatUsage(orgId).then(setSeatUsage).catch(() => {});
+  };
 
   const toggleWorkspace = (wsId: string) => {
     setSelectedWorkspaceIds(prev =>
@@ -77,6 +94,7 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
         setFeedback({ type: 'success', text: result.message });
         setEmail('');
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+        refreshSeatUsage();
         setTimeout(() => onClose(), 1500);
       } else {
         setFeedback({ type: 'error', text: 'Failed to invite user. Please try again.' });
@@ -118,6 +136,17 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
       const { rows, invalidPermissionEmails } = parseInviteRows(sheetRows);
       if (rows.length === 0) throw new Error('No valid emails found in the first column of the Excel sheet.');
 
+      // Fast pre-flight check with what we already know client-side — a rough upper bound (it
+      // can't tell which rows are already-billable existing users), so a file that passes this
+      // can still be rejected server-side, but one that obviously can't fit is caught instantly
+      // without a round trip. The server call below is the real, authoritative, all-or-nothing check.
+      if (seatUsage?.seatLimit != null) {
+        const available = Math.max(0, seatUsage.seatLimit - seatUsage.usedSeats);
+        if (rows.length > available) {
+          throw new Error(`This file has ${rows.length} user(s), but your plan only has ${available} seat(s) available (using ${seatUsage.usedSeats} of ${seatUsage.seatLimit}). Nothing was invited — reduce the file or free up seats first.`);
+        }
+      }
+
       const result = await inviteUsersToOrgBulk(orgId, rows, getTargetWorkspaceIds());
       if (result) {
         let text = result.message;
@@ -126,6 +155,7 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
         }
         setFeedback({ type: 'success', text });
         setUploadFile(null);
+        refreshSeatUsage();
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       } else {
         throw new Error('An unknown error occurred during upload.');
@@ -150,10 +180,21 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="p-6 border-b flex justify-between items-center shrink-0">
-          <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <FiUserPlus className="text-blue-600" aria-hidden="true" />
-            Invite Users to Organization
-          </h2>
+          <div>
+            <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+              <FiUserPlus className="text-blue-600" aria-hidden="true" />
+              Invite Users to Organization
+            </h2>
+            {seatUsage?.seatLimit != null && (
+              <p
+                className={`text-xs mt-1 font-medium ${
+                  seatUsage.usedSeats >= seatUsage.seatLimit ? 'text-red-600' : 'text-gray-400'
+                }`}
+              >
+                {seatUsage.usedSeats} / {seatUsage.seatLimit} seats used
+              </p>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="p-2 rounded-full hover:bg-gray-200 transition-colors"
