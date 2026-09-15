@@ -14,7 +14,7 @@ const LandingPage: React.FC = () => {
           
           {/* Left Column: Content */}
           <div className="text-center animate-fade-in-up">
-            <h1 className="text-5xl md:text-7xl tracking-tight leading-tight" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 900 }}>
+            <h1 className="text-5xl md:text-7xl tracking-tight leading-tight" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, textWrap: 'nowrap' }}>
               <span className="text-gray-900">The exact tool</span>
               <br />
               <span style={{ color: '#2d6fe8' }}>for the job</span><span style={{ color: '#f5c027', fontSize: '30px', lineHeight: 1 }}>&#9632;</span>
