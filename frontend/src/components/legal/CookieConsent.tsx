@@ -1,18 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Capacitor } from '@capacitor/core';
 
 const CookieConsent: React.FC = () => {
   const { t } = useTranslation();
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // Do not show cookie banner on native apps (Android/iOS)
-    if (Capacitor.isNativePlatform()) {
-      return;
-    }
-
     const consent = localStorage.getItem('cookie_consent');
     if (!consent) {
       setIsVisible(true);

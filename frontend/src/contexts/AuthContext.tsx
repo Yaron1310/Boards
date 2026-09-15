@@ -4,7 +4,6 @@ import type { User, Workspace } from '../types';
 import { UserRole } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import * as apiService from '../services/geminiService';
-import { Capacitor } from '@capacitor/core';
 import i18n from '../i18n';
 import { signInWithCustomToken } from 'firebase/auth';
 import { firebaseAuth } from '../firebase';
@@ -32,8 +31,6 @@ export interface AuthSessionContextType {
   updateUserProfileImage: (imageData: string | Blob) => Promise<boolean>;
   setAuthenticatedUserFromGoogle: (token: string) => Promise<boolean>;
   setAuthenticatedUserFromToken: (token: string) => Promise<boolean>;
-  nativeGoogleLogin: () => Promise<void>;
-  nativeMicrosoftLogin: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -229,11 +226,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    if (Capacitor.isNativePlatform()) {
-      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.accessToken);
-    } else {
-      localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-    }
+    // The access token lives in memory only on the web; the __session cookie carries it.
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     // The refresh token isn't carried by the __session cookie (Firebase Hosting's CDN
     // strips every other cookie), so it must be stored client-side on every platform —
     // it's what lets the session survive past the short-lived access token's expiry.
@@ -426,14 +420,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
     }
   }, [handleSuccessfulLogin]);
-
-  const nativeGoogleLogin = useCallback(async () => {
-    setAuthError('Native Google Sign-In is not available on this platform.');
-  }, []);
-
-  const nativeMicrosoftLogin = useCallback(async () => {
-    setAuthError('Native Microsoft Sign-In is not available on this platform.');
-  }, []);
 
   // ── UI / flow methods ──────────────────────────────────────────────────────
 
@@ -699,14 +685,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateUserProfileImage,
     setAuthenticatedUserFromGoogle,
     setAuthenticatedUserFromToken,
-    nativeGoogleLogin,
-    nativeMicrosoftLogin,
   }), [
     user, token, selectedWorkspace, isOrgSubscriptionActive,
     logout, updateAuthUser, refreshAuthUser, updateUserDetails,
     updateUserPassword, updateUserProfileImage,
     setAuthenticatedUserFromGoogle, setAuthenticatedUserFromToken,
-    nativeGoogleLogin, nativeMicrosoftLogin,
   ]);
 
   const uiValue = useMemo<AuthUIContextType>(() => ({

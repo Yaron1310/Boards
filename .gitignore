@@ -23,7 +23,4 @@ extract_links.py
 # Firebase
 .firebase/
 
-# Capacitor
-android/
-ios/
 

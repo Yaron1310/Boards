@@ -8,15 +8,9 @@
     "build": "npx vite build",
     "retain-assets": "node scripts/retain-assets.mjs",
     "lint": "npx eslint . --report-unused-disable-directives --max-warnings 0",
-    "preview": "npx vite preview",
-    "cap:sync": "npx cap sync",
-    "cap:open:android": "npx cap open android",
-    "cap:open:ios": "npx cap open ios"
+    "preview": "npx vite preview"
   },
   "dependencies": {
-    "@capacitor/android": "^7.0.0",
-    "@capacitor/core": "^7.0.0",
-    "@capacitor/ios": "^7.0.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -26,16 +20,11 @@
     "i18next": "^25.8.20",
     "i18next-browser-languagedetector": "^8.2.1",
     "i18next-http-backend": "^3.0.2",
-    "mammoth": "^1.11.0",
-    "pdfjs-dist": "^5.4.624",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-i18next": "^16.5.8",
     "react-icons": "^5.0.1",
     "react-router-dom": "^6.30.1",
-    "react-virtualized-auto-sizer": "^2.0.3",
-    "react-window": "^2.2.7",
-    "react-window-infinite-loader": "^2.0.1",
     "read-excel-file": "^5.8.1",
     "recharts": "^3.8.1"
   },

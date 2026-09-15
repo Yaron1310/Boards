@@ -115,8 +115,6 @@ function buildMockAuth(board: Board): AuthSessionContextType {
     updateUserProfileImage: noopBool,
     setAuthenticatedUserFromGoogle: noopBool,
     setAuthenticatedUserFromToken: noopBool,
-    nativeGoogleLogin: noopVoid,
-    nativeMicrosoftLogin: noopVoid,
   };
 }
 
