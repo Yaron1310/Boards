@@ -60,12 +60,12 @@ class ErrorBoundary extends React.Component<Props, State> {
           <div className="max-w-sm text-center">
             <FiRefreshCw size={32} className="text-indigo-600 mx-auto mb-3" aria-hidden="true" />
             <h1 className="text-base font-semibold text-gray-800 mb-1">
-              {t('errorBoundary.updateAvailableTitle', 'A new version is available')}
+              {t('errorBoundary.updateAvailableTitle', 'Boards has been updated')}
             </h1>
             <p className="text-sm text-gray-500 mb-5">
               {t(
                 'errorBoundary.updateAvailableMessage',
-                'Boards was updated while this tab was open. Reload to continue — any work you have already saved is safe.',
+                'This tab has been open since before the latest update, so the page could not load. Reload to continue on the new version — your saved data is not affected.',
               )}
             </p>
             <button

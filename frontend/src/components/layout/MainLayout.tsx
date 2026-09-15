@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, Suspense } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import RouteChunkBoundary from '../common/RouteChunkBoundary';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User, WorkHub, Board } from '../../types';
@@ -1107,7 +1108,7 @@ const MainLayout: React.FC = () => {
             <div className="text-xl font-semibold text-gray-800">{t('layout.systemAdmin')}</div>
             <Link to="/profile"><img src={userImageHeader} alt="User" className="h-8 w-8 rounded-full object-cover" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} /></Link>
           </header>
-          <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><Outlet /></Suspense></main>
+          <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><RouteChunkBoundary><Outlet /></RouteChunkBoundary></Suspense></main>
         </div>
       </div>
     );
@@ -1230,7 +1231,7 @@ const MainLayout: React.FC = () => {
           <Link to="/profile"><img src={userImageHeader} alt="User" className="h-8 w-8 rounded-full object-cover flex-shrink-0" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} /></Link>
         </header>
         <FormulaRecordingBar />
-        <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><Outlet /></Suspense></main>
+        <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><RouteChunkBoundary><Outlet /></RouteChunkBoundary></Suspense></main>
       </div>
     </div>
   );

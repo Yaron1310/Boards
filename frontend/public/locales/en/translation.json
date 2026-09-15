@@ -1362,8 +1362,9 @@
     }
   },
   "errorBoundary": {
-    "updateAvailableTitle": "A new version is available",
-    "updateAvailableMessage": "Boards was updated while this tab was open. Reload to continue — any work you have already saved is safe.",
+    "updateAvailableTitle": "Boards has been updated",
+    "updateAvailableMessage": "This tab has been open since before the latest update, so the page could not load. Reload to continue on the new version — your saved data is not affected.",
+    "routeUpdateMessage": "This page needs the new version in order to open. Nothing has been changed or lost — you can carry on working and reload whenever you are ready.",
     "reloadPage": "Reload page",
     "genericTitle": "Something went wrong",
     "genericMessage": "This page hit an unexpected error. You can go back to where you were, or return to the home page.",

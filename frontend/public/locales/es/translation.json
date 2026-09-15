@@ -1,7 +1,8 @@
 {
   "errorBoundary": {
-    "updateAvailableTitle": "Hay una nueva versión disponible",
-    "updateAvailableMessage": "Boards se actualizó mientras esta pestaña estaba abierta. Vuelve a cargar para continuar; el trabajo que ya guardaste está a salvo.",
+    "updateAvailableTitle": "Boards se ha actualizado",
+    "updateAvailableMessage": "Esta pestaña ha estado abierta desde antes de la última actualización, por lo que la página no pudo cargarse. Vuelve a cargar para continuar con la nueva versión; tus datos guardados no se ven afectados.",
+    "routeUpdateMessage": "Esta página necesita la nueva versión para abrirse. No se ha cambiado ni perdido nada: puedes seguir trabajando y volver a cargar cuando quieras.",
     "reloadPage": "Volver a cargar",
     "genericTitle": "Algo salió mal",
     "genericMessage": "Esta página encontró un error inesperado. Puedes volver a donde estabas o regresar a la página de inicio.",
