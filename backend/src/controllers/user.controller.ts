@@ -539,12 +539,10 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
     }
 };
 
-const ALLOWED_LANGUAGE_CODES = ['en', 'es', 'he'];
-
 export const updateMyUserDetails = async (req: Request, res: Response) => {
     const userPayload = req.user as JwtUserPayload;
     const userId = userPayload.id;
-    const { name, email, preferredLanguage, preferences, notificationPreference } = req.body;
+    const { name, email, preferences, notificationPreference } = req.body;
     try {
         const userRef = usersCollection.doc(userId);
         const updates: any = {};
@@ -556,12 +554,6 @@ export const updateMyUserDetails = async (req: Request, res: Response) => {
                 return res.status(400).json({ message: 'Email already in use.' });
             }
             updates.email = sanitizedEmail;
-        }
-        if (preferredLanguage !== undefined) {
-            if (!ALLOWED_LANGUAGE_CODES.includes(preferredLanguage)) {
-                return res.status(400).json({ message: 'Invalid language code.' });
-            }
-            updates.preferredLanguage = preferredLanguage;
         }
         if (preferences !== undefined && typeof preferences === 'object') {
             updates.preferences = preferences;

@@ -4,12 +4,10 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import * as apiService from '../../services/geminiService';
 import { FiKey, FiEye, FiEyeOff, FiAlertCircle, FiLoader, FiLogIn } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
-import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 
 const ResetPasswordPage: React.FC = () => {
   const { i18n } = useTranslation();
   const t = i18n.getFixedT('en');
-  useForceDocumentLang();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

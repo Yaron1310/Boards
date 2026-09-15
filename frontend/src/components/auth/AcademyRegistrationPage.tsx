@@ -8,12 +8,10 @@ import AccessibilityModal from '../legal/AccessibilityModal';
 import { GoogleIconSVG } from './GoogleAuthIcons';
 import { BACKEND_API_URL } from '../../constants';
 import { useTranslation } from 'react-i18next';
-import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 
 const OrganizationRegistrationPage: React.FC = () => {
   const { i18n } = useTranslation();
   const t = i18n.getFixedT('en');
-  useForceDocumentLang();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

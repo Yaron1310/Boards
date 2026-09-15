@@ -79,7 +79,6 @@ export interface User {
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
   workspaces: Pick<Workspace, 'id' | 'name' | 'orgId' | 'organizationName' | 'isPersonal'>[];
   profileImageUrl?: string;
-  preferredLanguage?: string;
   hasPassword?: boolean;
   preferences?: {
     darkContrast?: boolean;

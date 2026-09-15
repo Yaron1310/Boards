@@ -4,7 +4,6 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { FiEye, FiAlertTriangle, FiLoader } from 'react-icons/fi';
 import { AuthSessionContext } from '../../contexts/AuthContext';
 import type { AuthSessionContextType } from '../../contexts/AuthContext';
-import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 import BoardViewPage from './BoardViewPage';
 import { BACKEND_API_URL } from '../../constants';
 import type { Board, Group, Item, Column } from '../../types';
@@ -121,7 +120,6 @@ function buildMockAuth(board: Board): AuthSessionContextType {
 const PublicBoardViewPage: React.FC = () => {
   // A public link can be opened from any browser, including one that has an admin's
   // Hebrew/RTL preference cached — always render this page LTR/English regardless.
-  useForceDocumentLang();
 
   const { token } = useParams<{ token: string }>();
   const [state, setState] = useState<

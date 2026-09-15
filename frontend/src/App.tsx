@@ -8,7 +8,6 @@ import { debugLog } from './config';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
 // -- Static imports: public/auth pages render immediately with no loading spinner --
-import LanguageSelectionModal from './components/common/LanguageSelectionModal';
 import SelectContextPage from './components/auth/SelectContextPage';
 import OrganizationSetupWizard from './components/auth/AcademySetupWizard';
 import LoginPage from './components/auth/LoginPage';
@@ -73,7 +72,7 @@ const PageLoader: React.FC = () => (
 );
 
 const App: React.FC = () => {
-  const { user, contextSelectionMode, showLanguageModal, dismissLanguageModal } = useAuth();
+  const { user, contextSelectionMode } = useAuth();
   const userRole = user?.role ?? null;
 
   useEffect(() => {
@@ -175,9 +174,6 @@ const App: React.FC = () => {
 
   debugLog('[App.tsx] Rendering with user:', 'color: #FFA500;', user);
 
-  const firstLoginModal = showLanguageModal && user && !contextSelectionMode ? (
-    <LanguageSelectionModal onClose={dismissLanguageModal} />
-  ) : null;
 
   if (contextSelectionMode) {
     return (
@@ -204,7 +200,6 @@ const App: React.FC = () => {
 
   return (
     <>
-      {firstLoginModal}
     <BrowserRouter>
       <Routes>
         {/* Public routes */}

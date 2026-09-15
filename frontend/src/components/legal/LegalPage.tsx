@@ -12,7 +12,7 @@ const LegalPage: React.FC = () => {
       <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-lg overflow-hidden">
         <div className="p-6 sm:p-10">
           <Link to="/" className="inline-flex items-center text-blue-600 hover:text-blue-800 mb-6 transition-colors">
-            <FiArrowLeft className="mr-2 rtl-flip" /> {t('common.back')}
+            <FiArrowLeft className="mr-2" /> {t('common.back')}
           </Link>
 
           <h1 className="text-3xl font-bold text-gray-900 mb-8">{t('layout.legalPrivacy')}</h1>

@@ -5,8 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import type { User } from '../../types';
 import { UserRole } from '../../types';
-import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiUserMinus, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiGlobe, FiBell, FiInfo } from 'react-icons/fi';
-import i18n, { SUPPORTED_LANGUAGES } from '../../i18n';
+import { FiEdit3, FiSave, FiCamera, FiKey, FiX, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiTrash2, FiLoader, FiAlertTriangle, FiLogOut, FiUserMinus, FiRepeat, FiCpu, FiArrowLeft, FiLink, FiEye, FiEyeOff, FiBell, FiInfo } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 
 const ProfilePage: React.FC = () => {
@@ -53,11 +52,6 @@ const ProfilePage: React.FC = () => {
   const [compressedImageBlob, setCompressedImageBlob] = useState<Blob | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [showUrlInput, setShowUrlInput] = useState(false);
-
-  // Language Settings State
-  const [isLanguageSettingsOpen, setIsLanguageSettingsOpen] = useState(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>(() => authUser?.preferredLanguage || i18n.language.split('-')[0] || 'en');
-  const [isLanguageSaving, setIsLanguageSaving] = useState(false);
 
   // Notification preference state
   type NotifPref = 'all' | 'mentions_only' | 'none';
@@ -115,11 +109,7 @@ const ProfilePage: React.FC = () => {
       setEditedName((userToDisplay as User).name);
       setEditedImageUrl((userToDisplay as User).profileImageUrl || '');
       
-      // Load language preference if own profile
       if (isOwnProfile && authUser) {
-          if (authUser.preferredLanguage) {
-              setSelectedLanguage(authUser.preferredLanguage);
-          }
           setNotifPref((authUser.notificationPreference as NotifPref) ?? 'all');
       }
     } else if (!authLoading && !dataCtxLoading) {
@@ -329,33 +319,8 @@ const ProfilePage: React.FC = () => {
     }
   };
 
-  const handleLanguageChange = (langCode: string) => {
-    setSelectedLanguage(langCode);
-  };
 
-  const handleLanguageDone = async () => {
-    if (!authUser) return;
-    const previous = authUser.preferredLanguage || i18n.language.split('-')[0] || 'en';
-    if (selectedLanguage === previous) {
-      setIsLanguageSettingsOpen(false);
-      return;
-    }
-    setIsLanguageSaving(true);
-    i18n.changeLanguage(selectedLanguage);
-    const success = await updateUserDetails({ preferredLanguage: selectedLanguage });
-    setIsLanguageSaving(false);
-    if (!success) {
-      setSelectedLanguage(previous);
-      i18n.changeLanguage(previous);
-    }
-    setIsLanguageSettingsOpen(false);
-  };
 
-  const handleLanguageModalClose = () => {
-    // Revert pending selection back to the last committed language
-    setSelectedLanguage(authUser?.preferredLanguage || i18n.language.split('-')[0] || 'en');
-    setIsLanguageSettingsOpen(false);
-  };
 
   const handleDeleteUserConfirm = async () => {
     if (!profileUser || !deletionType) return;
@@ -450,7 +415,7 @@ const ProfilePage: React.FC = () => {
               className="mb-6 inline-flex items-center text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
               aria-label="Go back to previous page"
           >
-              <FiArrowLeft className="mr-2 h-5 w-5 rtl-flip" />
+              <FiArrowLeft className="mr-2 h-5 w-5" />
                       {t('profile.backToUserList')}
           </button>
       )}
@@ -741,57 +706,6 @@ const ProfilePage: React.FC = () => {
         document.getElementById('modal-root')!
       )}
 
-      {isOwnProfile && isLanguageSettingsOpen && ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50" role="dialog" aria-modal="true" aria-labelledby="language-settings-title">
-            <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md animate-fade-in-up">
-                <div className="flex justify-between items-center mb-4 border-b pb-3">
-                    <h3 id="language-settings-title" className="text-xl font-semibold text-gray-800 flex items-center">
-                        <FiGlobe className="mr-2 text-teal-500" />
-                        {t('profile.displayLanguage')}
-                    </h3>
-                    <button
-                        onClick={handleLanguageModalClose}
-                        className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-100"
-                        aria-label={t('profile.closeLanguageSettings')}
-                        data-modal-escape
-                    >
-                        <FiX size={24} />
-                    </button>
-                </div>
-
-                <div className="space-y-2">
-                    {SUPPORTED_LANGUAGES.map((lang) => (
-                        <button
-                            key={lang.code}
-                            onClick={() => handleLanguageChange(lang.code)}
-                            className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition-colors ${
-                                selectedLanguage === lang.code
-                                    ? 'border-teal-500 bg-teal-50 text-teal-700 font-medium'
-                                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
-                            }`}
-                            aria-pressed={selectedLanguage === lang.code}
-                        >
-                            <span style={{ direction: lang.dir as 'ltr' | 'rtl' }}>{lang.name}</span>
-                            {selectedLanguage === lang.code && (
-                                <FiCheckCircle className="text-teal-500" size={18} aria-hidden="true" />
-                            )}
-                        </button>
-                    ))}
-                </div>
-
-                <div className="flex justify-end pt-4">
-                    <button
-                        onClick={handleLanguageDone}
-                        disabled={isLanguageSaving}
-                        className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 font-medium transition-colors disabled:opacity-60"
-                    >
-                        {isLanguageSaving ? t('common.saving') : t('common.done')}
-                    </button>
-                </div>
-            </div>
-        </div>,
-        document.getElementById('modal-root')!
-      )}
 
       {isOwnProfile && isChangingPassword && ReactDOM.createPortal(
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">

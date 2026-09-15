@@ -100,7 +100,6 @@ export interface DBUser {
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
   emailVerified?: boolean;
   createdAt: admin.firestore.Timestamp | Date | any;
-  preferredLanguage?: string;
   passwordResetId?: string;
   failedLoginAttempts?: number;
   lockoutUntil?: admin.firestore.Timestamp | Date | null | any;

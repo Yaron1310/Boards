@@ -4,7 +4,6 @@ import type { User, Workspace } from '../types';
 import { UserRole } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import * as apiService from '../services/geminiService';
-import i18n from '../i18n';
 import { signInWithCustomToken } from 'firebase/auth';
 import { firebaseAuth } from '../firebase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,7 +25,7 @@ export interface AuthSessionContextType {
   logout: () => void;
   updateAuthUser: (updatedUser: User) => void;
   refreshAuthUser: () => Promise<void>;
-  updateUserDetails: (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string; notificationPreference?: 'all' | 'mentions_only' | 'none' }) => Promise<boolean>;
+  updateUserDetails: (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; notificationPreference?: 'all' | 'mentions_only' | 'none' }) => Promise<boolean>;
   updateUserPassword: (passwords: { currentPassword?: string; newPassword: string }) => Promise<boolean>;
   updateUserProfileImage: (imageData: string | Blob) => Promise<boolean>;
   setAuthenticatedUserFromGoogle: (token: string) => Promise<boolean>;
@@ -46,8 +45,6 @@ export interface AuthUIContextType {
   userForContextSelection: (Omit<User, 'role'> & { workspaces: Workspace[]; allAcademies?: Workspace[] }) | null;
   availableContexts: { groupName: string; contexts: { label: string; value: string; role: UserRole }[] }[];
 
-  showLanguageModal: boolean;
-  dismissLanguageModal: () => void;
 
   login: (email: string, password: string, recaptchaToken?: string | null) => Promise<void>;
   completeLoginWithContext: (workspaceId: string, role: UserRole) => Promise<void>;
@@ -118,7 +115,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authError, setAuthError] = useState<string | null>(null);
   const [contextSelectionMode, setContextSelectionMode] = useState<'login' | 'switch' | null>(null);
   const [userForContextSelection, setUserForContextSelection] = useState<(Omit<User, 'role'> & { workspaces: Workspace[]; allAcademies?: Workspace[] }) | null>(null);
-  const [showLanguageModal, setShowLanguageModal] = useState(false);
 
   useEffect(() => {
     applyDarkContrast(user?.preferences?.darkContrast ?? false);
@@ -174,7 +170,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           } else {
             localStorage.removeItem('authSelectedOrg');
           }
-          applyUserLanguage(freshUser);
           success = true;
           break;
         } catch (error: any) {
@@ -211,11 +206,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const clearAuthError = useCallback(() => setAuthError(null), []);
 
-  const applyUserLanguage = useCallback((userData: User) => {
-    if (userData.preferredLanguage) {
-      i18n.changeLanguage(userData.preferredLanguage);
-    }
-  }, []);
 
   const handleSuccessfulLogin = useCallback((data: any) => {
     console.log('[AUTH_STATE_UPDATE] Handling successful login. Data received:', data);
@@ -252,13 +242,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setContextSelectionMode(null);
     setUserForContextSelection(null);
     localStorage.removeItem('userForContextSelection');
-    applyUserLanguage(data.user);
-
-    if (!data.user.preferredLanguage) {
-      i18n.changeLanguage('en');
-      apiService.updateMyUserDetails({ preferredLanguage: 'en' }).catch(() => {});
-    }
-  }, [applyUserLanguage]);
+  }, []);
 
   // ── Session methods ────────────────────────────────────────────────────────
 
@@ -327,7 +311,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [user, refreshAuthUser]);
 
-  const updateUserDetails = useCallback(async (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string; notificationPreference?: 'all' | 'mentions_only' | 'none' }): Promise<boolean> => {
+  const updateUserDetails = useCallback(async (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; notificationPreference?: 'all' | 'mentions_only' | 'none' }): Promise<boolean> => {
     try {
       const updatedUser = await apiService.updateMyUserDetails(details);
       updateAuthUser(updatedUser);
@@ -571,7 +555,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const dismissLanguageModal = useCallback(() => setShowLanguageModal(false), []);
 
   // ── Derived / memoized values ──────────────────────────────────────────────
 
@@ -699,8 +682,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     contextSelectionMode,
     userForContextSelection,
     availableContexts,
-    showLanguageModal,
-    dismissLanguageModal,
     login,
     completeLoginWithContext,
     switchContext,
@@ -713,7 +694,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }), [
     loading, authError, clearAuthError,
     contextSelectionMode, userForContextSelection, availableContexts,
-    showLanguageModal, dismissLanguageModal,
     login, completeLoginWithContext, switchContext, startContextSwitch,
     cancelContextSelection, finalizeLoginSession,
     register, initiateCheckoutRegistration, registerOrganizationAdmin,

@@ -550,7 +550,7 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
               <p className="font-semibold text-white text-sm truncate">{user?.name}</p>
               <p className="text-xs text-white/60 truncate">{user?.email}</p>
             </div>
-            <FiChevronsRight className="ml-2 text-white/60 rtl-flip" />
+            <FiChevronsRight className="ml-2 text-white/60" />
           </NavLink>
           <div className="flex items-center justify-center text-gray-400 text-xs gap-x-1.5">
              <span className="font-semibold">Logyx</span>
@@ -942,7 +942,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                     <p className="font-semibold text-sm truncate" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }}>{user?.name}</p>
                     <p className="text-xs truncate" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }}>{user?.email}</p>
                 </div>
-                 <FiChevronsRight className="ml-2 rtl-flip" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }} />
+                 <FiChevronsRight className="ml-2" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }} />
             </NavLink>
             <div className="flex items-center justify-center opacity-80 text-xs gap-x-1.5" style={{ color: sidebarLinkColor }}>
                 <span className="font-semibold">Logyx</span>

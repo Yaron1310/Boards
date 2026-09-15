@@ -28,7 +28,6 @@ html, body {
   height: calc(var(--vh, 1vh) * 100);
 }
 
-
 /* Custom utility for vertical text on mobile for the results graph */
 @media (max-width: 639px) { /* Below sm breakpoint */
   .vertical-text-mobile {
@@ -138,70 +137,6 @@ html.dark-contrast .auth-page-no-contrast canvas {
 /* Hide the reCAPTCHA badge — legal disclaimer is shown on login/register forms instead */
 .grecaptcha-badge {
   display: none !important;
-}
-
-/* RTL: flip back-arrow icons horizontally so they point in the correct direction */
-[dir="rtl"] .rtl-flip {
-  transform: scaleX(-1);
-}
-
-/* RTL: reverse Tailwind's space-x-* utilities so spacing appears between elements.
-   Tailwind sets --tw-space-x-reverse on the sibling combinator children, not the parent,
-   so we must override it there with higher specificity. */
-[dir="rtl"] [class*="space-x-"] > :not([hidden]) ~ :not([hidden]) {
-  --tw-space-x-reverse: 1;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   RTL: Global visual-consistency rules for Hebrew UI mode
-   ─────────────────────────────────────────────────────────────────────────── */
-
-/* FIX 1a — Absolute-positioned close buttons in overlays / modals.
-   Physical `right-*` classes don't flip with document direction.
-   We target only <button> elements with those classes to avoid affecting other
-   absolutely-positioned UI like badges, lock icons, or image overlays. */
-[dir="rtl"] button.absolute.right-2 { right: auto; left: 0.5rem;  }
-[dir="rtl"] button.absolute.right-3 { right: auto; left: 0.75rem; }
-[dir="rtl"] button.absolute.right-4 { right: auto; left: 1rem;    }
-[dir="rtl"] button.absolute.right-6 { right: auto; left: 1.5rem;  }
-
-/* FIX 1b — Inline icon-to-text gap in flex rows.
-   React Icons render as <svg> and use mr-* / ml-* classes to create a gap
-   between the icon and adjacent text in LTR flex rows.
-   In RTL, flexbox (via the inherited `direction:rtl`) reverses visual order so
-   the icon appears to the RIGHT of the text — the gap must move to the LEFT. */
-[dir="rtl"] svg.mr-1 { margin-right: 0; margin-left: 0.25rem; }
-[dir="rtl"] svg.mr-2 { margin-right: 0; margin-left: 0.5rem;  }
-[dir="rtl"] svg.mr-3 { margin-right: 0; margin-left: 0.75rem; }
-[dir="rtl"] svg.mr-4 { margin-right: 0; margin-left: 1rem;    }
-[dir="rtl"] svg.mr-5 { margin-right: 0; margin-left: 1.25rem; }
-[dir="rtl"] svg.ml-1 { margin-left: 0;  margin-right: 0.25rem; }
-[dir="rtl"] svg.ml-2 { margin-left: 0;  margin-right: 0.5rem;  }
-[dir="rtl"] svg.ml-3 { margin-left: 0;  margin-right: 0.75rem; }
-[dir="rtl"] svg.ml-4 { margin-left: 0;  margin-right: 1rem;    }
-[dir="rtl"] svg.ml-5 { margin-left: 0;  margin-right: 1.25rem; }
-
-/* FIX 2 — Auto-align English-only (untranslated) strings to the left in RTL.
-   When the UI is Hebrew, text elements inherit `direction:rtl` and
-   `text-align:start` (≡ right-aligned), so intentionally-English strings look
-   jarring right-aligned. `unicode-bidi:plaintext` makes each element detect its
-   own base direction from its first strong Unicode character:
-     • English-only text  → LTR detected → text-align:start = left-aligned  ✓
-     • Hebrew text        → RTL detected → text-align:start = right-aligned  ✓
-     • Mixed (he + en)    → Hebrew wins (first char) → right-aligned          ✓  */
-[dir="rtl"] p,
-[dir="rtl"] h1,
-[dir="rtl"] h2,
-[dir="rtl"] h3,
-[dir="rtl"] h4,
-[dir="rtl"] h5,
-[dir="rtl"] h6,
-[dir="rtl"] span,
-[dir="rtl"] label,
-[dir="rtl"] li,
-[dir="rtl"] td,
-[dir="rtl"] th {
-  unicode-bidi: plaintext;
 }
 
 /* Text-caret blink (full on/off), unlike Tailwind's animate-pulse which only

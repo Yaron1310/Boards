@@ -10,12 +10,10 @@ import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
 import { GoogleIconSVG } from './GoogleAuthIcons';
 import { useTranslation } from 'react-i18next';
-import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 
 const LoginPage: React.FC = () => {
   const { i18n } = useTranslation();
   const t = i18n.getFixedT('en');
-  useForceDocumentLang();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);

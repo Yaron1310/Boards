@@ -1381,13 +1381,6 @@
     "headlineHighlight": "AI Implements.",
     "tagline": "Learn · Grow · Transform"
   },
-  "language": "Language",
-  "languageModal": {
-    "confirm": "Confirm",
-    "skip": "Skip",
-    "subtitle": "Select your preferred display language to get started.",
-    "title": "Choose Your Language"
-  },
   "layout": {
     "academyHub": "WorkHub Hub",
     "academyPayouts": "WorkHub Payouts",
@@ -1612,7 +1605,6 @@
     "chatHistoryDisabled": "Chat history is disabled.",
     "chatHistoryEnabled": "Chat history is enabled.",
     "chatSettings": "Chat Settings",
-    "closeLanguageSettings": "Close language settings",
     "confirmAction": "Confirm Action",
     "confirmArchive": "Are you sure you want to archive this insight?",
     "confirmArchiveInsight": "Are you sure you want to archive this insight? This action cannot be undone.",
@@ -1638,7 +1630,6 @@
     "deleteTranscriptWarning": "This will permanently remove the message history. The saved insights will not be affected. This action cannot be undone.",
     "deleteYourAccount": "Delete Your Account",
     "deleting": "Deleting...",
-    "displayLanguage": "Display Language",
     "downloadTranscript": "Download Transcript",
     "editDetails": "Edit Details",
     "editProfileImage": "Edit Profile Image",
@@ -1647,7 +1638,6 @@
     "insightsFromLessons": "Insights from Lessons",
     "insightsWillAppear": "Your insights will appear here",
     "invalidFileType": "Invalid file type. Please use JPG, PNG, GIF, or WebP.",
-    "language": "Language",
     "loadMoreMessages": "Load more messages",
     "logout": "Logout",
     "monthlyTokenUsage": "Monthly Token Usage",
