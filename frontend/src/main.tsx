@@ -7,6 +7,15 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext'; // Assuming contexts are in src/contexts/
 import { DataProvider } from './contexts/DataContext';
 import { FormulaRecordingProvider } from './contexts/FormulaRecordingContext';
+// Inter, self-hosted. These are the five weights the UI uses: 400 body, 500/600/700 for
+// Tailwind's font-medium/semibold/bold, and 900 for the landing hero. Latin subset only.
+// Serving these ourselves keeps visitor IPs from reaching Google's CDN and takes a
+// render-blocking third-party request off the critical path.
+import '@fontsource/inter/latin-400.css';
+import '@fontsource/inter/latin-500.css';
+import '@fontsource/inter/latin-600.css';
+import '@fontsource/inter/latin-700.css';
+import '@fontsource/inter/latin-900.css';
 import './index.css'; // Import the global stylesheet
 import './i18n'; // Initialize i18next before the app renders
 
