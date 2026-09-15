@@ -1,5 +1,4 @@
 {
-  "language": "Language",
   "admin": {
     "academyAdminDashboard": "WorkHub Admin Dashboard",
     "academyDisplayName": "WorkHub Display Name",
@@ -1362,6 +1361,15 @@
       "title": "Send Test Email"
     }
   },
+  "errorBoundary": {
+    "updateAvailableTitle": "A new version is available",
+    "updateAvailableMessage": "Boards was updated while this tab was open. Reload to continue — any work you have already saved is safe.",
+    "reloadPage": "Reload page",
+    "genericTitle": "Something went wrong",
+    "genericMessage": "This page hit an unexpected error. You can go back to where you were, or return to the home page.",
+    "goBack": "Go back",
+    "goHome": "Go to home"
+  },
   "landing": {
     "builtFor": "Built for WorkHubs, schools and WorkHubs",
     "createCourse": "Create Your First AI-Powered Course",
@@ -1374,6 +1382,7 @@
     "headlineHighlight": "AI Implements.",
     "tagline": "Learn · Grow · Transform"
   },
+  "language": "Language",
   "languageModal": {
     "confirm": "Confirm",
     "skip": "Skip",

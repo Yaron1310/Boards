@@ -462,7 +462,6 @@
     "aiMentor": "מנטור AI",
     "questionnaires": "שאלונים",
     "userManagement": "ניהול משתמשים",
-    "workspaces": "WorkHubs",
     "courseManagement": "ניהול קורסים",
     "aiMentorSettings": "הגדרות מנטור AI",
     "questionnaireSettings": "הגדרות שאלון",
@@ -1665,5 +1664,14 @@
     "subtitle": "בחר את שפת התצוגה המועדפת עליך כדי להתחיל.",
     "confirm": "אישור",
     "skip": "דלג"
+  },
+  "errorBoundary": {
+    "updateAvailableTitle": "גרסה חדשה זמינה",
+    "updateAvailableMessage": "Boards עודכנה בזמן שהלשונית הזו הייתה פתוחה. רעננו כדי להמשיך — כל מה שכבר נשמר שמור.",
+    "reloadPage": "רענון הדף",
+    "genericTitle": "משהו השתבש",
+    "genericMessage": "אירעה שגיאה בלתי צפויה בדף הזה. אפשר לחזור למקום שבו הייתם, או לחזור לדף הבית.",
+    "goBack": "חזרה",
+    "goHome": "לדף הבית"
   }
 }

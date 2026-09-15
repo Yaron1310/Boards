@@ -5,6 +5,7 @@ import { useAuth } from './hooks/useAuth';
 import { UserRole } from './types';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { debugLog } from './config';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
 // -- Static imports: public/auth pages render immediately with no loading spinner --
 import LanguageSelectionModal from './components/common/LanguageSelectionModal';
@@ -23,7 +24,7 @@ import LegalPage from './components/legal/LegalPage';
 import AccessibilityPage from './components/legal/AccessibilityPage';
 
 // -- Lazy imports for the authenticated area (code-split by user role) --
-const MainLayout = React.lazy(() => import('./components/layout/MainLayout'));
+const MainLayout = lazyWithRetry(() => import('./components/layout/MainLayout'));
 
 // DemoBoardPage and PublicBoardViewPage both statically import BoardViewPage — the single
 // heaviest page in the app (the whole board grid: every cell type, GanttView, the dependency
@@ -34,33 +35,33 @@ const MainLayout = React.lazy(() => import('./components/layout/MainLayout'));
 // BoardViewPage on its own. Lazy-loading these two lets Rollup finally split BoardViewPage
 // out into a real shared async chunk, at the cost of a brief spinner on these two
 // (comparatively rare) routes instead of on every page load.
-const DemoBoardPage = React.lazy(() => import('./components/demo/DemoBoardPage'));
-const PublicBoardViewPage = React.lazy(() => import('./components/boards/PublicBoardViewPage'));
+const DemoBoardPage = lazyWithRetry(() => import('./components/demo/DemoBoardPage'));
+const PublicBoardViewPage = lazyWithRetry(() => import('./components/boards/PublicBoardViewPage'));
 
 // -- User chunk --
-const ProfilePage = React.lazy(() => import('./components/profile/ProfilePage'));
+const ProfilePage = lazyWithRetry(() => import('./components/profile/ProfilePage'));
 
 // -- Workspace/org-admin chunk --
-const UserManagementPage = React.lazy(() => import('./components/admin/UserManagementPage'));
-const AcademyHubPage = React.lazy(() => import('./components/admin/AcademyHubPage'));
-const ThemeSettingsPage = React.lazy(() => import('./components/admin/ThemeSettingsPage'));
+const UserManagementPage = lazyWithRetry(() => import('./components/admin/UserManagementPage'));
+const AcademyHubPage = lazyWithRetry(() => import('./components/admin/AcademyHubPage'));
+const ThemeSettingsPage = lazyWithRetry(() => import('./components/admin/ThemeSettingsPage'));
 
 // -- Work management chunk --
-const WorkspaceHomePage = React.lazy(() => import('./components/boards/WorkspaceHomePage'));
-const BoardListPage = React.lazy(() => import('./components/boards/BoardListPage'));
-const BoardViewPage = React.lazy(() => import('./components/boards/BoardViewPage'));
-const PersonalHubPage = React.lazy(() => import('./components/personalHub/PersonalHubPage'));
-const DashboardPage = React.lazy(() => import('./components/dashboard/DashboardPage'));
-const FormsPage = React.lazy(() => import('./components/forms/FormsPage'));
+const WorkspaceHomePage = lazyWithRetry(() => import('./components/boards/WorkspaceHomePage'));
+const BoardListPage = lazyWithRetry(() => import('./components/boards/BoardListPage'));
+const BoardViewPage = lazyWithRetry(() => import('./components/boards/BoardViewPage'));
+const PersonalHubPage = lazyWithRetry(() => import('./components/personalHub/PersonalHubPage'));
+const DashboardPage = lazyWithRetry(() => import('./components/dashboard/DashboardPage'));
+const FormsPage = lazyWithRetry(() => import('./components/forms/FormsPage'));
 
 // -- System-admin chunk --
-const AcademyManagementPage = React.lazy(() => import('./components/admin/AcademyManagementPage'));
-const TutorialSettingsPage = React.lazy(() => import('./components/admin/TutorialSettingsPage'));
-const EmailTemplatesPage = React.lazy(() => import('./components/admin/EmailTemplatesPage'));
+const AcademyManagementPage = lazyWithRetry(() => import('./components/admin/AcademyManagementPage'));
+const TutorialSettingsPage = lazyWithRetry(() => import('./components/admin/TutorialSettingsPage'));
+const EmailTemplatesPage = lazyWithRetry(() => import('./components/admin/EmailTemplatesPage'));
 
 // -- Templates chunk --
-const TemplatesPage = React.lazy(() => import('./components/boards/TemplatesPage'));
-const PersonalHubTemplatePage = React.lazy(() => import('./components/admin/PersonalHubTemplatePage'));
+const TemplatesPage = lazyWithRetry(() => import('./components/boards/TemplatesPage'));
+const PersonalHubTemplatePage = lazyWithRetry(() => import('./components/admin/PersonalHubTemplatePage'));
 
 const PageLoader: React.FC = () => (
   <div

@@ -1,4 +1,13 @@
 {
+  "errorBoundary": {
+    "updateAvailableTitle": "Hay una nueva versión disponible",
+    "updateAvailableMessage": "Boards se actualizó mientras esta pestaña estaba abierta. Vuelve a cargar para continuar; el trabajo que ya guardaste está a salvo.",
+    "reloadPage": "Volver a cargar",
+    "genericTitle": "Algo salió mal",
+    "genericMessage": "Esta página encontró un error inesperado. Puedes volver a donde estabas o regresar a la página de inicio.",
+    "goBack": "Volver",
+    "goHome": "Ir al inicio"
+  },
   "language": "Idioma",
   "languageModal": {
     "title": "Elige tu idioma",
