@@ -81,10 +81,6 @@ export interface DBSystemSettings {
   id?: string;
 }
 
-export interface DBTutorialSettings {
-  id?: string;
-}
-
 export enum UserRole {
   REGULAR_USER = 'regular_user',
   ORG_EDITOR = 'org_editor',

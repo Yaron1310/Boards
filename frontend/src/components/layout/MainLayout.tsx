@@ -4,7 +4,7 @@ import RouteChunkBoundary from '../common/RouteChunkBoundary';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User, WorkHub, Board } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiChevronLeft, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark, FiUser, FiFileText } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiChevronLeft, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark, FiUser, FiFileText } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -504,7 +504,6 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const systemAdminNavItems = [
       { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiShield className={iconClassName} /> },
-      { name: t('layout.tutorialsSettings'), path: '/admin/tutorials', icon: <FiVideo className={iconClassName} /> },
       { name: t('layout.emailTemplates'), path: '/admin/email-templates', icon: <FiMail className={iconClassName} /> },
     ];
 

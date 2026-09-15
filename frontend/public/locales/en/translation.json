@@ -1193,7 +1193,6 @@
     "cancel": "Cancel",
     "close": "Close",
     "closeChat": "Close Chat",
-    "closeTutorial": "Close tutorial video",
     "confirm": "Confirm",
     "confirmPassword": "Confirm Password",
     "contactSupport": "If the problem persists, please contact support.",
@@ -1258,7 +1257,6 @@
     "view": "View",
     "viewArchived": "View Archived",
     "warning": "Warning",
-    "watchTutorial": "Watch a tutorial",
     "workspace": "WorkHub",
     "WorkHub": "WorkHub"
   },
@@ -1416,7 +1414,6 @@
     "systemAdmin": "System Admin",
     "termsPrivacy": "Terms & Privacy",
     "tokenLimits": "Token Limits",
-    "tutorialsSettings": "Tutorials Settings",
     "userManagement": "User Management",
     "workspaces": "WorkHubs"
   },

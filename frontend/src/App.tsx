@@ -56,7 +56,6 @@ const FormsPage = lazyWithRetry(() => import('./components/forms/FormsPage'));
 
 // -- System-admin chunk --
 const AcademyManagementPage = lazyWithRetry(() => import('./components/admin/AcademyManagementPage'));
-const TutorialSettingsPage = lazyWithRetry(() => import('./components/admin/TutorialSettingsPage'));
 const EmailTemplatesPage = lazyWithRetry(() => import('./components/admin/EmailTemplatesPage'));
 
 // -- Templates chunk --
@@ -329,14 +328,6 @@ const App: React.FC = () => {
               element={
                 <ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]}>
                   <AcademyManagementPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/admin/tutorials"
-              element={
-                <ProtectedRoute allowedRoles={[UserRole.SYSTEM_ADMIN]}>
-                  <TutorialSettingsPage />
                 </ProtectedRoute>
               }
             />

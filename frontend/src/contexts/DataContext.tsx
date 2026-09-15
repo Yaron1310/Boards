@@ -1,13 +1,13 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSettings, TutorialSettings } from '../types';
+import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSettings } from '../types';
 import { UserRole } from '../types';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useAcademiesQuery, useOrganizationSettingsQuery } from '../hooks/queries/useAcademyQueries';
 import { useWorkspacesQuery, useArchivedWorkspacesQuery } from '../hooks/queries/useOrganizationQueries';
 import { useUsersQuery, usePreApprovedUsersQuery } from '../hooks/queries/useUserQueries';
-import { useSystemSettingsQuery, useTutorialSettingsQuery } from '../hooks/queries/useSettingsQueries';
+import { useSystemSettingsQuery } from '../hooks/queries/useSettingsQueries';
 
 // Add utility functions for localStorage and export them
 export const saveToLocalStorage = <T,>(key: string, value: T): void => {
@@ -78,9 +78,6 @@ interface DataContextType {
   fetchSystemSettings: () => Promise<void>;
   updateSystemSettings: (settings: SystemSettings) => Promise<boolean>;
 
-  tutorialSettings: TutorialSettings | null;
-  fetchTutorialSettings: () => Promise<void>;
-  updateTutorialSettings: (settings: TutorialSettings) => Promise<boolean>;
 
   orgTokenUsage: Record<string, { used: number; limit: number | null }> | null;
   organizationTokenUsage: Record<string, { used: number; limit: number | null }> | null;
@@ -117,7 +114,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const preApprovedUsersQuery = usePreApprovedUsersQuery(isLoggedIn && (isOrganizationAdmin || isOrgAdmin));
   const organizationSettingsQuery = useOrganizationSettingsQuery(isLoggedIn && isNonSystemUser);
   const systemSettingsQuery = useSystemSettingsQuery(isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
-  const tutorialSettingsQuery = useTutorialSettingsQuery(isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
 
   // --- Derived state from React Query ---
   const organizations = academiesQuery.data ?? [];
@@ -127,7 +123,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const preApprovedUsers = preApprovedUsersQuery.data ?? [];
   const organizationSettings = organizationSettingsQuery.data ?? null;
   const systemSettings = systemSettingsQuery.data ?? null;
-  const tutorialSettings = tutorialSettingsQuery.data ?? null;
 
   // --- General state ---
   const [dataError, setDataError] = useState<string | null>(null);
@@ -141,7 +136,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Composite loading: true while any role-enabled query is loading for the first time
   const isLoading = [
     academiesQuery, workspacesQuery, usersQuery,
-    organizationSettingsQuery, systemSettingsQuery, tutorialSettingsQuery,
+    organizationSettingsQuery, systemSettingsQuery,
     preApprovedUsersQuery,
   ].some(q => q.isLoading && q.fetchStatus !== 'idle');
 
@@ -217,9 +212,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await queryClient.invalidateQueries({ queryKey: queryKeys.settings.system });
   }, [queryClient]);
 
-  const fetchTutorialSettings = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.settings.tutorial });
-  }, [queryClient]);
 
   // fetchAllData is now a no-op — React Query handles lazy loading via enabled flags.
   // Kept for backward compatibility.
@@ -378,13 +370,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return !!updated;
   };
 
-  const updateTutorialSettings = async (settings: TutorialSettings) => {
-    const { updateTutorialSettings: updateTutorialApi } = await api();
-    const updated = await handleApiCall(() => updateTutorialApi(settings), (updatedSettings) => {
-      queryClient.setQueryData(queryKeys.settings.tutorial, updatedSettings);
-    }, 'Failed to update tutorial settings.');
-    return !!updated;
-  };
 
   return (
     <DataContext.Provider value={{
@@ -394,7 +379,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       preApprovedUsers, preApproveUsersInBulk, inviteUsersToOrg, inviteUsersToOrgBulk, revokePreApprovedUser,
       organizationSettings, updateOrganizationSettings, setOrganizationSettingsLocal, regenerateApiKey,
       systemSettings, fetchSystemSettings, updateSystemSettings,
-      tutorialSettings, fetchTutorialSettings, updateTutorialSettings,
       orgTokenUsage, organizationTokenUsage, isAnalyticsLoading, fetchOrgTokenUsage,
       isLoading, dataError, clearDataError, fetchAllData,
     }}>

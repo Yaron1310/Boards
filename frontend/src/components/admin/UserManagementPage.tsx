@@ -8,7 +8,6 @@ import type { User, PreApprovedUser } from '../../types';
 import { UserRole } from '../../types';
 import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiEdit, FiTrash2 } from 'react-icons/fi';
 import InviteUsersOrgModal from './InviteUsersOrgModal';
-import TutorialSection from '../common/TutorialSection';
 import OrganizationAdminsModal from './AcademyAdminsModal';
 import UserPermissionsModal from './UserPermissionsModal';
 import { useUsersInfiniteQuery } from '../../hooks/queries/useUserQueries';
@@ -37,7 +36,6 @@ const UserManagementPage: React.FC = () => {
   const {
     workspaces,
     preApprovedUsers,
-    tutorialSettings,
     revokePreApprovedUser,
   } = useData();
   const navigate = useNavigate();
@@ -303,7 +301,6 @@ const UserManagementPage: React.FC = () => {
                     </button>
                 </div>
             </div>
-            <TutorialSection videoUrl={tutorialSettings?.users?.videoUrl} />
         </div>
       </div>
 

@@ -10,12 +10,3 @@ export const useSystemSettingsQuery = (enabled = true) => {
     staleTime: 5 * 60 * 1000,
   });
 };
-
-export const useTutorialSettingsQuery = (enabled = true) => {
-  return useQuery({
-    queryKey: queryKeys.settings.tutorial,
-    queryFn: () => apiService.getTutorialSettings(),
-    enabled,
-    staleTime: 5 * 60 * 1000,
-  });
-};

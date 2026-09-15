@@ -38,7 +38,6 @@ export default defineConfig({
           if (
             id.includes('/components/admin/AcademyManagementPage.') ||
             id.includes('/components/admin/TokenLimitsPage.')        ||
-            id.includes('/components/admin/TutorialSettingsPage.')   ||
             id.includes('/components/admin/SystemPaymentsPage.')
           ) {
             return 'chunk-system-admin';

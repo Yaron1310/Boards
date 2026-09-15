@@ -14,7 +14,6 @@ export const queryKeys = {
   settings: {
     workspace: ['settings', 'workspace'] as const,
     system: ['settings', 'system'] as const,
-    tutorial: ['settings', 'tutorial'] as const,
   },
   boards: {
     all: (workspaceId?: string, includeArchived = false) =>

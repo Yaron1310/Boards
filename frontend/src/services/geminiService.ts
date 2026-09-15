@@ -1,4 +1,4 @@
-import type { User, Workspace, PreApprovedUser, OrganizationSettings, UserRole, SystemSettings, TutorialSettings, PaginatedResponse, PersonalHubTemplateColumn } from '../types';
+import type { User, Workspace, PreApprovedUser, OrganizationSettings, UserRole, SystemSettings, PaginatedResponse, PersonalHubTemplateColumn } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import { fetchWithAuth, AUTH_TOKEN_STORAGE_KEY } from './authFetch';
 
@@ -231,10 +231,6 @@ export const getPersonalHubTemplateItemTotalsBatch = async (templateColumnId: st
 // --- System-wide Settings (System Admin only) ---
 export const getTokenLimits = async (): Promise<SystemSettings> => fetchWithAuth('/api/system-settings/settings');
 export const updateTokenLimits = async (settings: SystemSettings): Promise<SystemSettings> => fetchWithAuth('/api/system-settings/settings', { method: 'PUT', body: JSON.stringify(settings) });
-
-// --- Tutorial Settings ---
-export const getTutorialSettings = async (): Promise<TutorialSettings> => fetchWithAuth('/api/system-settings/tutorials');
-export const updateTutorialSettings = async (settings: TutorialSettings): Promise<TutorialSettings> => fetchWithAuth('/api/system-settings/tutorials', { method: 'PUT', body: JSON.stringify(settings) });
 
 // --- Public Access ---
 export const getPublicOrganizationDetails = async (organizationName: string): Promise<any> => {

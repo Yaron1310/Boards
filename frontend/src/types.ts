@@ -66,17 +66,6 @@ export interface SystemSettings {
   globalSystemPrompt?: string;
 }
 
-export interface TutorialLink {
-  enabled: boolean;
-  videoUrl: string;
-}
-
-export interface TutorialSettings {
-  theme?: TutorialLink;
-  workspaces?: TutorialLink;
-  users?: TutorialLink;
-}
-
 export interface User {
   id: string;
   email: string;
