@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npx vite",
     "build": "npx vite build",
+    "retain-assets": "node scripts/retain-assets.mjs",
     "lint": "npx eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "npx vite preview",
     "cap:sync": "npx cap sync",
