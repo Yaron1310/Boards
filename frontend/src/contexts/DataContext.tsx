@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSettings } from '../types';
+import type { PreApproveRow } from '../services/geminiService';
 import { UserRole } from '../types';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { queryKeys } from '../hooks/queries/queryKeys';
@@ -41,7 +42,7 @@ interface DataContextType {
   organizations: Workspace[];
   fetchAcademies: () => Promise<void>;
   addOrganization: (name: string) => Promise<Workspace | null>;
-  updateOrganization: (id: string, name: string) => Promise<boolean>;
+  updateOrganization: (id: string, name: string, seatLimit?: number | null) => Promise<boolean>;
   deleteOrganization: (id: string) => Promise<boolean>;
   addOrganizationAdmin: (orgId: string, email: string) => Promise<{message: string} | null>;
   removeOrganizationAdmin: (orgId: string, userId: string) => Promise<{message: string} | null>;
@@ -64,9 +65,9 @@ interface DataContextType {
   deleteUser: (userId: string, deletionType: 'soft' | 'hard') => Promise<boolean>;
 
   preApprovedUsers: PreApprovedUser[];
-  preApproveUsersInBulk: (emails: string[], workspaceId: string, permissions?: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
-  inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
-  inviteUsersToOrgBulk: (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
+  preApproveUsersInBulk: (rows: PreApproveRow[], workspaceId: string) => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
+  inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
+  inviteUsersToOrgBulk: (orgId: string, rows: PreApproveRow[], workspaceIds: string[] | 'all') => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
   revokePreApprovedUser: (preApprovedUserId: string) => Promise<boolean>;
 
   organizationSettings: OrganizationSettings | null;
@@ -227,9 +228,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { createOrganization } = await api();
     return handleApiCall(() => createOrganization(name), () => fetchAcademies(), 'Failed to add workspace.');
   };
-  const updateOrganization = async (id: string, name: string) => {
+  const updateOrganization = async (id: string, name: string, seatLimit?: number | null) => {
     const { updateOrganization: updateOrganizationApi } = await api();
-    const updated = await handleApiCall(() => updateOrganizationApi(id, name), () => fetchAcademies(), 'Failed to update workspace.');
+    const updated = await handleApiCall(() => updateOrganizationApi(id, name, seatLimit), () => fetchAcademies(), 'Failed to update workspace.');
     return !!updated;
   };
   const deleteOrganization = async (id: string) => {
@@ -312,17 +313,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
     return success === null;
   };
-  const preApproveUsersInBulk = async (emails: string[], workspaceId: string, permissions: 'edit' | 'read_only' = 'edit') => {
+  const preApproveUsersInBulk = async (rows: PreApproveRow[], workspaceId: string) => {
     const { preApproveUsersInBulk: preApproveApi } = await api();
-    return handleApiCall(() => preApproveApi(emails, workspaceId, permissions), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
+    return handleApiCall(() => preApproveApi(rows, workspaceId), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
   };
   const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => {
     const { inviteUsersToOrg: inviteApi } = await api();
     return handleApiCall(() => inviteApi(orgId, email, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to invite user.');
   };
-  const inviteUsersToOrgBulk = async (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => {
+  const inviteUsersToOrgBulk = async (orgId: string, rows: PreApproveRow[], workspaceIds: string[] | 'all') => {
     const { inviteUsersToOrgBulk: bulkApi } = await api();
-    return handleApiCall(() => bulkApi(orgId, emails, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to bulk invite users.');
+    return handleApiCall(() => bulkApi(orgId, rows, workspaceIds), () => fetchPreApprovedUsers(), 'Failed to bulk invite users.');
   };
   const revokePreApprovedUser = async (preApprovedUserId: string) => {
     const { deletePreApprovedUserFromBackend } = await api();

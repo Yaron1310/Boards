@@ -116,7 +116,7 @@ const RegistrationPage: React.FC = () => {
         return;
     }
 
-    const isPasswordValid = password.length >= 8 && /^[!-~]+$/.test(password) && /\d/.test(password) && /[!@#$%^&*]/.test(password);
+    const isPasswordValid = password.length >= 12 && /^[!-~]+$/.test(password) && /\d/.test(password) && /[!@#$%^&*]/.test(password);
     if (!isPasswordValid) {
         setLocalError(t('auth.passwordRequirements'));
         return;

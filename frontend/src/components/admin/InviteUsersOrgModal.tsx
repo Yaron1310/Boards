@@ -1,13 +1,15 @@
 
 import React, { useState, useEffect, type ChangeEvent } from 'react';
 import ReactDOM from 'react-dom';
-import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile } from 'react-icons/fi';
+import { FiUserPlus, FiGrid, FiList, FiEdit2, FiLock, FiXCircle, FiLoader, FiCheckCircle, FiAlertCircle, FiUploadCloud, FiFile, FiUsers } from 'react-icons/fi';
 import readXlsxFile from 'read-excel-file';
 import { useQueryClient } from '@tanstack/react-query';
 import { useData } from '../../hooks/useData';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { queryKeys } from '../../hooks/queries/queryKeys';
+import { getOrganizationSeatUsage } from '../../services/geminiService';
 import type { WorkHub } from '../../types';
+import { parseInviteRows, downloadInviteTemplate } from '../../utils/inviteUsersXlsx';
 
 interface InviteUsersOrgModalProps {
   isOpen: boolean;
@@ -23,22 +25,39 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
   const [email, setEmail] = useState('');
   const [scope, setScope] = useState<'all' | 'specific'>('all');
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState<string[]>([]);
-  const [permissions, setPermissions] = useState<'edit' | 'read_only'>('edit');
+  // Single-email add only — bulk upload's permission comes from the sheet's own column, per row.
+  const [manualPermissions, setManualPermissions] = useState<'edit' | 'read_only'>('edit');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [seatUsage, setSeatUsage] = useState<{ usedSeats: number; seatLimit: number | null } | null>(null);
 
   useEffect(() => {
     setEmail('');
     setScope('all');
     setSelectedWorkspaceIds([]);
-    setPermissions('edit');
+    setManualPermissions('edit');
     setIsSubmitting(false);
     setUploadFile(null);
     setIsUploading(false);
     setFeedback(null);
   }, [isOpen]);
+
+  useEffect(() => {
+    const orgId = selectedWorkspace?.orgId;
+    if (!isOpen || !orgId) return;
+    let cancelled = false;
+    getOrganizationSeatUsage(orgId)
+      .then((usage) => { if (!cancelled) setSeatUsage(usage); })
+      .catch(() => { /* purely informational — a failed fetch just hides the badge */ });
+    return () => { cancelled = true; };
+  }, [isOpen, selectedWorkspace?.orgId]);
+
+  const refreshSeatUsage = () => {
+    const orgId = selectedWorkspace?.orgId;
+    if (orgId) getOrganizationSeatUsage(orgId).then(setSeatUsage).catch(() => {});
+  };
 
   const toggleWorkspace = (wsId: string) => {
     setSelectedWorkspaceIds(prev =>
@@ -70,11 +89,12 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
     setFeedback(null);
 
     try {
-      const result = await inviteUsersToOrg(orgId, email.trim(), getTargetWorkspaceIds(), permissions);
+      const result = await inviteUsersToOrg(orgId, email.trim(), getTargetWorkspaceIds(), manualPermissions);
       if (result) {
         setFeedback({ type: 'success', text: result.message });
         setEmail('');
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
+        refreshSeatUsage();
         setTimeout(() => onClose(), 1500);
       } else {
         setFeedback({ type: 'error', text: 'Failed to invite user. Please try again.' });
@@ -112,18 +132,30 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
     setFeedback(null);
 
     try {
-      const rows = await readXlsxFile(uploadFile);
-      const emails = rows
-        .map(row => row[0])
-        .filter(cell => typeof cell === 'string' && cell.includes('@'))
-        .map(e => (e as string).trim());
+      const sheetRows = await readXlsxFile(uploadFile);
+      const { rows, invalidPermissionEmails } = parseInviteRows(sheetRows);
+      if (rows.length === 0) throw new Error('No valid emails found in the first column of the Excel sheet.');
 
-      if (emails.length === 0) throw new Error('No valid emails found in the first column of the Excel sheet.');
+      // Fast pre-flight check with what we already know client-side — a rough upper bound (it
+      // can't tell which rows are already-billable existing users), so a file that passes this
+      // can still be rejected server-side, but one that obviously can't fit is caught instantly
+      // without a round trip. The server call below is the real, authoritative, all-or-nothing check.
+      if (seatUsage?.seatLimit != null) {
+        const available = Math.max(0, seatUsage.seatLimit - seatUsage.usedSeats);
+        if (rows.length > available) {
+          throw new Error(`This file has ${rows.length} user(s), but your plan only has ${available} seat(s) available (using ${seatUsage.usedSeats} of ${seatUsage.seatLimit}). Nothing was invited — reduce the file or free up seats first.`);
+        }
+      }
 
-      const result = await inviteUsersToOrgBulk(orgId, emails, getTargetWorkspaceIds(), permissions);
+      const result = await inviteUsersToOrgBulk(orgId, rows, getTargetWorkspaceIds());
       if (result) {
-        setFeedback({ type: 'success', text: result.message });
+        let text = result.message;
+        if (invalidPermissionEmails.length > 0) {
+          text += ` ${invalidPermissionEmails.length} row(s) had an unrecognized Permission value and defaulted to Edit: ${invalidPermissionEmails.slice(0, 5).join(', ')}${invalidPermissionEmails.length > 5 ? '…' : ''}.`;
+        }
+        setFeedback({ type: 'success', text });
         setUploadFile(null);
+        refreshSeatUsage();
         queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
       } else {
         throw new Error('An unknown error occurred during upload.');
@@ -147,18 +179,34 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="p-6 border-b flex justify-between items-center shrink-0">
+        <div className="p-6 border-b flex justify-between items-center shrink-0 gap-3">
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             <FiUserPlus className="text-blue-600" aria-hidden="true" />
             Invite Users to Organization
           </h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-200 transition-colors"
-            aria-label="Close invite user modal"
-          >
-            <FiXCircle size={24} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {seatUsage?.seatLimit != null && (
+              <span
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold border-2 ${
+                  seatUsage.usedSeats >= seatUsage.seatLimit
+                    ? 'bg-red-50 border-red-300 text-red-700'
+                    : seatUsage.usedSeats >= seatUsage.seatLimit * 0.9
+                      ? 'bg-amber-50 border-amber-300 text-amber-700'
+                      : 'bg-blue-50 border-blue-200 text-blue-700'
+                }`}
+              >
+                <FiUsers size={15} aria-hidden="true" />
+                {seatUsage.usedSeats} / {seatUsage.seatLimit} seats
+              </span>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-full hover:bg-gray-200 transition-colors"
+              aria-label="Close invite user modal"
+            >
+              <FiXCircle size={24} />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -176,25 +224,46 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
             </div>
           )}
 
-          {/* Single email invite */}
+          {/* Single email invite — the only place a manually-picked permission applies. Bulk
+              uploads set permission per row from the sheet's own column instead. */}
           <div>
             <label htmlFor="invite-org-email" className="block text-sm font-medium text-gray-700 mb-1">
               Email address
             </label>
-            <div className="flex gap-3">
-              <input
-                type="email"
-                id="invite-org-email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="user@example.com"
-                className="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isBusy}
-              />
+            <input
+              type="email"
+              id="invite-org-email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="user@example.com"
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isBusy}
+            />
+            <div className="flex gap-3 mt-3">
+              <div className="flex gap-2">
+                {(['edit', 'read_only'] as const).map(p => (
+                  <label
+                    key={p}
+                    className={`flex items-center gap-1.5 px-4 py-2 rounded-md border-2 cursor-pointer transition-colors text-sm font-medium ${manualPermissions === p ? 'border-blue-500 bg-blue-50 text-gray-800' : 'border-gray-200 hover:border-gray-300 text-gray-600'}`}
+                  >
+                    <input
+                      type="radio"
+                      name="org-invite-perm"
+                      value={p}
+                      checked={manualPermissions === p}
+                      onChange={() => setManualPermissions(p)}
+                      className="accent-blue-600"
+                      aria-label={p === 'edit' ? 'Edit' : 'Read only'}
+                    />
+                    {p === 'edit' ? <FiEdit2 size={13} aria-hidden="true" /> : <FiLock size={13} aria-hidden="true" />}
+                    {p === 'edit' ? 'Edit' : 'Read only'}
+                  </label>
+                ))}
+              </div>
               <button
                 onClick={handleSubmit}
                 disabled={isSubmitDisabled}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md shadow-sm flex items-center justify-center transition-colors disabled:opacity-50 shrink-0"
+                className="flex-grow px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md shadow-sm flex items-center justify-center transition-colors disabled:opacity-50"
                 aria-label="Invite user to the organization"
               >
                 {isSubmitting
@@ -206,7 +275,22 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
 
           {/* Bulk upload */}
           <div className="pt-4 border-t border-gray-200">
-            <p className="text-sm font-medium text-gray-700 mb-3">Send bulk invitations</p>
+            <p className="text-sm font-medium text-gray-700 mb-2">Send bulk invitations</p>
+            <ol className="text-sm text-gray-600 space-y-1 mb-3 list-decimal list-inside">
+              <li>
+                Download the{' '}
+                <button
+                  type="button"
+                  onClick={() => void downloadInviteTemplate()}
+                  className="font-medium text-blue-600 hover:text-blue-700 underline"
+                  aria-label="Download invite template"
+                >
+                  template xlsx
+                </button>.
+              </li>
+              <li>Fill in the downloaded sheet with your users (Email, Name, Permission).</li>
+              <li>Upload the file below.</li>
+            </ol>
             <div className="flex flex-col sm:flex-row gap-3">
               <label
                 htmlFor="bulk-org-upload-input"
@@ -281,33 +365,6 @@ const InviteUsersOrgModal: React.FC<InviteUsersOrgModalProps> = ({ isOpen, onClo
                 )}
               </div>
             )}
-          </fieldset>
-
-          {/* Permissions */}
-          <fieldset>
-            <legend className="text-sm font-medium text-gray-700 mb-2">Permissions</legend>
-            <div className="flex gap-3">
-              {(['edit', 'read_only'] as const).map(p => (
-                <label
-                  key={p}
-                  className={`flex-1 flex items-center gap-2 p-2.5 rounded-lg border-2 cursor-pointer transition-colors ${permissions === p ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
-                >
-                  <input
-                    type="radio"
-                    name="org-invite-perm"
-                    value={p}
-                    checked={permissions === p}
-                    onChange={() => setPermissions(p)}
-                    className="accent-blue-600"
-                    aria-label={p === 'edit' ? 'Edit' : 'Read only'}
-                  />
-                  <span className="flex items-center gap-1.5 text-sm font-medium text-gray-800">
-                    {p === 'edit' ? <FiEdit2 size={14} aria-hidden="true" /> : <FiLock size={14} aria-hidden="true" />}
-                    {p === 'edit' ? 'Edit' : 'Read only'}
-                  </span>
-                </label>
-              ))}
-            </div>
           </fieldset>
         </div>
 

@@ -366,6 +366,51 @@ export const sendUsageNotificationEmail = async (
 
 // ---------------------------------------------------------------------------
 
+export const sendSeatLimitWarningEmail = async (
+    adminEmails: string[],
+    organizationName: string,
+    currentSeats: number,
+    seatLimit: number,
+) => {
+    await ensureTransporter();
+    if (!isEmailServiceAvailable()) {
+        logger.error(`Could not send seat limit warning for ${organizationName} because email service is not initialized.`);
+        return { success: false, error: 'Email service not available' };
+    }
+    if (adminEmails.length === 0) {
+        return { success: false, error: 'No admin emails provided.' };
+    }
+
+    const fromName = process.env.SMTP_FROM_NAME || 'Logyx';
+    const fromEmail = process.env.SMTP_USER!;
+    const usagePercentage = Math.round((currentSeats / seatLimit) * 100);
+    const warningLevel = usagePercentage >= 100 ? 'critical' : 'high';
+    const vars = { organizationName, currentSeats: String(currentSeats), seatLimit: String(seatLimit), usagePercentage: String(usagePercentage), warningLevel };
+
+    const tpl = await fetchTemplate('seat_limit_alert');
+    const subject = tpl ? renderTemplate(tpl.subject, vars) : `Seat limit alert for ${organizationName}`;
+    const html = tpl
+        ? renderTemplate(tpl.html, vars)
+        : `<p>Hello,</p><p>Your organization, <strong>${organizationName}</strong>, is using ${currentSeats} of its ${seatLimit} billable seats (${usagePercentage}%).</p><p>${usagePercentage >= 100 ? 'You are at your seat limit — no new members can be given edit access until a seat is freed up or your plan is increased.' : 'Once you reach your limit, no new members can be given edit access until a seat is freed up or your plan is increased.'}</p><p>Viewers with read-only access don't count against this limit.</p><p>Thanks,<br/>The Logyx Team</p>`;
+
+    try {
+        await transporter!.sendMail({
+            from: `"${fromName}" <${fromEmail}>`,
+            to: adminEmails.join(','),
+            subject,
+            html,
+            text: `Your organization, ${organizationName}, is using ${currentSeats} of its ${seatLimit} billable seats (${usagePercentage}%).`,
+        });
+        logger.info(`Seat limit warning email sent successfully to admins of ${organizationName}`);
+        return { success: true };
+    } catch (error) {
+        logger.error(`Failed to send seat limit warning email for ${organizationName}`, error);
+        return { success: false, error };
+    }
+};
+
+// ---------------------------------------------------------------------------
+
 export const sendWelcomeEmail = async (userEmail: string, userName: string, organizationName = 'Logyx') => {
     await ensureTransporter();
     if (!isEmailServiceAvailable()) {

@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { FiX, FiLoader, FiCheckCircle, FiAlertCircle, FiChevronDown, FiChevronRight, FiShield } from 'react-icons/fi';
 import { useUserBoardPermissions, useUpdateUserBoardPermissions } from '../../hooks/queries/useBoardMemberQueries';
+import { useAuthSession } from '../../hooks/useAuthSession';
+import { getOrganizationSeatUsage } from '../../services/geminiService';
 import { BoardRole } from '../../types';
 import type { BoardPermissionsWorkspace } from '../../types';
 
@@ -36,6 +38,18 @@ const BOARD_ROLE_OPTIONS: Array<{ value: BoardRole; label: string }> = [
 const UserPermissionsModal: React.FC<Props> = ({ userId, userName, profileImageUrl, isOrgAdmin, isOrgEditor, canAssignAdmin, filterBoardId, onClose }) => {
   const { data, isLoading, isError } = useUserBoardPermissions(userId);
   const { mutateAsync: savePermissions, isPending: isSaving } = useUpdateUserBoardPermissions(userId);
+  const { selectedWorkspace } = useAuthSession();
+  const orgId = selectedWorkspace?.orgId;
+  const [seatUsage, setSeatUsage] = useState<{ usedSeats: number; seatLimit: number | null } | null>(null);
+
+  useEffect(() => {
+    if (!orgId) return;
+    let cancelled = false;
+    getOrganizationSeatUsage(orgId)
+      .then((usage) => { if (!cancelled) setSeatUsage(usage); })
+      .catch(() => { /* purely informational — a failed fetch just hides the badge */ });
+    return () => { cancelled = true; };
+  }, [orgId]);
 
   const [checkedBoards, setCheckedBoards] = useState<Set<string>>(new Set());
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Set<string>>(new Set());
@@ -142,9 +156,13 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, profileImageU
       const workspacePermissions = Object.fromEntries(wsPermissions);
       await savePermissions({ boards, workspaceIds, workspacePermissions });
       setFeedback({ type: 'success', text: 'Permissions saved successfully.' });
+      if (orgId) getOrganizationSeatUsage(orgId).then(setSeatUsage).catch(() => {});
       setTimeout(() => onClose(), 1200);
-    } catch {
-      setFeedback({ type: 'error', text: 'Failed to save permissions. Please try again.' });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        text: err instanceof Error ? err.message : 'Failed to save permissions. Please try again.',
+      });
     }
   };
 
@@ -159,6 +177,15 @@ const UserPermissionsModal: React.FC<Props> = ({ userId, userName, profileImageU
           <div>
             <h2 className="text-base font-semibold text-gray-800">Board Permissions</h2>
             <p className="text-xs text-gray-500 mt-0.5">{userName}</p>
+            {seatUsage?.seatLimit != null && (
+              <p
+                className={`text-xs mt-1 font-medium ${
+                  seatUsage.usedSeats >= seatUsage.seatLimit ? 'text-red-600' : 'text-gray-400'
+                }`}
+              >
+                {seatUsage.usedSeats} / {seatUsage.seatLimit} seats used
+              </p>
+            )}
           </div>
           <button
             onClick={onClose}

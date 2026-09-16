@@ -29,6 +29,7 @@ const OrganizationManagementPage: React.FC = () => {
   const [newOrganizationName, setNewOrganizationName] = useState('');
   const [editingOrganization, setEditingOrganization] = useState<Workspace | null>(null);
   const [editOrganizationName, setEditOrganizationName] = useState('');
+  const [editSeatLimit, setEditSeatLimit] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<Workspace | null>(null);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   useEffect(() => {
@@ -91,13 +92,16 @@ const OrganizationManagementPage: React.FC = () => {
     clearFeedback();
     setEditingOrganization(workspace);
     setEditOrganizationName(workspace.name);
+    setEditSeatLimit(workspace.seatLimit ? String(workspace.seatLimit) : '');
   };
 
   const handleSaveEdit = async () => {
     clearFeedback();
     if (editingOrganization && editOrganizationName.trim()) {
       setIsLoading(true);
-      const success = await updateOrganization(editingOrganization.id, editOrganizationName.trim());
+      const trimmedSeatLimit = editSeatLimit.trim();
+      const seatLimit = trimmedSeatLimit === '' ? null : Number(trimmedSeatLimit);
+      const success = await updateOrganization(editingOrganization.id, editOrganizationName.trim(), seatLimit);
       if (success) {
         setFeedbackMessage({ type: 'success', text: t('admin.organizationManagement.organizationUpdatedSuccess', { name: editOrganizationName }) });
         setEditingOrganization(null);
@@ -226,6 +230,7 @@ const OrganizationManagementPage: React.FC = () => {
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.organizationManagement.colOrganizationName')}</th>
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.organizationManagement.colId')}</th>
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seat Limit</th>
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">{t('admin.organizationManagement.colActions')}</th>
                 </tr>
               </thead>
@@ -245,6 +250,18 @@ const OrganizationManagementPage: React.FC = () => {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                             {workspace.id}
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                              <input
+                                type="number"
+                                min={1}
+                                value={editSeatLimit}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditSeatLimit(e.target.value)}
+                                placeholder="Unlimited"
+                                className="w-28 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                                disabled={isLoading}
+                                aria-label="Seat limit"
+                              />
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <div className="flex items-center justify-end space-x-1">
                                   <button onClick={handleSaveEdit} className="text-green-600 hover:text-green-800 p-2 rounded-full hover:bg-green-100" title={t('admin.organizationManagement.saveChanges')} aria-label={t('admin.organizationManagement.saveChanges')} disabled={isLoading}><FiSave size={18} /></button>
@@ -259,6 +276,9 @@ const OrganizationManagementPage: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 font-mono">
                             {workspace.id}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {workspace.seatLimit ? workspace.seatLimit : 'Unlimited'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                               <div className="flex items-center justify-end space-x-1">
