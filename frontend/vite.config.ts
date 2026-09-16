@@ -22,16 +22,6 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     rollupOptions: {
-      external: [
-        'mammoth',
-        'pdfjs-dist',
-        'xlsx',
-        '@codetrix-studio/capacitor-google-auth',
-        // Fix 3: Capacitor is only needed in the native iOS/Android shell, not in the web build
-        '@capacitor/core',
-        '@capacitor/android',
-        '@capacitor/ios',
-      ],
       output: {
         // Group route components by the minimum role that needs them.
         //
@@ -48,7 +38,6 @@ export default defineConfig({
           if (
             id.includes('/components/admin/AcademyManagementPage.') ||
             id.includes('/components/admin/TokenLimitsPage.')        ||
-            id.includes('/components/admin/TutorialSettingsPage.')   ||
             id.includes('/components/admin/SystemPaymentsPage.')
           ) {
             return 'chunk-system-admin';

@@ -16,6 +16,8 @@ export interface WorkHub {
   isTemplates?: boolean;
   status?: 'active' | 'archived';
   workspacePermissions?: 'edit' | 'read_only';
+  /** Org-level seat cap (system-admin-set, on the organizations doc) — undefined/0 = unlimited. */
+  seatLimit?: number;
 }
 
 export interface OrganizationSettings {
@@ -66,17 +68,6 @@ export interface SystemSettings {
   globalSystemPrompt?: string;
 }
 
-export interface TutorialLink {
-  enabled: boolean;
-  videoUrl: string;
-}
-
-export interface TutorialSettings {
-  theme?: TutorialLink;
-  workspaces?: TutorialLink;
-  users?: TutorialLink;
-}
-
 export interface User {
   id: string;
   email: string;
@@ -90,7 +81,6 @@ export interface User {
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
   workspaces: Pick<Workspace, 'id' | 'name' | 'orgId' | 'organizationName' | 'isPersonal'>[];
   profileImageUrl?: string;
-  preferredLanguage?: string;
   hasPassword?: boolean;
   preferences?: {
     darkContrast?: boolean;
@@ -128,6 +118,9 @@ export type ExtractedFactors = { [key: string]: string };
 export interface PreApprovedUser {
   id: string;
   email: string;
+  /** Display name supplied at invite time — labels this pending invite only, never the name the
+   *  person types for themselves at registration. */
+  name?: string;
   workspaceId: string;
   addedBy: string;
   createdAt: Date;
@@ -240,7 +233,18 @@ export interface SimpleFormulaColumnSettings {
 
 export type LinkColumnSettings = Record<string, never>;
 
-export type HoursLogColumnSettings = Record<string, never>;
+export interface HoursLogColumnSettings {
+  /** Org-admin-only. Top-level HOURS_LOG columns only. When true, this column is auto-added to
+   *  every subitem group (existing subitem groups when the box is first checked, and any new
+   *  ones created afterward). Once a parent item has subitems, its own cell for this column
+   *  becomes read-only, showing the sum of its subitems' entries instead of accepting new
+   *  entries directly. */
+  subitemsOnly?: boolean;
+  /** Set only on a column auto-created on a subitem group by the above — the id of the
+   *  top-level HOURS_LOG column it mirrors, so the parent's cell can find the matching
+   *  subitem-group column to sum. */
+  mirroredFromColumnId?: string;
+}
 
 export type FilesColumnSettings = Record<string, never>;
 

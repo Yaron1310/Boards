@@ -1,4 +1,4 @@
-import type { User, Workspace, PreApprovedUser, OrganizationSettings, UserRole, SystemSettings, TutorialSettings, PaginatedResponse, PersonalHubTemplateColumn } from '../types';
+import type { User, Workspace, PreApprovedUser, OrganizationSettings, UserRole, SystemSettings, PaginatedResponse, PersonalHubTemplateColumn } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import { fetchWithAuth, AUTH_TOKEN_STORAGE_KEY } from './authFetch';
 
@@ -121,7 +121,10 @@ export const checkOrganizationNameUniqueness = async (name: string): Promise<{ i
 // --- Academy (Organization) Management (System Admin + Org Admin management) ---
 export const getAcademies = async (): Promise<Workspace[]> => fetchWithAuth('/api/organizations');
 export const createOrganization = async (name: string): Promise<Workspace> => fetchWithAuth('/api/organizations', { method: 'POST', body: JSON.stringify({ name }) });
-export const updateOrganization = async (id: string, name: string): Promise<Workspace> => fetchWithAuth(`/api/organizations/${id}`, { method: 'PUT', body: JSON.stringify({ name }) });
+export const updateOrganization = async (id: string, name: string, seatLimit?: number | null): Promise<Workspace> =>
+  fetchWithAuth(`/api/organizations/${id}`, { method: 'PUT', body: JSON.stringify({ name, ...(seatLimit !== undefined ? { seatLimit } : {}) }) });
+export const getOrganizationSeatUsage = async (id: string): Promise<{ usedSeats: number; seatLimit: number | null }> =>
+  fetchWithAuth(`/api/organizations/${id}/seat-usage`);
 export const deleteOrganization = async (id: string): Promise<null> => fetchWithAuth(`/api/organizations/${id}`, { method: 'DELETE' });
 export const addOrganizationAdmin = async (orgId: string, email: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${orgId}/admins`, { method: 'POST', body: JSON.stringify({ email }) });
 export const removeOrganizationAdmin = async (orgId: string, userId: string): Promise<{message: string}> => fetchWithAuth(`/api/organizations/${orgId}/admins/${userId}`, { method: 'DELETE' });
@@ -162,14 +165,19 @@ export const getUsers = async (params?: { limit?: number; cursor?: string; searc
 };
 export const getUserByIdFromBackend = async (userId: string): Promise<User> => fetchWithAuth(`/api/users/${userId}`);
 export const deleteUserAccount = async (userId: string, deletionType: 'soft' | 'hard'): Promise<null> => fetchWithAuth(`/api/users/${userId}`, { method: 'DELETE', body: JSON.stringify({ deletionType }) });
-export const preApproveUsersInBulk = async (emails: string[], workspaceId: string, permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
-  fetchWithAuth('/api/users/pre-approve-bulk', { method: 'POST', body: JSON.stringify({ emails, workspaceId, permissions }) });
+export interface PreApproveRow {
+  email: string;
+  name?: string;
+  permissions?: 'edit' | 'read_only';
+}
+export const preApproveUsersInBulk = async (rows: PreApproveRow[], workspaceId: string): Promise<{ successCount: number; message: string; seatLimitedEmails: string[] }> =>
+  fetchWithAuth('/api/users/pre-approve-bulk', { method: 'POST', body: JSON.stringify({ rows, workspaceId }) });
 
-export const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
+export const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string; seatLimitedEmails: string[]}> =>
   fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ email, workspaceIds, permissions }) });
 
-export const inviteUsersToOrgBulk = async (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only' = 'edit'): Promise<{successCount: number; message: string;}> =>
-  fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ emails, workspaceIds, permissions }) });
+export const inviteUsersToOrgBulk = async (orgId: string, rows: PreApproveRow[], workspaceIds: string[] | 'all'): Promise<{successCount: number; message: string; seatLimitedEmails: string[]}> =>
+  fetchWithAuth(`/api/organizations/${orgId}/invite-users`, { method: 'POST', body: JSON.stringify({ rows, workspaceIds }) });
 
 export const getPreApprovedUsersFromBackend = async (params?: { limit?: number; cursor?: string; search?: string }): Promise<PaginatedResponse<PreApprovedUser>> => {
     const query = new URLSearchParams();
@@ -183,7 +191,7 @@ export const deletePreApprovedUserFromBackend = async (preApprovedUserId: string
 
 // User's own profile updates
 export const getMyUserDetails = async (): Promise<{ user: User, selectedWorkspace: WorkHub }> => fetchWithAuth('/api/users/me/details');
-export const updateMyUserDetails = async (details: { name?: string; email?: string; preferredLanguage?: string; preferences?: { darkContrast?: boolean }; notificationPreference?: 'all' | 'mentions_only' | 'none' }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
+export const updateMyUserDetails = async (details: { name?: string; email?: string; preferences?: { darkContrast?: boolean }; notificationPreference?: 'all' | 'mentions_only' | 'none' }): Promise<User> => fetchWithAuth('/api/users/me/details', { method: 'PUT', body: JSON.stringify(details) });
 export const markChatSeen = async (itemId: string): Promise<void> => fetchWithAuth(`/api/items/${itemId}/chat/seen`, { method: 'POST' });
 export const updateMyPassword = async (passwords: { currentPassword?: string; newPassword: string }): Promise<{ message: string }> => fetchWithAuth('/api/users/me/password', { method: 'PUT', body: JSON.stringify(passwords) });
 const blobToBase64 = (blob: Blob): Promise<string> =>
@@ -231,10 +239,6 @@ export const getPersonalHubTemplateItemTotalsBatch = async (templateColumnId: st
 // --- System-wide Settings (System Admin only) ---
 export const getTokenLimits = async (): Promise<SystemSettings> => fetchWithAuth('/api/system-settings/settings');
 export const updateTokenLimits = async (settings: SystemSettings): Promise<SystemSettings> => fetchWithAuth('/api/system-settings/settings', { method: 'PUT', body: JSON.stringify(settings) });
-
-// --- Tutorial Settings ---
-export const getTutorialSettings = async (): Promise<TutorialSettings> => fetchWithAuth('/api/system-settings/tutorials');
-export const updateTutorialSettings = async (settings: TutorialSettings): Promise<TutorialSettings> => fetchWithAuth('/api/system-settings/tutorials', { method: 'PUT', body: JSON.stringify(settings) });
 
 // --- Public Access ---
 export const getPublicOrganizationDetails = async (organizationName: string): Promise<any> => {

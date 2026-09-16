@@ -1,4 +1,3 @@
-
 {
   "storage": {
     "rules": "storage.rules"
@@ -30,7 +29,8 @@
       "**/node_modules/**"
     ],
     "predeploy": [
-      "npm --prefix frontend run build"
+      "npm --prefix frontend run build",
+      "npm --prefix frontend run retain-assets"
     ],
     "rewrites": [
       {

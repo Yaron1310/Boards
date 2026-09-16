@@ -6,17 +6,18 @@ import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useArchiveItem, useRestoreItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
 import { useSubitemGroup } from '../../hooks/queries/useGroupQueries';
+import { usePersonalColumns } from '../../hooks/queries/usePersonalHubQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useUndo } from '../../contexts/UndoContext';
 import { useBoardMembers } from '../../hooks/queries/useBoardMemberQueries';
-import { UserRole, BoardRole } from '../../types';
+import { ColumnType, UserRole, BoardRole } from '../../types';
 import { formatItemName } from '../../utils/formatItemName';
-import type { Item } from '../../types';
+import type { HoursLogColumnSettings, Item } from '../../types';
 import { ColumnCell } from './cells';
 import { DRAG_HANDLE_WIDTH } from '../../utils/columnWidths';
 import { ITEM_COL_ID } from './ColumnHeader';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
-import { getUnreadCount } from './ItemChatModal';
+import { getUnreadCount, hasReadMessages } from './ItemChatModal';
 import { useColumnVisibilityTier, canSeeColumn } from '../../hooks/useColumnVisibility';
 
 interface ItemRowProps {
@@ -29,6 +30,9 @@ interface ItemRowProps {
   extraCells?: React.ReactNode;
   /** Personal Hub only: when expanding subitems, only show ones this user is assigned to. */
   subitemAssigneeFilterId?: string;
+  /** Personal Hub only: whether the viewer owns subitemAssigneeFilterId's hub (vs. an admin
+   *  viewing someone else's) — gates whether the overlaid personal subitem cells are editable. */
+  personalEditable?: boolean;
   /**
    * Personal Hub only: stretch the row to this width so its sticky item cell stays
    * pinned across the full horizontal scroll range even when this board has fewer
@@ -39,7 +43,7 @@ interface ItemRowProps {
   groupMinWidth?: number;
 }
 
-const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, groupMinWidth }) => {
+const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, personalEditable, groupMinWidth }) => {
   const { user, isPublicView, selectedWorkspace } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const viewerTier = useColumnVisibilityTier(item.boardId);
@@ -59,6 +63,14 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
   const { data: subitemGroup } = useSubitemGroup(item.boardId, item.id);
   const inputRef = useRef<HTMLInputElement>(null);
   const { mutateAsync: updateItem } = useUpdateItem();
+
+  // Personal Hub only (subitemAssigneeFilterId set = the hub's owner): HOURS_LOG template
+  // columns marked "Subitems only" get overlaid onto this item's subitem rows too — the
+  // viewer's own personal column, attached to a board item/subitem, not part of the board.
+  const { data: allPersonalColumns = [] } = usePersonalColumns(subitemAssigneeFilterId, !!subitemAssigneeFilterId);
+  const personalOverlayColumns = allPersonalColumns.filter(
+    (c) => c.type === ColumnType.HOURS_LOG && (c.settings as HoursLogColumnSettings).subitemsOnly === true,
+  );
 
   useEffect(() => { setNameValue(item.name); }, [item.name]);
 
@@ -83,6 +95,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
   };
 
   const unreadCount = user ? getUnreadCount(user.id, item) : 0;
+  const readMessages = user ? hasReadMessages(user.id, item) : false;
   const formSubmitted = item.formSubmitted === true;
   const formAttached = (item.formResponseCount ?? 0) > 0;
 
@@ -351,6 +364,13 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
+              {unreadCount === 0 && readMessages && (
+                <span
+                  className="absolute -top-0.5 rounded-full"
+                  style={{ backgroundColor: '#bfc2c6', width: '0.6rem', height: '0.6rem', right: 0, left: 0 }}
+                  aria-label="This item has messages, all read"
+                />
+              )}
             </button>
           </div>
         )}
@@ -378,6 +398,9 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         groupColor={groupColor}
         onEmpty={() => setSubitemsOpen(false)}
         filterAssigneeId={subitemAssigneeFilterId}
+        personalOverlayColumns={personalOverlayColumns}
+        personalOwnerId={subitemAssigneeFilterId}
+        personalEditable={personalEditable}
         canManageItems={isBoardManager}
         canManageColumns={canManageColumns}
       />

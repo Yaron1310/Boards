@@ -14,6 +14,7 @@ import { JwtUserPayload, DBBoard, DBBoardMember, DBMembership, DBUser, DBPreappr
 import { logAudit, getClientIp } from '../services/audit.service.js';
 import { assertBoardAccess } from '../utils/workManagementAuth.js';
 import { sendUserInvitationEmail } from '../services/email.service.js';
+import { assertSeatAvailable, assertSeatCapacityForNewInvite, checkSeatWarningThreshold } from '../services/seats.service.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { env } from '../config/env.js';
 import { Buffer } from 'node:buffer';
@@ -415,6 +416,14 @@ export const inviteByEmail = async (req: Request, res: Response) => {
         (d) => (d.data() as DBMembership).entityId === board.workspaceId,
       );
 
+      // Only a brand-new, edit-permission workspace membership can consume a seat this user
+      // didn't already occupy — an existing membership (even board-only) or a read-only grant
+      // never does, and the shared helper also no-ops if this user is already billable via some
+      // other workspace in the org.
+      if (!existingWorkspaceMembership && permissions === 'edit') {
+        await assertSeatAvailable(user.orgId, targetUserId);
+      }
+
       const batch = db.batch();
 
       if (!existingWorkspaceMembership) {
@@ -461,7 +470,16 @@ export const inviteByEmail = async (req: Request, res: Response) => {
       });
 
       await batch.commit();
+      void checkSeatWarningThreshold(user.orgId);
       return res.status(201).json({ message: `${email} has been added to this board.` });
+    }
+
+    // User doesn't exist yet — reserve seat capacity now so an admin can't send more edit
+    // invites than the org has room for (the seat itself is only actually occupied once they
+    // register and the membership below is created, but blocking here is what stops the admin
+    // from over-inviting in the first place).
+    if (permissions === 'edit') {
+      await assertSeatCapacityForNewInvite(user.orgId, true);
     }
 
     // User doesn't exist — create pre-approved entry with boardIds

@@ -10,12 +10,10 @@ import AccessibilityModal from '../legal/AccessibilityModal';
 import { GoogleIconSVG } from './GoogleAuthIcons';
 import { Buffer } from 'buffer';
 import { useTranslation } from 'react-i18next';
-import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 
 const RegistrationPage: React.FC = () => {
   const { i18n } = useTranslation();
   const t = i18n.getFixedT('en');
-  useForceDocumentLang();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -118,7 +116,7 @@ const RegistrationPage: React.FC = () => {
         return;
     }
 
-    const isPasswordValid = password.length >= 8 && /^[!-~]+$/.test(password) && /\d/.test(password) && /[!@#$%^&*]/.test(password);
+    const isPasswordValid = password.length >= 12 && /^[!-~]+$/.test(password) && /\d/.test(password) && /[!@#$%^&*]/.test(password);
     if (!isPasswordValid) {
         setLocalError(t('auth.passwordRequirements'));
         return;

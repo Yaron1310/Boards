@@ -1,13 +1,14 @@
 import React, { createContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSettings, TutorialSettings } from '../types';
+import type { Workspace, User, PreApprovedUser, OrganizationSettings, SystemSettings } from '../types';
+import type { PreApproveRow } from '../services/geminiService';
 import { UserRole } from '../types';
 import { useAuthSession } from '../hooks/useAuthSession';
 import { queryKeys } from '../hooks/queries/queryKeys';
 import { useAcademiesQuery, useOrganizationSettingsQuery } from '../hooks/queries/useAcademyQueries';
 import { useWorkspacesQuery, useArchivedWorkspacesQuery } from '../hooks/queries/useOrganizationQueries';
 import { useUsersQuery, usePreApprovedUsersQuery } from '../hooks/queries/useUserQueries';
-import { useSystemSettingsQuery, useTutorialSettingsQuery } from '../hooks/queries/useSettingsQueries';
+import { useSystemSettingsQuery } from '../hooks/queries/useSettingsQueries';
 
 // Add utility functions for localStorage and export them
 export const saveToLocalStorage = <T,>(key: string, value: T): void => {
@@ -41,7 +42,7 @@ interface DataContextType {
   organizations: Workspace[];
   fetchAcademies: () => Promise<void>;
   addOrganization: (name: string) => Promise<Workspace | null>;
-  updateOrganization: (id: string, name: string) => Promise<boolean>;
+  updateOrganization: (id: string, name: string, seatLimit?: number | null) => Promise<boolean>;
   deleteOrganization: (id: string) => Promise<boolean>;
   addOrganizationAdmin: (orgId: string, email: string) => Promise<{message: string} | null>;
   removeOrganizationAdmin: (orgId: string, userId: string) => Promise<{message: string} | null>;
@@ -64,9 +65,9 @@ interface DataContextType {
   deleteUser: (userId: string, deletionType: 'soft' | 'hard') => Promise<boolean>;
 
   preApprovedUsers: PreApprovedUser[];
-  preApproveUsersInBulk: (emails: string[], workspaceId: string, permissions?: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
-  inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
-  inviteUsersToOrgBulk: (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string} | null>;
+  preApproveUsersInBulk: (rows: PreApproveRow[], workspaceId: string) => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
+  inviteUsersToOrg: (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
+  inviteUsersToOrgBulk: (orgId: string, rows: PreApproveRow[], workspaceIds: string[] | 'all') => Promise<{successCount: number; message: string; seatLimitedEmails: string[]} | null>;
   revokePreApprovedUser: (preApprovedUserId: string) => Promise<boolean>;
 
   organizationSettings: OrganizationSettings | null;
@@ -78,9 +79,6 @@ interface DataContextType {
   fetchSystemSettings: () => Promise<void>;
   updateSystemSettings: (settings: SystemSettings) => Promise<boolean>;
 
-  tutorialSettings: TutorialSettings | null;
-  fetchTutorialSettings: () => Promise<void>;
-  updateTutorialSettings: (settings: TutorialSettings) => Promise<boolean>;
 
   orgTokenUsage: Record<string, { used: number; limit: number | null }> | null;
   organizationTokenUsage: Record<string, { used: number; limit: number | null }> | null;
@@ -117,7 +115,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const preApprovedUsersQuery = usePreApprovedUsersQuery(isLoggedIn && (isOrganizationAdmin || isOrgAdmin));
   const organizationSettingsQuery = useOrganizationSettingsQuery(isLoggedIn && isNonSystemUser);
   const systemSettingsQuery = useSystemSettingsQuery(isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
-  const tutorialSettingsQuery = useTutorialSettingsQuery(isLoggedIn && (isSystemAdmin || isOrganizationAdmin));
 
   // --- Derived state from React Query ---
   const organizations = academiesQuery.data ?? [];
@@ -127,7 +124,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const preApprovedUsers = preApprovedUsersQuery.data ?? [];
   const organizationSettings = organizationSettingsQuery.data ?? null;
   const systemSettings = systemSettingsQuery.data ?? null;
-  const tutorialSettings = tutorialSettingsQuery.data ?? null;
 
   // --- General state ---
   const [dataError, setDataError] = useState<string | null>(null);
@@ -141,7 +137,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Composite loading: true while any role-enabled query is loading for the first time
   const isLoading = [
     academiesQuery, workspacesQuery, usersQuery,
-    organizationSettingsQuery, systemSettingsQuery, tutorialSettingsQuery,
+    organizationSettingsQuery, systemSettingsQuery,
     preApprovedUsersQuery,
   ].some(q => q.isLoading && q.fetchStatus !== 'idle');
 
@@ -217,9 +213,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await queryClient.invalidateQueries({ queryKey: queryKeys.settings.system });
   }, [queryClient]);
 
-  const fetchTutorialSettings = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: queryKeys.settings.tutorial });
-  }, [queryClient]);
 
   // fetchAllData is now a no-op — React Query handles lazy loading via enabled flags.
   // Kept for backward compatibility.
@@ -235,9 +228,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { createOrganization } = await api();
     return handleApiCall(() => createOrganization(name), () => fetchAcademies(), 'Failed to add workspace.');
   };
-  const updateOrganization = async (id: string, name: string) => {
+  const updateOrganization = async (id: string, name: string, seatLimit?: number | null) => {
     const { updateOrganization: updateOrganizationApi } = await api();
-    const updated = await handleApiCall(() => updateOrganizationApi(id, name), () => fetchAcademies(), 'Failed to update workspace.');
+    const updated = await handleApiCall(() => updateOrganizationApi(id, name, seatLimit), () => fetchAcademies(), 'Failed to update workspace.');
     return !!updated;
   };
   const deleteOrganization = async (id: string) => {
@@ -320,17 +313,17 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     );
     return success === null;
   };
-  const preApproveUsersInBulk = async (emails: string[], workspaceId: string, permissions: 'edit' | 'read_only' = 'edit') => {
+  const preApproveUsersInBulk = async (rows: PreApproveRow[], workspaceId: string) => {
     const { preApproveUsersInBulk: preApproveApi } = await api();
-    return handleApiCall(() => preApproveApi(emails, workspaceId, permissions), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
+    return handleApiCall(() => preApproveApi(rows, workspaceId), () => fetchPreApprovedUsers(), 'Failed to pre-approve users.');
   };
   const inviteUsersToOrg = async (orgId: string, email: string, workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => {
     const { inviteUsersToOrg: inviteApi } = await api();
     return handleApiCall(() => inviteApi(orgId, email, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to invite user.');
   };
-  const inviteUsersToOrgBulk = async (orgId: string, emails: string[], workspaceIds: string[] | 'all', permissions: 'edit' | 'read_only') => {
+  const inviteUsersToOrgBulk = async (orgId: string, rows: PreApproveRow[], workspaceIds: string[] | 'all') => {
     const { inviteUsersToOrgBulk: bulkApi } = await api();
-    return handleApiCall(() => bulkApi(orgId, emails, workspaceIds, permissions), () => fetchPreApprovedUsers(), 'Failed to bulk invite users.');
+    return handleApiCall(() => bulkApi(orgId, rows, workspaceIds), () => fetchPreApprovedUsers(), 'Failed to bulk invite users.');
   };
   const revokePreApprovedUser = async (preApprovedUserId: string) => {
     const { deletePreApprovedUserFromBackend } = await api();
@@ -378,13 +371,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return !!updated;
   };
 
-  const updateTutorialSettings = async (settings: TutorialSettings) => {
-    const { updateTutorialSettings: updateTutorialApi } = await api();
-    const updated = await handleApiCall(() => updateTutorialApi(settings), (updatedSettings) => {
-      queryClient.setQueryData(queryKeys.settings.tutorial, updatedSettings);
-    }, 'Failed to update tutorial settings.');
-    return !!updated;
-  };
 
   return (
     <DataContext.Provider value={{
@@ -394,7 +380,6 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       preApprovedUsers, preApproveUsersInBulk, inviteUsersToOrg, inviteUsersToOrgBulk, revokePreApprovedUser,
       organizationSettings, updateOrganizationSettings, setOrganizationSettingsLocal, regenerateApiKey,
       systemSettings, fetchSystemSettings, updateSystemSettings,
-      tutorialSettings, fetchTutorialSettings, updateTutorialSettings,
       orgTokenUsage, organizationTokenUsage, isAnalyticsLoading, fetchOrgTokenUsage,
       isLoading, dataError, clearDataError, fetchAllData,
     }}>

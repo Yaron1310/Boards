@@ -8,7 +8,6 @@ import type { Workspace, User } from '../../types';
 import { UserRole } from '../../types';
 import { FiPlusCircle, FiEdit, FiArchive, FiSave, FiXCircle, FiAlertTriangle, FiCheckCircle, FiBriefcase, FiAlertCircle as FiErrorCircle, FiKey, FiCpu, FiLoader, FiUsers, FiUserPlus, FiList, FiInfo, FiCreditCard } from 'react-icons/fi';
 import PreApproveUsersModal from './PreApproveUsersModal';
-import TutorialSection from '../common/TutorialSection';
 import ConfirmationModal from './shared/ConfirmationModal';
 import ArchiveRestoreModal from './shared/ArchiveRestoreModal';
 
@@ -164,8 +163,7 @@ const WorkspaceManagementPage: React.FC = () => {
     isAnalyticsLoading,
     dataError,
     clearDataError,
-    isLoading: isDataLoading,
-    tutorialSettings
+    isLoading: isDataLoading
   } = useData();
   const navigate = useNavigate();
 
@@ -469,7 +467,6 @@ const WorkspaceManagementPage: React.FC = () => {
                   </button>
                 </div>
             </div>
-            <TutorialSection videoUrl={tutorialSettings?.workspaces?.videoUrl} />
         </div>
       </div>
 

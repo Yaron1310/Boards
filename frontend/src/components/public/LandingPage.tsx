@@ -2,12 +2,10 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { FiCheck } from 'react-icons/fi';
-import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 
 const LandingPage: React.FC = () => {
   const { i18n } = useTranslation();
   const t = i18n.getFixedT('en');
-  useForceDocumentLang();
   return (
     <div className="h-dvh w-full overflow-y-auto bg-gradient-to-br from-purple-50 via-white to-gray-50 text-gray-800 font-sans">
       <div className="min-h-full flex items-center justify-center p-4 sm:p-6 lg:p-8">
@@ -16,7 +14,7 @@ const LandingPage: React.FC = () => {
           
           {/* Left Column: Content */}
           <div className="text-center animate-fade-in-up">
-            <h1 className="text-5xl md:text-7xl tracking-tight leading-tight" style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 900 }}>
+            <h1 className="text-5xl md:text-7xl tracking-tight leading-tight" style={{ fontFamily: "'Inter', sans-serif", fontWeight: 900, textWrap: 'nowrap' }}>
               <span className="text-gray-900">The exact tool</span>
               <br />
               <span style={{ color: '#2d6fe8' }}>for the job</span><span style={{ color: '#f5c027', fontSize: '30px', lineHeight: 1 }}>&#9632;</span>

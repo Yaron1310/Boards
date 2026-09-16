@@ -6,22 +6,19 @@ import { BACKEND_API_URL } from '../../constants';
 import * as apiService from '../../services/geminiService';
 import { useRecaptcha } from '../../hooks/useRecaptcha';
 import { FiLogIn, FiUserPlus, FiEye, FiEyeOff, FiAlertCircle, FiInfo, FiLoader } from 'react-icons/fi';
-import { Capacitor } from '@capacitor/core';
 import LegalModal from '../legal/LegalModal';
 import AccessibilityModal from '../legal/AccessibilityModal';
 import { GoogleIconSVG } from './GoogleAuthIcons';
 import { useTranslation } from 'react-i18next';
-import { useForceDocumentLang } from '../../hooks/useForceDocumentLang';
 
 const LoginPage: React.FC = () => {
   const { i18n } = useTranslation();
   const t = i18n.getFixedT('en');
-  useForceDocumentLang();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showAccessibilityModal, setShowAccessibilityModal] = useState(false);
-  const { login, loading: authLoading, authError, clearAuthError, user, contextSelectionMode, nativeGoogleLogin, nativeMicrosoftLogin } = useAuth();
+  const { login, loading: authLoading, authError, clearAuthError, user, contextSelectionMode } = useAuth();
   const { executeRecaptcha } = useRecaptcha();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -159,11 +156,7 @@ const LoginPage: React.FC = () => {
         localStorage.setItem('pending_checkout_plan_id', planId);
     }
 
-    if (Capacitor.isNativePlatform()) {
-        nativeGoogleLogin();
-    } else {
-        window.location.href = `${BACKEND_API_URL}/api/auth/google`;
-    }
+    window.location.href = `${BACKEND_API_URL}/api/auth/google`;
   };
 
   const handleMicrosoftLogin = () => {
@@ -171,11 +164,7 @@ const LoginPage: React.FC = () => {
         localStorage.setItem('pending_checkout_plan_id', planId);
     }
 
-    if (Capacitor.isNativePlatform()) {
-      nativeMicrosoftLogin();
-    } else {
-      window.location.href = `${BACKEND_API_URL}/api/auth/microsoft`;
-    }
+    window.location.href = `${BACKEND_API_URL}/api/auth/microsoft`;
   };
 
   const handleForgotPassword = async () => {

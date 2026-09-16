@@ -10,5 +10,3 @@ const adminRoles = [UserRole.SYSTEM_ADMIN, UserRole.ORGANIZATION_ADMIN];
 systemRouter.get('/settings', requireRole(adminRoles), systemController.getSystemSettings);
 systemRouter.put('/settings', requireRole([UserRole.SYSTEM_ADMIN]), systemController.updateSystemSettings);
 
-systemRouter.get('/tutorials', requireRole(adminRoles), systemController.getTutorialSettings);
-systemRouter.put('/tutorials', requireRole([UserRole.SYSTEM_ADMIN]), systemController.updateTutorialSettings);

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, Suspense } from 'react';
 import { Outlet, Link, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom';
+import RouteChunkBoundary from '../common/RouteChunkBoundary';
 import { useAuth } from '../../hooks/useAuth';
 import { useData } from '../../hooks/useData';
 import { UserRole, User, WorkHub, Board } from '../../types';
-import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiVideo, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiChevronLeft, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark, FiUser, FiFileText } from 'react-icons/fi';
+import { FiMenu, FiX, FiUsers, FiBriefcase, FiEdit, FiGrid, FiShield, FiChevronsRight, FiLoader, FiMail, FiLayout, FiChevronDown, FiChevronRight, FiChevronLeft, FiTrello, FiPlus, FiMoreHorizontal, FiBookmark, FiUser, FiFileText } from 'react-icons/fi';
 import { useTranslation } from 'react-i18next';
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
@@ -503,7 +504,6 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
     const iconClassName = `mr-3 ${isHebrewLanguage ? 'mt-0.5' : ''}`;
     const systemAdminNavItems = [
       { name: t('layout.organizations'), path: '/admin/organizations', icon: <FiShield className={iconClassName} /> },
-      { name: t('layout.tutorialsSettings'), path: '/admin/tutorials', icon: <FiVideo className={iconClassName} /> },
       { name: t('layout.emailTemplates'), path: '/admin/email-templates', icon: <FiMail className={iconClassName} /> },
     ];
 
@@ -550,7 +550,7 @@ const SystemAdminSidebarContent: React.FC<SystemAdminSidebarContentProps> = ({ s
               <p className="font-semibold text-white text-sm truncate">{user?.name}</p>
               <p className="text-xs text-white/60 truncate">{user?.email}</p>
             </div>
-            <FiChevronsRight className="ml-2 text-white/60 rtl-flip" />
+            <FiChevronsRight className="ml-2 text-white/60" />
           </NavLink>
           <div className="flex items-center justify-center text-gray-400 text-xs gap-x-1.5">
              <span className="font-semibold">Logyx</span>
@@ -942,7 +942,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                     <p className="font-semibold text-sm truncate" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }}>{user?.name}</p>
                     <p className="text-xs truncate" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }}>{user?.email}</p>
                 </div>
-                 <FiChevronsRight className="ml-2 rtl-flip" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }} />
+                 <FiChevronsRight className="ml-2" style={{ color: sidebarLinkColor, filter: 'brightness(0.9)' }} />
             </NavLink>
             <div className="flex items-center justify-center opacity-80 text-xs gap-x-1.5" style={{ color: sidebarLinkColor }}>
                 <span className="font-semibold">Logyx</span>
@@ -1107,7 +1107,7 @@ const MainLayout: React.FC = () => {
             <div className="text-xl font-semibold text-gray-800">{t('layout.systemAdmin')}</div>
             <Link to="/profile"><img src={userImageHeader} alt="User" className="h-8 w-8 rounded-full object-cover" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} /></Link>
           </header>
-          <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><Outlet /></Suspense></main>
+          <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><RouteChunkBoundary><Outlet /></RouteChunkBoundary></Suspense></main>
         </div>
       </div>
     );
@@ -1230,7 +1230,7 @@ const MainLayout: React.FC = () => {
           <Link to="/profile"><img src={userImageHeader} alt="User" className="h-8 w-8 rounded-full object-cover flex-shrink-0" onError={(e: React.SyntheticEvent<HTMLImageElement, Event>) => (e.currentTarget.src = `/default_user.webp`)} /></Link>
         </header>
         <FormulaRecordingBar />
-        <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><Outlet /></Suspense></main>
+        <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><RouteChunkBoundary><Outlet /></RouteChunkBoundary></Suspense></main>
       </div>
     </div>
   );

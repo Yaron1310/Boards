@@ -1,5 +1,4 @@
 {
-  "language": "Language",
   "admin": {
     "academyAdminDashboard": "WorkHub Admin Dashboard",
     "academyDisplayName": "WorkHub Display Name",
@@ -1034,7 +1033,7 @@
     "organizationSetup": "Organization Setup",
     "organizationSetupSubtitle": "Organization Setup Subtitle",
     "passwordCreated": "Password created successfully",
-    "passwordHint": "At least 8 characters, including uppercase, lowercase, number, and special character",
+    "passwordHint": "At least 12 characters, including uppercase, lowercase, number, and special character",
     "passwordRequirements": "Password does not meet requirements",
     "passwordResetSuccess": "Password reset successfully",
     "passwordsDoNotMatch": "Passwords do not match",
@@ -1161,7 +1160,7 @@
     "fullName": "Full Name",
     "loadingSecurePayment": "Loading secure payment...",
     "orderSummary": "Order Summary",
-    "passwordRequirements": "At least 8 characters, with uppercase, lowercase, number, and special character",
+    "passwordRequirements": "At least 12 characters, with uppercase, lowercase, number, and special character",
     "plan": "Plan",
     "preparingSession": "Preparing your session...",
     "proceedToPayment": "Proceed to Payment",
@@ -1194,7 +1193,6 @@
     "cancel": "Cancel",
     "close": "Close",
     "closeChat": "Close Chat",
-    "closeTutorial": "Close tutorial video",
     "confirm": "Confirm",
     "confirmPassword": "Confirm Password",
     "contactSupport": "If the problem persists, please contact support.",
@@ -1259,7 +1257,6 @@
     "view": "View",
     "viewArchived": "View Archived",
     "warning": "Warning",
-    "watchTutorial": "Watch a tutorial",
     "workspace": "WorkHub",
     "WorkHub": "WorkHub"
   },
@@ -1362,6 +1359,16 @@
       "title": "Send Test Email"
     }
   },
+  "errorBoundary": {
+    "updateAvailableTitle": "Boards has been updated",
+    "updateAvailableMessage": "This tab has been open since before the latest update, so the page could not load. Reload to continue on the new version — your saved data is not affected.",
+    "routeUpdateMessage": "This page needs the new version in order to open. Nothing has been changed or lost — you can carry on working and reload whenever you are ready.",
+    "reloadPage": "Reload page",
+    "genericTitle": "Something went wrong",
+    "genericMessage": "This page hit an unexpected error. You can go back to where you were, or return to the home page.",
+    "goBack": "Go back",
+    "goHome": "Go to home"
+  },
   "landing": {
     "builtFor": "Built for WorkHubs, schools and WorkHubs",
     "createCourse": "Create Your First AI-Powered Course",
@@ -1373,12 +1380,6 @@
     "headline": "You Teach.",
     "headlineHighlight": "AI Implements.",
     "tagline": "Learn · Grow · Transform"
-  },
-  "languageModal": {
-    "confirm": "Confirm",
-    "skip": "Skip",
-    "subtitle": "Select your preferred display language to get started.",
-    "title": "Choose Your Language"
   },
   "layout": {
     "academyHub": "WorkHub Hub",
@@ -1406,7 +1407,6 @@
     "systemAdmin": "System Admin",
     "termsPrivacy": "Terms & Privacy",
     "tokenLimits": "Token Limits",
-    "tutorialsSettings": "Tutorials Settings",
     "userManagement": "User Management",
     "workspaces": "WorkHubs"
   },
@@ -1605,7 +1605,6 @@
     "chatHistoryDisabled": "Chat history is disabled.",
     "chatHistoryEnabled": "Chat history is enabled.",
     "chatSettings": "Chat Settings",
-    "closeLanguageSettings": "Close language settings",
     "confirmAction": "Confirm Action",
     "confirmArchive": "Are you sure you want to archive this insight?",
     "confirmArchiveInsight": "Are you sure you want to archive this insight? This action cannot be undone.",
@@ -1631,7 +1630,6 @@
     "deleteTranscriptWarning": "This will permanently remove the message history. The saved insights will not be affected. This action cannot be undone.",
     "deleteYourAccount": "Delete Your Account",
     "deleting": "Deleting...",
-    "displayLanguage": "Display Language",
     "downloadTranscript": "Download Transcript",
     "editDetails": "Edit Details",
     "editProfileImage": "Edit Profile Image",
@@ -1640,7 +1638,6 @@
     "insightsFromLessons": "Insights from Lessons",
     "insightsWillAppear": "Your insights will appear here",
     "invalidFileType": "Invalid file type. Please use JPG, PNG, GIF, or WebP.",
-    "language": "Language",
     "loadMoreMessages": "Load more messages",
     "logout": "Logout",
     "monthlyTokenUsage": "Monthly Token Usage",

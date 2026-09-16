@@ -7,6 +7,13 @@ export interface DBOrganization {
   id: string;
   name: string;
   createdAt: admin.firestore.Timestamp | Date | any;
+  /** Max number of billable seats (editors+) this org may have. undefined/0 = unlimited —
+   *  every org is unlimited until a system admin sets a real cap (see seats.service.ts). */
+  seatLimit?: number;
+  /** Seat-usage percentage bucket (90 or 100) the "approaching your seat limit" email was last
+   *  sent for, so it fires once per crossing instead of on every membership change. Cleared once
+   *  usage drops back below 90%, so climbing past it again re-sends. */
+  seatWarningLevelSent?: number;
 }
 
 export interface DBWorkspace {
@@ -81,10 +88,6 @@ export interface DBSystemSettings {
   id?: string;
 }
 
-export interface DBTutorialSettings {
-  id?: string;
-}
-
 export enum UserRole {
   REGULAR_USER = 'regular_user',
   ORG_EDITOR = 'org_editor',
@@ -104,7 +107,6 @@ export interface DBUser {
   status: 'pending' | 'active' | 'disabled' | 'pending_setup';
   emailVerified?: boolean;
   createdAt: admin.firestore.Timestamp | Date | any;
-  preferredLanguage?: string;
   passwordResetId?: string;
   failedLoginAttempts?: number;
   lockoutUntil?: admin.firestore.Timestamp | Date | null | any;
@@ -140,6 +142,10 @@ export interface DBMembership {
 export interface DBPreapprovedUser {
   id: string;
   email: string;
+  /** Display name supplied at invite time (bulk-upload "Name" column, or typed manually) — used
+   *  only to label this pending invite in admin UIs. Never overrides the name the person types
+   *  for themselves when they actually register. */
+  name?: string;
   workspaceId: string;
   orgId: string;
   addedBy: string;

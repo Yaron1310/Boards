@@ -18,6 +18,7 @@ import {
 import { querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { JwtUserPayload, DBUser, DBWorkspace, DBPreapprovedUser, UserRole, DBMembership, DBBoard, DBBoardMember, BoardRole, PaginatedResponse } from '../types/index.js';
 import { formatUserForFrontend } from './auth.controller.js';
+import { isMembershipBillable, assertSeatAvailable, assertSeatCapacityForBulkInvite, checkSeatWarningThreshold } from '../services/seats.service.js';
 import { sanitizeText, sanitizeImageUrl } from '../utils/sanitizer.js';
 import { sendUserInvitationEmail } from '../services/email.service.js';
 import { env } from '../config/env.js';
@@ -25,13 +26,31 @@ import { parsePaginationParams, buildPaginatedResult } from '../utils/pagination
 import { validatePasswordComplexity } from '../utils/password.js';
 import { logAudit } from '../services/audit.service.js';
 
+interface PreApproveRow {
+    email: string;
+    name?: string;
+    permissions?: 'edit' | 'read_only';
+}
+
 export const preApproveUsersInBulk = async (req: Request, res: Response) => {
-    const { emails, workspaceId, permissions } = req.body as { emails: string[], workspaceId: string, permissions?: 'edit' | 'read_only' };
-    const safePermissions: 'edit' | 'read_only' = permissions === 'read_only' ? 'read_only' : 'edit';
+    // `rows` is the current shape (one permission per email, read from the uploaded sheet's own
+    // column, or from the single-add form). `emails` + a flat `permissions` is accepted too, for
+    // any caller still on the old contract — it's just normalized into the same row shape below.
+    const { rows: rawRows, emails, workspaceId, permissions: flatPermissions } = req.body as {
+        rows?: PreApproveRow[];
+        emails?: string[];
+        workspaceId: string;
+        permissions?: 'edit' | 'read_only';
+    };
     const requestingUser = req.user as JwtUserPayload;
 
-    if (!Array.isArray(emails) || emails.length === 0) {
-        return res.status(400).json({ message: 'A non-empty array of emails is required.' });
+    const rows: PreApproveRow[] = Array.isArray(rawRows)
+        ? rawRows
+        : Array.isArray(emails)
+            ? emails.map((email) => ({ email, permissions: flatPermissions }))
+            : [];
+    if (rows.length === 0) {
+        return res.status(400).json({ message: 'A non-empty list of invites is required.' });
     }
 
     const targetOrgId = (requestingUser.role === UserRole.SYSTEM_ADMIN || requestingUser.role === UserRole.ORGANIZATION_ADMIN) ? workspaceId : requestingUser.selectedWorkspaceId;
@@ -45,9 +64,22 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             return res.status(403).json({ message: 'You do not have permission to approve users for this workspace.' });
         }
 
+        // Dedupe by email — last occurrence in the sheet wins for name/permissions, same as a
+        // normal spreadsheet edit would expect ("I fixed row 40 further down").
+        const rowsByEmail = new Map<string, PreApproveRow>();
+        for (const row of rows) {
+            const email = sanitizeText(row.email ?? '').toLowerCase().trim();
+            if (!email || !email.includes('@')) continue;
+            const permissions: 'edit' | 'read_only' = row.permissions === 'read_only' ? 'read_only' : 'edit';
+            const name = typeof row.name === 'string' ? sanitizeText(row.name).trim() : undefined;
+            rowsByEmail.set(email, { email, name: name || undefined, permissions });
+        }
+        const uniqueEmails = [...rowsByEmail.keys()];
+        if (uniqueEmails.length === 0) {
+            return res.status(400).json({ message: 'No valid email addresses found.' });
+        }
+
         const batch = db.batch();
-        const lowercasedEmails = emails.map(e => sanitizeText(e).toLowerCase().trim()).filter(Boolean);
-        const uniqueEmails = [...new Set(lowercasedEmails)];
 
         let preApprovedCount = 0;
         let updatedUserCount = 0;
@@ -69,15 +101,42 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             }
         }
 
+        // Also need to know which existing users already have a membership in this workspace —
+        // one whose membership already exists is skipped below (not billed as a new seat either).
+        const membershipExistsForEmail = new Map<string, boolean>();
         for (const email of uniqueEmails) {
+            const user = existingUsersMap.get(email);
+            if (!user) continue;
+            const membershipSnapshot = await membershipsCollection
+                .where('userId', '==', user.id)
+                .where('entityId', '==', targetOrgId)
+                .limit(1).get();
+            membershipExistsForEmail.set(email, !membershipSnapshot.empty);
+        }
+
+        // All-or-nothing: this upload either fully succeeds or nothing is written. Throws
+        // SeatLimitError (caught below) before any Firestore write if there isn't room for
+        // every row that would consume a new seat.
+        await assertSeatCapacityForBulkInvite(
+            orgData.orgId,
+            uniqueEmails
+                .filter((email) => !membershipExistsForEmail.get(email))
+                .map((email) => {
+                    const row = rowsByEmail.get(email)!;
+                    return {
+                        billable: isMembershipBillable(UserRole.REGULAR_USER, row.permissions),
+                        existingUserId: existingUsersMap.get(email)?.id,
+                    };
+                }),
+        );
+
+        for (const email of uniqueEmails) {
+            const row = rowsByEmail.get(email)!;
+
             if (existingUsersMap.has(email)) {
                 const user = existingUsersMap.get(email)!;
-                const membershipSnapshot = await membershipsCollection
-                    .where('userId', '==', user.id)
-                    .where('entityId', '==', targetOrgId)
-                    .limit(1).get();
 
-                if (membershipSnapshot.empty) {
+                if (!membershipExistsForEmail.get(email)) {
                     const defaultOrgSnapshot = await workspacesCollection
                         .where('orgId', '==', orgData.orgId)
                         .where('name', '==', 'Default Workspace')
@@ -110,7 +169,7 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                         entityId: targetOrgId,
                         entityType: 'workspace',
                         role: UserRole.REGULAR_USER,
-                        permissions: safePermissions,
+                        permissions: row.permissions,
                         orgId: orgData.orgId,
                         createdAt: admin.firestore.FieldValue.serverTimestamp()
                     });
@@ -121,10 +180,11 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
                 const docRef = preapprovedUsersCollection.doc(docId);
                 const preapprovedUserEntry: Omit<DBPreapprovedUser, 'id'> = {
                     email: email,
+                    ...(row.name ? { name: row.name } : {}),
                     workspaceId: targetOrgId,
                     orgId: orgData.orgId,
                     addedBy: requestingUser.id,
-                    permissions: safePermissions,
+                    permissions: row.permissions,
                     createdAt: admin.firestore.FieldValue.serverTimestamp() as admin.firestore.Timestamp,
                 };
                 batch.set(docRef, preapprovedUserEntry);
@@ -146,6 +206,8 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             );
         }
 
+        void checkSeatWarningThreshold(orgData.orgId);
+
         let message = '';
         if (preApprovedCount > 0 && updatedUserCount > 0) {
             message = `${preApprovedCount} new email(s) have been pre-approved. ${updatedUserCount} existing user(s) have been added to the workspace.`;
@@ -157,8 +219,11 @@ export const preApproveUsersInBulk = async (req: Request, res: Response) => {
             message = 'No new users were pre-approved or added. They may already have access.';
         }
 
-        res.status(200).json({ message, successCount: preApprovedCount + updatedUserCount });
-    } catch (error) {
+        res.status(200).json({ message, successCount: preApprovedCount + updatedUserCount, seatLimitedEmails: [] });
+    } catch (error: any) {
+        if (error?.name === 'SeatLimitError') {
+            return res.status(error.status ?? 403).json({ message: error.message });
+        }
         logger.error("Error pre-approving users in bulk:", error);
         res.status(500).json({ message: "Failed to pre-approve users." });
     }
@@ -539,12 +604,10 @@ export const getMyUserDetails = async (req: Request, res: Response) => {
     }
 };
 
-const ALLOWED_LANGUAGE_CODES = ['en', 'es', 'he'];
-
 export const updateMyUserDetails = async (req: Request, res: Response) => {
     const userPayload = req.user as JwtUserPayload;
     const userId = userPayload.id;
-    const { name, email, preferredLanguage, preferences, notificationPreference } = req.body;
+    const { name, email, preferences, notificationPreference } = req.body;
     try {
         const userRef = usersCollection.doc(userId);
         const updates: any = {};
@@ -556,12 +619,6 @@ export const updateMyUserDetails = async (req: Request, res: Response) => {
                 return res.status(400).json({ message: 'Email already in use.' });
             }
             updates.email = sanitizedEmail;
-        }
-        if (preferredLanguage !== undefined) {
-            if (!ALLOWED_LANGUAGE_CODES.includes(preferredLanguage)) {
-                return res.status(400).json({ message: 'Invalid language code.' });
-            }
-            updates.preferredLanguage = preferredLanguage;
         }
         if (preferences !== undefined && typeof preferences === 'object') {
             updates.preferences = preferences;
@@ -892,6 +949,22 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
         }
         const allDesiredWsIds = new Set<string>([...fullWsIds, ...boardOnlyWsIds]);
 
+        // Seat check — this endpoint replaces the user's entire set of workspace memberships in
+        // one shot, so look at the desired end state as a whole rather than per-workspace: if
+        // any of it would be billable, see if that's a *new* seat for this user (the helper
+        // no-ops if they already occupy one via their current memberships).
+        const willBeBillableAfter = [...allDesiredWsIds].some((wsId) => {
+            const isFull = fullWsIds.has(wsId);
+            const rawPerm = newWsPermissions?.[wsId];
+            const isAdmin = isFull && rawPerm === 'admin';
+            const wsPerms: 'edit' | 'read_only' = rawPerm === 'read_only' ? 'read_only' : 'edit';
+            const memberRole = isAdmin ? UserRole.WORKSPACE_ADMIN : UserRole.REGULAR_USER;
+            return isMembershipBillable(memberRole, wsPerms);
+        });
+        if (willBeBillableAfter) {
+            await assertSeatAvailable(requestingUser.orgId, userId);
+        }
+
         const batch = db.batch();
 
         // --- Workspace membership changes ---
@@ -974,8 +1047,12 @@ export const updateUserBoardPermissions = async (req: Request, res: Response) =>
         });
 
         await batch.commit();
+        void checkSeatWarningThreshold(requestingUser.orgId);
         res.json({ message: 'Permissions updated.' });
-    } catch (error) {
+    } catch (error: any) {
+        if (error?.name === 'SeatLimitError') {
+            return res.status(error.status ?? 403).json({ message: error.message });
+        }
         logger.error('Error updating user board permissions:', error);
         res.status(500).json({ message: 'Failed to update board permissions.' });
     }

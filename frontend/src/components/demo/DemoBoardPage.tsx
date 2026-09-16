@@ -355,8 +355,6 @@ const MOCK_AUTH: AuthSessionContextType = {
   updateUserProfileImage: noopBool,
   setAuthenticatedUserFromGoogle: noopBool,
   setAuthenticatedUserFromToken: noopBool,
-  nativeGoogleLogin: noopVoid,
-  nativeMicrosoftLogin: noopVoid,
 };
 
 // ── Demo sidebar ───────────────────────────────────────────────────────────

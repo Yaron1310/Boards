@@ -4,8 +4,6 @@ import type { User, Workspace } from '../types';
 import { UserRole } from '../types';
 import { BACKEND_API_URL } from '../constants';
 import * as apiService from '../services/geminiService';
-import { Capacitor } from '@capacitor/core';
-import i18n from '../i18n';
 import { signInWithCustomToken } from 'firebase/auth';
 import { firebaseAuth } from '../firebase';
 import { useQueryClient } from '@tanstack/react-query';
@@ -27,13 +25,11 @@ export interface AuthSessionContextType {
   logout: () => void;
   updateAuthUser: (updatedUser: User) => void;
   refreshAuthUser: () => Promise<void>;
-  updateUserDetails: (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string; notificationPreference?: 'all' | 'mentions_only' | 'none' }) => Promise<boolean>;
+  updateUserDetails: (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; notificationPreference?: 'all' | 'mentions_only' | 'none' }) => Promise<boolean>;
   updateUserPassword: (passwords: { currentPassword?: string; newPassword: string }) => Promise<boolean>;
   updateUserProfileImage: (imageData: string | Blob) => Promise<boolean>;
   setAuthenticatedUserFromGoogle: (token: string) => Promise<boolean>;
   setAuthenticatedUserFromToken: (token: string) => Promise<boolean>;
-  nativeGoogleLogin: () => Promise<void>;
-  nativeMicrosoftLogin: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,8 +45,6 @@ export interface AuthUIContextType {
   userForContextSelection: (Omit<User, 'role'> & { workspaces: Workspace[]; allAcademies?: Workspace[] }) | null;
   availableContexts: { groupName: string; contexts: { label: string; value: string; role: UserRole }[] }[];
 
-  showLanguageModal: boolean;
-  dismissLanguageModal: () => void;
 
   login: (email: string, password: string, recaptchaToken?: string | null) => Promise<void>;
   completeLoginWithContext: (workspaceId: string, role: UserRole) => Promise<void>;
@@ -121,7 +115,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authError, setAuthError] = useState<string | null>(null);
   const [contextSelectionMode, setContextSelectionMode] = useState<'login' | 'switch' | null>(null);
   const [userForContextSelection, setUserForContextSelection] = useState<(Omit<User, 'role'> & { workspaces: Workspace[]; allAcademies?: Workspace[] }) | null>(null);
-  const [showLanguageModal, setShowLanguageModal] = useState(false);
 
   useEffect(() => {
     applyDarkContrast(user?.preferences?.darkContrast ?? false);
@@ -177,7 +170,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           } else {
             localStorage.removeItem('authSelectedOrg');
           }
-          applyUserLanguage(freshUser);
           success = true;
           break;
         } catch (error: any) {
@@ -214,11 +206,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const clearAuthError = useCallback(() => setAuthError(null), []);
 
-  const applyUserLanguage = useCallback((userData: User) => {
-    if (userData.preferredLanguage) {
-      i18n.changeLanguage(userData.preferredLanguage);
-    }
-  }, []);
 
   const handleSuccessfulLogin = useCallback((data: any) => {
     console.log('[AUTH_STATE_UPDATE] Handling successful login. Data received:', data);
@@ -229,11 +216,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    if (Capacitor.isNativePlatform()) {
-      localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.accessToken);
-    } else {
-      localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
-    }
+    // The access token lives in memory only on the web; the __session cookie carries it.
+    localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     // The refresh token isn't carried by the __session cookie (Firebase Hosting's CDN
     // strips every other cookie), so it must be stored client-side on every platform —
     // it's what lets the session survive past the short-lived access token's expiry.
@@ -258,13 +242,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setContextSelectionMode(null);
     setUserForContextSelection(null);
     localStorage.removeItem('userForContextSelection');
-    applyUserLanguage(data.user);
-
-    if (!data.user.preferredLanguage) {
-      i18n.changeLanguage('en');
-      apiService.updateMyUserDetails({ preferredLanguage: 'en' }).catch(() => {});
-    }
-  }, [applyUserLanguage]);
+  }, []);
 
   // ── Session methods ────────────────────────────────────────────────────────
 
@@ -333,7 +311,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [user, refreshAuthUser]);
 
-  const updateUserDetails = useCallback(async (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; preferredLanguage?: string; notificationPreference?: 'all' | 'mentions_only' | 'none' }): Promise<boolean> => {
+  const updateUserDetails = useCallback(async (details: { name?: string; email?: string; conversationSavingEnabled?: boolean; notificationPreference?: 'all' | 'mentions_only' | 'none' }): Promise<boolean> => {
     try {
       const updatedUser = await apiService.updateMyUserDetails(details);
       updateAuthUser(updatedUser);
@@ -426,14 +404,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLoading(false);
     }
   }, [handleSuccessfulLogin]);
-
-  const nativeGoogleLogin = useCallback(async () => {
-    setAuthError('Native Google Sign-In is not available on this platform.');
-  }, []);
-
-  const nativeMicrosoftLogin = useCallback(async () => {
-    setAuthError('Native Microsoft Sign-In is not available on this platform.');
-  }, []);
 
   // ── UI / flow methods ──────────────────────────────────────────────────────
 
@@ -585,7 +555,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const dismissLanguageModal = useCallback(() => setShowLanguageModal(false), []);
 
   // ── Derived / memoized values ──────────────────────────────────────────────
 
@@ -601,24 +570,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     const contexts: { label: string; value: string; role: UserRole; organizationName: string }[] = [];
+    const systemAdminContexts: { label: string; value: string; role: UserRole; organizationName: string }[] = [];
 
     const { systemAdmin, organizationAdmin: assignedOrganizationAdmins = [], workspaceAdmin: assignedOrgAdmins = [], orgEditor: assignedOrgEditors = [] } = userForContexts.dbRoles;
 
-    // System admin: single global entry
+    // System admin: a dedicated global entry, PLUS (below) one "org admin" context per
+    // existing organization — the backend already grants a system admin org-admin access to
+    // every org (see calculateAvailableContexts / formatUserForFrontend in auth.controller.ts),
+    // so this list must actually offer them, not just the system-wide console.
     if (systemAdmin) {
       const defaultOrg = userForContexts.workspaces.find((o: any) => o.name === 'Default Workspace') || userForContexts.workspaces[0];
       if (defaultOrg) {
-        contexts.push({ label: 'System Administrator', value: JSON.stringify({ role: 'system_admin', workspaceId: defaultOrg.id }), role: 'system_admin', organizationName: 'System-Wide' });
+        systemAdminContexts.push({ label: 'System Administrator', value: JSON.stringify({ role: 'system_admin', workspaceId: defaultOrg.id }), role: 'system_admin', organizationName: 'System-Wide' });
       }
-      return [{ groupName: 'System Administration', contexts }];
     }
 
     // One entry per org. Determine the highest role the user holds in each org,
     // then pick the first eligible workspace as the login workspaceId.
     const roleOrder: Record<string, number> = { org_admin: 0, workspace_admin: 1, org_editor: 2, regular_user: 3 };
 
-    // Collect all orgs the user has any access to (non-personal, non-default)
-    const eligibleWorkspaces = userForContexts.workspaces.filter((o: any) => !o.isPersonal && o.name !== 'Default Workspace');
+    // Collect all orgs the user has any access to. A system admin's `workspaces` list is
+    // already one representative workspace per organization (see formatUserForFrontend), so
+    // keep those as-is even when the representative happens to be personal/Default — otherwise
+    // an org whose only workspace is its Default one would be dropped from the list entirely.
+    const eligibleWorkspaces = systemAdmin
+      ? userForContexts.workspaces
+      : userForContexts.workspaces.filter((o: any) => !o.isPersonal && o.name !== 'Default Workspace');
 
     // Group workspaces by orgId
     const byOrg = new Map<string, { orgName: string; workspaces: any[] }>();
@@ -658,7 +635,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       let workspaceId: string;
       let label: string;
 
-      if (isOrgAdmin) {
+      if (systemAdmin) {
+        // A system admin has no real per-org membership rows, so none of the assigned* arrays
+        // above apply — they get org-admin access to every org via the platform-wide bypass.
+        role = UserRole.ORGANIZATION_ADMIN;
+        workspaceId = workspaces[0].id;
+        label = `${orgName} — Admin`;
+      } else if (isOrgAdmin) {
         role = UserRole.ORGANIZATION_ADMIN;
         workspaceId = workspaces[0].id;
         label = `${orgName} — Admin`;
@@ -681,6 +664,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     contexts.sort((a, b) => (roleOrder[a.role] ?? 4) - (roleOrder[b.role] ?? 4) || a.organizationName.localeCompare(b.organizationName));
 
+    if (systemAdmin) {
+      return [
+        { groupName: 'System Administration', contexts: systemAdminContexts },
+        { groupName: 'Select Organization', contexts },
+      ];
+    }
     return [{ groupName: 'Select Organization', contexts }];
   }, [user, userForContextSelection, contextSelectionMode]);
 
@@ -699,14 +688,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     updateUserProfileImage,
     setAuthenticatedUserFromGoogle,
     setAuthenticatedUserFromToken,
-    nativeGoogleLogin,
-    nativeMicrosoftLogin,
   }), [
     user, token, selectedWorkspace, isOrgSubscriptionActive,
     logout, updateAuthUser, refreshAuthUser, updateUserDetails,
     updateUserPassword, updateUserProfileImage,
     setAuthenticatedUserFromGoogle, setAuthenticatedUserFromToken,
-    nativeGoogleLogin, nativeMicrosoftLogin,
   ]);
 
   const uiValue = useMemo<AuthUIContextType>(() => ({
@@ -716,8 +702,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     contextSelectionMode,
     userForContextSelection,
     availableContexts,
-    showLanguageModal,
-    dismissLanguageModal,
     login,
     completeLoginWithContext,
     switchContext,
@@ -730,7 +714,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }), [
     loading, authError, clearAuthError,
     contextSelectionMode, userForContextSelection, availableContexts,
-    showLanguageModal, dismissLanguageModal,
     login, completeLoginWithContext, switchContext, startContextSwitch,
     cancelContextSelection, finalizeLoginSession,
     register, initiateCheckoutRegistration, registerOrganizationAdmin,
