@@ -214,7 +214,7 @@ const RegistrationPage: React.FC = () => {
         
         {/* Left Section: Branding (Top on Mobile) */}
         <div className="md:w-1/2 bg-gray-50 p-8 md:p-12 flex flex-col justify-center items-center text-center border-b md:border-b-0 md:border-r border-gray-100">
-          <img src={logoUrl} alt={t('common.appLogoAlt')} className="h-24 w-auto" />
+          <img src={logoUrl} alt={t('common.appLogoAlt')} className="h-32 w-auto" />
         </div>
 
         {/* Right Section: Form (Bottom on Mobile) */}
