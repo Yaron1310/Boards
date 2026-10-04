@@ -12,6 +12,7 @@ import {
 import { JwtUserPayload, DBWorkspace, DBUser, UserRole, DBMembership, JwtVerificationPayload, DBOrganization } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { sendAccountVerificationEmail } from '../services/email.service.js';
+import { cascadeArchive } from '../services/archiveCascade.service.js';
 import { env } from '../config/env.js';
 import jwt from 'jsonwebtoken';
 
@@ -159,6 +160,10 @@ export const deleteWorkspace = async (req: Request, res: Response) => {
         batch.update(docRef, { status: 'archived', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
         boardsSnap.forEach(b => batch.update(b.ref, { isArchived: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }));
         await batch.commit();
+        // Archive each board's items too, tagged per board so restoring a board brings them back.
+        for (const b of boardsSnap.docs) {
+            if (b.data().isArchived !== true) await cascadeArchive(orgId, b.id, { kind: 'board', id: b.id });
+        }
         logger.info(`Successfully archived workspace ${id} and ${boardsSnap.size} boards.`);
 
         res.status(204).send();

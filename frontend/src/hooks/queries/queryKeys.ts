@@ -29,8 +29,8 @@ export const queryKeys = {
   items: {
     list: (params: ListItemsParams) => ['items', params] as const,
     one: (id: string) => ['items', id] as const,
-    group: (groupId: string, cursor: string | undefined, limit: number) =>
-      ['items', 'group', groupId, cursor ?? '', limit] as const,
+    group: (groupId: string, cursor: string | undefined, limit: number, includeArchived = false) =>
+      ['items', 'group', groupId, cursor ?? '', limit, includeArchived] as const,
   },
   columns: {
     board: (boardId: string) => ['columns', { boardId }] as const,

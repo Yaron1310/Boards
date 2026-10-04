@@ -80,6 +80,8 @@ export const useArchiveGroup = () => {
     onSuccess: (_data, { boardId }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.groups.all(boardId) });
       void qc.invalidateQueries({ queryKey: queryKeys.groups.archived(boardId) });
+      // The group's items are archived along with it.
+      void qc.invalidateQueries({ queryKey: ['items'] });
     },
   });
 };
@@ -92,6 +94,7 @@ export const useRestoreGroup = () => {
     onSuccess: (_data, { boardId }) => {
       void qc.invalidateQueries({ queryKey: queryKeys.groups.all(boardId) });
       void qc.invalidateQueries({ queryKey: queryKeys.groups.archived(boardId) });
+      void qc.invalidateQueries({ queryKey: ['items'] });
     },
   });
 };

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { FiPlus, FiLoader, FiTrash2, FiMessageSquare, FiFileText, FiMoreVertical, FiEdit2, FiSettings, FiRefreshCw } from 'react-icons/fi';
 import AddColumnModal from './AddColumnModal';
 import EditColumnConfigModal from './EditColumnConfigModal';
@@ -36,6 +36,9 @@ interface SubitemGroupProps {
   parentItemId: string;
   groupColor?: string;
   onEmpty?: () => void;
+  /** The parent's `archivedVia` (archived board view): subitems archived by the same cascade
+   *  are shown alongside it. */
+  parentArchivedVia?: string;
   /** Personal Hub only: when set, only render subitems this user is assigned to. */
   filterAssigneeId?: string;
   /** Personal Hub only: HOURS_LOG personal columns marked "Subitems only", overlaid onto
@@ -406,7 +409,7 @@ const SubitemRow: React.FC<{
   );
 };
 
-const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, filterAssigneeId, personalOverlayColumns = [], personalOwnerId, personalEditable, canManageItems, canManageColumns }) => {
+const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, parentArchivedVia, filterAssigneeId, personalOverlayColumns = [], personalOwnerId, personalEditable, canManageItems, canManageColumns }) => {
   const { user } = useAuthSession();
   const { columnWidths } = useBoardRender();
   const qc = useQueryClient();
@@ -450,9 +453,17 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     undefined,
     200,
     !!subitemGroup,
+    true,
   );
 
-  const realItems = itemsPage?.data ?? [];
+  // Archived subitems are fetched only so the auto-teardown below never mistakes a group
+  // holding nothing but archived subitems for an empty one (and deletes it). They're hidden
+  // from display, except those archived by the same cascade as the parent being viewed.
+  const allItems = useMemo(() => itemsPage?.data ?? [], [itemsPage?.data]);
+  const realItems = useMemo(
+    () => allItems.filter((i) => !i.isArchived || (!!parentArchivedVia && i.archivedVia === parentArchivedVia)),
+    [allItems, parentArchivedVia],
+  );
   // Only affects what's rendered below — group emptiness/creation logic still
   // uses the unfiltered `realItems`, since the underlying subitems group itself
   // isn't scoped to this user.
@@ -597,7 +608,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     if (!subitemGroup || itemsFetching || columnsLoading) return;
     if (isInitializing || pendingAutoFocus || addingItem) return;
     if (isTearingDownRef.current) return;
-    const total = realItems.length + pendingItems.length;
+    const total = allItems.length + pendingItems.length;
     if (total !== 0) return;
 
     isTearingDownRef.current = true;
@@ -613,7 +624,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [realItems.length, pendingItems.length, subitemGroup, itemsFetching, columnsLoading, isInitializing, pendingAutoFocus, addingItem]);
+  }, [allItems.length, pendingItems.length, subitemGroup, itemsFetching, columnsLoading, isInitializing, pendingAutoFocus, addingItem]);
 
   const pendingColumnPlaceholders: Column[] = pendingColumns.map((c) => ({
     id: c.tempId, boardId, name: c.name, type: c.type, settings: {},

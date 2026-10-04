@@ -3,6 +3,7 @@ import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { boardsCollection, groupsCollection, boardMembersCollection, itemsCollection, columnsCollection, usersCollection } from '../db/collections.js';
+import { cascadeArchive, cascadeRestore } from '../services/archiveCascade.service.js';
 import { JwtUserPayload, DBBoard, DBGroup, DBBoardMember, DBItem, DBColumn, DBUser, ColumnType } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, getClientIp } from '../services/audit.service.js';
@@ -353,6 +354,7 @@ export const archiveGroup = async (req: Request, res: Response) => {
       isArchived: true,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    await cascadeArchive(user.orgId, boardId, { kind: 'group', id: groupId });
     touchBoardVersion(user.orgId, boardId);
     void revokeWebhookForGroup(user.orgId, groupId);
 
@@ -400,6 +402,7 @@ export const restoreGroup = async (req: Request, res: Response) => {
       isArchived: false,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    await cascadeRestore(user.orgId, { kind: 'group', id: groupId });
     touchBoardVersion(user.orgId, boardId);
 
     void logAudit({

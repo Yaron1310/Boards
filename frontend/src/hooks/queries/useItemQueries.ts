@@ -42,12 +42,13 @@ export const useGroupItems = (
   cursor: string | undefined,
   limit: number,
   enabled = true,
+  includeArchived = false,
 ) => {
   const qc = useQueryClient();
   return useQuery({
-    queryKey: queryKeys.items.group(groupId, cursor, limit),
+    queryKey: queryKeys.items.group(groupId, cursor, limit, includeArchived),
     queryFn: async () => {
-      const result = await wm.listItems({ groupId, cursor, limit });
+      const result = await wm.listItems({ groupId, cursor, limit, includeArchived });
       result.data.forEach((item) => {
         qc.setQueryData(queryKeys.items.one(item.id), item);
       });

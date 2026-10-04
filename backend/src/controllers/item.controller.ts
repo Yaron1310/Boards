@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, storage, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { itemsCollection, columnsCollection, groupsCollection, boardMembersCollection, notificationsCollection, usersCollection } from '../db/collections.js';
+import { itemsCollection, columnsCollection, boardMembersCollection, notificationsCollection, usersCollection } from '../db/collections.js';
 import { JwtUserPayload, DBItem, DBColumn, DBUser, DBBoardMember, ColumnType, NotificationType } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -15,6 +15,7 @@ import { validateColumnValue } from '../utils/columnValidator.js';
 import { ALLOWED_ATTACHMENT_MIME_TYPES, buildContentDisposition } from '../utils/allowedFileTypes.js';
 import { parsePaginationParams, applyPagination, buildPaginatedResult } from '../utils/pagination.js';
 import { touchBoardVersion } from '../services/boardVersion.service.js';
+import { cascadeArchive, cascadeRestore, clearArchivedVia } from '../services/archiveCascade.service.js';
 import { sendItemAssignmentEmail } from '../services/email.service.js';
 import { getActorName, getBoardName, getOrganizationName } from '../utils/notificationHelpers.js';
 
@@ -623,37 +624,6 @@ export const updateItem = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
-// Subitem archive cascade
-// ---------------------------------------------------------------------------
-/** Archives (or restores) the subitems under a parent item along with it. Archiving tags each
- *  newly archived subitem with `archivedWithParent`; restoring brings back only those, so a
- *  subitem archived on its own beforehand stays archived. */
-async function cascadeSubitemArchive(orgId: string, boardId: string, parentItemId: string, archive: boolean): Promise<void> {
-  const groupSnap = await groupsCollection(orgId, boardId).where('parentItemId', '==', parentItemId).get();
-  if (groupSnap.empty) return;
-
-  const refs: FirebaseFirestore.DocumentReference[] = [];
-  for (const groupDoc of groupSnap.docs) {
-    const itemSnap = await itemsCollection(orgId).where('groupId', '==', groupDoc.id).get();
-    for (const doc of itemSnap.docs) {
-      const sub = doc.data() as DBItem;
-      if (sub.boardId !== boardId) continue;
-      if (archive ? sub.isArchived !== true : sub.archivedWithParent === true) refs.push(doc.ref);
-    }
-  }
-
-  const update = archive
-    ? { isArchived: true, archivedWithParent: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }
-    : { isArchived: false, archivedWithParent: admin.firestore.FieldValue.delete(), updatedAt: admin.firestore.FieldValue.serverTimestamp() };
-  // Firestore batches cap at 500 writes.
-  for (let i = 0; i < refs.length; i += 500) {
-    const batch = db.batch();
-    for (const ref of refs.slice(i, i + 500)) batch.update(ref, update);
-    await batch.commit();
-  }
-}
-
-// ---------------------------------------------------------------------------
 // PATCH /items/:id/archive
 // ---------------------------------------------------------------------------
 export const archiveItem = async (req: Request, res: Response) => {
@@ -671,9 +641,10 @@ export const archiveItem = async (req: Request, res: Response) => {
 
     await itemsCollection(user.orgId).doc(id).update({
       isArchived: true,
+      ...clearArchivedVia(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    await cascadeSubitemArchive(user.orgId, item.boardId, id, true);
+    await cascadeArchive(user.orgId, item.boardId, { kind: 'item', id });
     touchBoardVersion(user.orgId, item.boardId);
 
     void logAudit({
@@ -714,10 +685,10 @@ export const restoreItem = async (req: Request, res: Response) => {
 
     await itemsCollection(user.orgId).doc(id).update({
       isArchived: false,
-      archivedWithParent: admin.firestore.FieldValue.delete(),
+      ...clearArchivedVia(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    await cascadeSubitemArchive(user.orgId, item.boardId, id, false);
+    await cascadeRestore(user.orgId, { kind: 'item', id });
     touchBoardVersion(user.orgId, item.boardId);
 
     void logAudit({

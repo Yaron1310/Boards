@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   FiChevronDown, FiChevronRight, FiMoreHorizontal, FiPlus,
   FiEdit2, FiTrash2, FiLoader, FiMenu, FiArchive, FiLink,
@@ -43,6 +43,8 @@ interface GroupSectionProps {
   onOpenDetail: (item: Item) => void;
   pageSize: number;
   onPageItemsChange: (groupId: string, items: Item[]) => void;
+  /** Viewing an archived board: still show the items its archive cascaded to. */
+  boardArchived?: boolean;
 }
 
 const GroupSection: React.FC<GroupSectionProps> = ({
@@ -56,6 +58,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   onOpenDetail,
   pageSize,
   onPageItemsChange,
+  boardArchived = false,
 }) => {
   const { user } = useAuthSession();
   const { data: columns = [] } = useColumns(boardId);
@@ -128,6 +131,11 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     cursor,
     effectivePageSize,
     !isCollapsed,
+    boardArchived,
+  );
+  const pageItems = useMemo(
+    () => groupItemsPage?.data?.filter((i) => !i.isArchived || i.archivedVia === `board:${boardId}`),
+    [groupItemsPage?.data, boardId],
   );
 
   const total = groupItemsPage?.total ?? 0;
@@ -156,10 +164,10 @@ const GroupSection: React.FC<GroupSectionProps> = ({
   // Notify parent of the raw (unfiltered) server items so DnD and export work
   const stableOnPageItemsChange = useCallback(onPageItemsChange, [onPageItemsChange]);
   useEffect(() => {
-    if (groupItemsPage?.data) {
-      stableOnPageItemsChange(group.id, groupItemsPage.data);
+    if (pageItems) {
+      stableOnPageItemsChange(group.id, pageItems);
     }
-  }, [groupItemsPage?.data, group.id, stableOnPageItemsChange]);
+  }, [pageItems, group.id, stableOnPageItemsChange]);
 
   // After creating an item jump to the last page so the new item is visible
   useEffect(() => {

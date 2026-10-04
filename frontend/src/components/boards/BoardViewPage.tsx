@@ -393,6 +393,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                         workspaceId={board.workspaceId}
                         canManage={canManageStructure && !board.isArchived}
                         canManageItems={canManageItems && !board.isArchived}
+                        boardArchived={!!board.isArchived}
                         items={displayItemsByGroup[group.id] ?? []}
                         itemsAbove={localGroups.slice(0, groupIdx).flatMap((g) => displayItemsByGroup[g.id] ?? [])}
                         onOpenDetail={setDetailItem}

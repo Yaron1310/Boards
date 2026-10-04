@@ -16,7 +16,9 @@ const BoardArchiveModal: React.FC<BoardArchiveModalProps> = ({ boardId, onClose 
   const { data: archivedItems = [], isLoading: itemsLoading, isError: itemsErrored, refetch: refetchItems } = useItems(
     { boardId, includeArchived: true, limit: 500 },
     !!boardId,
-    (page) => page.data.filter((i) => i.isArchived),
+    // Items archived along with a group/parent come back when that is restored, so only
+    // items archived on their own are listed individually.
+    (page) => page.data.filter((i) => i.isArchived && !i.archivedVia),
   );
 
   // Build group name lookup from both active and archived groups

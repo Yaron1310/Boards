@@ -57,6 +57,8 @@ export const useArchiveBoard = () => {
     mutationFn: (id: string) => wm.archiveBoard(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['boards'] });
+      // The board's items are archived along with it.
+      void qc.invalidateQueries({ queryKey: ['items'] });
     },
   });
 };
@@ -68,6 +70,7 @@ export const useRestoreBoard = () => {
     onSuccess: (restored) => {
       qc.setQueryData(queryKeys.boards.one(restored.id), restored);
       void qc.invalidateQueries({ queryKey: ['boards'] });
+      void qc.invalidateQueries({ queryKey: ['items'] });
     },
   });
 };
