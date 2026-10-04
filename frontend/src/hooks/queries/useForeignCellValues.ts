@@ -11,8 +11,9 @@ import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPerson
 import { aggregateSummary, BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, serializeRef, type CellRef } from '@/utils/formulaEngine';
 import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
 import { formulaLog, formulaRefLog, sameColumnTrace } from '@/utils/formulaDebug';
+import { subitemsOnlyHoursLogColumnIds, sumHoursLogMinutes } from '@/utils/hoursLog';
 import { ColumnType } from '@/types';
-import type { Column, Group, Item, PaginatedResponse, PersonalColumn } from '@/types';
+import type { Column, Group, HoursLogEntry, Item, PaginatedResponse, PersonalColumn } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
 
@@ -629,6 +630,104 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personalOwnersKey, personalQueries]);
 
+  // A named reference to a "Subitems only" hours cell must total what that cell shows: the
+  // item's own hours plus those of its subitems assigned to the hub's owner. Finding those
+  // subitems means loading the owner's assigned items (the same list the Hub loads), each one's
+  // group (to learn which item hosts it), and then the subitems' personal values.
+  const hoursOwners = useMemo(() => {
+    const owners = new Set<string>();
+    for (const r of allRefs) {
+      if (r.kind !== 'p' || r.agg) continue;
+      const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+      const ids = subitemsOnlyHoursLogColumnIds(personalColumnsByOwner.get(owner) ?? []);
+      if (ids.includes(r.columnId)) owners.add(owner);
+    }
+    return Array.from(owners).sort();
+  }, [allRefs, viewerId, personalColumnsByOwner]);
+  const hoursOwnersKey = hoursOwners.join(',');
+
+  const hoursItemsQueries = useQueries({
+    queries: hoursOwners.map((owner) => {
+      const assignee = ownerParam(owner) ?? viewerId;
+      return {
+        queryKey: queryKeys.items.list({ assignee, limit: FOREIGN_ITEMS_LIMIT }),
+        queryFn: () => wm.listItems({ assignee, limit: FOREIGN_ITEMS_LIMIT }),
+        enabled: !!assignee,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+  const hoursItemsByOwner = useMemo(() => {
+    const m = new Map<string, Item[]>();
+    hoursOwners.forEach((owner, i) => {
+      m.set(owner, (hoursItemsQueries[i]?.data as PaginatedResponse<Item> | undefined)?.data ?? []);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoursOwnersKey, hoursItemsQueries]);
+
+  const hoursGroupRefs = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ boardId: string; groupId: string }> = [];
+    hoursItemsByOwner.forEach((items) => items.forEach((it) => {
+      const key = `${it.boardId}:${it.groupId}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ boardId: it.boardId, groupId: it.groupId });
+    }));
+    return out;
+  }, [hoursItemsByOwner]);
+  const hoursGroupQueries = useQueries({
+    queries: hoursGroupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  /** Per hub: hosting item id → the ids of its subitems assigned to that hub's owner. */
+  const hoursSubitemsByOwner = useMemo(() => {
+    const parentByGroup = new Map<string, string>();
+    hoursGroupRefs.forEach(({ boardId, groupId }, i) => {
+      const parentId = (hoursGroupQueries[i]?.data as Group | undefined)?.parentItemId;
+      if (parentId) parentByGroup.set(`${boardId}:${groupId}`, parentId);
+    });
+    const m = new Map<string, Map<string, string[]>>();
+    hoursItemsByOwner.forEach((items, owner) => {
+      const byParent = new Map<string, string[]>();
+      for (const it of items) {
+        const parentId = parentByGroup.get(`${it.boardId}:${it.groupId}`);
+        if (!parentId || it.isArchived) continue;
+        byParent.set(parentId, [...(byParent.get(parentId) ?? []), it.id]);
+      }
+      m.set(owner, byParent);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoursItemsByOwner, hoursGroupRefs.length, hoursGroupQueries]);
+
+  const hoursSubitemValueQueries = useQueries({
+    queries: hoursOwners.map((owner) => {
+      const ids = Array.from(new Set(Array.from(hoursSubitemsByOwner.get(owner)?.values() ?? []).flat())).sort();
+      return {
+        queryKey: queryKeys.personalHub.itemValues(ids, ownerParam(owner)),
+        queryFn: () => getPersonalItemValues(ids, ownerParam(owner)),
+        enabled: ids.length > 0,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+  const hoursSubitemValuesByOwner = useMemo(() => {
+    const m = new Map<string, Record<string, Record<string, unknown>>>();
+    hoursOwners.forEach((owner, i) => {
+      const data = hoursSubitemValueQueries[i]?.data as Record<string, Record<string, unknown>> | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoursOwnersKey, hoursSubitemValueQueries]);
+
   const isLoading =
     boardQueries.some((q) => q.isLoading) ||
     columnQueries.some((q) => q.isLoading) ||
@@ -638,7 +737,10 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     hubItemsQueries.some((q) => q.isLoading) ||
     hubValuesQueries.some((q) => q.isLoading) ||
     personalColumnsQueries.some((q) => q.isLoading) ||
-    personalQueries.some((q) => q.isLoading);
+    personalQueries.some((q) => q.isLoading) ||
+    hoursItemsQueries.some((q) => q.isLoading) ||
+    hoursGroupQueries.some((q) => q.isLoading) ||
+    hoursSubitemValueQueries.some((q) => q.isLoading);
 
   const resolve = useCallback(
     (ref: CellRef, currentItemId?: string | null): number | null | undefined => {
@@ -998,6 +1100,26 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           return undefined;
         }
         const raw = row[r.columnId];
+        // An hours cell's numeric value is its running total in decimal hours, as on the Hub
+        // itself (formulaEngine's local HOURS_LOG handling) — plus, for "Subitems only", the
+        // hours of the item's subitems assigned to the hub's owner, as its cell shows.
+        const personalCol = personalColumnsByOwner.get(owner)?.find((c) => c.id === r.columnId);
+        if (personalCol?.type === ColumnType.HOURS_LOG) {
+          let minutes = sumHoursLogMinutes(Array.isArray(raw) ? (raw as HoursLogEntry[]) : []);
+          if (subitemsOnlyHoursLogColumnIds([personalCol]).length > 0) {
+            const subitemIds = hoursSubitemsByOwner.get(owner)?.get(itemId) ?? [];
+            const subValues = hoursSubitemValuesByOwner.get(owner);
+            if (subitemIds.length > 0 && !subValues) {
+              formulaRefLog(serializeRef(r), 'unresolved', 'the subitems’ hours have not loaded', { itemId });
+              return undefined;
+            }
+            for (const id of subitemIds) {
+              minutes += sumHoursLogMinutes(subValues?.[id]?.[r.columnId] as HoursLogEntry[] | undefined);
+            }
+          }
+          formulaRefLog(serializeRef(r), 'ok', 'hours total read from your hub', { itemId, minutes });
+          return minutes / 60;
+        }
         if (raw == null || raw === '') {
           // The single most useful line for a personal cell that reads 0: `columnsWithAValue`
           // lists the column ids this item DOES hold, so a mismatch against the id being asked
@@ -1019,7 +1141,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       return inner(ref, currentItemId, new Set<string>());
     },
     [boardItemMap, boardItemsList, boardColumnsMap, templateTotalsMap, itemTotalsMap, viewerId,
-     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner, hubGroupsByBoard, subitemGroups],
+     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner, hubGroupsByBoard, subitemGroups,
+     hoursSubitemsByOwner, hoursSubitemValuesByOwner],
   );
 
   return { resolve, isLoading };
