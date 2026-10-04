@@ -44,27 +44,38 @@ const PersonalHubTemplatePage: React.FC = () => {
   /** Applies a local edit to `columns`, then immediately persists the resulting list.
    *  Reverts to the last-saved list if the save fails, so the UI never shows an edit
    *  that didn't actually make it to the server. */
-  const commit = async (next: PersonalHubTemplateColumn[]) => {
+  const commit = async (next: PersonalHubTemplateColumn[]): Promise<PersonalHubTemplateColumn[] | null> => {
     const previous = columns;
     setColumns(next);
     setIsPersisting(true);
     setPersistError('');
     try {
       const { columns: saved } = await apiService.updatePersonalHubTemplate(next);
-      setColumns([...saved].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+      const sorted = [...saved].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      setColumns(sorted);
+      return sorted;
     } catch (err) {
       setColumns(previous);
       setPersistError(err instanceof Error ? err.message : 'Failed to save the change.');
+      return null;
     } finally {
       setIsPersisting(false);
     }
   };
 
-  const handleAdd = (col: { name: string; type: ColumnType; settings: PersonalHubTemplateColumn['settings'] }) => {
-    void commit([
+  const handleAdd = async (col: { name: string; type: ColumnType; settings: PersonalHubTemplateColumn['settings'] }) => {
+    const existingIds = new Set(columns.map((c) => c.id));
+    const saved = await commit([
       ...columns,
       { id: `new_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: col.name, type: col.type, settings: col.settings, order: columns.length },
     ]);
+    // A new Hours Log column opens its settings straight away, so the admin decides on
+    // "Subitems only" up front. The server may assign the real id, so find it as the one
+    // Hours Log column that wasn't there before.
+    if (saved && col.type === ColumnType.HOURS_LOG) {
+      const created = saved.find((c) => c.type === ColumnType.HOURS_LOG && !existingIds.has(c.id));
+      if (created) setSettingsModalCol(created);
+    }
   };
 
   const handleRemove = (id: string) => {
@@ -285,8 +296,10 @@ const PersonalHubTemplatePage: React.FC = () => {
               Subitems only
             </label>
             <p className="text-xs text-gray-500">
-              When a user has subitems assigned to them under an item, this column is shown on
-              those subitems too, and the item's own cell shows the total of its own hours plus theirs.
+              When a user has subitems assigned to them under an item, this column also appears on
+              those subitems. The item's own cell then shows its own hours plus the hours on those
+              subitems, and new hours can only be logged on the subitems. If the user has no subitems
+              assigned under an item, the cell works normally and hours can be logged on the item itself.
             </p>
             <div className="flex justify-end pt-1">
               <button
