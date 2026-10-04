@@ -377,11 +377,8 @@ const SubitemRow: React.FC<{
         )}
       </div>
 
-      {/* Dynamic column cells — width is controlled by ColumnCell internally */}
-      {columns.map((col) => (
-        <ColumnCell key={col.id} item={item} column={col} />
-      ))}
-      {/* Personal Hub only — columns attached here for the viewer, not part of the board */}
+      {/* Personal Hub only — columns attached here for the viewer, not part of the board.
+          They lead, as on the Hub itself: personal columns first, then the board's. */}
       {personalOverlayColumns.map((col) => {
         const colWidth = calculateColumnWidth(col.name, col.type);
         return (
@@ -403,6 +400,10 @@ const SubitemRow: React.FC<{
           </div>
         );
       })}
+      {/* Dynamic column cells — width is controlled by ColumnCell internally */}
+      {columns.map((col) => (
+        <ColumnCell key={col.id} item={item} column={col} />
+      ))}
       {/* Sentinel: prevents CSS last:border-r-0 from hiding the last cell's right border */}
       <div className="w-0 flex-shrink-0" aria-hidden="true" />
     </div>
@@ -652,6 +653,23 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         >
           Subitem
         </div>
+        {/* Personal Hub only — columns attached here for the viewer, not part of the board.
+            They lead, as on the Hub itself: personal columns first, then the board's. */}
+        {personalOverlayColumns.map((col) => {
+          const colWidth = calculateColumnWidth(col.name, col.type);
+          return (
+            <div
+              key={col.id}
+              role="columnheader"
+              style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
+              className={`flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-indigo-600 ${col.fromTemplate ? 'bg-[#fff0de80]' : 'bg-indigo-50/50'}`}
+              title={`${col.name} (personal column${col.fromTemplate ? ', from the org template' : ''})`}
+            >
+              <span className="text-indigo-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
+              <span className="truncate">{col.name}</span>
+            </div>
+          );
+        })}
         {subitemGroup
           ? columns.map((col) => {
               const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
@@ -681,23 +699,6 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                 </div>
               );
             })}
-
-        {/* Personal Hub only — columns attached here for the viewer, not part of the board */}
-        {personalOverlayColumns.map((col) => {
-          const colWidth = calculateColumnWidth(col.name, col.type);
-          return (
-            <div
-              key={col.id}
-              role="columnheader"
-              style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
-              className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] bg-indigo-50/50 text-xs font-semibold text-indigo-600"
-              title={`${col.name} (your personal column)`}
-            >
-              <span className="text-indigo-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
-              <span className="truncate">{col.name}</span>
-            </div>
-          );
-        })}
 
         {pendingColumnPlaceholders.map((col) => {
           const colWidth = calculateColumnWidth(col.name, col.type);

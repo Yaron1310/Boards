@@ -97,6 +97,29 @@ async function seedFromTemplateIfNeeded(orgId: string, userId: string, existing:
   return [...existing, ...seeded];
 }
 
+/**
+ * Org template columns always lead a user's Personal Hub, ahead of the columns the user added
+ * themselves; within each set the user's own arrangement is kept. Rewrites the stored `order`
+ * (not just the response) when it breaks that rule — e.g. template columns seeded after the user
+ * already had columns — so everything that lays columns out by `order` agrees: the Hub, its
+ * subitem rows, and formula column letters.
+ */
+async function enforceTemplateColumnsFirst(orgId: string, columns: DBPersonalColumn[]): Promise<DBPersonalColumn[]> {
+  const sorted = [...columns].sort((a, b) =>
+    (a.fromTemplate ? 0 : 1) - (b.fromTemplate ? 0 : 1) || (a.order ?? 0) - (b.order ?? 0));
+  const changed = sorted.filter((c, i) => c.order !== i);
+  if (changed.length === 0) return sorted;
+
+  const timestamp = admin.firestore.FieldValue.serverTimestamp();
+  const batch = db.batch();
+  const normalized = sorted.map((c, i) => {
+    if (c.order !== i) batch.set(personalColumnsCollection(orgId).doc(c.id), { order: i, updatedAt: timestamp }, { merge: true });
+    return { ...c, order: i };
+  });
+  await batch.commit();
+  return normalized;
+}
+
 // ---------------------------------------------------------------------------
 // GET /personal-hub/columns
 // ---------------------------------------------------------------------------
@@ -114,6 +137,7 @@ export const listPersonalColumns = async (req: Request, res: Response) => {
       .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
     columns = await seedFromTemplateIfNeeded(user.orgId, target.userId, columns);
+    columns = await enforceTemplateColumnsFirst(user.orgId, columns);
 
     res.json(columns);
   } catch (err: unknown) {
