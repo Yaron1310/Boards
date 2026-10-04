@@ -44,38 +44,27 @@ const PersonalHubTemplatePage: React.FC = () => {
   /** Applies a local edit to `columns`, then immediately persists the resulting list.
    *  Reverts to the last-saved list if the save fails, so the UI never shows an edit
    *  that didn't actually make it to the server. */
-  const commit = async (next: PersonalHubTemplateColumn[]): Promise<PersonalHubTemplateColumn[] | null> => {
+  const commit = async (next: PersonalHubTemplateColumn[]) => {
     const previous = columns;
     setColumns(next);
     setIsPersisting(true);
     setPersistError('');
     try {
       const { columns: saved } = await apiService.updatePersonalHubTemplate(next);
-      const sorted = [...saved].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-      setColumns(sorted);
-      return sorted;
+      setColumns([...saved].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
     } catch (err) {
       setColumns(previous);
       setPersistError(err instanceof Error ? err.message : 'Failed to save the change.');
-      return null;
     } finally {
       setIsPersisting(false);
     }
   };
 
-  const handleAdd = async (col: { name: string; type: ColumnType; settings: PersonalHubTemplateColumn['settings'] }) => {
-    const existingIds = new Set(columns.map((c) => c.id));
-    const saved = await commit([
+  const handleAdd = (col: { name: string; type: ColumnType; settings: PersonalHubTemplateColumn['settings'] }) => {
+    void commit([
       ...columns,
       { id: `new_${Date.now()}_${Math.random().toString(36).slice(2)}`, name: col.name, type: col.type, settings: col.settings, order: columns.length },
     ]);
-    // A new Hours Log column opens its settings straight away, so the admin decides on
-    // "Subitems only" up front. The server may assign the real id, so find it as the one
-    // Hours Log column that wasn't there before.
-    if (saved && col.type === ColumnType.HOURS_LOG) {
-      const created = saved.find((c) => c.type === ColumnType.HOURS_LOG && !existingIds.has(c.id));
-      if (created) setSettingsModalCol(created);
-    }
   };
 
   const handleRemove = (id: string) => {
