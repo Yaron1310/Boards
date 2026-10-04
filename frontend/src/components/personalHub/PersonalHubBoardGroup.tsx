@@ -222,9 +222,11 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   // a trailing "Other" bucket rather than disappearing.
   const { displayItems, groupedClusters } = useMemo(() => {
     const existingIds = new Set(topLevelItems.map((i) => i.id));
+    // An archived parent is hidden on its source board (along with its subitems), so it
+    // must not be promoted here either — getItem returns it regardless of archive state.
     const resolvedParents = parentItemResults
       .map((r) => r.data)
-      .filter((p): p is Item => !!p && !existingIds.has(p.id));
+      .filter((p): p is Item => !!p && !p.isArchived && !existingIds.has(p.id));
     const flat = [...topLevelItems, ...resolvedParents];
 
     const byGroupId = new Map<string, { group: Group; items: Item[] }>();
@@ -291,11 +293,24 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardId, displayItemIds.join(','), personalValuesByItem, stillResolving, onRowsResolved]);
 
+  // Assigned subitems whose parent is archived are hidden along with that parent, so they
+  // shouldn't count toward this board's total either.
+  const archivedParentIds = new Set(
+    parentItemResults.map((r) => r.data).filter((p): p is Item => !!p?.isArchived).map((p) => p.id),
+  );
+  const visibleItemCount = items.filter((_item, i) => {
+    const parentId = groupResults[i]?.data?.parentItemId;
+    return !(parentId && archivedParentIds.has(parentId));
+  }).length;
+
   const itemSectionWidth = 298 - 16;
 
   // The source board no longer exists (or is no longer accessible) — its items are
   // orphaned, so there's nothing meaningful to render for this group.
   if (boardError) return null;
+
+  // Everything assigned on this board sits under archived parents — nothing to show.
+  if (!stillResolving && displayItems.length === 0) return null;
 
   if (boardLoading || !board) {
     return (
@@ -316,8 +331,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
     >
       <div className="sticky left-4 w-fit flex items-center gap-2 pb-2 z-[2]">
         <h2 className="text-xl font-bold truncate max-w-[280px] text-indigo-700">{board.name}</h2>
-        <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${items.length} items`}>
-          {items.length}
+        <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${visibleItemCount} items`}>
+          {visibleItemCount}
         </span>
         <button
           type="button"
