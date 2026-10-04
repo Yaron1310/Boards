@@ -2,14 +2,21 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url'; // Import for ESM __dirname
+import { readFileSync } from 'fs';
 
 // ESM-friendly way to get __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// The app version shown in the UI (Profile page). Bump "version" in package.json on each release.
+const { version: appVersion } = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')) as { version: string };
+
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  define: {
+    __APP_VERSION__: JSON.stringify(appVersion),
+  },
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'), // Now __dirname is correctly defined
