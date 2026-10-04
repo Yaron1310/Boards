@@ -1,7 +1,6 @@
 {
   "projects": {
-    "default": "boards-f313e",
-    "gym2": "gymind-p"
+    "default": "boards-f313e"
   },
   "targets": {},
   "etags": {}
