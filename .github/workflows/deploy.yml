@@ -65,7 +65,7 @@ jobs:
             exit 1
           fi
 
-      # A service account key for the gymind-p project, stored as the FIREBASE_SERVICE_ACCOUNT
+      # A service account key for the boards-f313e project, stored as the FIREBASE_SERVICE_ACCOUNT
       # repository secret (the whole JSON file's contents).
       - uses: google-github-actions/auth@v2
         with:
@@ -75,4 +75,4 @@ jobs:
       # the same CLI version as a local `npx firebase`. firebase.json's predeploy hooks build the
       # backend and the frontend (and retain the previous deploy's assets) before uploading.
       - name: Deploy
-        run: ./backend/node_modules/.bin/firebase deploy --project gymind-p --non-interactive
+        run: ./backend/node_modules/.bin/firebase deploy --project boards-f313e --non-interactive
