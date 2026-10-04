@@ -1026,7 +1026,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                 </label>
                 <p className="text-xs text-gray-500">
                   When a user has subitems assigned to them under an item, this column is shown on
-                  those subitems too, and the item's own cell shows only their total.
+                  those subitems too, and the item's own cell shows the total of its own hours plus theirs.
                 </p>
               </div>
             )}

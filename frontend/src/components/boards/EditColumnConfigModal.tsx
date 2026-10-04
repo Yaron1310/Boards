@@ -660,7 +660,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
                 </label>
                 <p className="text-xs text-gray-500">
                   When an item has subitems, this column is auto-added to them and the item's own
-                  cell shows only their total — hours can no longer be logged on the item directly.
+                  cell shows its own hours plus theirs — hours can no longer be logged on the item directly.
                   Saving adds it to every existing subitem group too, not just new ones.
                 </p>
               </div>
