@@ -16,6 +16,7 @@ import { ALLOWED_ATTACHMENT_MIME_TYPES, buildContentDisposition } from '../utils
 import { parsePaginationParams, applyPagination, buildPaginatedResult } from '../utils/pagination.js';
 import { touchBoardVersion } from '../services/boardVersion.service.js';
 import { cascadeArchive, cascadeRestore, clearArchivedVia } from '../services/archiveCascade.service.js';
+import { signalIfSubitemAffectsHoursTotals } from '../services/templateTotalsSignal.service.js';
 import { sendItemAssignmentEmail } from '../services/email.service.js';
 import { getActorName, getBoardName, getOrganizationName } from '../utils/notificationHelpers.js';
 
@@ -592,6 +593,9 @@ export const updateItem = async (req: Request, res: Response) => {
 
     await itemsCollection(user.orgId).doc(id).update(updateData);
     touchBoardVersion(user.orgId, item.boardId);
+    const assigneesChanged = nextAssignees.length !== previousAssignees.length
+      || nextAssignees.some((uid) => !previousAssignees.includes(uid));
+    if (assigneesChanged) void signalIfSubitemAffectsHoursTotals(user.orgId, item);
     const updated = snapshotToData<DBItem>(await itemsCollection(user.orgId).doc(id).get())!;
 
     void logAudit({
@@ -646,6 +650,7 @@ export const archiveItem = async (req: Request, res: Response) => {
     });
     await cascadeArchive(user.orgId, item.boardId, { kind: 'item', id });
     touchBoardVersion(user.orgId, item.boardId);
+    void signalIfSubitemAffectsHoursTotals(user.orgId, item);
 
     void logAudit({
       actorUserId: user.id,
@@ -690,6 +695,7 @@ export const restoreItem = async (req: Request, res: Response) => {
     });
     await cascadeRestore(user.orgId, { kind: 'item', id });
     touchBoardVersion(user.orgId, item.boardId);
+    void signalIfSubitemAffectsHoursTotals(user.orgId, item);
 
     void logAudit({
       actorUserId: user.id,
@@ -729,6 +735,7 @@ export const deleteItem = async (req: Request, res: Response) => {
 
     await itemsCollection(user.orgId).doc(id).delete();
     touchBoardVersion(user.orgId, item.boardId);
+    void signalIfSubitemAffectsHoursTotals(user.orgId, item);
 
     void logAudit({
       actorUserId: user.id,

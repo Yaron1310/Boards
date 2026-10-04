@@ -5,6 +5,7 @@ import { db, snapshotToData, querySnapshotToArray } from '../services/firestore.
 import { personalColumnsCollection, personalItemValuesCollection, organizationSettingsCollection, personalHubTemplateTotalsCollection } from '../db/collections.js';
 import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, DBOrganizationSettings, ColumnType, UserRole } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
+import { signalTemplateItemTotalsChanged } from '../services/templateTotalsSignal.service.js';
 
 const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
 const ADMIN_ROLES = new Set<string>([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]);
@@ -455,6 +456,10 @@ export const updatePersonalItemValue = async (req: Request, res: Response) => {
             });
           }
         }
+
+        // Per-item totals for this column just changed (see templateTotalsSignal.service).
+        // Written last so the full set() above, when it creates the doc, can't wipe it.
+        tx.set(totalRef, { itemsChangedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
       });
 
       const updated = snapshotToData<DBPersonalItemValue>(await valueRef.get());
@@ -472,6 +477,9 @@ export const updatePersonalItemValue = async (req: Request, res: Response) => {
       },
       { merge: true },
     );
+    // Non-Number template columns (Hours Log) have no running total, but their per-item totals
+    // still just changed — let boards showing them know.
+    if (templateColumnId) await signalTemplateItemTotalsChanged(user.orgId, [templateColumnId]);
 
     const updated = snapshotToData<DBPersonalItemValue>(await valueRef.get());
     res.json(updated);

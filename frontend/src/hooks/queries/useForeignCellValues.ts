@@ -17,6 +17,10 @@ import type { Column, Group, HoursLogEntry, Item, PaginatedResponse, PersonalCol
 
 const FOREIGN_ITEMS_LIMIT = 500;
 
+/** Per-item Personal Hub template totals refresh at most this often per column, however many
+ *  changes arrive — each refresh is a backend call that reads every user's value for every row. */
+const ITEM_TOTALS_REFRESH_CAP_MS = 60 * 1000;
+
 /** Stands in for "the viewer's own hub" in the per-owner maps, where `undefined` can't be a key. */
 const SELF_OWNER = 'self';
 
@@ -356,7 +360,9 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         return onSnapshot(
           totalDocRef,
           () => {
-            void qc.invalidateQueries({ queryKey: queryKeys.personalHubTemplateTotals.one(templateColumnId) });
+            // exact: the per-item totals share this key prefix and refresh on their own,
+            // capped, below — this must not refetch them on every change.
+            void qc.invalidateQueries({ queryKey: queryKeys.personalHubTemplateTotals.one(templateColumnId), exact: true });
           },
           () => {},
         );
@@ -379,7 +385,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   }, [orgId, templateColumnIds.join(','), qc]);
 
   // 'item'-scoped template totals: computed on demand per (templateColumnId, itemId), not a
-  // maintained counter, so there's no single doc to live-subscribe to — polled instead. Every
+  // maintained counter. They refresh when the backend signals a change (see the effect below)
+  // rather than by polling, and whenever the board is opened. Every
   // item-scoped template column referenced, paired with the distinct item ids the caller says it
   // might resolve against.
   const itemScopedTemplateColumnIds = useMemo(
@@ -391,6 +398,65 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     [contextItemIds, nestedRowIds],
   );
 
+  // Live refresh for the per-item totals. Clients can't read the private values they're built
+  // from, so the backend stamps `itemsChangedAt` on the column's org-readable totals doc whenever
+  // one of them may have changed. Each stamp refetches — but at most once a minute per column:
+  // the first change after a quiet minute refreshes at once, and any further changes inside that
+  // minute are folded into a single refresh when it ends. Each refresh is a backend call that
+  // reads every user's value for every row, so this cap is what keeps a busy board's cost no
+  // higher than the old once-a-minute polling, and a quiet board's at nothing.
+  useEffect(() => {
+    if (!orgId || itemScopedTemplateColumnIds.length === 0) return;
+    let unsubs: Array<() => void> = [];
+    const lastRefresh = new Map<string, number>();
+    const pending = new Map<string, ReturnType<typeof setTimeout>>();
+
+    const refresh = (templateColumnId: string) => {
+      pending.delete(templateColumnId);
+      lastRefresh.set(templateColumnId, Date.now());
+      const prefix = queryKeys.personalHubTemplateTotals.one(templateColumnId);
+      void qc.invalidateQueries({ queryKey: [...prefix, 'item'] });
+      void qc.invalidateQueries({ queryKey: [...prefix, 'batch'] });
+    };
+    const onChange = (templateColumnId: string) => {
+      if (pending.has(templateColumnId)) return; // already folded into an upcoming refresh
+      const wait = (lastRefresh.get(templateColumnId) ?? 0) + ITEM_TOTALS_REFRESH_CAP_MS - Date.now();
+      if (wait <= 0) refresh(templateColumnId);
+      else pending.set(templateColumnId, setTimeout(() => refresh(templateColumnId), wait));
+    };
+
+    const open = () => {
+      unsubs = itemScopedTemplateColumnIds.map((templateColumnId) => {
+        let first = true;
+        const totalDocRef = doc(firestoreDb, `organizations/${orgId}/personalHubTemplateTotals/${templateColumnId}`);
+        return onSnapshot(
+          totalDocRef,
+          () => {
+            // The first snapshot is just the current state — the queries already fetched it on mount.
+            if (first) { first = false; lastRefresh.set(templateColumnId, Date.now()); return; }
+            onChange(templateColumnId);
+          },
+          () => {},
+        );
+      });
+    };
+    const close = () => {
+      unsubs.forEach((u) => u());
+      unsubs = [];
+    };
+
+    const unsubAuth = onAuthStateChanged(firebaseAuth, (u) => {
+      close();
+      if (u) open();
+    });
+    return () => {
+      unsubAuth();
+      close();
+      pending.forEach((t) => clearTimeout(t));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, itemScopedTemplateColumnIds.join(','), qc]);
+
   // Past the threshold, fetch one column's worth of item totals in a single request instead of
   // fanning out one request per item — e.g. a formula column with many rows all sharing the same
   // default formula. Below it, per-item requests are simpler and cache more precisely, so keep them.
@@ -401,7 +467,6 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       queryKey: queryKeys.personalHubTemplateTotals.batchForItems(templateColumnId, dedupedContextItemIds),
       queryFn: () => getPersonalHubTemplateItemTotalsBatch(templateColumnId, dedupedContextItemIds),
       staleTime: 60 * 1000,
-      refetchInterval: 60 * 1000,
       refetchOnMount: 'always' as const,
       enabled: dedupedContextItemIds.length > 0,
     })),
@@ -424,7 +489,6 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       queryKey: queryKeys.personalHubTemplateTotals.oneForItem(templateColumnId, itemId),
       queryFn: () => getPersonalHubTemplateItemTotal(templateColumnId, itemId),
       staleTime: 60 * 1000,
-      refetchInterval: 60 * 1000,
       // Without this, navigating back to a board within `staleTime` of the last fetch reuses
       // the cached (possibly outdated) total instead of checking the server — refetchOnMount
       // 'always' forces every mount (e.g. returning from another board) to fetch fresh.
