@@ -211,7 +211,7 @@ const PersonalHoursLogCellInner: React.FC<Props> = ({ column, itemId, itemName, 
   const [forcedView, setForcedView] = useState<'picker' | null>(null);
 
   // "Subitems only" — attached here for the viewer, not part of the board. Once this item has
-  // subitems the owner is assigned to, its own cell goes read-only and shows their total instead.
+  // subitems the owner is assigned to, its own cell goes read-only and shows the combined total.
   const isSubitemsOnly = (column.settings as HoursLogColumnSettings).subitemsOnly === true;
   const { data: subitemGroup } = useSubitemGroup(itemBoardId ?? '', itemId, isSubitemsOnly && !!itemBoardId);
   const { data: subitemsPage } = useGroupItems(subitemGroup?.id ?? '', undefined, 500, isSubitemsOnly && !!subitemGroup);
@@ -227,7 +227,10 @@ const PersonalHoursLogCellInner: React.FC<Props> = ({ column, itemId, itemName, 
     0,
   );
 
-  const totalMinutes = hasSubitems ? subitemsTotalMinutes : sumHoursLogMinutes(rawValue);
+  // Additive, matching the board's HoursLogCell: hours logged directly on the item before any
+  // subitem was assigned keep counting alongside the subitems' total — the item itself just
+  // can't gain any more.
+  const totalMinutes = sumHoursLogMinutes(rawValue) + (hasSubitems ? subitemsTotalMinutes : 0);
 
   const commitEntries = (next: HoursLogEntry[], label: string) => {
     pushUndo({ label, undo: () => mutate({ itemId, columnId: column.id, value: rawValue }) });
@@ -261,8 +264,8 @@ const PersonalHoursLogCellInner: React.FC<Props> = ({ column, itemId, itemName, 
         {() => (
           <div
             className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center"
-            title="Total logged hours across this item's subitems assigned to you"
-            aria-label={`${column.name} total across subitems for ${itemName}`}
+            title="Total logged hours on this item and its subitems assigned to you"
+            aria-label={`${column.name} total for ${itemName} and its subitems`}
           >
             {totalMinutes > 0
               ? formatHoursLogDuration(totalMinutes)

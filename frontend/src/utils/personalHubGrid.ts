@@ -13,20 +13,34 @@ const assignedTime = (item: Item): number =>
   item.lastAssignedAt ? new Date(item.lastAssignedAt).getTime() : 0;
 
 /**
- * The Hub's row order, rebuilt from the owner's assigned items alone: newest-assigned first,
- * then grouped by board in the order those boards first appear. That's the same pair of rules
- * the Hub renders by, so row 1 here is row 1 there — which matters because a personal formula
- * may address rows by position.
+ * The rows a Hub actually shows, rebuilt from the owner's assigned items: an assigned subitem
+ * never gets a row of its own — the item hosting it does (see PersonalHubBoardGroup), and an
+ * archived host hides it altogether. Boards come in the order they first appear among the
+ * newest-assigned items; within a board, directly assigned items come first, then promoted hosts.
+ *
+ * `parentIdOf` names a subitem's hosting item (undefined for a top-level item, or when its group
+ * is unknown — the Hub then shows it as a row of its own too). `parentsById` holds the hosts
+ * that were fetched; a host that couldn't be is left out, as on the Hub.
  */
-export function hubRowOrder(items: Item[]): string[] {
-  const sorted = [...items].sort((a, b) => assignedTime(b) - assignedTime(a));
-  const byBoard = new Map<string, string[]>();
+export function hubDisplayRows(
+  assigned: Item[],
+  parentIdOf: (item: Item) => string | undefined,
+  parentsById: ReadonlyMap<string, Item>,
+): Item[] {
+  const sorted = assigned.filter((i) => !i.isArchived).sort((a, b) => assignedTime(b) - assignedTime(a));
+  const byBoard = new Map<string, { top: Item[]; hosts: Item[] }>();
   for (const item of sorted) {
-    const rows = byBoard.get(item.boardId);
-    if (rows) rows.push(item.id);
-    else byBoard.set(item.boardId, [item.id]);
+    const entry = byBoard.get(item.boardId) ?? { top: [], hosts: [] };
+    byBoard.set(item.boardId, entry);
+    const parentId = parentIdOf(item);
+    if (!parentId) { entry.top.push(item); continue; }
+    const host = parentsById.get(parentId);
+    if (host && !host.isArchived && !entry.hosts.some((h) => h.id === host.id)) entry.hosts.push(host);
   }
-  return [...byBoard.values()].flat();
+  return [...byBoard.values()].flatMap(({ top, hosts }) => {
+    const topIds = new Set(top.map((i) => i.id));
+    return [...top, ...hosts.filter((h) => !topIds.has(h.id))];
+  });
 }
 
 /**

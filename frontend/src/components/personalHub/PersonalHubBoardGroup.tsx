@@ -14,6 +14,7 @@ import { DependencyProvider } from '../../contexts/DependencyContext';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
 import { calculateColumnWidth } from '../../utils/columnWidths';
 import { makePersonalFormulaEvaluator } from '../../utils/personalHubGrid';
+import { foldSubitemHoursIntoParents, subitemsOnlyHoursLogColumnIds } from '../../utils/hoursLog';
 import ItemRow from '../boards/ItemRow';
 import GroupSummaryRow, { SummaryCell } from '../boards/GroupSummaryRow';
 import type { SummaryColumn, CellConfig } from '../boards/GroupSummaryRow';
@@ -222,9 +223,11 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   // a trailing "Other" bucket rather than disappearing.
   const { displayItems, groupedClusters } = useMemo(() => {
     const existingIds = new Set(topLevelItems.map((i) => i.id));
+    // An archived parent is hidden on its source board (along with its subitems), so it
+    // must not be promoted here either — getItem returns it regardless of archive state.
     const resolvedParents = parentItemResults
       .map((r) => r.data)
-      .filter((p): p is Item => !!p && !existingIds.has(p.id));
+      .filter((p): p is Item => !!p && !p.isArchived && !existingIds.has(p.id));
     const flat = [...topLevelItems, ...resolvedParents];
 
     const byGroupId = new Map<string, { group: Group; items: Item[] }>();
@@ -259,18 +262,32 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   // cases — the admin needs to see the owner's values; `editable={isOwn}` keeps it read-only.
   const { data: personalValuesByItem = {} } = usePersonalItemValues([...new Set([...itemIds, ...displayItemIds])], ownerUserId);
 
+  // What summaries and formulas read: identical to the stored values, except a "Subitems only"
+  // hours column on a hosting item also carries its assigned subitems' entries, so they total
+  // exactly what that item's cell shows. Cells themselves keep reading the stored values.
+  const subitemsOnlyHoursIds = useMemo(() => subitemsOnlyHoursLogColumnIds(allPersonalColumns), [allPersonalColumns]);
+  const effectiveValuesByItem = useMemo(() => {
+    const parentBySubitem = new Map<string, string>();
+    items.forEach((item, i) => {
+      const parentId = groupResults[i]?.isError ? undefined : groupResults[i]?.data?.parentItemId;
+      if (parentId) parentBySubitem.set(item.id, parentId);
+    });
+    return foldSubitemHoursIntoParents(personalValuesByItem, parentBySubitem, subitemsOnlyHoursIds);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalValuesByItem, subitemsOnlyHoursIds, items, groupResults.map((r) => r.data?.parentItemId ?? '').join(',')]);
+
   // Cross-group columns get a real spreadsheet-style grid — every displayed row across
   // EVERY board group is addressable ({B3} etc.), matching the real board's formula
   // behavior. The page assembles this across all groups; fall back to this group's own
   // rows only if the page hasn't wired it up.
   const localCrossGroupGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: personalValuesByItem, boardId, ownerId: ownerUserId }),
-    [displayItemIds, crossGroupColumns, personalValuesByItem, boardId, ownerUserId],
+    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: effectiveValuesByItem, boardId, ownerId: ownerUserId }),
+    [displayItemIds, crossGroupColumns, effectiveValuesByItem, boardId, ownerUserId],
   );
   const crossGroupGridContext = pageCrossGroupGridContext ?? localCrossGroupGridContext;
   const boardOnlyGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: personalValuesByItem, boardId, ownerId: ownerUserId }),
-    [displayItemIds, boardOnlyColumns, personalValuesByItem, boardId, ownerUserId],
+    () => ({ rowOrder: displayItemIds, columns: boardOnlyColumns, valuesByItem: effectiveValuesByItem, boardId, ownerId: ownerUserId }),
+    [displayItemIds, boardOnlyColumns, effectiveValuesByItem, boardId, ownerUserId],
   );
 
   // For cumulative cross-group summaries: rows from every board group above this one.
@@ -287,15 +304,28 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   const stillResolving = !groupsSettled || !parentItemsSettled || !parentGroupsSettled;
 
   React.useEffect(() => {
-    if (!stillResolving) onRowsResolved?.(boardId, displayItemIds, personalValuesByItem);
+    if (!stillResolving) onRowsResolved?.(boardId, displayItemIds, effectiveValuesByItem);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardId, displayItemIds.join(','), personalValuesByItem, stillResolving, onRowsResolved]);
+  }, [boardId, displayItemIds.join(','), effectiveValuesByItem, stillResolving, onRowsResolved]);
+
+  // Assigned subitems whose parent is archived are hidden along with that parent, so they
+  // shouldn't count toward this board's total either.
+  const archivedParentIds = new Set(
+    parentItemResults.map((r) => r.data).filter((p): p is Item => !!p?.isArchived).map((p) => p.id),
+  );
+  const visibleItemCount = items.filter((_item, i) => {
+    const parentId = groupResults[i]?.data?.parentItemId;
+    return !(parentId && archivedParentIds.has(parentId));
+  }).length;
 
   const itemSectionWidth = 298 - 16;
 
   // The source board no longer exists (or is no longer accessible) — its items are
   // orphaned, so there's nothing meaningful to render for this group.
   if (boardError) return null;
+
+  // Everything assigned on this board sits under archived parents — nothing to show.
+  if (!stillResolving && displayItems.length === 0) return null;
 
   if (boardLoading || !board) {
     return (
@@ -316,8 +346,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
     >
       <div className="sticky left-4 w-fit flex items-center gap-2 pb-2 z-[2]">
         <h2 className="text-xl font-bold truncate max-w-[280px] text-indigo-700">{board.name}</h2>
-        <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${items.length} items`}>
-          {items.length}
+        <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${visibleItemCount} items`}>
+          {visibleItemCount}
         </span>
         <button
           type="button"
@@ -482,7 +512,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       numberCols={[]}
                       widthOverride={PERSONAL_COL_WIDTH}
                       personalOwnerId={ownerUserId}
-                      getValue={(item) => personalValuesByItem[item.id]?.[col.id]}
+                      getValue={(item) => effectiveValuesByItem[item.id]?.[col.id]}
                       evalFormula={col.type === ColumnType.SIMPLE_FORMULA ? makePersonalFormulaEvaluator(col, boardOnlyGridContext) : undefined}
                       onPersist={(c: CellConfig) => { if (isOwn) updatePersonalColumn({ id: col.id, patch: { summaryConfig: c } }); }}
                       cumulative={col.summaryCumulativeByBoard?.[boardId] ?? false}

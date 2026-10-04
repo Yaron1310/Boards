@@ -9,12 +9,17 @@ import * as wm from '@/services/workManagementService';
 import { getPersonalItemValues, listPersonalColumns } from '@/services/personalHubService';
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
 import { aggregateSummary, BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, serializeRef, type CellRef } from '@/utils/formulaEngine';
-import { hubGridColumns, hubRowOrder, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
+import { hubDisplayRows, hubGridColumns, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
 import { formulaLog, formulaRefLog, sameColumnTrace } from '@/utils/formulaDebug';
+import { foldSubitemHoursIntoParents, subitemsOnlyHoursLogColumnIds, sumHoursLogMinutes } from '@/utils/hoursLog';
 import { ColumnType } from '@/types';
-import type { Column, Group, Item, PaginatedResponse, PersonalColumn } from '@/types';
+import type { Column, Group, HoursLogEntry, Item, PaginatedResponse, PersonalColumn } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
+
+/** Per-item Personal Hub template totals refresh at most this often per column, however many
+ *  changes arrive — each refresh is a backend call that reads every user's value for every row. */
+const ITEM_TOTALS_REFRESH_CAP_MS = 60 * 1000;
 
 /** Stands in for "the viewer's own hub" in the per-owner maps, where `undefined` can't be a key. */
 const SELF_OWNER = 'self';
@@ -355,7 +360,9 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         return onSnapshot(
           totalDocRef,
           () => {
-            void qc.invalidateQueries({ queryKey: queryKeys.personalHubTemplateTotals.one(templateColumnId) });
+            // exact: the per-item totals share this key prefix and refresh on their own,
+            // capped, below — this must not refetch them on every change.
+            void qc.invalidateQueries({ queryKey: queryKeys.personalHubTemplateTotals.one(templateColumnId), exact: true });
           },
           () => {},
         );
@@ -378,7 +385,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   }, [orgId, templateColumnIds.join(','), qc]);
 
   // 'item'-scoped template totals: computed on demand per (templateColumnId, itemId), not a
-  // maintained counter, so there's no single doc to live-subscribe to — polled instead. Every
+  // maintained counter. They refresh when the backend signals a change (see the effect below)
+  // rather than by polling, and whenever the board is opened. Every
   // item-scoped template column referenced, paired with the distinct item ids the caller says it
   // might resolve against.
   const itemScopedTemplateColumnIds = useMemo(
@@ -390,6 +398,65 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     [contextItemIds, nestedRowIds],
   );
 
+  // Live refresh for the per-item totals. Clients can't read the private values they're built
+  // from, so the backend stamps `itemsChangedAt` on the column's org-readable totals doc whenever
+  // one of them may have changed. Each stamp refetches — but at most once a minute per column:
+  // the first change after a quiet minute refreshes at once, and any further changes inside that
+  // minute are folded into a single refresh when it ends. Each refresh is a backend call that
+  // reads every user's value for every row, so this cap is what keeps a busy board's cost no
+  // higher than the old once-a-minute polling, and a quiet board's at nothing.
+  useEffect(() => {
+    if (!orgId || itemScopedTemplateColumnIds.length === 0) return;
+    let unsubs: Array<() => void> = [];
+    const lastRefresh = new Map<string, number>();
+    const pending = new Map<string, ReturnType<typeof setTimeout>>();
+
+    const refresh = (templateColumnId: string) => {
+      pending.delete(templateColumnId);
+      lastRefresh.set(templateColumnId, Date.now());
+      const prefix = queryKeys.personalHubTemplateTotals.one(templateColumnId);
+      void qc.invalidateQueries({ queryKey: [...prefix, 'item'] });
+      void qc.invalidateQueries({ queryKey: [...prefix, 'batch'] });
+    };
+    const onChange = (templateColumnId: string) => {
+      if (pending.has(templateColumnId)) return; // already folded into an upcoming refresh
+      const wait = (lastRefresh.get(templateColumnId) ?? 0) + ITEM_TOTALS_REFRESH_CAP_MS - Date.now();
+      if (wait <= 0) refresh(templateColumnId);
+      else pending.set(templateColumnId, setTimeout(() => refresh(templateColumnId), wait));
+    };
+
+    const open = () => {
+      unsubs = itemScopedTemplateColumnIds.map((templateColumnId) => {
+        let first = true;
+        const totalDocRef = doc(firestoreDb, `organizations/${orgId}/personalHubTemplateTotals/${templateColumnId}`);
+        return onSnapshot(
+          totalDocRef,
+          () => {
+            // The first snapshot is just the current state — the queries already fetched it on mount.
+            if (first) { first = false; lastRefresh.set(templateColumnId, Date.now()); return; }
+            onChange(templateColumnId);
+          },
+          () => {},
+        );
+      });
+    };
+    const close = () => {
+      unsubs.forEach((u) => u());
+      unsubs = [];
+    };
+
+    const unsubAuth = onAuthStateChanged(firebaseAuth, (u) => {
+      close();
+      if (u) open();
+    });
+    return () => {
+      unsubAuth();
+      close();
+      pending.forEach((t) => clearTimeout(t));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, itemScopedTemplateColumnIds.join(','), qc]);
+
   // Past the threshold, fetch one column's worth of item totals in a single request instead of
   // fanning out one request per item — e.g. a formula column with many rows all sharing the same
   // default formula. Below it, per-item requests are simpler and cache more precisely, so keep them.
@@ -400,7 +467,6 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       queryKey: queryKeys.personalHubTemplateTotals.batchForItems(templateColumnId, dedupedContextItemIds),
       queryFn: () => getPersonalHubTemplateItemTotalsBatch(templateColumnId, dedupedContextItemIds),
       staleTime: 60 * 1000,
-      refetchInterval: 60 * 1000,
       refetchOnMount: 'always' as const,
       enabled: dedupedContextItemIds.length > 0,
     })),
@@ -423,7 +489,6 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       queryKey: queryKeys.personalHubTemplateTotals.oneForItem(templateColumnId, itemId),
       queryFn: () => getPersonalHubTemplateItemTotal(templateColumnId, itemId),
       staleTime: 60 * 1000,
-      refetchInterval: 60 * 1000,
       // Without this, navigating back to a board within `staleTime` of the last fetch reuses
       // the cached (possibly outdated) total instead of checking the server — refetchOnMount
       // 'always' forces every mount (e.g. returning from another board) to fetch fresh.
@@ -629,6 +694,199 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [personalOwnersKey, personalQueries]);
 
+  // A named reference to a "Subitems only" hours cell must total what that cell shows: the
+  // item's own hours plus those of its subitems assigned to the hub's owner. Finding those
+  // subitems means loading the owner's assigned items (the same list the Hub loads), each one's
+  // group (to learn which item hosts it), and then the subitems' personal values.
+  const hoursOwners = useMemo(() => {
+    const owners = new Set<string>();
+    for (const r of allRefs) {
+      if (r.kind !== 'p' || r.agg) continue;
+      const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+      const ids = subitemsOnlyHoursLogColumnIds(personalColumnsByOwner.get(owner) ?? []);
+      if (ids.includes(r.columnId)) owners.add(owner);
+    }
+    return Array.from(owners).sort();
+  }, [allRefs, viewerId, personalColumnsByOwner]);
+  const hoursOwnersKey = hoursOwners.join(',');
+
+  const hoursItemsQueries = useQueries({
+    queries: hoursOwners.map((owner) => {
+      const assignee = ownerParam(owner) ?? viewerId;
+      return {
+        queryKey: queryKeys.items.list({ assignee, limit: FOREIGN_ITEMS_LIMIT }),
+        queryFn: () => wm.listItems({ assignee, limit: FOREIGN_ITEMS_LIMIT }),
+        enabled: !!assignee,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+  const hoursItemsByOwner = useMemo(() => {
+    const m = new Map<string, Item[]>();
+    hoursOwners.forEach((owner, i) => {
+      m.set(owner, (hoursItemsQueries[i]?.data as PaginatedResponse<Item> | undefined)?.data ?? []);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoursOwnersKey, hoursItemsQueries]);
+
+  // Every assigned item's group, for hubs being summarised as well as hubs with a referenced
+  // hours cell: a group's parentItemId is what tells an assigned subitem from a top-level item.
+  const hoursGroupRefs = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ boardId: string; groupId: string }> = [];
+    for (const map of [hoursItemsByOwner, hubItemsByOwner]) {
+      map.forEach((items) => items.forEach((it) => {
+        const key = `${it.boardId}:${it.groupId}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+        out.push({ boardId: it.boardId, groupId: it.groupId });
+      }));
+    }
+    return out;
+  }, [hoursItemsByOwner, hubItemsByOwner]);
+  const hoursGroupQueries = useQueries({
+    queries: hoursGroupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  /** `boardId:groupId` → the item hosting that (subitem) group. */
+  const parentByGroup = useMemo(() => {
+    const m = new Map<string, string>();
+    hoursGroupRefs.forEach(({ boardId, groupId }, i) => {
+      const parentId = (hoursGroupQueries[i]?.data as Group | undefined)?.parentItemId;
+      if (parentId) m.set(`${boardId}:${groupId}`, parentId);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoursGroupRefs.length, hoursGroupQueries]);
+  const groupsSettled = hoursGroupQueries.every((q) => !q.isLoading);
+
+  /** Per hub: hosting item id → the ids of its subitems assigned to that hub's owner. */
+  const hoursSubitemsByOwner = useMemo(() => {
+    const m = new Map<string, Map<string, string[]>>();
+    hoursItemsByOwner.forEach((items, owner) => {
+      const byParent = new Map<string, string[]>();
+      for (const it of items) {
+        const parentId = parentByGroup.get(`${it.boardId}:${it.groupId}`);
+        if (!parentId || it.isArchived) continue;
+        byParent.set(parentId, [...(byParent.get(parentId) ?? []), it.id]);
+      }
+      m.set(owner, byParent);
+    });
+    return m;
+  }, [hoursItemsByOwner, parentByGroup]);
+
+  const hoursSubitemValueQueries = useQueries({
+    queries: hoursOwners.map((owner) => {
+      const ids = Array.from(new Set(Array.from(hoursSubitemsByOwner.get(owner)?.values() ?? []).flat())).sort();
+      return {
+        queryKey: queryKeys.personalHub.itemValues(ids, ownerParam(owner)),
+        queryFn: () => getPersonalItemValues(ids, ownerParam(owner)),
+        enabled: ids.length > 0,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+  const hoursSubitemValuesByOwner = useMemo(() => {
+    const m = new Map<string, Record<string, Record<string, unknown>>>();
+    hoursOwners.forEach((owner, i) => {
+      const data = hoursSubitemValueQueries[i]?.data as Record<string, Record<string, unknown>> | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoursOwnersKey, hoursSubitemValueQueries]);
+
+  // A summarised hub's hosting items: the rows its assigned subitems are shown under. The host
+  // itself usually isn't assigned to the owner, so neither it nor its personal values came with
+  // the assigned list — fetch both, the same way the Hub does.
+  const hubHostIdsByOwner = useMemo(() => {
+    const m = new Map<string, string[]>();
+    hubItemsByOwner.forEach((items, owner) => {
+      const assignedIds = new Set(items.map((i) => i.id));
+      const hosts = new Set<string>();
+      for (const it of items) {
+        const parentId = parentByGroup.get(`${it.boardId}:${it.groupId}`);
+        if (parentId && !assignedIds.has(parentId)) hosts.add(parentId);
+      }
+      m.set(owner, Array.from(hosts).sort());
+    });
+    return m;
+  }, [hubItemsByOwner, parentByGroup]);
+  const hubHostIds = useMemo(
+    () => Array.from(new Set(Array.from(hubHostIdsByOwner.values()).flat())).sort(),
+    [hubHostIdsByOwner],
+  );
+  const hubHostQueries = useQueries({
+    queries: hubHostIds.map((id) => ({
+      queryKey: queryKeys.items.one(id),
+      queryFn: () => wm.getItem(id),
+      staleTime: 60 * 1000,
+      retry: false,
+    })),
+  });
+  const hubHostsById = useMemo(() => {
+    const m = new Map<string, Item>();
+    hubHostIds.forEach((id, i) => {
+      const item = hubHostQueries[i]?.data as Item | undefined;
+      if (item) m.set(id, item);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hubHostIds.join(','), hubHostQueries]);
+  const hubHostValueQueries = useQueries({
+    queries: summaryOwners.map((owner) => {
+      const ids = hubHostIdsByOwner.get(owner) ?? [];
+      return {
+        queryKey: queryKeys.personalHub.itemValues(ids, ownerParam(owner)),
+        queryFn: () => getPersonalItemValues(ids, ownerParam(owner)),
+        enabled: ids.length > 0,
+        staleTime: 60 * 1000,
+        retry: owner === SELF_OWNER ? undefined : false,
+      };
+    }),
+  });
+
+  /**
+   * Per summarised hub: the rows it shows and the values its summaries read — hosts' values
+   * included, and a "Subitems only" hours column on a host carrying its assigned subitems'
+   * entries, exactly as the Hub page builds them. Absent until everything it depends on settled,
+   * so a summary never totals a partial row set.
+   */
+  const hubDisplayByOwner = useMemo(() => {
+    const m = new Map<string, { rows: Item[]; values: Record<string, Record<string, unknown>> }>();
+    if (!groupsSettled || hubHostQueries.some((q) => q.isLoading)) return m;
+    summaryOwners.forEach((owner, i) => {
+      const assigned = hubItemsByOwner.get(owner) ?? [];
+      const ownValues = hubValuesByOwner.get(owner);
+      const hostIds = hubHostIdsByOwner.get(owner) ?? [];
+      const hostValues = hubHostValueQueries[i]?.data as Record<string, Record<string, unknown>> | undefined;
+      if (!ownValues || (hostIds.length > 0 && !hostValues)) return;
+      const parentIdOf = (it: Item) => parentByGroup.get(`${it.boardId}:${it.groupId}`);
+      const parentsById = new Map(hubHostsById);
+      assigned.forEach((it) => parentsById.set(it.id, it));
+      const parentBySubitem = new Map<string, string>();
+      for (const it of assigned) {
+        const parentId = parentIdOf(it);
+        if (parentId && !it.isArchived) parentBySubitem.set(it.id, parentId);
+      }
+      const values = foldSubitemHoursIntoParents(
+        { ...(hostValues ?? {}), ...ownValues },
+        parentBySubitem,
+        subitemsOnlyHoursLogColumnIds(personalColumnsByOwner.get(owner) ?? []),
+      );
+      m.set(owner, { rows: hubDisplayRows(assigned, parentIdOf, parentsById), values });
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summaryOwnersKey, hubItemsByOwner, hubValuesByOwner, hubHostIdsByOwner, hubHostsById, hubHostQueries, hubHostValueQueries,
+      parentByGroup, groupsSettled, personalColumnsByOwner]);
+
   const isLoading =
     boardQueries.some((q) => q.isLoading) ||
     columnQueries.some((q) => q.isLoading) ||
@@ -638,7 +896,12 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     hubItemsQueries.some((q) => q.isLoading) ||
     hubValuesQueries.some((q) => q.isLoading) ||
     personalColumnsQueries.some((q) => q.isLoading) ||
-    personalQueries.some((q) => q.isLoading);
+    personalQueries.some((q) => q.isLoading) ||
+    hoursItemsQueries.some((q) => q.isLoading) ||
+    hoursGroupQueries.some((q) => q.isLoading) ||
+    hoursSubitemValueQueries.some((q) => q.isLoading) ||
+    hubHostQueries.some((q) => q.isLoading) ||
+    hubHostValueQueries.some((q) => q.isLoading);
 
   const resolve = useCallback(
     (ref: CellRef, currentItemId?: string | null): number | null | undefined => {
@@ -672,14 +935,15 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         if (r.agg && r.kind === 'p') {
           const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
           const personalColumnDefs = personalColumnsByOwner.get(owner);
-          const hubItems = hubItemsByOwner.get(owner) ?? [];
+          const display = hubDisplayByOwner.get(owner);
+          const hubItems = display?.rows ?? [];
           const col = personalColumnDefs?.find((c) => c.id === r.columnId);
-          const hubValues = hubValuesByOwner.get(owner);
+          const hubValues = display?.values;
           if (!col || !hubValues) {
             formulaRefLog(serializeRef(r), 'unresolved',
               !personalColumnDefs ? 'your personal columns have not loaded'
                 : !col ? 'no personal column has this id'
-                : 'your personal values have not loaded',
+                : 'your hub’s rows and values have not loaded',
               {
                 page: typeof location !== 'undefined' ? location.pathname : '(unknown)',
                 hub: owner === SELF_OWNER ? 'your own' : owner,
@@ -690,10 +954,9 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               });
             return undefined;
           }
-          const scoped = (r.groupId === BOARD_TOTAL_GROUP_ID
+          const scoped = r.groupId === BOARD_TOTAL_GROUP_ID
             ? hubItems
-            : hubItems.filter((i) => i.boardId === r.boardId)
-          ).filter((i) => !i.isArchived);
+            : hubItems.filter((i) => i.boardId === r.boardId);
 
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
             const rows = scoped.map((i) => ({ id: i.id, values: hubValues[i.id] ?? {} }));
@@ -721,7 +984,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           const gridBoardId = col.scope === 'board' ? col.boardId : undefined;
           const gridItems = gridBoardId ? hubItems.filter((i) => i.boardId === gridBoardId) : hubItems;
           const grid = {
-            rowOrder: hubRowOrder(gridItems),
+            rowOrder: gridItems.map((i) => i.id),
             columns: hubGridColumns(personalColumnDefs ?? [], gridBoardId),
             valuesByItem: hubValues,
             boardId: gridBoardId ?? '',
@@ -998,6 +1261,26 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           return undefined;
         }
         const raw = row[r.columnId];
+        // An hours cell's numeric value is its running total in decimal hours, as on the Hub
+        // itself (formulaEngine's local HOURS_LOG handling) — plus, for "Subitems only", the
+        // hours of the item's subitems assigned to the hub's owner, as its cell shows.
+        const personalCol = personalColumnsByOwner.get(owner)?.find((c) => c.id === r.columnId);
+        if (personalCol?.type === ColumnType.HOURS_LOG) {
+          let minutes = sumHoursLogMinutes(Array.isArray(raw) ? (raw as HoursLogEntry[]) : []);
+          if (subitemsOnlyHoursLogColumnIds([personalCol]).length > 0) {
+            const subitemIds = hoursSubitemsByOwner.get(owner)?.get(itemId) ?? [];
+            const subValues = hoursSubitemValuesByOwner.get(owner);
+            if (subitemIds.length > 0 && !subValues) {
+              formulaRefLog(serializeRef(r), 'unresolved', 'the subitems’ hours have not loaded', { itemId });
+              return undefined;
+            }
+            for (const id of subitemIds) {
+              minutes += sumHoursLogMinutes(subValues?.[id]?.[r.columnId] as HoursLogEntry[] | undefined);
+            }
+          }
+          formulaRefLog(serializeRef(r), 'ok', 'hours total read from your hub', { itemId, minutes });
+          return minutes / 60;
+        }
         if (raw == null || raw === '') {
           // The single most useful line for a personal cell that reads 0: `columnsWithAValue`
           // lists the column ids this item DOES hold, so a mismatch against the id being asked
@@ -1019,7 +1302,8 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       return inner(ref, currentItemId, new Set<string>());
     },
     [boardItemMap, boardItemsList, boardColumnsMap, templateTotalsMap, itemTotalsMap, viewerId,
-     personalValuesByOwner, hubItemsByOwner, hubValuesByOwner, personalColumnsByOwner, hubGroupsByBoard, subitemGroups],
+     personalValuesByOwner, hubItemsByOwner, personalColumnsByOwner, hubGroupsByBoard, subitemGroups,
+     hoursSubitemsByOwner, hoursSubitemValuesByOwner, hubDisplayByOwner],
   );
 
   return { resolve, isLoading };

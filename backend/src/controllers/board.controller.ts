@@ -3,6 +3,7 @@ import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { boardsCollection, boardVersionsCollection, groupsCollection, columnsCollection, workspacesCollection, boardMembersCollection, itemsCollection, itemChatMessagesCollection } from '../db/collections.js';
+import { cascadeArchive, cascadeRestore } from '../services/archiveCascade.service.js';
 import { JwtUserPayload, DBBoard, DBBoardMember, UserRole } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
@@ -412,8 +413,10 @@ export const archiveBoard = async (req: Request, res: Response) => {
 
     await boardsCollection(user.orgId).doc(id).update({
       isArchived: true,
+      archivedVia: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    await cascadeArchive(user.orgId, id, { kind: 'board', id });
     void revokeAllWebhooksForBoard(user.orgId, id);
 
     void logAudit({
@@ -452,8 +455,10 @@ export const restoreBoard = async (req: Request, res: Response) => {
 
     await boardsCollection(user.orgId).doc(id).update({
       isArchived: false,
+      archivedVia: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+    await cascadeRestore(user.orgId, { kind: 'board', id });
 
     void logAudit({
       actorUserId: user.id,

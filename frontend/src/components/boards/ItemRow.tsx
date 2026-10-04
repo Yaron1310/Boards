@@ -205,10 +205,10 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
           </div>
         )}
 
-        {/* Subitems expand toggle — in the public view, only show it when subitems actually
-            exist (no way to create the first one there anyway, so an empty hover-reveal
+        {/* Subitems expand toggle — in the public view and the Personal Hub, only show it when
+            subitems actually exist (neither can create the first one, so an empty hover-reveal
             toggle would be a dead end). The real board keeps the hover-to-create affordance. */}
-        {(!isPublicView || subitemGroup) && (
+        {((!isPublicView && !subitemAssigneeFilterId) || subitemGroup) && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setSubitemsOpen((o) => !o); }}
@@ -250,7 +250,9 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
               aria-label={canManage ? `Edit name of ${item.name}` : `Open details for ${item.name}`}
             >
               <span className="text-sm font-medium text-gray-800 truncate">{formatItemName(item.name)}</span>
-              {item.isArchived && (
+              {/* Rows archived with their board are only seen in that archived board's own view,
+                  whose header already says so — no per-row label needed there. */}
+              {item.isArchived && !item.archivedVia && (
                 <span className="ml-2 text-xs text-gray-400 flex-shrink-0">(archived)</span>
               )}
               {canManage && (
@@ -397,6 +399,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         parentItemId={item.id}
         groupColor={groupColor}
         onEmpty={() => setSubitemsOpen(false)}
+        parentArchivedVia={item.archivedVia}
         filterAssigneeId={subitemAssigneeFilterId}
         personalOverlayColumns={personalOverlayColumns}
         personalOwnerId={subitemAssigneeFilterId}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { FiPlus, FiLoader, FiTrash2, FiMessageSquare, FiFileText, FiMoreVertical, FiEdit2, FiSettings, FiRefreshCw } from 'react-icons/fi';
 import AddColumnModal from './AddColumnModal';
 import EditColumnConfigModal from './EditColumnConfigModal';
@@ -36,6 +36,9 @@ interface SubitemGroupProps {
   parentItemId: string;
   groupColor?: string;
   onEmpty?: () => void;
+  /** The parent's `archivedVia` (archived board view): subitems archived by the same cascade
+   *  are shown alongside it. */
+  parentArchivedVia?: string;
   /** Personal Hub only: when set, only render subitems this user is assigned to. */
   filterAssigneeId?: string;
   /** Personal Hub only: HOURS_LOG personal columns marked "Subitems only", overlaid onto
@@ -374,11 +377,8 @@ const SubitemRow: React.FC<{
         )}
       </div>
 
-      {/* Dynamic column cells — width is controlled by ColumnCell internally */}
-      {columns.map((col) => (
-        <ColumnCell key={col.id} item={item} column={col} />
-      ))}
-      {/* Personal Hub only — columns attached here for the viewer, not part of the board */}
+      {/* Personal Hub only — columns attached here for the viewer, not part of the board.
+          They lead, as on the Hub itself: personal columns first, then the board's. */}
       {personalOverlayColumns.map((col) => {
         const colWidth = calculateColumnWidth(col.name, col.type);
         return (
@@ -400,16 +400,24 @@ const SubitemRow: React.FC<{
           </div>
         );
       })}
+      {/* Dynamic column cells — width is controlled by ColumnCell internally */}
+      {columns.map((col) => (
+        <ColumnCell key={col.id} item={item} column={col} />
+      ))}
       {/* Sentinel: prevents CSS last:border-r-0 from hiding the last cell's right border */}
       <div className="w-0 flex-shrink-0" aria-hidden="true" />
     </div>
   );
 };
 
-const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, filterAssigneeId, personalOverlayColumns = [], personalOwnerId, personalEditable, canManageItems, canManageColumns }) => {
+const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, parentItemId, groupColor, onEmpty, parentArchivedVia, filterAssigneeId, personalOverlayColumns = [], personalOwnerId, personalEditable, canManageItems, canManageColumns }) => {
   const { user } = useAuthSession();
   const { columnWidths } = useBoardRender();
   const qc = useQueryClient();
+  // The Personal Hub (the only caller that filters by assignee) views subitems; it doesn't
+  // shape the board — no adding subitems or subitem columns, and no creating or tearing down
+  // the subitem group itself.
+  const isPersonalHub = !!filterAssigneeId;
   const [isInitializing, setIsInitializing] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [newItemName, setNewItemName] = useState('');
@@ -450,9 +458,17 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     undefined,
     200,
     !!subitemGroup,
+    true,
   );
 
-  const realItems = itemsPage?.data ?? [];
+  // Archived subitems are fetched only so the auto-teardown below never mistakes a group
+  // holding nothing but archived subitems for an empty one (and deletes it). They're hidden
+  // from display, except those archived by the same cascade as the parent being viewed.
+  const allItems = useMemo(() => itemsPage?.data ?? [], [itemsPage?.data]);
+  const realItems = useMemo(
+    () => allItems.filter((i) => !i.isArchived || (!!parentArchivedVia && i.archivedVia === parentArchivedVia)),
+    [allItems, parentArchivedVia],
+  );
   // Only affects what's rendered below — group emptiness/creation logic still
   // uses the unfiltered `realItems`, since the underlying subitems group itself
   // isn't scoped to this user.
@@ -515,7 +531,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
   // Auto-initialize on first render if no subitem group exists yet
   useEffect(() => {
-    if (!groupLoading && subitemGroup === null && !isClosingRef.current) {
+    if (!isPersonalHub && !groupLoading && subitemGroup === null && !isClosingRef.current) {
       shouldFocusOnMount.current = true;
       setPendingAutoFocus(true);
       void initialize();
@@ -594,10 +610,10 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   // over from a session before this behavior existed.
   const isTearingDownRef = useRef(false);
   useEffect(() => {
-    if (!subitemGroup || itemsFetching || columnsLoading) return;
+    if (isPersonalHub || !subitemGroup || itemsFetching || columnsLoading) return;
     if (isInitializing || pendingAutoFocus || addingItem) return;
     if (isTearingDownRef.current) return;
-    const total = realItems.length + pendingItems.length;
+    const total = allItems.length + pendingItems.length;
     if (total !== 0) return;
 
     isTearingDownRef.current = true;
@@ -613,7 +629,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [realItems.length, pendingItems.length, subitemGroup, itemsFetching, columnsLoading, isInitializing, pendingAutoFocus, addingItem]);
+  }, [allItems.length, pendingItems.length, subitemGroup, itemsFetching, columnsLoading, isInitializing, pendingAutoFocus, addingItem]);
 
   const pendingColumnPlaceholders: Column[] = pendingColumns.map((c) => ({
     id: c.tempId, boardId, name: c.name, type: c.type, settings: {},
@@ -641,6 +657,23 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         >
           Subitem
         </div>
+        {/* Personal Hub only — columns attached here for the viewer, not part of the board.
+            They lead, as on the Hub itself: personal columns first, then the board's. */}
+        {personalOverlayColumns.map((col) => {
+          const colWidth = calculateColumnWidth(col.name, col.type);
+          return (
+            <div
+              key={col.id}
+              role="columnheader"
+              style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
+              className={`flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] text-xs font-semibold text-indigo-600 ${col.fromTemplate ? 'bg-[#fff0de80]' : 'bg-indigo-50/50'}`}
+              title={`${col.name} (personal column${col.fromTemplate ? ', from the org template' : ''})`}
+            >
+              <span className="text-indigo-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
+              <span className="truncate">{col.name}</span>
+            </div>
+          );
+        })}
         {subitemGroup
           ? columns.map((col) => {
               const colWidth = columnWidths[col.id] ?? col.width ?? calculateColumnWidth(col.name, col.type);
@@ -651,7 +684,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                   boardId={boardId}
                   subitemGroupId={subitemGroup.id}
                   colWidth={colWidth}
-                  canManage={canManageColumns}
+                  canManage={canManageColumns && !isPersonalHub}
                   onSwapCommitted={(replaceColumnId, replaceColumnType) => setSwapAddModal({ replaceColumnId, replaceColumnType })}
                 />
               );
@@ -671,23 +704,6 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
               );
             })}
 
-        {/* Personal Hub only — columns attached here for the viewer, not part of the board */}
-        {personalOverlayColumns.map((col) => {
-          const colWidth = calculateColumnWidth(col.name, col.type);
-          return (
-            <div
-              key={col.id}
-              role="columnheader"
-              style={{ width: `${colWidth}px`, minWidth: `${colWidth}px` }}
-              className="flex flex-shrink-0 items-center justify-center gap-1 px-2 py-1.5 border-r border-[#e5e7eb] bg-indigo-50/50 text-xs font-semibold text-indigo-600"
-              title={`${col.name} (your personal column)`}
-            >
-              <span className="text-indigo-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
-              <span className="truncate">{col.name}</span>
-            </div>
-          );
-        })}
-
         {pendingColumnPlaceholders.map((col) => {
           const colWidth = calculateColumnWidth(col.name, col.type);
           return (
@@ -704,7 +720,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         })}
 
         {/* Add column button */}
-        {canManageColumns && (
+        {canManageColumns && !isPersonalHub && (
         <div className="relative flex-shrink-0">
           <button
             type="button"
@@ -808,7 +824,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       </div>
 
       {/* Add subitem row */}
-      {canManageItems && (
+      {canManageItems && !isPersonalHub && (
       <div className="px-3 py-1.5 rounded-b-lg">
         {addingItem ? (
           <div className="flex items-center gap-2">

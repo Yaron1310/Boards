@@ -445,6 +445,9 @@ export interface Item {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  /** Set when archived by its container's archive cascade: `item:<parentId>`, `group:<id>`
+   *  or `board:<id>`. Restoring that container restores the item. */
+  archivedVia?: string;
   // Indexed top-level fields (mirrored from values for querying/filtering)
   status?: string;
   assignees?: string[];

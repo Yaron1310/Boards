@@ -1025,8 +1025,10 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
                   Subitems only
                 </label>
                 <p className="text-xs text-gray-500">
-                  When a user has subitems assigned to them under an item, this column is shown on
-                  those subitems too, and the item's own cell shows only their total.
+                  When a user has subitems assigned to them under an item, this column also appears on
+                  those subitems. The item's own cell then shows its own hours plus the hours on those
+                  subitems, and new hours can only be logged on the subitems. If the user has no subitems
+                  assigned under an item, the cell works normally and hours can be logged on the item itself.
                 </p>
               </div>
             )}

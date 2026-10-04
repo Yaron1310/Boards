@@ -25,7 +25,7 @@ function initFirestore(): admin.firestore.Firestore {
 
   // In a Google Cloud Function environment, `process.env.GCLOUD_PROJECT` holds the
   // project ID. Since this project's Firestore database is custom-named with the
-  // same ID ('bemind-gym') instead of '(default)', we must explicitly pass this ID
+  // same ID (e.g. 'boards-f313e') instead of '(default)', we must explicitly pass this ID
   // to getFirestore() to establish a connection.
   const dbId = process.env.GCLOUD_PROJECT;
 

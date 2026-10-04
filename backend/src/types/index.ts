@@ -462,6 +462,9 @@ export interface DBBoard {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  /** `workspace:<id>` when archived because its workspace was archived; restoring the
+   *  workspace restores only boards carrying its tag. Absent for boards archived directly. */
+  archivedVia?: string;
   isTemplate?: boolean;
   dependencyRules?: DependencyRule[];
   createdAt: admin.firestore.Timestamp | Date | any;
@@ -503,6 +506,10 @@ export interface DBItem {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  /** Set when this item was archived by its container's archive cascade — `item:<parentId>`,
+   *  `group:<groupId>` or `board:<boardId>` (see archiveCascade.service). Restoring that
+   *  container restores only items carrying its tag. Absent for items archived directly. */
+  archivedVia?: string;
   // Indexed top-level fields (mirrored from values for Firestore querying)
   status?: string;          // mirrors values[statusColumnId]
   assignees?: string[];     // mirrors values[personColumnId] — userIds

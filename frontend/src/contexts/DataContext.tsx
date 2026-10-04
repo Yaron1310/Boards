@@ -274,6 +274,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const confirmArchiveWorkspace = async (id: string): Promise<boolean> => {
     const { deleteWorkspaceFromBackend } = await api();
     const success = await handleApiCall(() => deleteWorkspaceFromBackend(id, true), () => fetchWorkspaces(), 'Failed to archive workspace.');
+    // The workspace's boards and their items are archived along with it.
+    void queryClient.invalidateQueries({ queryKey: ['boards'] });
+    void queryClient.invalidateQueries({ queryKey: ['items'] });
     return success === null;
   };
   const restoreWorkspace = async (id: string) => {
@@ -282,6 +285,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (success) {
       await fetchWorkspaces();
       await fetchArchivedWorkspaces();
+      // Its boards (and their items) are restored along with it.
+      void queryClient.invalidateQueries({ queryKey: ['boards'] });
+      void queryClient.invalidateQueries({ queryKey: ['items'] });
     }
     return !!success;
   };

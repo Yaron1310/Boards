@@ -860,7 +860,13 @@ const ProfilePage: React.FC = () => {
         </div>,
         document.getElementById('modal-root')!
       )}
-      
+
+      <p
+        className="fixed bottom-2 right-3 text-[10px] text-gray-400 pointer-events-none"
+        aria-label={`App version ${__APP_VERSION__}`}
+      >
+        v{__APP_VERSION__}
+      </p>
     </div>
   );
 };

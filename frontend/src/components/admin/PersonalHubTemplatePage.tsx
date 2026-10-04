@@ -141,7 +141,8 @@ const PersonalHubTemplatePage: React.FC = () => {
       {isRecording && (
         <div className="mt-4 flex items-center gap-2 px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-lg text-sm text-indigo-700" role="status">
           <FiHash size={15} aria-hidden="true" />
-          Recording a formula — click a Number column below to insert its running total across every user's Personal Hub.
+          Recording a formula — click a Number column below to insert its running total across every user's Personal Hub,
+          or an Hours Log column to insert each item's total hours across every user's Personal Hub.
         </div>
       )}
 
@@ -161,8 +162,12 @@ const PersonalHubTemplatePage: React.FC = () => {
           ) : (
             <ul role="list" aria-label="Personal Hub template columns" className="divide-y divide-gray-100">
               {columns.map((col, i) => {
-                const canInsert = isRecording && col.type === ColumnType.NUMBER;
-                const handleInsert = () => setFilterModalCol(col);
+                const canInsert = isRecording && (col.type === ColumnType.NUMBER || col.type === ColumnType.HOURS_LOG);
+                // Hours Log has only the per-item total (the org-wide running total is kept for
+                // Number columns alone), so there's no scope to ask about — insert it directly.
+                const handleInsert = () => (col.type === ColumnType.HOURS_LOG
+                  ? insertRef({ kind: 'ph', boardId: '', columnId: col.id, itemId: null, phScope: 'item' })
+                  : setFilterModalCol(col));
                 return (
                   <li
                     key={col.id}
@@ -199,7 +204,9 @@ const PersonalHubTemplatePage: React.FC = () => {
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleInsert(); }}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors"
-                        aria-label={`Insert running total of ${col.name}`}
+                        aria-label={col.type === ColumnType.HOURS_LOG
+                          ? `Insert each item's total hours of ${col.name}`
+                          : `Insert running total of ${col.name}`}
                       >
                         <FiHash size={12} aria-hidden="true" />
                         Insert total
@@ -285,8 +292,10 @@ const PersonalHubTemplatePage: React.FC = () => {
               Subitems only
             </label>
             <p className="text-xs text-gray-500">
-              When a user has subitems assigned to them under an item, this column is shown on
-              those subitems too, and the item's own cell shows only their total.
+              When a user has subitems assigned to them under an item, this column also appears on
+              those subitems. The item's own cell then shows its own hours plus the hours on those
+              subitems, and new hours can only be logged on the subitems. If the user has no subitems
+              assigned under an item, the cell works normally and hours can be logged on the item itself.
             </p>
             <div className="flex justify-end pt-1">
               <button
