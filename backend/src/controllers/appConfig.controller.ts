@@ -4,7 +4,7 @@ import admin from 'firebase-admin';
 import * as logger from 'firebase-functions/logger';
 import crypto from 'crypto';
 
-import { organizationSettingsCollection, personalHubTemplateTotalsCollection, personalColumnsCollection, personalItemValuesCollection } from '../db/collections.js';
+import { organizationSettingsCollection, personalHubTemplateTotalsCollection, personalColumnsCollection, personalItemValuesCollection, itemsCollection, groupsCollection } from '../db/collections.js';
 import { db, snapshotToData, storage } from '../services/firestore.service.js';
 import { JwtUserPayload, DBOrganizationSettings, DBPersonalHubTemplateTotal, ColumnType, PersonalHubTemplateColumn } from '../types/index.js';
 import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../utils/sanitizer.js';
@@ -240,34 +240,129 @@ export const getPersonalHubTemplateTotal = async (req: Request, res: Response) =
 // running total down to "just this item" instead of the whole org. Computed on demand
 // (not a maintained counter, unlike the global total) since it's naturally bounded to
 // however many users have a value against this one item — no unbounded scan risk.
+const ITEM_TOTALS_BATCH_MAX = 500;
+const VALUE_DOC_GET_CHUNK = 300; // Firestore getAll() is called in chunks to stay well under any request-size limit.
+const IN_QUERY_MAX = 30; // Firestore 'in' filters cap at 30 values.
+
+function chunk<T>(arr: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+}
+
+/** A user's template column copy, and how to read one of its stored values as a number. */
+interface UserTemplateColumn {
+    userId: string;
+    columnId: string;
+    isHoursLog: boolean;
+    /** HOURS_LOG "Subitems only": the item's total also counts this user's assigned subitems. */
+    includesSubitems: boolean;
+}
+
+/** A NUMBER value as-is; an HOURS_LOG value (a list of entries) as its total in decimal
+ *  hours — the same unit formulas use for an hours cell (16:15 -> 16.25). */
+function valueAsNumber(raw: unknown, isHoursLog: boolean): number {
+    if (isHoursLog) {
+        if (!Array.isArray(raw)) return 0;
+        const minutes = raw.reduce((sum: number, e) => {
+            const m = (e as { minutes?: unknown } | null)?.minutes;
+            return sum + (typeof m === 'number' && !isNaN(m) ? m : 0);
+        }, 0);
+        return minutes / 60;
+    }
+    const n = Number(raw);
+    return raw != null && raw !== '' && !isNaN(n) ? n : 0;
+}
+
+/** For each item: its non-archived subitems and who they're assigned to. */
+async function findSubitems(orgId: string, itemIds: string[]): Promise<Map<string, Array<{ id: string; assignees: string[] }>>> {
+    const byParent = new Map<string, Array<{ id: string; assignees: string[] }>>();
+    const itemDocs: FirebaseFirestore.DocumentSnapshot[] = [];
+    for (const ids of chunk(itemIds, VALUE_DOC_GET_CHUNK)) {
+        itemDocs.push(...await db.getAll(...ids.map((id) => itemsCollection(orgId).doc(id))));
+    }
+    const parentIdsByBoard = new Map<string, string[]>();
+    for (const doc of itemDocs) {
+        const boardId = doc.exists ? (doc.data() as { boardId?: string }).boardId : undefined;
+        if (boardId) parentIdsByBoard.set(boardId, [...(parentIdsByBoard.get(boardId) ?? []), doc.id]);
+    }
+
+    const parentByGroup = new Map<string, string>();
+    for (const [boardId, parentIds] of parentIdsByBoard) {
+        for (const ids of chunk(parentIds, IN_QUERY_MAX)) {
+            const snap = await groupsCollection(orgId, boardId).where('parentItemId', 'in', ids).get();
+            snap.docs.forEach((g) => parentByGroup.set(g.id, (g.data() as { parentItemId: string }).parentItemId));
+        }
+    }
+    for (const groupIds of chunk([...parentByGroup.keys()], IN_QUERY_MAX)) {
+        const snap = await itemsCollection(orgId).where('groupId', 'in', groupIds).get();
+        for (const doc of snap.docs) {
+            const sub = doc.data() as { groupId: string; isArchived?: boolean; assignees?: string[] };
+            if (sub.isArchived) continue;
+            const parentId = parentByGroup.get(sub.groupId);
+            if (!parentId) continue;
+            byParent.set(parentId, [...(byParent.get(parentId) ?? []), { id: doc.id, assignees: sub.assignees ?? [] }]);
+        }
+    }
+    return byParent;
+}
+
+/**
+ * Per item, the template column's values summed across every user's Personal Hub. For an Hours
+ * Log column marked "Subitems only", each user's figure is what their own hub cell shows: their
+ * hours on the item plus their hours on its subitems assigned to them.
+ */
+async function computeTemplateItemTotals(orgId: string, templateColumnId: string, itemIds: string[]): Promise<Record<string, number>> {
+    const totals: Record<string, number> = Object.fromEntries(itemIds.map((id) => [id, 0]));
+    if (itemIds.length === 0) return totals;
+
+    const columnsSnap = await personalColumnsCollection(orgId).where('templateColumnId', '==', templateColumnId).get();
+    if (columnsSnap.empty) return totals;
+    const userColumns: UserTemplateColumn[] = columnsSnap.docs.map((d) => {
+        const data = d.data() as { userId: string; type?: ColumnType; settings?: { subitemsOnly?: boolean } };
+        const isHoursLog = data.type === ColumnType.HOURS_LOG;
+        return { userId: data.userId, columnId: d.id, isHoursLog, includesSubitems: isHoursLog && data.settings?.subitemsOnly === true };
+    });
+
+    const subitemsByParent = userColumns.some((c) => c.includesSubitems)
+        ? await findSubitems(orgId, itemIds)
+        : new Map<string, Array<{ id: string; assignees: string[] }>>();
+
+    // Every (user, item-or-subitem) value doc to read, and which item's total it adds to.
+    const refs: FirebaseFirestore.DocumentReference[] = [];
+    const refMeta: Array<{ totalFor: string; col: UserTemplateColumn }> = [];
+    for (const itemId of itemIds) {
+        for (const col of userColumns) {
+            refs.push(personalItemValuesCollection(orgId).doc(`${col.userId}_${itemId}`));
+            refMeta.push({ totalFor: itemId, col });
+            if (!col.includesSubitems) continue;
+            for (const sub of subitemsByParent.get(itemId) ?? []) {
+                if (!sub.assignees.includes(col.userId)) continue;
+                refs.push(personalItemValuesCollection(orgId).doc(`${col.userId}_${sub.id}`));
+                refMeta.push({ totalFor: itemId, col });
+            }
+        }
+    }
+
+    for (let i = 0; i < refs.length; i += VALUE_DOC_GET_CHUNK) {
+        const chunkMeta = refMeta.slice(i, i + VALUE_DOC_GET_CHUNK);
+        const docs = await db.getAll(...refs.slice(i, i + VALUE_DOC_GET_CHUNK));
+        docs.forEach((doc, idx) => {
+            if (!doc.exists) return;
+            const { totalFor, col } = chunkMeta[idx];
+            const raw = (doc.data()?.values as Record<string, unknown> | undefined)?.[col.columnId];
+            totals[totalFor] += valueAsNumber(raw, col.isHoursLog);
+        });
+    }
+    return totals;
+}
+
 export const getPersonalHubTemplateItemTotal = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     const { templateColumnId, itemId } = req.params;
     try {
-        const columnsSnap = await personalColumnsCollection(user.orgId)
-            .where('templateColumnId', '==', templateColumnId)
-            .get();
-        if (columnsSnap.empty) return res.json({ total: 0 });
-
-        const columnIdByDocId = new Map<string, string>();
-        const refs = columnsSnap.docs.map((d) => {
-            const userId = (d.data() as { userId: string }).userId;
-            const valueDocId = `${userId}_${itemId}`;
-            columnIdByDocId.set(valueDocId, d.id);
-            return personalItemValuesCollection(user.orgId).doc(valueDocId);
-        });
-
-        const valueDocs = await personalItemValuesCollection(user.orgId).firestore.getAll(...refs);
-        let total = 0;
-        valueDocs.forEach((doc) => {
-            if (!doc.exists) return;
-            const columnId = columnIdByDocId.get(doc.id);
-            if (!columnId) return;
-            const raw = (doc.data()?.values as Record<string, unknown> | undefined)?.[columnId];
-            const n = Number(raw);
-            if (raw != null && raw !== '' && !isNaN(n)) total += n;
-        });
-        res.json({ total });
+        const totals = await computeTemplateItemTotals(user.orgId, templateColumnId, [itemId]);
+        res.json({ total: totals[itemId] ?? 0 });
     } catch (error) {
         logger.error('Error fetching personal hub template item total:', error);
         res.status(500).json({ message: 'Failed to fetch personal hub template item total.' });
@@ -276,9 +371,6 @@ export const getPersonalHubTemplateItemTotal = async (req: Request, res: Respons
 
 // Batched form of the per-item total above: one request for many items instead of one request
 // per item, for a formula column with enough rows that per-item requests would otherwise fan out.
-const ITEM_TOTALS_BATCH_MAX = 500;
-const VALUE_DOC_GET_CHUNK = 300; // Firestore getAll() is called in chunks to stay well under any request-size limit.
-
 export const getPersonalHubTemplateItemTotalsBatch = async (req: Request, res: Response) => {
     const user = req.user as JwtUserPayload;
     const { templateColumnId } = req.params;
@@ -291,38 +383,7 @@ export const getPersonalHubTemplateItemTotalsBatch = async (req: Request, res: R
     if (ids.length === 0) return res.json({ totals: {} });
 
     try {
-        const totals: Record<string, number> = Object.fromEntries(ids.map((id) => [id, 0]));
-
-        const columnsSnap = await personalColumnsCollection(user.orgId)
-            .where('templateColumnId', '==', templateColumnId)
-            .get();
-        if (columnsSnap.empty) return res.json({ totals });
-
-        const userColumnPairs = columnsSnap.docs.map((d) => ({ userId: (d.data() as { userId: string }).userId, columnId: d.id }));
-
-        const refs: FirebaseFirestore.DocumentReference[] = [];
-        const refMeta: Array<{ itemId: string; columnId: string }> = [];
-        for (const itemId of ids) {
-            for (const { userId, columnId } of userColumnPairs) {
-                refs.push(personalItemValuesCollection(user.orgId).doc(`${userId}_${itemId}`));
-                refMeta.push({ itemId, columnId });
-            }
-        }
-
-        for (let i = 0; i < refs.length; i += VALUE_DOC_GET_CHUNK) {
-            const chunkRefs = refs.slice(i, i + VALUE_DOC_GET_CHUNK);
-            const chunkMeta = refMeta.slice(i, i + VALUE_DOC_GET_CHUNK);
-            const docs = await personalItemValuesCollection(user.orgId).firestore.getAll(...chunkRefs);
-            docs.forEach((doc, idx) => {
-                if (!doc.exists) return;
-                const { itemId, columnId } = chunkMeta[idx];
-                const raw = (doc.data()?.values as Record<string, unknown> | undefined)?.[columnId];
-                const n = Number(raw);
-                if (raw != null && raw !== '' && !isNaN(n)) totals[itemId] += n;
-            });
-        }
-
-        res.json({ totals });
+        res.json({ totals: await computeTemplateItemTotals(user.orgId, templateColumnId, ids) });
     } catch (error) {
         logger.error('Error fetching personal hub template item totals batch:', error);
         res.status(500).json({ message: 'Failed to fetch personal hub template item totals.' });
