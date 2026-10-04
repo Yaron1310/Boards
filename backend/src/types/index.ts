@@ -503,6 +503,9 @@ export interface DBItem {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  /** Set when this subitem was archived because its parent item was archived; restoring
+   *  the parent restores only these, leaving subitems archived on their own untouched. */
+  archivedWithParent?: boolean;
   // Indexed top-level fields (mirrored from values for Firestore querying)
   status?: string;          // mirrors values[statusColumnId]
   assignees?: string[];     // mirrors values[personColumnId] — userIds
