@@ -414,6 +414,10 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const { user } = useAuthSession();
   const { columnWidths } = useBoardRender();
   const qc = useQueryClient();
+  // The Personal Hub (the only caller that filters by assignee) views subitems; it doesn't
+  // shape the board — no adding subitems or subitem columns, and no creating or tearing down
+  // the subitem group itself.
+  const isPersonalHub = !!filterAssigneeId;
   const [isInitializing, setIsInitializing] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [newItemName, setNewItemName] = useState('');
@@ -527,7 +531,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
 
   // Auto-initialize on first render if no subitem group exists yet
   useEffect(() => {
-    if (!groupLoading && subitemGroup === null && !isClosingRef.current) {
+    if (!isPersonalHub && !groupLoading && subitemGroup === null && !isClosingRef.current) {
       shouldFocusOnMount.current = true;
       setPendingAutoFocus(true);
       void initialize();
@@ -606,7 +610,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   // over from a session before this behavior existed.
   const isTearingDownRef = useRef(false);
   useEffect(() => {
-    if (!subitemGroup || itemsFetching || columnsLoading) return;
+    if (isPersonalHub || !subitemGroup || itemsFetching || columnsLoading) return;
     if (isInitializing || pendingAutoFocus || addingItem) return;
     if (isTearingDownRef.current) return;
     const total = allItems.length + pendingItems.length;
@@ -680,7 +684,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                   boardId={boardId}
                   subitemGroupId={subitemGroup.id}
                   colWidth={colWidth}
-                  canManage={canManageColumns}
+                  canManage={canManageColumns && !isPersonalHub}
                   onSwapCommitted={(replaceColumnId, replaceColumnType) => setSwapAddModal({ replaceColumnId, replaceColumnType })}
                 />
               );
@@ -716,7 +720,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
         })}
 
         {/* Add column button */}
-        {canManageColumns && (
+        {canManageColumns && !isPersonalHub && (
         <div className="relative flex-shrink-0">
           <button
             type="button"
@@ -820,7 +824,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       </div>
 
       {/* Add subitem row */}
-      {canManageItems && (
+      {canManageItems && !isPersonalHub && (
       <div className="px-3 py-1.5 rounded-b-lg">
         {addingItem ? (
           <div className="flex items-center gap-2">

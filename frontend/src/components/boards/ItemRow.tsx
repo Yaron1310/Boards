@@ -205,10 +205,10 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
           </div>
         )}
 
-        {/* Subitems expand toggle — in the public view, only show it when subitems actually
-            exist (no way to create the first one there anyway, so an empty hover-reveal
+        {/* Subitems expand toggle — in the public view and the Personal Hub, only show it when
+            subitems actually exist (neither can create the first one, so an empty hover-reveal
             toggle would be a dead end). The real board keeps the hover-to-create affordance. */}
-        {(!isPublicView || subitemGroup) && (
+        {((!isPublicView && !subitemAssigneeFilterId) || subitemGroup) && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setSubitemsOpen((o) => !o); }}
