@@ -12,7 +12,7 @@ import {
 import { JwtUserPayload, DBWorkspace, DBUser, UserRole, DBMembership, JwtVerificationPayload, DBOrganization } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { sendAccountVerificationEmail } from '../services/email.service.js';
-import { cascadeArchive } from '../services/archiveCascade.service.js';
+import { cascadeArchive, cascadeRestore } from '../services/archiveCascade.service.js';
 import { env } from '../config/env.js';
 import jwt from 'jsonwebtoken';
 
@@ -158,11 +158,18 @@ export const deleteWorkspace = async (req: Request, res: Response) => {
         const boardsSnap = await boardsCollection(orgId).where('workspaceId', '==', id).get();
         const batch = db.batch();
         batch.update(docRef, { status: 'archived', updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-        boardsSnap.forEach(b => batch.update(b.ref, { isArchived: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }));
+        // Boards already archived on their own are left as they are (and stay archived on restore);
+        // the rest are tagged with this workspace so restoring it brings exactly those back.
+        const activeBoards = boardsSnap.docs.filter(b => b.data().isArchived !== true);
+        activeBoards.forEach(b => batch.update(b.ref, {
+            isArchived: true,
+            archivedVia: `workspace:${id}`,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }));
         await batch.commit();
         // Archive each board's items too, tagged per board so restoring a board brings them back.
-        for (const b of boardsSnap.docs) {
-            if (b.data().isArchived !== true) await cascadeArchive(orgId, b.id, { kind: 'board', id: b.id });
+        for (const b of activeBoards) {
+            await cascadeArchive(orgId, b.id, { kind: 'board', id: b.id });
         }
         logger.info(`Successfully archived workspace ${id} and ${boardsSnap.size} boards.`);
 
@@ -203,6 +210,21 @@ export const restoreWorkspace = async (req: Request, res: Response) => {
             status: 'active',
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
+
+        // Restore the boards this workspace's archive took down — and their items.
+        const orgId = doc.data()!.orgId;
+        const boardsSnap = await boardsCollection(orgId)
+            .where('workspaceId', '==', id)
+            .where('archivedVia', '==', `workspace:${id}`)
+            .get();
+        for (const b of boardsSnap.docs) {
+            await b.ref.update({
+                isArchived: false,
+                archivedVia: admin.firestore.FieldValue.delete(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            await cascadeRestore(orgId, { kind: 'board', id: b.id });
+        }
         res.json(snapshotToData(await docRef.get()));
     } catch (error) {
         logger.error(`Error restoring workspace ${id}:`, error);

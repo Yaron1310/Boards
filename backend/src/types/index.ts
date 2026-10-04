@@ -462,6 +462,9 @@ export interface DBBoard {
   order: number;
   createdBy: string;
   isArchived?: boolean;
+  /** `workspace:<id>` when archived because its workspace was archived; restoring the
+   *  workspace restores only boards carrying its tag. Absent for boards archived directly. */
+  archivedVia?: string;
   isTemplate?: boolean;
   dependencyRules?: DependencyRule[];
   createdAt: admin.firestore.Timestamp | Date | any;

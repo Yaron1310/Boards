@@ -413,6 +413,7 @@ export const archiveBoard = async (req: Request, res: Response) => {
 
     await boardsCollection(user.orgId).doc(id).update({
       isArchived: true,
+      archivedVia: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     await cascadeArchive(user.orgId, id, { kind: 'board', id });
@@ -454,6 +455,7 @@ export const restoreBoard = async (req: Request, res: Response) => {
 
     await boardsCollection(user.orgId).doc(id).update({
       isArchived: false,
+      archivedVia: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
     await cascadeRestore(user.orgId, { kind: 'board', id });
