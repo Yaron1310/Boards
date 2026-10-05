@@ -1,6 +1,7 @@
 
 import React, { useEffect, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import AppUpdateNotifier from './components/common/AppUpdateNotifier';
 import { useAuth } from './hooks/useAuth';
 import { UserRole } from './types';
 import ProtectedRoute from './components/auth/ProtectedRoute';
@@ -201,6 +202,7 @@ const App: React.FC = () => {
   return (
     <>
     <BrowserRouter>
+      <AppUpdateNotifier />
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<LandingPage />} />
