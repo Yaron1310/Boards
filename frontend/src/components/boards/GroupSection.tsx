@@ -330,9 +330,18 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     await archiveGroup({ boardId, groupId: group.id });
   };
 
+  // Enter saves, and so does blur. After an Enter the input is still focused when the save
+  // finishes and it's removed, and browsers that fire blur on removing a focused element run
+  // the (previous render's) onBlur — still holding the typed name — a second time. So the
+  // name is taken from a ref and cleared the moment a save starts: any second call, from any
+  // trigger, finds it empty. It's put back if the save fails, so nothing typed is lost. The ref
+  // only follows typing (onChange), never re-renders, so the save's own re-render can't refill it.
+  const newItemNameRef = useRef('');
   const handleAddItem = async () => {
-    const trimmed = newItemName.trim();
+    const trimmed = newItemNameRef.current.trim();
     if (!trimmed || !user) return;
+    const typed = newItemNameRef.current;
+    newItemNameRef.current = '';
     const defaultValues: Record<string, unknown> = {};
     for (const col of columns) {
       if (col.type === ColumnType.STATUS) {
@@ -340,16 +349,21 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         if (settings.defaultStatusId) defaultValues[col.id] = settings.defaultStatusId;
       }
     }
-    await createItem({
-      name: trimmed,
-      workspaceId,
-      boardId,
-      groupId: group.id,
-      ...(Object.keys(defaultValues).length > 0 ? { values: defaultValues } : {}),
-    });
-    setNewItemName('');
-    setAddingItem(false);
-    setPendingJumpToLast(true);
+    try {
+      await createItem({
+        name: trimmed,
+        workspaceId,
+        boardId,
+        groupId: group.id,
+        ...(Object.keys(defaultValues).length > 0 ? { values: defaultValues } : {}),
+      });
+      setNewItemName('');
+      setAddingItem(false);
+      setPendingJumpToLast(true);
+    } catch (err) {
+      newItemNameRef.current = typed;
+      throw err;
+    }
   };
 
   const handleAddItemKeyDown = (e: React.KeyboardEvent) => {
@@ -357,6 +371,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     if (e.key === 'Escape') {
       setAddingItem(false);
       setNewItemName('');
+      newItemNameRef.current = '';
     }
   };
 
@@ -768,7 +783,10 @@ const GroupSection: React.FC<GroupSectionProps> = ({
                         ref={addItemInputRef}
                         type="text"
                         value={newItemName}
-                        onChange={(e) => setNewItemName(e.target.value)}
+                        onChange={(e) => {
+                          setNewItemName(e.target.value);
+                          newItemNameRef.current = e.target.value;
+                        }}
                         onKeyDown={handleAddItemKeyDown}
                         onBlur={() => {
                           if (newItemName.trim()) {

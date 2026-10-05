@@ -191,7 +191,10 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
     if (!menuOpen) return;
     const handleClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
+        // Closing the menu unmounts the rename input before its blur (which saves) can fire,
+        // so an in-progress rename is saved here instead of being silently dropped.
+        if (isRenamingRef.current) void handleRenameRef.current({ closeMenu: true });
+        else setMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -204,17 +207,33 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
     setConfirmDelete(false);
   };
 
-  const handleRename = async () => {
+  // Enter, blur and an outside click can each save the rename — and saving disables the
+  // input, which itself blurs it. This guard keeps those from saving twice.
+  const isSavingRenameRef = useRef(false);
+  const handleRename = async ({ closeMenu = false }: { closeMenu?: boolean } = {}) => {
+    if (isSavingRenameRef.current) return;
     const trimmed = newName.trim();
     if (!trimmed || trimmed === column.name) {
       setIsRenaming(false);
       setNewName(column.name);
+      if (closeMenu) setMenuOpen(false);
       return;
     }
-    await updateColumn({ id: column.id, patch: { name: trimmed } });
-    setIsRenaming(false);
-    setMenuOpen(false);
+    isSavingRenameRef.current = true;
+    try {
+      await updateColumn({ id: column.id, patch: { name: trimmed } });
+      setIsRenaming(false);
+      setMenuOpen(false);
+    } finally {
+      isSavingRenameRef.current = false;
+    }
   };
+  // The outside-click listener above is registered once per menu opening, so it reaches the
+  // latest rename state and handler through refs.
+  const isRenamingRef = useRef(isRenaming);
+  isRenamingRef.current = isRenaming;
+  const handleRenameRef = useRef(handleRename);
+  handleRenameRef.current = handleRename;
 
   const handleRenameKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') void handleRename();
