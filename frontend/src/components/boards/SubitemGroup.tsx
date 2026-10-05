@@ -93,13 +93,27 @@ const SubitemColumnHeader: React.FC<{
   useEffect(() => { setNewName(col.name); }, [col.name]);
   useEffect(() => { if (isRenaming) renameInputRef.current?.select(); }, [isRenaming]);
 
-  const handleRename = async () => {
+  // Enter, blur and an outside click can each save the rename — and saving disables the
+  // input, which itself blurs it. This guard keeps those from saving twice.
+  const isSavingRenameRef = useRef(false);
+  const handleRename = async ({ closeMenu = false }: { closeMenu?: boolean } = {}) => {
+    if (isSavingRenameRef.current) return;
     const trimmed = newName.trim();
-    if (!trimmed || trimmed === col.name) { setIsRenaming(false); setNewName(col.name); return; }
-    await updateColumn({ id: col.id, patch: { name: trimmed } });
-    await qc.invalidateQueries({ queryKey: subitemColumnsKey });
-    setIsRenaming(false);
-    setMenuOpen(false);
+    if (!trimmed || trimmed === col.name) {
+      setIsRenaming(false);
+      setNewName(col.name);
+      if (closeMenu) setMenuOpen(false);
+      return;
+    }
+    isSavingRenameRef.current = true;
+    try {
+      await updateColumn({ id: col.id, patch: { name: trimmed } });
+      await qc.invalidateQueries({ queryKey: subitemColumnsKey });
+      setIsRenaming(false);
+      setMenuOpen(false);
+    } finally {
+      isSavingRenameRef.current = false;
+    }
   };
 
   const handleDelete = async () => {
@@ -151,7 +165,9 @@ const SubitemColumnHeader: React.FC<{
           <FlippedMenu
             anchorEl={menuRef.current}
             width={160}
-            onClose={() => setMenuOpen(false)}
+            // Closing unmounts the rename input before its blur (which saves) can fire, so an
+            // in-progress rename is saved here instead of being silently dropped.
+            onClose={() => (isRenaming ? void handleRename({ closeMenu: true }) : setMenuOpen(false))}
             role="menu"
             className="w-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1"
             aria-label="Column actions"
@@ -164,7 +180,17 @@ const SubitemColumnHeader: React.FC<{
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   onBlur={() => void handleRename()}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void handleRename(); if (e.key === 'Escape') { setIsRenaming(false); setNewName(col.name); } }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleRename();
+                    if (e.key === 'Escape') {
+                      // Cancel here and keep the menu's own Escape-to-close (which saves an
+                      // in-progress rename) from also seeing this key.
+                      e.stopPropagation();
+                      setIsRenaming(false);
+                      setNewName(col.name);
+                      setMenuOpen(false);
+                    }
+                  }}
                   disabled={isUpdating}
                   className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   aria-label="Column name"

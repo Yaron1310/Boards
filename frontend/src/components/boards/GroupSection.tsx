@@ -330,9 +330,13 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     await archiveGroup({ boardId, groupId: group.id });
   };
 
+  // Enter saves, and so does blur — and saving disables the input, which itself blurs it.
+  // This guard keeps that second trigger from creating the same item again.
+  const isAddingItemRef = useRef(false);
   const handleAddItem = async () => {
     const trimmed = newItemName.trim();
-    if (!trimmed || !user) return;
+    if (!trimmed || !user || isAddingItemRef.current) return;
+    isAddingItemRef.current = true;
     const defaultValues: Record<string, unknown> = {};
     for (const col of columns) {
       if (col.type === ColumnType.STATUS) {
@@ -340,16 +344,20 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         if (settings.defaultStatusId) defaultValues[col.id] = settings.defaultStatusId;
       }
     }
-    await createItem({
-      name: trimmed,
-      workspaceId,
-      boardId,
-      groupId: group.id,
-      ...(Object.keys(defaultValues).length > 0 ? { values: defaultValues } : {}),
-    });
-    setNewItemName('');
-    setAddingItem(false);
-    setPendingJumpToLast(true);
+    try {
+      await createItem({
+        name: trimmed,
+        workspaceId,
+        boardId,
+        groupId: group.id,
+        ...(Object.keys(defaultValues).length > 0 ? { values: defaultValues } : {}),
+      });
+      setNewItemName('');
+      setAddingItem(false);
+      setPendingJumpToLast(true);
+    } finally {
+      isAddingItemRef.current = false;
+    }
   };
 
   const handleAddItemKeyDown = (e: React.KeyboardEvent) => {
