@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url'; // Import for ESM __dirname
@@ -11,11 +11,29 @@ const __dirname = path.dirname(__filename);
 // The app version shown in the UI (Profile page). Bump "version" in package.json on each release.
 const { version: appVersion } = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')) as { version: string };
 
+// Unique per build, so every deploy is detected as new — even one that didn't bump the version.
+const buildId = `${appVersion}+${Date.now()}`;
+
+/** Writes dist/version.json, which open tabs poll to learn that a newer build is live
+ *  (see useAppUpdateCheck). It carries the same buildId that's baked into the bundle. */
+const versionFilePlugin = (): Plugin => ({
+  name: 'version-file',
+  apply: 'build',
+  generateBundle() {
+    this.emitFile({
+      type: 'asset',
+      fileName: 'version.json',
+      source: JSON.stringify({ version: appVersion, buildId }),
+    });
+  },
+});
+
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), versionFilePlugin()],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
+    __BUILD_ID__: JSON.stringify(buildId),
   },
   resolve: {
     alias: {

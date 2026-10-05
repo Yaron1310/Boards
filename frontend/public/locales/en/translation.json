@@ -1258,7 +1258,9 @@
     "viewArchived": "View Archived",
     "warning": "Warning",
     "workspace": "WorkHub",
-    "WorkHub": "WorkHub"
+    "WorkHub": "WorkHub",
+    "newVersionAvailable": "A new version of the app is available.",
+    "refreshToUpdate": "Refresh to load the new version"
   },
   "courses": {
     "aboutThisLesson": "About This Lesson",
