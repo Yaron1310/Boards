@@ -13,7 +13,7 @@ import * as wm from '../../services/workManagementService';
 import { hubDisplayRows } from '../../utils/personalHubGrid';
 import { formatGroupedNumber } from '../../utils/numberFormat';
 import { namesMatchByWords } from '../../utils/nameMatch';
-import { serializeRef, type CellRef, type SummaryCalc } from '../../utils/formulaEngine';
+import { aggregateSummary, serializeRef, type CellRef, type SummaryCalc } from '../../utils/formulaEngine';
 import { ColumnType, UserRole } from '../../types';
 import type { Board, Group, Item, PersonalColumn, User } from '../../types';
 
@@ -174,11 +174,29 @@ const UserHubValuesPanel: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchedBoards, assignedOnMatched, parentIdOf, personalColumns, ownerId, hostQueries.map((q) => q.data?.id ?? '').join(',')]);
 
+  // Only the row cells are resolved here. A group total is worked out from those same row
+  // values (below), so the menu never waits on the much heavier load a total reference needs on
+  // its own. Clicking a total still inserts the real group-total reference.
   const refs = useMemo(
-    () => sections.flatMap((s) => s.columns.flatMap((c) => c.entries.map((e) => e.ref))),
+    () => sections.flatMap((s) => s.columns.flatMap((c) => c.entries.filter((e) => !e.isTotal).map((e) => e.ref))),
     [sections],
   );
   const { resolve } = useForeignCellValues(refs, orgId, [currentItemId]);
+
+  /** A group total from the rows' own values, under the same rules as the hub's total: rows
+   *  with no value are left out (an Hours row with no time logged resolves to 0 and is treated
+   *  as empty, as the hub does). Undefined while any row is still loading. */
+  const totalFromRows = (column: PersonalColumn, entries: MenuEntry[], calc: SummaryCalc): number | null | undefined => {
+    const vals: number[] = [];
+    for (const e of entries) {
+      if (e.isTotal) continue;
+      const v = resolve(e.ref, currentItemId);
+      if (v === undefined) return undefined;
+      if (v === null || (column.type === ColumnType.HOURS_LOG && v === 0)) continue;
+      vals.push(v);
+    }
+    return aggregateSummary(vals, calc);
+  };
 
   const loading = itemsLoading || columnsLoading || boardsLoading || groupsLoading || hostsLoading;
 
@@ -225,7 +243,9 @@ const UserHubValuesPanel: React.FC<{
                 <p className="px-2.5 py-1.5 text-xs text-gray-400 italic">No rows in this group.</p>
               )}
               {entries.map((entry, i) => {
-                const value = formatValue(resolve(entry.ref, currentItemId));
+                const value = formatValue(entry.isTotal
+                  ? totalFromRows(column, entries, entry.ref.agg as SummaryCalc)
+                  : resolve(entry.ref, currentItemId));
                 return (
                   <button
                     key={entry.key}
