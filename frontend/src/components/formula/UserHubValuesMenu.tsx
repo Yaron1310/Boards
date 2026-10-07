@@ -209,14 +209,22 @@ const UserHubValuesPanel: React.FC<{
             <p className="px-3 py-2 text-xs text-gray-500">No number, hours or formula template columns in this hub.</p>
           )}
           {columns.map(({ column, entries }) => (
-            <div key={column.id} role="group" aria-label={`Column ${column.name}`} className="mb-1">
-              <div className="mx-2 mt-1 px-1.5 py-1 text-xs font-semibold text-gray-700 bg-[#fff0de80] rounded truncate" title={column.name}>
+            // One small table per column: light-gray lines between every row and between the
+            // name and value cells. The value cell has a fixed width, so a long item name is
+            // cut off with an ellipsis well before it reaches the numbers.
+            <div
+              key={column.id}
+              role="group"
+              aria-label={`Column ${column.name}`}
+              className="mx-2 mb-2 border border-gray-200 rounded overflow-hidden"
+            >
+              <div className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-[#fff0de80] border-b border-gray-200 truncate" title={column.name}>
                 {column.name}
               </div>
               {entries.length === 0 && (
-                <p className="px-3 py-1 text-xs text-gray-400 italic">No rows in this group.</p>
+                <p className="px-2.5 py-1.5 text-xs text-gray-400 italic">No rows in this group.</p>
               )}
-              {entries.map((entry) => {
+              {entries.map((entry, i) => {
                 const value = formatValue(resolve(entry.ref, currentItemId));
                 return (
                   <button
@@ -225,11 +233,11 @@ const UserHubValuesPanel: React.FC<{
                     role="menuitem"
                     onClick={() => onPick(entry.ref)}
                     data-ref={serializeRef(entry.ref)}
-                    className={`w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left text-xs hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none ${entry.isTotal ? 'border-t border-gray-100 font-semibold text-gray-800' : 'text-gray-700'}`}
+                    className={`w-full grid grid-cols-[minmax(0,1fr)_5.5rem] text-left text-xs hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none ${i > 0 ? 'border-t border-gray-200' : ''} ${entry.isTotal ? 'bg-gray-50 font-semibold text-gray-800' : 'text-gray-700'}`}
                     aria-label={`Insert ${user.name}'s ${column.name}, ${entry.label}: ${value}`}
                   >
-                    <span className="truncate">{entry.label}</span>
-                    <span className="flex-shrink-0 font-mono text-indigo-700">{value}</span>
+                    <span className="truncate px-2.5 py-1.5" title={entry.label}>{entry.label}</span>
+                    <span className="px-2.5 py-1.5 border-l border-gray-200 text-right font-mono text-indigo-700 truncate">{value}</span>
                   </button>
                 );
               })}
