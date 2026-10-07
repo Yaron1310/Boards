@@ -21,9 +21,9 @@ import type { Board, Group, Item, PersonalColumn, User } from '../../types';
  *  key means a hub that was already opened costs nothing here, and vice versa. */
 const HUB_ITEMS_LIMIT = 500;
 
-/** Personal column types a hub cell can be clicked into a formula from (see PersonalNumberCell /
- *  PersonalHoursLogCell) — the menu offers exactly what clicking in the hub would. */
-const INSERTABLE_TYPES = new Set<ColumnType>([ColumnType.NUMBER, ColumnType.HOURS_LOG]);
+/** Personal column types a hub cell can be clicked into a formula from (see PersonalNumberCell,
+ *  PersonalHoursLogCell, PersonalFormulaCell) — the menu offers exactly what clicking in the hub would. */
+const INSERTABLE_TYPES = new Set<ColumnType>([ColumnType.NUMBER, ColumnType.HOURS_LOG, ColumnType.SIMPLE_FORMULA]);
 
 const CALC_LABEL: Record<string, string> = {
   sum: 'Sum', avg: 'Average', median: 'Median', min: 'Min', max: 'Max', count: 'Count',
@@ -206,7 +206,7 @@ const UserHubValuesPanel: React.FC<{
             {board.name}
           </div>
           {columns.length === 0 && (
-            <p className="px-3 py-2 text-xs text-gray-500">No number or hours template columns in this hub.</p>
+            <p className="px-3 py-2 text-xs text-gray-500">No number, hours or formula template columns in this hub.</p>
           )}
           {columns.map(({ column, entries }) => (
             <div key={column.id} role="group" aria-label={`Column ${column.name}`} className="mb-1">
