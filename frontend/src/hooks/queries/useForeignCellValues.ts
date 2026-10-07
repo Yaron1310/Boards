@@ -10,6 +10,7 @@ import { getPersonalItemValues, listPersonalColumns } from '@/services/personalH
 import { getPersonalHubTemplateTotal, getPersonalHubTemplateItemTotal, getPersonalHubTemplateItemTotalsBatch } from '@/services/geminiService';
 import { aggregateSummary, BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, computeSummaryNumeric, evaluateFormula, extractRefs, hasAbsolutePositionalRefs, serializeRef, type CellRef } from '@/utils/formulaEngine';
 import { hubDisplayRows, hubGridColumns, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
+import { hubScopes, SELF_OWNER } from '@/utils/hubScope';
 import { formulaLog, formulaRefLog, sameColumnTrace } from '@/utils/formulaDebug';
 import { foldSubitemHoursIntoParents, subitemsOnlyHoursLogColumnIds, sumHoursLogMinutes } from '@/utils/hoursLog';
 import { ColumnType } from '@/types';
@@ -21,8 +22,6 @@ const FOREIGN_ITEMS_LIMIT = 500;
  *  changes arrive — each refresh is a backend call that reads every user's value for every row. */
 const ITEM_TOTALS_REFRESH_CAP_MS = 60 * 1000;
 
-/** Stands in for "the viewer's own hub" in the per-owner maps, where `undefined` can't be a key. */
-const SELF_OWNER = 'self';
 
 /**
  * Maximum board-hops a formula reference chain may traverse (the formula's own board's direct
@@ -206,14 +205,33 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
       };
     }),
   });
+
+  /**
+   * Which of a hub's boards actually have to be rebuilt, per owner. A board group's total only
+   * covers that board's rows, so loading every board's values and groups for it is wasted work —
+   * that whole-hub load is what made a single group total take seconds. The whole hub is still
+   * loaded wherever it can matter: the whole-hub total, and anything involving a personal
+   * formula column (its formulas can reach rows on other boards). `null` = not decidable yet,
+   * because the hub's column definitions (which say whether a column is a formula) are loading.
+   */
+  const hubScopeByOwner = useMemo(
+    () => hubScopes(allRefs, viewerId, personalColumnsByOwner),
+    [allRefs, viewerId, personalColumnsByOwner],
+  );
+
+  /** Each summarised hub's assigned items, cut down to the boards it needs (see hubScopeByOwner).
+   *  Absent for an owner whose items, or whose scope, are not known yet. */
   const hubItemsByOwner = useMemo(() => {
     const m = new Map<string, Item[]>();
     summaryOwners.forEach((owner, i) => {
-      m.set(owner, (hubItemsQueries[i]?.data as PaginatedResponse<Item> | undefined)?.data ?? []);
+      const all = (hubItemsQueries[i]?.data as PaginatedResponse<Item> | undefined)?.data;
+      const scope = hubScopeByOwner.get(owner);
+      if (!all || scope === null) return;
+      m.set(owner, scope === undefined || scope === 'all' ? all : all.filter((it) => scope.has(it.boardId)));
     });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summaryOwnersKey, hubItemsQueries]);
+  }, [summaryOwnersKey, hubItemsQueries, hubScopeByOwner]);
 
   const hubValuesQueries = useQueries({
     queries: summaryOwners.map((owner) => {
@@ -867,8 +885,10 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     const m = new Map<string, { rows: Item[]; values: Record<string, Record<string, unknown>> }>();
     if (!groupsSettled || hubHostQueries.some((q) => q.isLoading)) return m;
     summaryOwners.forEach((owner, i) => {
-      const assigned = hubItemsByOwner.get(owner) ?? [];
-      const ownValues = hubValuesByOwner.get(owner);
+      const assigned = hubItemsByOwner.get(owner);
+      if (!assigned) return;
+      // A board with no assigned items left needs no values request — its total is simply empty.
+      const ownValues = assigned.length === 0 ? {} : hubValuesByOwner.get(owner);
       const hostIds = hubHostIdsByOwner.get(owner) ?? [];
       const hostValues = hubHostValueQueries[i]?.data as Record<string, Record<string, unknown>> | undefined;
       if (!ownValues || (hostIds.length > 0 && !hostValues)) return;
