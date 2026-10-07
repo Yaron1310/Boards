@@ -134,6 +134,24 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
   /** The `userId` argument the personal-hub endpoints want: omitted for your own hub. */
   const ownerParam = (owner: string): string | undefined => (owner === SELF_OWNER ? undefined : owner);
 
+  const personalColumnsQueries = useQueries({
+    queries: personalOwners.map((owner) => ({
+      queryKey: queryKeys.personalHub.columns(ownerParam(owner)),
+      queryFn: () => listPersonalColumns(ownerParam(owner)),
+      staleTime: 60 * 1000,
+      retry: owner === SELF_OWNER ? undefined : false,
+    })),
+  });
+  const personalColumnsByOwner = useMemo(() => {
+    const m = new Map<string, PersonalColumn[]>();
+    personalOwners.forEach((owner, i) => {
+      const data = personalColumnsQueries[i]?.data as PersonalColumn[] | undefined;
+      if (data) m.set(owner, data);
+    });
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [personalOwnersKey, personalColumnsQueries]);
+
   const personalItemIdsByOwner = useMemo(() => {
     const m = new Map<string, string[]>();
     const add = (owner: string, itemId: string) => {
@@ -155,17 +173,22 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
   // Hubs that need their whole table reconstructed, not just a named cell: a summary covers a
   // slice of a hub, so resolving one away from the Hub page means loading that hub's assigned
-  // items, values and column definitions.
+  // items, values and column definitions. A named personal FORMULA cell needs the same: it holds
+  // formula text, and working out its number means evaluating it against the table it was
+  // written in. That case is only known once the hub's column definitions have loaded.
   const summaryOwners = useMemo(() => {
     const owners = new Set<string>();
     for (const r of allRefs) {
       const isPersonalSummary = r.kind === 'p' && !!r.agg;
       const isHubRowsSummary = r.kind === 'b' && !!r.agg && r.groupId === HUB_ROWS_GROUP_ID;
-      if (!isPersonalSummary && !isHubRowsSummary) continue;
-      owners.add(r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER);
+      const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+      const isPersonalFormulaCell = r.kind === 'p' && !r.agg &&
+        personalColumnsByOwner.get(owner)?.find((c) => c.id === r.columnId)?.type === ColumnType.SIMPLE_FORMULA;
+      if (!isPersonalSummary && !isHubRowsSummary && !isPersonalFormulaCell) continue;
+      owners.add(owner);
     }
     return Array.from(owners).sort();
-  }, [allRefs, viewerId]);
+  }, [allRefs, viewerId, personalColumnsByOwner]);
   const summaryOwnersKey = summaryOwners.join(',');
 
   // Another user's hub is admin-only server-side, so for a viewer without that access these
@@ -283,24 +306,6 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [missingGroupKey, missingGroupQueries]);
-
-  const personalColumnsQueries = useQueries({
-    queries: personalOwners.map((owner) => ({
-      queryKey: queryKeys.personalHub.columns(ownerParam(owner)),
-      queryFn: () => listPersonalColumns(ownerParam(owner)),
-      staleTime: 60 * 1000,
-      retry: owner === SELF_OWNER ? undefined : false,
-    })),
-  });
-  const personalColumnsByOwner = useMemo(() => {
-    const m = new Map<string, PersonalColumn[]>();
-    personalOwners.forEach((owner, i) => {
-      const data = personalColumnsQueries[i]?.data as PersonalColumn[] | undefined;
-      if (data) m.set(owner, data);
-    });
-    return m;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [personalOwnersKey, personalColumnsQueries]);
 
   // Trace what each hub's loads are doing — a personal summary can only resolve once all three
   // have landed, so this is where to look first when a token stays at "…".
@@ -1251,6 +1256,78 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         }
 
         const owner = r.ownerId && r.ownerId !== viewerId ? r.ownerId : SELF_OWNER;
+
+        // A named personal FORMULA cell: its stored value is formula text (or nothing, when the
+        // column's default formula applies), so evaluate it against its own hub table — the same
+        // rebuilt rows, values and grid a personal formula summary uses. Every other personal
+        // reference carries on to the stored-value read below, unchanged.
+        const formulaCol = personalColumnsByOwner.get(owner)?.find((c) => c.id === r.columnId);
+        if (formulaCol?.type === ColumnType.SIMPLE_FORMULA) {
+          const display = hubDisplayByOwner.get(owner);
+          if (!display) {
+            formulaRefLog(serializeRef(r), 'unresolved', 'that hub’s rows and values have not loaded', {
+              hub: owner === SELF_OWNER ? 'your own' : owner, itemId,
+            });
+            return undefined;
+          }
+          const key = `p:${owner}:${r.columnId}:${itemId}`;
+          if (visited.has(key)) { cycleFlag.hit = true; return null; } // circular → contributes 0
+          const nextVisited = new Set(visited);
+          nextVisited.add(key);
+
+          const gridBoardId = formulaCol.scope === 'board' ? formulaCol.boardId : undefined;
+          const gridItems = gridBoardId ? display.rows.filter((i) => i.boardId === gridBoardId) : display.rows;
+          const rowOrder = gridItems.map((i) => i.id);
+          const idx = rowOrder.indexOf(itemId);
+          if (idx < 0) {
+            formulaRefLog(serializeRef(r), 'unresolved', 'that item is not a row of the hub', { column: formulaCol.name, itemId });
+            return undefined;
+          }
+          const stored = display.values[itemId]?.[r.columnId];
+          const settings = formulaCol.settings as unknown as { defaultFormula?: string } | undefined;
+          const formula = typeof stored === 'string' ? stored : (settings?.defaultFormula ?? '');
+          if (!formula.trim()) {
+            formulaRefLog(serializeRef(r), 'empty', 'that formula cell has no formula', { column: formulaCol.name, itemId });
+            return null;
+          }
+          // Same rule as a personal formula summary: fixed positions ({C3}) depend on the Hub's
+          // exact on-screen row order, which is rebuilt here, so report unavailable, never a
+          // number that may point at the wrong row.
+          if (hasAbsolutePositionalRefs(formula)) {
+            formulaRefLog(serializeRef(r), 'unresolved',
+              'the formula uses absolute positional refs like {C3}, which need the Hub’s exact row order',
+              { column: formulaCol.name, itemId });
+            return undefined;
+          }
+
+          // A personal ref inside this formula with no owner was picked by the hub's owner in
+          // their own hub, so it means THEIR hub — stamp that on anything resolved from here,
+          // or it would be read as the viewer's own hub instead.
+          const hubOwner = owner === SELF_OWNER ? undefined : owner;
+          let nestedMissing = false;
+          const result = evaluateFormula(formula, {}, {
+            allItems: rowOrder.map((id) => ({ id, values: display.values[id] ?? {} })),
+            columns: hubGridColumns(personalColumnsByOwner.get(owner) ?? [], gridBoardId),
+            currentRowIndex: idx,
+            homeBoardId: gridBoardId ?? '',
+            summaryCache,
+            cycleFlag,
+            resolveRef: (rr, forItemId) => inner(
+              rr.kind === 'p' && !rr.ownerId && hubOwner ? { ...rr, ownerId: hubOwner } : rr,
+              forItemId ?? itemId,
+              nextVisited,
+            ),
+            onUnresolvedRef: () => { nestedMissing = true; },
+          });
+          // Part of the formula is not available yet: its terms count as 0 inside the engine, so
+          // the number is short by exactly those. Report unknown until the data lands.
+          if (nestedMissing) return undefined;
+          formulaRefLog(serializeRef(r), result === null ? 'empty' : 'ok',
+            result === null ? 'the formula did not produce a number' : 'evaluated in its hub table',
+            { column: formulaCol.name, itemId, formula, result });
+          return result;
+        }
+
         const personalValues = personalValuesByOwner.get(owner) ?? {};
         const row = personalValues[itemId];
         if (!row) {

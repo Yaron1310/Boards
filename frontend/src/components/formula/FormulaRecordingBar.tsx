@@ -11,6 +11,7 @@ import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { useUpdatePersonalItemValue, useUpdatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
 import { evaluateFormula, extractRefs, formulaRefDomKey, makeRelativeIdFormula, parseRefToken, type CellRef } from '../../utils/formulaEngine';
 import { formatGroupedNumber } from '../../utils/numberFormat';
+import UserHubValuesMenu from './UserHubValuesMenu';
 
 const formatNumber = (n: number) => formatGroupedNumber(n, 2);
 
@@ -360,6 +361,9 @@ const FormulaRecordingBar: React.FC = () => {
               : fieldNodes}
           </span>
         </div>
+
+        {/* Admin shortcut: insert a value from any user's Personal Hub without navigating there. */}
+        <UserHubValuesMenu />
 
         <span className="text-xs text-gray-500 whitespace-nowrap">
           ={' '}

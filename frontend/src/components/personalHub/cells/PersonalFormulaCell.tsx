@@ -10,7 +10,9 @@ import {
   convertLegacyToIdRefs,
   evaluateFormula,
   extractForeignRefs,
+  formulaRefDomKey,
   makeRelativeIdFormula,
+  type CellRef,
   type FormulaRow,
 } from '../../../utils/formulaEngine';
 import type { SimpleFormulaColumnSettings } from '../../../types';
@@ -33,7 +35,7 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
   const { push: pushUndo } = useUndo();
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
-  const { begin, endSession, isRecording, session } = useFormulaRecording();
+  const { begin, endSession, isRecording, insertRef, session } = useFormulaRecording();
 
   const settings = column.settings as SimpleFormulaColumnSettings;
   const defaultFormula: string = settings?.defaultFormula ?? '';
@@ -201,6 +203,32 @@ const PersonalFormulaCell: React.FC<Props> = ({ column, itemId, itemName, value,
     setPendingFormula(null);
     await applyScopeDecision(formula, 'perCell');
   };
+
+  // Another formula is recording: this cell is selectable like a Number cell — clicking adds a
+  // reference to it, which resolves to its live computed value (the foreign-value resolver
+  // evaluates a personal formula cell in its hub table). Without this branch a click would start
+  // a new recording session here instead of feeding the current one.
+  if (isRecording && !isOrigin) {
+    const cellRef: CellRef = { kind: 'p', boardId: homeBoardId, columnId: column.id, itemId, ownerId: userId };
+    return (
+      <div
+        role="gridcell"
+        className="flex flex-shrink-0 items-center justify-center w-full self-stretch bg-gray-50/60 cursor-pointer hover:bg-indigo-100/60 transition-colors"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          insertRef(cellRef);
+        }}
+        title="Add this formula's value to the formula"
+        aria-label={`Add ${column.name} for ${itemName} to the formula`}
+        data-formula-insertable="true"
+        data-formula-cell-key={formulaRefDomKey(cellRef)}
+      >
+        <span className="text-sm text-gray-600 px-3 text-center truncate">
+          {result != null && !hasUnresolved ? formatNumber(result) : <span className="text-gray-300 text-xs">—</span>}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <>
