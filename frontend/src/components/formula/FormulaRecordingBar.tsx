@@ -353,7 +353,7 @@ const FormulaRecordingBar: React.FC = () => {
 
         {/* The field, "User hub" and Save share one height (h-10) and corner radius (rounded-lg). */}
         <div
-          className="flex-1 min-w-0 h-10 flex items-center text-gray-800 bg-white rounded-lg border border-gray-200 overflow-hidden cursor-text"
+          className="flex-1 min-w-0 h-10 flex items-center text-gray-800 bg-white rounded-lg border border-indigo-200 shadow-sm overflow-hidden cursor-text"
           aria-label="Formula being recorded"
           onClick={handleFieldClick}
         >
@@ -381,7 +381,7 @@ const FormulaRecordingBar: React.FC = () => {
         <button
           type="button"
           onClick={requestSave}
-          className="flex items-center gap-1.5 h-10 px-4 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
+          className="flex items-center gap-1.5 h-10 px-4 text-sm font-medium text-white bg-indigo-600 border border-indigo-600 shadow-sm rounded-lg hover:bg-indigo-700 hover:border-indigo-700 transition-colors whitespace-nowrap"
           aria-label="Save formula and return to its board"
         >
           <FiCheck size={16} aria-hidden="true" /> Save

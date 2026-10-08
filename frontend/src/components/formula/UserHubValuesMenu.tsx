@@ -335,7 +335,7 @@ const UserHubValuesMenu: React.FC = () => {
         ref={btnRef}
         type="button"
         onClick={() => (open ? close() : setOpen(true))}
-        className={`flex items-center gap-2 h-10 px-3 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap ${open ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
+        className={`flex items-center gap-2 h-10 px-3 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap ${open ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-indigo-200 shadow-sm text-gray-700 hover:bg-gray-50'}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Insert a value from a user's Personal Hub"
