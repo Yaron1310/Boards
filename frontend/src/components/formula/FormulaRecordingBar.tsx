@@ -11,6 +11,7 @@ import { useUpdateColumn } from '../../hooks/queries/useColumnQueries';
 import { useUpdatePersonalItemValue, useUpdatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
 import { evaluateFormula, extractRefs, formulaRefDomKey, makeRelativeIdFormula, parseRefToken, type CellRef } from '../../utils/formulaEngine';
 import { formatGroupedNumber } from '../../utils/numberFormat';
+import { describeHoursPeriod } from '../../utils/hoursLog';
 import UserHubValuesMenu from './UserHubValuesMenu';
 
 const formatNumber = (n: number) => formatGroupedNumber(n, 2);
@@ -71,7 +72,8 @@ const RefToken: React.FC<RefTokenProps> = ({ cellRef, currentItemId, resolve, re
   const v = resolve(cellRef, currentItemId);
   const display = v === undefined ? '…' : v === null ? '0' : formatNumber(v);
   const meta = resolveMeta(cellRef, currentItemId);
-  const tooltip = metaToTooltip(meta, metaLoading);
+  // An Hours Log reference limited to a time period names that period too, e.g. "… › Hours (Mar 2026)".
+  const tooltip = metaToTooltip(meta, metaLoading) + (cellRef.period ? ` (${describeHoursPeriod(cellRef.period)})` : '');
   const sourceBoardId = meta?.boardId;
   const domKey = formulaRefDomKey(cellRef, currentItemId);
 

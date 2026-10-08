@@ -13,6 +13,8 @@ import * as wm from '../../services/workManagementService';
 import { hubDisplayRows } from '../../utils/personalHubGrid';
 import { formatGroupedNumber } from '../../utils/numberFormat';
 import { namesMatchByWords } from '../../utils/nameMatch';
+import { choiceToPeriod, describeHoursPeriod, type HoursPeriodChoice } from '../../utils/hoursLog';
+import HoursPeriodPicker from './HoursPeriodPicker';
 import { aggregateSummary, serializeRef, type CellRef, type SummaryCalc } from '../../utils/formulaEngine';
 import { ColumnType, UserRole } from '../../types';
 import type { Board, Group, Item, PersonalColumn, User } from '../../types';
@@ -42,6 +44,8 @@ interface MenuEntry {
 interface ColumnSection {
   column: PersonalColumn;
   entries: MenuEntry[];
+  /** A custom period is missing a date: values can't be shown or inserted until it has both. */
+  periodIncomplete?: boolean;
 }
 
 interface BoardSection {
@@ -65,6 +69,11 @@ const UserHubValuesPanel: React.FC<{
   const viewerId = (authUser as { id?: string } | null | undefined)?.id;
   // Cells in your own hub record no owner (see PersonalNumberCell), so neither does this.
   const ownerId = user.id === viewerId ? undefined : user.id;
+
+  // Hours Log columns only: the time period each one is filtered to (default All time). The
+  // menu's values, and the reference a click inserts, count only entries logged within it.
+  const [periodChoices, setPeriodChoices] = useState<Record<string, HoursPeriodChoice>>({});
+  const periodChoiceOf = (columnId: string): HoursPeriodChoice => periodChoices[columnId] ?? { mode: 'all' };
 
   const { data: itemsPage, isLoading: itemsLoading } = useItems({ assignee: user.id, limit: HUB_ITEMS_LIMIT });
   const assigned = useMemo(() => itemsPage?.data ?? [], [itemsPage]);
@@ -149,13 +158,16 @@ const UserHubValuesPanel: React.FC<{
       const columns = templateColumns
         .filter((c) => c.scope === 'all' || (c.scope === 'board' && c.boardId === board.id))
         .map<ColumnSection>((col) => {
+          const choice = periodChoices[col.id];
+          const period = col.type === ColumnType.HOURS_LOG && choice ? choiceToPeriod(choice) : undefined;
+          const withPeriod = period ? { period } : {};
           // A cross-group column's cells live on the hub's page-wide grid, which has no board
           // of its own — the cells record '' there (see PersonalHubBoardGroup's grid contexts).
           const cellBoardId = col.scope === 'board' ? board.id : '';
           const entries: MenuEntry[] = boardRows.map((row) => ({
             key: `${col.id}:${row.id}`,
             label: row.name,
-            ref: { kind: 'p', boardId: cellBoardId, columnId: col.id, itemId: row.id, ownerId },
+            ref: { kind: 'p', boardId: cellBoardId, columnId: col.id, itemId: row.id, ownerId, ...withPeriod },
           }));
           // The group's own summary cell — whatever aggregate it is set to show in the hub.
           const calc = (col.summaryConfig?.calc || 'sum') as SummaryCalc | 'none';
@@ -163,16 +175,17 @@ const UserHubValuesPanel: React.FC<{
             entries.push({
               key: `${col.id}:total`,
               label: `Group total (${CALC_LABEL[calc] ?? calc})`,
-              ref: { kind: 'p', boardId: board.id, columnId: col.id, itemId: null, agg: calc, ownerId },
+              ref: { kind: 'p', boardId: board.id, columnId: col.id, itemId: null, agg: calc, ownerId, ...withPeriod },
               isTotal: true,
             });
           }
-          return { column: col, entries };
+          // A custom range still missing a date can't be inserted yet.
+          return { column: col, entries, periodIncomplete: period === null };
         });
       return { board, columns };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchedBoards, assignedOnMatched, parentIdOf, personalColumns, ownerId, hostQueries.map((q) => q.data?.id ?? '').join(',')]);
+  }, [matchedBoards, assignedOnMatched, parentIdOf, personalColumns, ownerId, periodChoices, hostQueries.map((q) => q.data?.id ?? '').join(',')]);
 
   // Only the row cells are resolved here. A group total is worked out from those same row
   // values (below), so the menu never waits on the much heavier load a total reference needs on
@@ -226,7 +239,7 @@ const UserHubValuesPanel: React.FC<{
           {columns.length === 0 && (
             <p className="px-3 py-2 text-xs text-gray-500">No number, hours or formula template columns in this hub.</p>
           )}
-          {columns.map(({ column, entries }) => (
+          {columns.map(({ column, entries, periodIncomplete }) => (
             // One small table per column: light-gray lines between every row and between the
             // name and value cells. The value cell has a fixed width, so a long item name is
             // cut off with an ellipsis well before it reaches the numbers.
@@ -236,25 +249,39 @@ const UserHubValuesPanel: React.FC<{
               aria-label={`Column ${column.name}`}
               className="mx-2 mb-2 border border-gray-200 rounded overflow-hidden"
             >
-              <div className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-[#fff0de80] border-b border-gray-200 truncate" title={column.name}>
-                {column.name}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-2.5 py-1 bg-[#fff0de80] border-b border-gray-200">
+                <span className="flex-1 min-w-0 text-xs font-semibold text-gray-700 truncate" title={column.name}>
+                  {column.name}
+                </span>
+                {column.type === ColumnType.HOURS_LOG && (
+                  <HoursPeriodPicker
+                    columnName={column.name}
+                    value={periodChoiceOf(column.id)}
+                    onChange={(next) => setPeriodChoices((prev) => ({ ...prev, [column.id]: next }))}
+                  />
+                )}
               </div>
               {entries.length === 0 && (
                 <p className="px-2.5 py-1.5 text-xs text-gray-400 italic">No rows in this group.</p>
               )}
+              {periodIncomplete && entries.length > 0 && (
+                <p className="px-2.5 py-1.5 text-xs text-amber-600 border-b border-gray-200">Choose both dates to see this period’s hours.</p>
+              )}
               {entries.map((entry, i) => {
-                const value = formatValue(entry.isTotal
+                const value = periodIncomplete ? '—' : formatValue(entry.isTotal
                   ? totalFromRows(column, entries, entry.ref.agg as SummaryCalc)
                   : resolve(entry.ref, currentItemId));
+                const periodLabel = entry.ref.period ? ` (${describeHoursPeriod(entry.ref.period)})` : '';
                 return (
                   <button
                     key={entry.key}
                     type="button"
                     role="menuitem"
+                    disabled={periodIncomplete}
                     onClick={() => onPick(entry.ref)}
                     data-ref={serializeRef(entry.ref)}
-                    className={`w-full grid grid-cols-[minmax(0,1fr)_5.5rem] text-left text-xs hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none ${i > 0 ? 'border-t border-gray-200' : ''} ${entry.isTotal ? 'bg-gray-50 font-semibold text-gray-800' : 'text-gray-700'}`}
-                    aria-label={`Insert ${user.name}'s ${column.name}, ${entry.label}: ${value}`}
+                    className={`w-full grid grid-cols-[minmax(0,1fr)_5.5rem] text-left text-xs hover:bg-indigo-50 focus:bg-indigo-50 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent ${i > 0 ? 'border-t border-gray-200' : ''} ${entry.isTotal ? 'bg-gray-50 font-semibold text-gray-800' : 'text-gray-700'}`}
+                    aria-label={`Insert ${user.name}'s ${column.name}${periodLabel}, ${entry.label}: ${value}`}
                   >
                     <span className="truncate px-2.5 py-1.5" title={entry.label}>{entry.label}</span>
                     <span className="px-2.5 py-1.5 border-l border-gray-200 text-right font-mono text-indigo-700 truncate">{value}</span>
@@ -414,7 +441,7 @@ const UserHubValuesMenu: React.FC = () => {
             <div
               role="menu"
               aria-label={`${selectedUser.name}'s Personal Hub values`}
-              className="w-80 max-h-[26rem] overflow-y-auto bg-white rounded-lg shadow-xl ring-1 ring-black/10"
+              className="w-96 max-h-[26rem] overflow-y-auto bg-white rounded-lg shadow-xl ring-1 ring-black/10"
             >
               <UserHubValuesPanel
                 key={selectedUser.id}

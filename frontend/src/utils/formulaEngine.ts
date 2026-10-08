@@ -15,7 +15,7 @@
 import { ColumnType } from '../types';
 import type { HoursLogEntry } from '../types';
 import { formulaRefLog, sameColumnTrace } from './formulaDebug';
-import { sumHoursLogMinutes } from './hoursLog';
+import { decodeHoursPeriod, encodeHoursPeriod, filterHoursLogByPeriod, sumHoursLogMinutes, type HoursPeriod } from './hoursLog';
 
 export type ColumnValues = Record<string, number | null | undefined>;
 
@@ -55,6 +55,10 @@ export interface CellRef {
    *  else's hub (admins only), where "the viewer's hub" would name a different set of columns
    *  entirely and could never match. */
   ownerId?: string;
+  /** Hours Log references only: count just the entries logged within this period (by when each
+   *  entry was added). Absent means every entry — what every reference meant before periods
+   *  existed, so formulas written without one read exactly as they always did. */
+  period?: HoursPeriod;
 }
 
 /** Stable key identifying the DOM cell a ref points at (a specific item's cell, or a group
@@ -121,7 +125,14 @@ export function computeSummaryNumeric(
   calc: SummaryCalc,
   getVal: (r: FormulaRow, c: string) => unknown = (r, c) => r.values[c],
   evalRow?: (r: FormulaRow) => number | null,
+  /** HOURS_LOG only: aggregate just the entries logged within this period. A row with none in
+   *  it counts as empty, exactly like a row with no entries at all. */
+  period?: HoursPeriod,
 ): number | null {
+  if (period && type === ColumnType.HOURS_LOG) {
+    const read = getVal;
+    getVal = (r, c) => filterHoursLogByPeriod(read(r, c), period);
+  }
   if (type === ColumnType.SIMPLE_FORMULA) {
     if (!evalRow) return null;
     const vals = rows.map((r) => evalRow(r)).filter((n): n is number => n !== null && !isNaN(n));
@@ -258,11 +269,14 @@ export function parseRefToken(inner: string): CellRef | null {
   if (!trimmed.startsWith('ref:')) return null;
   const parts = trimmed.split(':');
   // A 6th part is the Personal Hub owner, present only on references picked from someone else's
-  // hub. Everything written before that stays exactly 5 parts and parses as it always did.
-  if (parts.length !== 5 && parts.length !== 6) return null;
-  const [, kind, boardId, columnId, row, owner] = parts;
+  // hub. A 7th is an Hours Log time period (the owner slot is then present, possibly empty).
+  // Everything written before those stays exactly 5 parts and parses as it always did.
+  if (parts.length < 5 || parts.length > 7) return null;
+  const [, kind, boardId, columnId, row, owner, periodToken] = parts;
   if (kind !== 'b' && kind !== 'p' && kind !== 'ph') return null;
   const ownerId = owner || undefined;
+  const period = decodeHoursPeriod(periodToken);
+  if (periodToken && !period) return null;
   // boardId may be empty for Personal Hub "all-groups" columns (no single owning board) and is
   // always empty for 'ph' refs (an org-wide total isn't tied to any board);
   // 'p'/'ph' refs resolve by itemId+columnId (or just columnId, for 'ph') regardless of board.
@@ -276,9 +290,9 @@ export function parseRefToken(inner: string): CellRef | null {
   // Group-summary refs encode the row slot as `sum#<agg>#<groupId>` (Firestore ids carry no ':'/'#').
   if (row.startsWith('sum#')) {
     const [, agg, groupId] = row.split('#');
-    return { kind, boardId, columnId, itemId: null, agg: agg as SummaryCalc, groupId: groupId || undefined, ownerId };
+    return { kind, boardId, columnId, itemId: null, agg: agg as SummaryCalc, groupId: groupId || undefined, ownerId, ...(period ? { period } : {}) };
   }
-  return { kind, boardId, columnId, itemId: row === '@' ? null : row, ownerId };
+  return { kind, boardId, columnId, itemId: row === '@' ? null : row, ownerId, ...(period ? { period } : {}) };
 }
 
 /** Serialize a CellRef back into its `{ref:...}` token form. */
@@ -290,8 +304,10 @@ export function serializeRef(ref: CellRef): string {
   // The owner is meaningful on a personal reference (whose hub) and on a hub-rows summary (whose
   // assigned rows). On an ordinary board cell it means nothing, so it is left off entirely.
   const carriesOwner = ref.kind === 'p' || (ref.kind === 'b' && ref.groupId === HUB_ROWS_GROUP_ID);
-  const owner = carriesOwner && ref.ownerId ? `:${ref.ownerId}` : '';
-  return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}${owner}}`;
+  const ownerId = carriesOwner && ref.ownerId ? ref.ownerId : '';
+  // A period takes the 7th slot, so it always writes the owner slot before it (empty if none).
+  if (ref.period) return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}:${ownerId}:${encodeHoursPeriod(ref.period)}}`;
+  return `{ref:${ref.kind}:${ref.boardId}:${ref.columnId}:${row}${ownerId ? `:${ownerId}` : ''}}`;
 }
 
 class FormulaParser {
@@ -508,7 +524,7 @@ class FormulaParser {
     // An HOURS_LOG cell's numeric value is its running total, in decimal hours (e.g. 16:15 -> 16.25)
     // — the natural unit for a formula like {ref} * hourlyRate.
     if (col.type === ColumnType.HOURS_LOG) {
-      return sumHoursLogMinutes(Array.isArray(val) ? (val as HoursLogEntry[]) : []) / 60;
+      return sumHoursLogMinutes(filterHoursLogByPeriod(val, ref.period)) / 60;
     }
     return val != null && !isNaN(Number(val)) ? Number(val) : 0;
   }
@@ -601,7 +617,7 @@ class FormulaParser {
         : ctx.allItems.filter((it) => it.groupId === ref.groupId);
 
     if (col.type !== ColumnType.SIMPLE_FORMULA) {
-      const plain = computeSummaryNumeric(rows, col.type, col.id, ref.agg) ?? 0;
+      const plain = computeSummaryNumeric(rows, col.type, col.id, ref.agg, undefined, undefined, ref.period) ?? 0;
       ctx.summaryCache?.set(cacheKey, plain);
       return plain;
     }
