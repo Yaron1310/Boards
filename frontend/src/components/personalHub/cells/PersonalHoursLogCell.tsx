@@ -8,7 +8,7 @@ import { useAuthSession } from '../../../hooks/useAuthSession';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import { formulaRefDomKey } from '../../../utils/formulaEngine';
-import { HOURS_LOG_MINUTE_STEPS, formatHoursLogDuration, formatHoursLogTimestamp, sumHoursLogMinutes } from '../../../utils/hoursLog';
+import { HOURS_LOG_MAX_HOURS, HOURS_LOG_MINUTE_STEPS, formatHoursLogDuration, formatHoursLogTimestamp, sumHoursLogMinutes } from '../../../utils/hoursLog';
 import type { Column, HoursLogColumnSettings, HoursLogEntry } from '../../../types';
 import type { PersonalCellProps, PersonalGridContext } from './types';
 import CellWrapper from '../../boards/cells/CellWrapper';
@@ -21,7 +21,7 @@ interface Props extends PersonalCellProps {
 // reads/writes personalItemValues (useUpdatePersonalItemValue) instead of item.values, same as
 // every other Personal Hub cell (see PersonalColumnCell's file comment for why).
 
-const HOURS_OPTIONS = Array.from({ length: 24 }, (_, i) => i);
+const HOURS_OPTIONS = Array.from({ length: HOURS_LOG_MAX_HOURS + 1 }, (_, i) => i);
 type MinuteStep = typeof HOURS_LOG_MINUTE_STEPS[number];
 
 interface DurationPickerProps {

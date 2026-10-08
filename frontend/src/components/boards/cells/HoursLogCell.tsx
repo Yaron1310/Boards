@@ -7,7 +7,7 @@ import { useSubitemColumns } from '../../../hooks/queries/useColumnQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import { formulaRefDomKey } from '../../../utils/formulaEngine';
-import { HOURS_LOG_MINUTE_STEPS, formatHoursLogDuration, formatHoursLogTimestamp, sumHoursLogMinutes } from '../../../utils/hoursLog';
+import { HOURS_LOG_MAX_HOURS, HOURS_LOG_MINUTE_STEPS, formatHoursLogDuration, formatHoursLogTimestamp, sumHoursLogMinutes } from '../../../utils/hoursLog';
 import { ColumnType } from '../../../types';
 import type { Item, Column, HoursLogEntry, HoursLogColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
@@ -19,7 +19,7 @@ interface Props { item: Item; column: Column }
 // log the very first entry and to add another one from the log list.
 // ---------------------------------------------------------------------------
 
-const HOURS_OPTIONS = Array.from({ length: 24 }, (_, i) => i);
+const HOURS_OPTIONS = Array.from({ length: HOURS_LOG_MAX_HOURS + 1 }, (_, i) => i);
 type MinuteStep = typeof HOURS_LOG_MINUTE_STEPS[number];
 
 interface DurationPickerProps {
