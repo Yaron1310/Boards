@@ -5,6 +5,10 @@ import type { HoursLogColumnSettings, HoursLogEntry, PersonalColumn } from '../t
  *  of one of these, in either field. */
 export const HOURS_LOG_MINUTE_STEPS = [0, 15, 30, 45] as const;
 
+/** Largest hour count a single entry can be logged with (the picker's hour list runs 0 to this) —
+ *  so one entry can hold a long stretch of work, e.g. 125:30. */
+export const HOURS_LOG_MAX_HOURS = 199;
+
 export function sumHoursLogMinutes(entries: HoursLogEntry[] | null | undefined): number {
   if (!Array.isArray(entries)) return 0;
   return entries.reduce((sum, e) => sum + (typeof e.minutes === 'number' && !isNaN(e.minutes) ? e.minutes : 0), 0);
