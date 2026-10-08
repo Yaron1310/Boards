@@ -336,58 +336,67 @@ const FormulaRecordingBar: React.FC = () => {
       data-formula-bar="true"
       className="relative z-40 w-full border-b border-indigo-300 bg-indigo-50/95 shadow-sm"
     >
-      <div className="flex items-center gap-3 px-4 py-4">
-        <div className="flex flex-col min-w-0">
-          <span className="text-[10px] uppercase tracking-wide text-indigo-500 font-semibold">
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="flex flex-col min-w-0 max-w-[220px] flex-shrink-0">
+          <span className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">
             Recording formula for
           </span>
-          <span className="text-xs text-indigo-700 truncate" title={`Item "${origin.itemName}", column "${origin.columnName}"`}>
-            “{origin.itemName}” · {origin.columnName}
+          <span className="text-base font-medium text-gray-900 truncate leading-snug" title={origin.itemName}>
+            {origin.itemName}
+          </span>
+          <span className="text-sm text-gray-500 truncate leading-snug" title={origin.columnName}>
+            {origin.columnName}
           </span>
         </div>
 
-        <span className="text-sm font-mono text-indigo-500 select-none">=</span>
+        <div className="self-stretch w-px bg-indigo-200" aria-hidden="true" />
+
+        {/* The field, "User hub" and Save share one height (h-10) and corner radius (rounded-lg). */}
         <div
-          className="flex-1 min-w-0 flex items-center font-mono text-gray-800 bg-white/80 rounded px-2 py-1 ring-1 ring-inset ring-indigo-200 overflow-hidden cursor-text"
-          style={{ fontSize: '1rem', lineHeight: '2em' }}
+          className="flex-1 min-w-0 h-10 flex items-center text-gray-800 bg-white rounded-lg border border-gray-200 overflow-hidden cursor-text"
           aria-label="Formula being recorded"
           onClick={handleFieldClick}
         >
+          <span className="flex-shrink-0 px-3 font-serif italic text-gray-500 select-none" aria-hidden="true">fx</span>
+          <span className="flex-shrink-0 w-px h-5 bg-gray-200" aria-hidden="true" />
           {/* Click anywhere to move the cursor; arrow keys (captured globally while recording)
               also move it. The blinking caret marks where typed input / clicked cells land. */}
-          <span className="truncate">
+          <span className="truncate px-3 font-mono" style={{ fontSize: '1rem', lineHeight: '2em' }}>
             {segments.length === 0
-              ? <span className="text-gray-400">Click number cells on any board or type numbers and operators (+ − × /)…</span>
+              ? <span className="font-sans text-sm text-gray-400">Click number cells on any board or type numbers and operators (+ − × /)…</span>
               : fieldNodes}
           </span>
         </div>
 
-        {/* Admin shortcut: insert a value from any user's Personal Hub without navigating there. */}
-        <UserHubValuesMenu />
-
-        <span className="text-xs text-gray-500 whitespace-nowrap">
+        <span className="text-lg text-gray-500 whitespace-nowrap">
           ={' '}
           <span className={preview != null ? 'text-indigo-600 font-medium' : 'text-gray-400'}>
             {preview != null ? formatNumber(preview) : isLoading ? '…' : '—'}
           </span>
         </span>
 
+        {/* Admin shortcut: insert a value from any user's Personal Hub without navigating there. */}
+        <UserHubValuesMenu />
+
         <button
           type="button"
           onClick={requestSave}
-          className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-indigo-600 rounded hover:bg-indigo-700 transition-colors"
+          className="flex items-center gap-1.5 h-10 px-4 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors whitespace-nowrap"
           aria-label="Save formula and return to its board"
         >
-          <FiCheck size={13} aria-hidden="true" /> Save
+          <FiCheck size={16} aria-hidden="true" /> Save
         </button>
         <button
           type="button"
           onClick={cancel}
-          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1.5 h-10 px-2 text-sm text-gray-500 hover:text-gray-700 transition-colors whitespace-nowrap"
           aria-label="Cancel formula recording"
         >
-          <FiX size={13} aria-hidden="true" /> Cancel
+          <FiX size={15} aria-hidden="true" /> Cancel
         </button>
+
+        <div className="self-stretch w-px bg-indigo-200" aria-hidden="true" />
+
         <ApplyScopeToggle
           currentScope={origin?.applyScope}
           onActivate={() => void handleToggleApplyScope()}
@@ -447,10 +456,10 @@ const ApplyScopeToggle: React.FC<{ currentScope: 'all' | 'perCell' | undefined; 
     // and fires it exactly once, but this way clicking the label text activates it too, without
     // double-firing (which attaching onClick to both the row and the button would cause).
     <div
-      className={`ml-2 flex items-center gap-2 select-none ${!isDecided || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      className={`flex items-center gap-2 select-none ${!isDecided || disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       onClick={isDecided && !disabled ? onActivate : undefined}
     >
-      <span className="text-xs font-medium text-gray-600 whitespace-nowrap">Apply to column</span>
+      <span className="text-sm text-gray-500 whitespace-nowrap">Apply to column</span>
       <button
         ref={btnRef}
         type="button"
@@ -462,7 +471,7 @@ const ApplyScopeToggle: React.FC<{ currentScope: 'all' | 'perCell' | undefined; 
         onFocus={show}
         onBlur={hide}
         aria-label="Apply to column — flip between all cells and just this cell, saved immediately"
-        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed ${isOn ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-gray-300 hover:bg-gray-400'}`}
+        className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors disabled:cursor-not-allowed ${isOn ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-gray-200 hover:bg-gray-300'}`}
       >
         <span
           className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${isOn ? 'translate-x-[22px]' : 'translate-x-[2px]'}`}

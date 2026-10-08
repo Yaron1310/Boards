@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useQueries } from '@tanstack/react-query';
-import { FiChevronRight, FiLoader, FiSearch, FiUsers } from 'react-icons/fi';
+import { FiChevronDown, FiChevronRight, FiLoader, FiSearch, FiUsers } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
@@ -335,13 +335,14 @@ const UserHubValuesMenu: React.FC = () => {
         ref={btnRef}
         type="button"
         onClick={() => (open ? close() : setOpen(true))}
-        className={`flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border transition-colors whitespace-nowrap ${open ? 'bg-indigo-100 border-indigo-300 text-indigo-700' : 'bg-white border-indigo-200 text-indigo-600 hover:bg-indigo-50'}`}
+        className={`flex items-center gap-2 h-10 px-3 text-sm font-medium rounded-lg border transition-colors whitespace-nowrap ${open ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Insert a value from a user's Personal Hub"
         title="Insert a value from a user's Personal Hub"
       >
-        <FiUsers size={13} aria-hidden="true" /> User hub
+        <FiUsers size={16} aria-hidden="true" /> User hub
+        <FiChevronDown size={15} className={`text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
       </button>
       {open && ReactDOM.createPortal(
         <div
