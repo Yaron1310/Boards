@@ -12,9 +12,9 @@ import { aggregateSummary, BOARD_TOTAL_GROUP_ID, HUB_ROWS_GROUP_ID, computeSumma
 import { hubDisplayRows, hubGridColumns, makePersonalFormulaEvaluator } from '@/utils/personalHubGrid';
 import { hubScopes, SELF_OWNER } from '@/utils/hubScope';
 import { formulaLog, formulaRefLog, sameColumnTrace } from '@/utils/formulaDebug';
-import { foldSubitemHoursIntoParents, subitemsOnlyHoursLogColumnIds, sumHoursLogMinutes } from '@/utils/hoursLog';
+import { filterHoursLogByPeriod, foldSubitemHoursIntoParents, subitemsOnlyHoursLogColumnIds, sumHoursLogMinutes } from '@/utils/hoursLog';
 import { ColumnType } from '@/types';
-import type { Column, Group, HoursLogEntry, Item, PaginatedResponse, PersonalColumn } from '@/types';
+import type { Column, Group, Item, PaginatedResponse, PersonalColumn } from '@/types';
 
 const FOREIGN_ITEMS_LIMIT = 500;
 
@@ -985,7 +985,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
 
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
             const rows = scoped.map((i) => ({ id: i.id, values: hubValues[i.id] ?? {} }));
-            const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+            const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg, undefined, undefined, r.period);
             formulaRefLog(serializeRef(r), total === null ? 'empty' : 'ok',
               total === null ? 'no row in this scope has a value for the column' : 'aggregated',
               {
@@ -1112,7 +1112,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
             : items.filter((i) => i.groupId === r.groupId);
 
           if (col.type !== ColumnType.SIMPLE_FORMULA) {
-            const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg);
+            const total = computeSummaryNumeric(rows, col.type, r.columnId, r.agg, undefined, undefined, r.period);
             formulaRefLog(serializeRef(r), total === null ? 'empty' : 'ok',
               total === null ? 'no row in that group has a value for the column' : 'aggregated',
               { board: r.boardId, column: col.name, group: r.groupId, rowsInGroup: rows.length, total });
@@ -1363,7 +1363,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         // hours of the item's subitems assigned to the hub's owner, as its cell shows.
         const personalCol = personalColumnsByOwner.get(owner)?.find((c) => c.id === r.columnId);
         if (personalCol?.type === ColumnType.HOURS_LOG) {
-          let minutes = sumHoursLogMinutes(Array.isArray(raw) ? (raw as HoursLogEntry[]) : []);
+          let minutes = sumHoursLogMinutes(filterHoursLogByPeriod(raw, r.period));
           if (subitemsOnlyHoursLogColumnIds([personalCol]).length > 0) {
             const subitemIds = hoursSubitemsByOwner.get(owner)?.get(itemId) ?? [];
             const subValues = hoursSubitemValuesByOwner.get(owner);
@@ -1372,7 +1372,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
               return undefined;
             }
             for (const id of subitemIds) {
-              minutes += sumHoursLogMinutes(subValues?.[id]?.[r.columnId] as HoursLogEntry[] | undefined);
+              minutes += sumHoursLogMinutes(filterHoursLogByPeriod(subValues?.[id]?.[r.columnId], r.period));
             }
           }
           formulaRefLog(serializeRef(r), 'ok', 'hours total read from your hub', { itemId, minutes });

@@ -10,6 +10,65 @@ export function sumHoursLogMinutes(entries: HoursLogEntry[] | null | undefined):
   return entries.reduce((sum, e) => sum + (typeof e.minutes === 'number' && !isNaN(e.minutes) ? e.minutes : 0), 0);
 }
 
+/**
+ * A time period an hours reference is limited to: an inclusive range of calendar days
+ * ('YYYY-MM-DD'), judged in the viewer's local time against each entry's `loggedAt` (when the
+ * entry was added). A year is 1 Jan – 31 Dec, a month its first to last day.
+ */
+export interface HoursPeriod {
+  from: string;
+  to: string;
+}
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const localDay = (d: Date) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+
+/** The entries logged within `period` (all of them when there is no period). Accepts any stored
+ *  cell value — a non-array (an empty cell) yields no entries. */
+export function filterHoursLogByPeriod(value: unknown, period?: HoursPeriod): HoursLogEntry[] {
+  const entries = Array.isArray(value) ? (value as HoursLogEntry[]) : [];
+  if (!period) return entries;
+  return entries.filter((e) => {
+    const d = new Date(e.loggedAt);
+    if (isNaN(d.getTime())) return false;
+    const day = localDay(d);
+    return day >= period.from && day <= period.to;
+  });
+}
+
+export const yearPeriod = (year: number): HoursPeriod => ({ from: `${year}-01-01`, to: `${year}-12-31` });
+
+/** `month` is 1–12. */
+export const monthPeriod = (year: number, month: number): HoursPeriod => {
+  const last = new Date(year, month, 0).getDate();
+  return { from: `${year}-${pad2(month)}-01`, to: `${year}-${pad2(month)}-${pad2(last)}` };
+};
+
+/** Token form used inside a formula reference: `YYYYMMDD-YYYYMMDD` (no ':' or '#', which the
+ *  reference syntax reserves). */
+export const encodeHoursPeriod = (p: HoursPeriod): string => `${p.from.replace(/-/g, '')}-${p.to.replace(/-/g, '')}`;
+
+export function decodeHoursPeriod(token: string | undefined): HoursPeriod | undefined {
+  const m = token?.match(/^(\d{4})(\d{2})(\d{2})-(\d{4})(\d{2})(\d{2})$/);
+  if (!m) return undefined;
+  return { from: `${m[1]}-${m[2]}-${m[3]}`, to: `${m[4]}-${m[5]}-${m[6]}` };
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const dayLabel = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return `${d} ${MONTHS[m - 1]} ${y}`;
+};
+
+/** Short human label: "2026", "Mar 2026", or "1 Mar 2026 – 15 Apr 2026". */
+export function describeHoursPeriod(p: HoursPeriod): string {
+  const [fy, fm] = p.from.split('-').map(Number);
+  if (p.from === yearPeriod(fy).from && p.to === yearPeriod(fy).to) return String(fy);
+  const month = monthPeriod(fy, fm);
+  if (p.from === month.from && p.to === month.to) return `${MONTHS[fm - 1]} ${fy}`;
+  return p.from === p.to ? dayLabel(p.from) : `${dayLabel(p.from)} – ${dayLabel(p.to)}`;
+}
+
 /** Formats a minute count as "H:MM" (e.g. 975 -> "16:15"). */
 export function formatHoursLogDuration(totalMinutes: number): string {
   const h = Math.floor(totalMinutes / 60);
@@ -62,4 +121,24 @@ export function foldSubitemHoursIntoParents(
     }
   }
   return out;
+}
+
+/** What the "User hub" menu's period picker holds for one Hours Log column. */
+export type HoursPeriodChoice =
+  | { mode: 'all' }
+  | { mode: 'year'; year: number }
+  | { mode: 'month'; year: number; month: number }
+  | { mode: 'custom'; from: string; to: string };
+
+/** The period a choice stands for: undefined for "All time", null while a custom range is
+ *  missing a date. A custom range entered backwards is read the right way round. */
+export function choiceToPeriod(choice: HoursPeriodChoice): HoursPeriod | undefined | null {
+  switch (choice.mode) {
+    case 'all': return undefined;
+    case 'year': return yearPeriod(choice.year);
+    case 'month': return monthPeriod(choice.year, choice.month);
+    case 'custom':
+      if (!choice.from || !choice.to) return null;
+      return choice.from <= choice.to ? { from: choice.from, to: choice.to } : { from: choice.to, to: choice.from };
+  }
 }
