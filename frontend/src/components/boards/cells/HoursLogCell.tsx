@@ -19,7 +19,12 @@ interface Props { item: Item; column: Column }
 // log the very first entry and to add another one from the log list.
 // ---------------------------------------------------------------------------
 
-const HOURS_OPTIONS = Array.from({ length: HOURS_LOG_MAX_HOURS + 1 }, (_, i) => i);
+/** Whole hours from what's typed in the hours box, kept within 0–HOURS_LOG_MAX_HOURS (empty or
+ *  unreadable reads as 0). */
+const clampHours = (text: string): number => {
+  const n = Math.floor(Number(text));
+  return Number.isFinite(n) ? Math.min(HOURS_LOG_MAX_HOURS, Math.max(0, n)) : 0;
+};
 type MinuteStep = typeof HOURS_LOG_MINUTE_STEPS[number];
 
 interface DurationPickerProps {
@@ -29,7 +34,10 @@ interface DurationPickerProps {
 }
 
 const DurationPicker: React.FC<DurationPickerProps> = ({ anchorEl, onCommit, onCancel }) => {
-  const [hours, setHours] = useState(0);
+  // The hours box holds exactly what was typed, so it can be cleared and retyped freely; the
+  // number it stands for is always clamped, and the box is tidied to it on leaving the field.
+  const [hoursText, setHoursText] = useState('0');
+  const hours = clampHours(hoursText);
   const [minutes, setMinutes] = useState<MinuteStep>(0);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
@@ -73,14 +81,25 @@ const DurationPicker: React.FC<DurationPickerProps> = ({ anchorEl, onCommit, onC
     >
       <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Log hours</p>
       <div className="flex items-center justify-center gap-1.5">
-        <select
-          value={hours}
-          onChange={(e) => setHours(Number(e.target.value))}
-          className="px-2 py-1.5 border border-gray-300 rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          aria-label="Hours"
-        >
-          {HOURS_OPTIONS.map((h) => <option key={h} value={h}>{String(h).padStart(2, '0')}</option>)}
-        </select>
+        {/* A number box rather than a list: with 0–199 hours, typing (or the arrows) is quicker
+            than scrolling, and a box makes it obvious that typing works. */}
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={HOURS_LOG_MAX_HOURS}
+          step={1}
+          value={hoursText}
+          autoFocus
+          onFocus={(e) => e.target.select()}
+          onChange={(e) => setHoursText(e.target.value)}
+          onBlur={() => setHoursText(String(hours))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && total > 0) { e.preventDefault(); onCommit(total); }
+          }}
+          className="w-16 px-2 py-1.5 border border-gray-300 rounded text-sm text-center select-text focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          aria-label={`Hours, 0 to ${HOURS_LOG_MAX_HOURS}`}
+        />
         <span className="text-gray-400 font-semibold">:</span>
         <select
           value={minutes}
