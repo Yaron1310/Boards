@@ -3,6 +3,8 @@ import { FiFilter, FiChevronLeft, FiCalendar, FiUser, FiFlag, FiTag, FiCheck } f
 import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { ColumnType } from '../../types';
+import { filterHoursLogByPeriod } from '../../utils/hoursLog';
+import { endOfLocalDay, numberLogEntries } from '../../utils/numberLog';
 import type { Item, Column, StatusColumnSettings, StatusOption, User, SimpleFormulaColumnSettings } from '../../types';
 import { evaluateFormula } from '../../utils/formulaEngine';
 import DateRangePicker from '../shared/DateRangePicker';
@@ -455,9 +457,30 @@ export function itemMatchesSearch(
   return false;
 }
 
+/**
+ * Date / Time Range filters also match through log columns (days are 'YYYY-MM-DD', inclusive,
+ * judged in local time):
+ * - Hours Log: some hours were logged within [from, to] — the row was worked on then.
+ * - Number log: a value was already in effect by the end of `to` — so viewing values "as of" a
+ *   date keeps every row that had a value then (see BoardViewPage's asOfFromFilters).
+ */
+function matchesLogColumns(item: Item, columns: Column[], from: string, to: string): boolean {
+  const period = { from, to };
+  const end = endOfLocalDay(to);
+  return columns.some((col) => {
+    const val = item.values[col.id];
+    if (col.type === ColumnType.HOURS_LOG) return filterHoursLogByPeriod(val, period).length > 0;
+    if (col.type === ColumnType.NUMBER_LOG) {
+      return end !== undefined && numberLogEntries(val).some((e) => Date.parse(e.loggedAt) <= end);
+    }
+    return false;
+  });
+}
+
 function itemMatchesSingleFilter(item: Item, columns: Column[], filter: ActiveFilter): boolean {
   switch (filter.type) {
     case 'date': {
+      if (matchesLogColumns(item, columns, filter.value, filter.value)) return true;
       const dateCols = columns.filter(
         (c) => c.type === ColumnType.DATE || c.type === ColumnType.TIME_RANGE,
       );
@@ -491,6 +514,7 @@ function itemMatchesSingleFilter(item: Item, columns: Column[], filter: ActiveFi
       });
     }
     case 'timerange': {
+      if (matchesLogColumns(item, columns, filter.start, filter.end)) return true;
       // Check TIME_RANGE columns (item spans within the filter window)
       const trCols = columns.filter((c) => c.type === ColumnType.TIME_RANGE);
       const trMatch = trCols.some((col) => {
