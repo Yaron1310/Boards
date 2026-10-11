@@ -8,7 +8,7 @@ import {
 } from 'react-icons/fi';
 import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
 import { useCreatePersonalColumn, usePersonalColumns, useReorderPersonalColumns, useDeletePersonalColumn, useUpdatePersonalItemValue } from '../../hooks/queries/usePersonalHubQueries';
-import { useUpdateItem } from '../../hooks/queries/useItemQueries';
+import * as wm from '../../services/workManagementService';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import { ColumnType } from '../../types';
@@ -243,7 +243,7 @@ const COLUMN_TYPE_GROUPS: { label: string; types: ColumnType[] }[] = [
   { label: 'Calculation', types: [ColumnType.SIMPLE_FORMULA] },
 ];
 
-const BUTTON_DISPLAY_ORDER = ['Inputs', 'Selection', 'Time', 'Calculation', 'Information'];
+const BUTTON_DISPLAY_ORDER = ['Inputs', 'Calculation', 'Selection', 'Time', 'Information'];
 
 const TYPE_TO_GROUP: Record<ColumnType, string> = {} as Record<ColumnType, string>;
 COLUMN_TYPE_GROUPS.forEach(({ label, types }) => {
@@ -267,9 +267,13 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const qc = useQueryClient();
   const { mutateAsync: createColumn, isPending: isPendingBoard } = useCreateColumn(boardId ?? '');
   const { mutateAsync: createPersonalColumn, isPending: isPendingPersonal } = useCreatePersonalColumn(personalOwnerId);
-  const isPending = isPersonal ? isPendingPersonal : isPendingBoard;
+  // True for the whole submit (create, reorder, convert values, delete the replaced column),
+  // not just the create request, so the button never looks idle while work is still running.
+  const [submitting, setSubmitting] = useState(false);
+  const isPending = submitting || (isPersonal ? isPendingPersonal : isPendingBoard);
+  // "Change type" from a column's menu: same form, but it replaces that column.
+  const isReplacing = !!replaceColumnId;
   const { mutateAsync: deleteColumn } = useDeleteColumn(boardId ?? '');
-  const { mutateAsync: updateItem } = useUpdateItem();
   const { mutateAsync: updatePersonalItemValue } = useUpdatePersonalItemValue(personalOwnerId);
   const { data: boardColumns = [] } = useColumns(boardId ?? '', !isPersonal && !parentGroupId && !!boardId);
   const { data: subitemColumns = [] } = useSubitemColumns(boardId ?? '', parentGroupId ?? '', !isPersonal && !!parentGroupId);
@@ -442,6 +446,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     setError('');
     hasSubmittedRef.current = true;
     isSubmittingRef.current = true;
+    if (!isTemplate) setSubmitting(true);
 
     if (isTemplate) {
       onSave?.({ name: trimmedName, type, settings: buildSettings() });
@@ -451,7 +456,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
     }
 
     if (isPersonal) {
-      if (!personalScope || (personalScope === 'board' && !boardId)) { isSubmittingRef.current = false; return; }
+      if (!personalScope || (personalScope === 'board' && !boardId)) { isSubmittingRef.current = false; setSubmitting(false); return; }
       try {
         await createPersonalColumn({
           name: trimmedName,
@@ -519,11 +524,12 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
         setError(err instanceof Error ? err.message : 'Failed to create column.');
       } finally {
         isSubmittingRef.current = false;
+        setSubmitting(false);
       }
       return;
     }
 
-    if (!boardId) { isSubmittingRef.current = false; return; }
+    if (!boardId) { isSubmittingRef.current = false; setSubmitting(false); return; }
     const scopedQueryKey = parentGroupId
       ? queryKeys.columns.subitem(boardId, parentGroupId)
       : queryKeys.columns.board(boardId);
@@ -591,14 +597,18 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       if (replaceColumnId) {
         if (newColumnId && replaceColumnType && dataAction === 'convert' && canConvertColumnValue(replaceColumnType, type)) {
           const items = collectBoardItemsWithValue(qc, replaceColumnId, parentGroupId);
+          // Straight to the service, not the item mutation hook: the hook refreshes every loaded
+          // item list after each single update, which made a type change on a board with many
+          // rows wait on a refresh storm before the modal could close. One refresh below instead.
           await Promise.all(items.map((item) => {
             const converted = convertColumnValue(replaceColumnType, type, item.values[replaceColumnId]);
-            return converted === undefined ? Promise.resolve() : updateItem({ id: item.id, patch: { values: { [newColumnId as string]: converted } } });
+            return converted === undefined ? Promise.resolve() : wm.updateItem(item.id, { values: { [newColumnId as string]: converted } });
           }));
         }
         await deleteColumn(replaceColumnId);
-        await qc.invalidateQueries({ queryKey: scopedQueryKey });
-        await qc.invalidateQueries({ queryKey: ['items'] });
+        // Refresh in the background — the change is done, nothing to wait for before closing.
+        void qc.invalidateQueries({ queryKey: scopedQueryKey });
+        void qc.invalidateQueries({ queryKey: ['items'] });
       }
 
       onClose();
@@ -606,6 +616,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       setError(err instanceof Error ? err.message : 'Failed to create column.');
     } finally {
       isSubmittingRef.current = false;
+      setSubmitting(false);
     }
   };
 
@@ -627,7 +638,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
               <FiColumns className="text-indigo-600" size={16} aria-hidden="true" />
             </div>
             <h2 id="add-column-title" className="text-lg font-semibold text-gray-800">
-              Add Column
+              {isReplacing ? 'Change Column Type' : 'Add Column'}
             </h2>
           </div>
           <button
@@ -1091,9 +1102,11 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
               type="submit"
               disabled={!isTemplate && isPending}
               className="px-5 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-60"
-              aria-label="Create column"
+              aria-label={isReplacing ? 'Change column type' : 'Create column'}
             >
-              {!isTemplate && isPending ? 'Creating…' : 'Create Column'}
+              {isReplacing
+                ? (isPending ? 'Changing…' : 'Change Type')
+                : (!isTemplate && isPending ? 'Creating…' : 'Create Column')}
             </button>
           </div>
         </form>
