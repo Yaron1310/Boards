@@ -6,6 +6,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { useItems } from '../../hooks/queries/useItemQueries';
+import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { usePersonalColumns } from '../../hooks/queries/usePersonalHubQueries';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
 import { queryKeys } from '../../hooks/queries/queryKeys';
@@ -364,11 +365,39 @@ const UserHubValuesMenu: React.FC = () => {
 
   // Same query (and order) the Users Management / Personal Hub pages list users with.
   const { data: users = [], isLoading: usersLoading } = useUsersQuery({ limit: 200 }, isOrgAdmin && open);
+
+  // Only users assigned to this project: the board(s) whose name matches the recorded item's
+  // name — the same match the values panel uses for a hub's group. Anyone else's hub has no such
+  // group, so listing them would only lead to an empty panel.
+  const itemName = session?.origin.itemName ?? '';
+  const { data: allBoards = [], isLoading: boardsLoading } = useBoards(undefined, false, isOrgAdmin && open);
+  const projectBoards = useMemo(
+    () => allBoards.filter((b) => namesMatchByWords(b.name, itemName)),
+    [allBoards, itemName],
+  );
+  const assigneeQueries = useQueries({
+    queries: projectBoards.map((b) => ({
+      queryKey: queryKeys.items.boardAssignees(b.id),
+      queryFn: () => wm.getBoardAssignees(b.id),
+      staleTime: 60 * 1000,
+      enabled: isOrgAdmin && open,
+    })),
+  });
+  const assigneesLoading = assigneeQueries.some((q) => q.isLoading);
+  const projectUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    assigneeQueries.forEach((q) => q.data?.userIds.forEach((id) => ids.add(id)));
+    return ids;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assigneeQueries.map((q) => q.dataUpdatedAt).join(',')]);
+  const listLoading = usersLoading || boardsLoading || assigneesLoading;
+
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
-  }, [users, search]);
+    const inProject = users.filter((u) => projectUserIds.has(u.id));
+    if (!q) return inProject;
+    return inProject.filter((u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
+  }, [users, projectUserIds, search]);
   const selectedUser = users.find((u) => u.id === selectedUserId) ?? null;
 
   const close = useCallback(() => { setOpen(false); setSelectedUserId(null); setSearch(''); }, []);
@@ -450,12 +479,14 @@ const UserHubValuesMenu: React.FC = () => {
               </div>
             </div>
             <div role="menu" aria-label="Users" className="max-h-80 overflow-y-auto py-1">
-              {usersLoading ? (
+              {listLoading ? (
                 <div className="flex justify-center py-4" role="status" aria-label="Loading users">
                   <FiLoader className="animate-spin text-indigo-500" size={16} aria-hidden="true" />
                 </div>
               ) : filteredUsers.length === 0 ? (
-                <p className="px-3 py-3 text-xs text-gray-500">No users found.</p>
+                <p className="px-3 py-3 text-xs text-gray-500">
+                  {search.trim() ? 'No users found.' : `No users are assigned to “${itemName}”.`}
+                </p>
               ) : filteredUsers.map((u) => (
                 <button
                   key={u.id}

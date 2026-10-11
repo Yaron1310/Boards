@@ -34,6 +34,10 @@ export const listBoards = (workspaceId?: string, includeArchived = false): Promi
 export const getBoard = (id: string): Promise<Board> =>
   fetchWithAuth(`/api/boards/${id}`);
 
+/** Distinct ids of the users assigned to any non-archived item (or subitem) on the board. */
+export const getBoardAssignees = (id: string): Promise<{ userIds: string[] }> =>
+  fetchWithAuth(`/api/boards/${id}/assignees`);
+
 export const updateBoard = (id: string, patch: UpdateBoardData): Promise<Board> =>
   fetchWithAuth(`/api/boards/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 

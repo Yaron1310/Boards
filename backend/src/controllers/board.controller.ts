@@ -289,6 +289,43 @@ export const reorderBoards = async (req: Request, res: Response) => {
 };
 
 // ---------------------------------------------------------------------------
+// GET /boards/:id/assignees
+// The distinct user ids assigned to any non-archived item on the board (subitems included —
+// they share the board's boardId). Used by the formula bar's "User hub" menu to list only the
+// users whose Personal Hub can hold this board. Reads just the `assignees` field.
+// ---------------------------------------------------------------------------
+export const getBoardAssignees = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { id } = req.params;
+
+  try {
+    const doc = await boardsCollection(user.orgId).doc(id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Board not found.' });
+    const board = snapshotToData<DBBoard>(doc)!;
+
+    const memberDoc = await boardMembersCollection(user.orgId, id).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertBoardAccess(user, board, 'read', memberData);
+
+    const snap = await itemsCollection(user.orgId)
+      .where('boardId', '==', id)
+      .where('isArchived', '==', false)
+      .select('assignees')
+      .get();
+    const ids = new Set<string>();
+    for (const itemDoc of snap.docs) {
+      const assignees = itemDoc.get('assignees');
+      if (Array.isArray(assignees)) assignees.forEach((uid) => { if (typeof uid === 'string') ids.add(uid); });
+    }
+    res.json({ userIds: [...ids] });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error fetching assignees for board ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to fetch board assignees.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
 // GET /boards/:id
 // ---------------------------------------------------------------------------
 export const getBoardById = async (req: Request, res: Response) => {

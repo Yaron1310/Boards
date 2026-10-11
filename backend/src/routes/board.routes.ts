@@ -12,6 +12,7 @@ boardRouter.patch('/reorder', boardController.reorderBoards);
 
 // Single board — specific action routes before generic /:id
 boardRouter.get('/:id/version', boardController.getBoardVersion);
+boardRouter.get('/:id/assignees', boardController.getBoardAssignees);
 boardRouter.patch('/:id/archive', boardController.archiveBoard);
 boardRouter.patch('/:id/restore', boardController.restoreBoard);
 boardRouter.post('/:id/duplicate', boardController.duplicateBoard);

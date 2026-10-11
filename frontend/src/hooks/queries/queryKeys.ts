@@ -31,6 +31,9 @@ export const queryKeys = {
     one: (id: string) => ['items', id] as const,
     group: (groupId: string, cursor: string | undefined, limit: number, includeArchived = false) =>
       ['items', 'group', groupId, cursor ?? '', limit, includeArchived] as const,
+    /** Under 'items' on purpose: every item mutation invalidates ['items'], so an assignment
+     *  change refreshes who counts as assigned on the board. */
+    boardAssignees: (boardId: string) => ['items', 'boardAssignees', boardId] as const,
   },
   columns: {
     board: (boardId: string) => ['columns', { boardId }] as const,
