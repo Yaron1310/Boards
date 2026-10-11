@@ -12,6 +12,9 @@ import type { PersonalGridContext } from '../components/personalHub/cells/types'
 const assignedTime = (item: Item): number =>
   item.lastAssignedAt ? new Date(item.lastAssignedAt).getTime() : 0;
 
+/** The bits of a source-board group the Hub orders its rows by. */
+export interface HubRowGroup { id: string; order?: number }
+
 /**
  * The rows a Hub actually shows, rebuilt from the owner's assigned items: an assigned subitem
  * never gets a row of its own — the item hosting it does (see PersonalHubBoardGroup), and an
@@ -21,11 +24,17 @@ const assignedTime = (item: Item): number =>
  * `parentIdOf` names a subitem's hosting item (undefined for a top-level item, or when its group
  * is unknown — the Hub then shows it as a row of its own too). `parentsById` holds the hosts
  * that were fetched; a host that couldn't be is left out, as on the Hub.
+ *
+ * `groupOf` gives a displayed row's source-board group. Once a board's rows span more than one
+ * group, the Hub sorts them like the source board — groups by their `order`, rows by their own
+ * `order` within a group, rows with an unknown group last — and so does this. Leave it out only
+ * where row order doesn't matter.
  */
 export function hubDisplayRows(
   assigned: Item[],
   parentIdOf: (item: Item) => string | undefined,
   parentsById: ReadonlyMap<string, Item>,
+  groupOf?: (item: Item) => HubRowGroup | undefined,
 ): Item[] {
   const sorted = assigned.filter((i) => !i.isArchived).sort((a, b) => assignedTime(b) - assignedTime(a));
   const byBoard = new Map<string, { top: Item[]; hosts: Item[] }>();
@@ -39,8 +48,30 @@ export function hubDisplayRows(
   }
   return [...byBoard.values()].flatMap(({ top, hosts }) => {
     const topIds = new Set(top.map((i) => i.id));
-    return [...top, ...hosts.filter((h) => !topIds.has(h.id))];
+    const flat = [...top, ...hosts.filter((h) => !topIds.has(h.id))];
+    return groupOf ? orderLikeSourceBoard(flat, groupOf) : flat;
   });
+}
+
+/** Same clustering as PersonalHubBoardGroup's displayItems: a board whose rows come from more
+ *  than one source group (an unknown group counts as one more) is shown in source-board order. */
+function orderLikeSourceBoard(flat: Item[], groupOf: (item: Item) => HubRowGroup | undefined): Item[] {
+  const byGroupId = new Map<string, { group: HubRowGroup; items: Item[] }>();
+  const other: Item[] = [];
+  for (const item of flat) {
+    const group = groupOf(item);
+    if (!group) { other.push(item); continue; }
+    const entry = byGroupId.get(group.id) ?? { group, items: [] };
+    entry.items.push(item);
+    byGroupId.set(group.id, entry);
+  }
+  const clusterCount = byGroupId.size + (other.length > 0 ? 1 : 0);
+  if (clusterCount <= 1) return flat;
+  for (const entry of byGroupId.values()) entry.items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  return [
+    ...[...byGroupId.values()].sort((a, b) => (a.group.order ?? 0) - (b.group.order ?? 0)).flatMap((e) => e.items),
+    ...other,
+  ];
 }
 
 /**

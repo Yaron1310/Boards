@@ -97,32 +97,45 @@ const UserHubValuesPanel: React.FC<{
     [boardQueries.map((q) => q.data?.id ?? '').join(','), itemName],
   );
 
-  // A hub row is not always the assigned item itself: an assigned subitem is shown as the item
-  // hosting it. Which group belongs to a parent item tells the two apart — same as the Hub.
+  const matchedIds = useMemo(() => new Set(matchedBoards.map((b) => b.id)), [matchedBoards]);
+  const assignedOnMatched = useMemo(() => assigned.filter((i) => matchedIds.has(i.boardId)), [assigned, matchedIds]);
+
+  // Each assigned item's own group, fetched one by one exactly as the Hub does: it tells an
+  // assigned subitem (its group belongs to a parent item, and the hub shows that item instead)
+  // from a top-level item, and its `order` is what the Hub sorts rows by. A board's plain group
+  // list can't stand in — it leaves subitem groups out.
+  const groupRefs = useMemo(() => {
+    const seen = new Set<string>();
+    const refs: Array<{ boardId: string; groupId: string }> = [];
+    for (const it of assignedOnMatched) {
+      const key = `${it.boardId}:${it.groupId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      refs.push({ boardId: it.boardId, groupId: it.groupId });
+    }
+    return refs;
+  }, [assignedOnMatched]);
   const groupQueries = useQueries({
-    queries: matchedBoards.map((b) => ({
-      queryKey: queryKeys.groups.all(b.id),
-      queryFn: () => wm.listGroups(b.id, false),
+    queries: groupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
       staleTime: 2 * 60 * 1000,
     })),
   });
   const groupsLoading = groupQueries.some((q) => q.isLoading);
-  const parentByGroup = useMemo(() => {
-    const m = new Map<string, string>();
-    matchedBoards.forEach((b, i) => {
-      ((groupQueries[i]?.data as Group[] | undefined) ?? []).forEach((g) => {
-        if (g.parentItemId) m.set(`${b.id}:${g.id}`, g.parentItemId);
-      });
+  const groupByKey = useMemo(() => {
+    const m = new Map<string, Group>();
+    groupRefs.forEach(({ boardId, groupId }, i) => {
+      const g = groupQueries[i]?.data as Group | undefined;
+      if (g) m.set(`${boardId}:${groupId}`, g);
     });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchedBoards, groupQueries.map((q) => q.dataUpdatedAt).join(',')]);
+  }, [groupRefs, groupQueries.map((q) => q.dataUpdatedAt).join(',')]);
 
-  const matchedIds = useMemo(() => new Set(matchedBoards.map((b) => b.id)), [matchedBoards]);
-  const assignedOnMatched = useMemo(() => assigned.filter((i) => matchedIds.has(i.boardId)), [assigned, matchedIds]);
   const parentIdOf = useMemo(
-    () => (it: Item) => parentByGroup.get(`${it.boardId}:${it.groupId}`),
-    [parentByGroup],
+    () => (it: Item) => groupByKey.get(`${it.boardId}:${it.groupId}`)?.parentItemId ?? undefined,
+    [groupByKey],
   );
   const hostIds = useMemo(() => {
     const assignedIds = new Set(assignedOnMatched.map((i) => i.id));
@@ -143,11 +156,44 @@ const UserHubValuesPanel: React.FC<{
   });
   const hostsLoading = hostQueries.some((q) => q.isLoading);
 
+  // A host's own group — where the Hub places that row once the board's rows span several groups.
+  const hostGroupRefs = useMemo(() => {
+    const refs: Array<{ boardId: string; groupId: string }> = [];
+    const seen = new Set(groupByKey.keys());
+    hostQueries.forEach((q) => {
+      const host = q.data as Item | undefined;
+      if (!host) return;
+      const key = `${host.boardId}:${host.groupId}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      refs.push({ boardId: host.boardId, groupId: host.groupId });
+    });
+    return refs;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupByKey, hostQueries.map((q) => q.dataUpdatedAt).join(',')]);
+  const hostGroupQueries = useQueries({
+    queries: hostGroupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  const hostGroupsLoading = hostGroupQueries.some((q) => q.isLoading);
+  const groupOf = useMemo(() => {
+    const m = new Map(groupByKey);
+    hostGroupRefs.forEach(({ boardId, groupId }, i) => {
+      const g = hostGroupQueries[i]?.data as Group | undefined;
+      if (g) m.set(`${boardId}:${groupId}`, g);
+    });
+    return (it: Item) => m.get(`${it.boardId}:${it.groupId}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupByKey, hostGroupRefs, hostGroupQueries.map((q) => q.dataUpdatedAt).join(',')]);
+
   const sections = useMemo<BoardSection[]>(() => {
     const parentsById = new Map<string, Item>();
     hostQueries.forEach((q) => { if (q.data) parentsById.set((q.data as Item).id, q.data as Item); });
     assignedOnMatched.forEach((it) => parentsById.set(it.id, it));
-    const rows = hubDisplayRows(assignedOnMatched, parentIdOf, parentsById);
+    const rows = hubDisplayRows(assignedOnMatched, parentIdOf, parentsById, groupOf);
 
     const templateColumns = personalColumns
       .filter((c) => c.fromTemplate && INSERTABLE_TYPES.has(c.type))
@@ -185,7 +231,7 @@ const UserHubValuesPanel: React.FC<{
       return { board, columns };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchedBoards, assignedOnMatched, parentIdOf, personalColumns, ownerId, periodChoices, hostQueries.map((q) => q.data?.id ?? '').join(',')]);
+  }, [matchedBoards, assignedOnMatched, parentIdOf, groupOf, personalColumns, ownerId, periodChoices, hostQueries.map((q) => q.data?.id ?? '').join(',')]);
 
   // Only the row cells are resolved here. A group total is worked out from those same row
   // values (below), so the menu never waits on the much heavier load a total reference needs on
@@ -211,7 +257,7 @@ const UserHubValuesPanel: React.FC<{
     return aggregateSummary(vals, calc);
   };
 
-  const loading = itemsLoading || columnsLoading || boardsLoading || groupsLoading || hostsLoading;
+  const loading = itemsLoading || columnsLoading || boardsLoading || groupsLoading || hostsLoading || hostGroupsLoading;
 
   if (loading) {
     return (

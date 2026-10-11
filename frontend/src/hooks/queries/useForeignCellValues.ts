@@ -862,6 +862,43 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hubHostIds.join(','), hubHostQueries]);
+  // Every group a summarised hub row sits in (its own, or its host's) — the Hub orders a board's
+  // rows by these once they span more than one group, so the rebuilt rows must too.
+  const groupByKey = useMemo(() => {
+    const m = new Map<string, Group>();
+    hoursGroupRefs.forEach(({ boardId, groupId }, i) => {
+      const g = hoursGroupQueries[i]?.data as Group | undefined;
+      if (g) m.set(`${boardId}:${groupId}`, g);
+    });
+    return m;
+  }, [hoursGroupRefs, hoursGroupQueries]);
+  const hubHostGroupRefs = useMemo(() => {
+    const refs: Array<{ boardId: string; groupId: string }> = [];
+    const seen = new Set(groupByKey.keys());
+    hubHostsById.forEach((host) => {
+      const key = `${host.boardId}:${host.groupId}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      refs.push({ boardId: host.boardId, groupId: host.groupId });
+    });
+    return refs;
+  }, [groupByKey, hubHostsById]);
+  const hubHostGroupQueries = useQueries({
+    queries: hubHostGroupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  const hubRowGroupOf = useMemo(() => {
+    const m = new Map(groupByKey);
+    hubHostGroupRefs.forEach(({ boardId, groupId }, i) => {
+      const g = hubHostGroupQueries[i]?.data as Group | undefined;
+      if (g) m.set(`${boardId}:${groupId}`, g);
+    });
+    return (it: Item) => m.get(`${it.boardId}:${it.groupId}`);
+  }, [groupByKey, hubHostGroupRefs, hubHostGroupQueries]);
+
   const hubHostValueQueries = useQueries({
     queries: summaryOwners.map((owner) => {
       const ids = hubHostIdsByOwner.get(owner) ?? [];
@@ -883,7 +920,7 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
    */
   const hubDisplayByOwner = useMemo(() => {
     const m = new Map<string, { rows: Item[]; values: Record<string, Record<string, unknown>> }>();
-    if (!groupsSettled || hubHostQueries.some((q) => q.isLoading)) return m;
+    if (!groupsSettled || hubHostQueries.some((q) => q.isLoading) || hubHostGroupQueries.some((q) => q.isLoading)) return m;
     summaryOwners.forEach((owner, i) => {
       const assigned = hubItemsByOwner.get(owner);
       if (!assigned) return;
@@ -905,12 +942,12 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
         parentBySubitem,
         subitemsOnlyHoursLogColumnIds(personalColumnsByOwner.get(owner) ?? []),
       );
-      m.set(owner, { rows: hubDisplayRows(assigned, parentIdOf, parentsById), values });
+      m.set(owner, { rows: hubDisplayRows(assigned, parentIdOf, parentsById, hubRowGroupOf), values });
     });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summaryOwnersKey, hubItemsByOwner, hubValuesByOwner, hubHostIdsByOwner, hubHostsById, hubHostQueries, hubHostValueQueries,
-      parentByGroup, groupsSettled, personalColumnsByOwner]);
+      parentByGroup, groupsSettled, personalColumnsByOwner, hubHostGroupQueries, hubRowGroupOf]);
 
   const isLoading =
     boardQueries.some((q) => q.isLoading) ||
