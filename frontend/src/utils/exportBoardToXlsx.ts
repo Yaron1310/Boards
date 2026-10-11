@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs';
 import type { Board, Group, Item, Column, User } from '../types';
 import { ColumnType } from '../types';
 import type { SimpleFormulaColumnSettings } from '../types';
+import { numberLogValueAt } from './numberLog';
 
 function formatCellValue(value: unknown, col: Column, users: User[]): string | number {
   if (value == null) return '';
@@ -14,6 +15,8 @@ function formatCellValue(value: unknown, col: Column, users: User[]): string | n
     }
     case ColumnType.NUMBER:
       return isNaN(Number(value)) ? '' : Number(value);
+    case ColumnType.NUMBER_LOG:
+      return numberLogValueAt(value) ?? '';
     case ColumnType.CHECKBOX:
       return value ? 'Yes' : 'No';
     case ColumnType.TAGS:

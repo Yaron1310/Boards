@@ -22,7 +22,7 @@ import type { Column, NumberColumnSettings } from '../../types';
 import {
   FiType, FiHash, FiCalendar, FiFlag, FiUser, FiChevronDown,
   FiCheckSquare, FiTag, FiClock, FiMail, FiPhone, FiMapPin,
-  FiZap, FiLink, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings, FiEdit2, FiRefreshCw, FiWatch, FiPaperclip,
+  FiZap, FiLink, FiPlus, FiArrowUp, FiArrowDown, FiLoader, FiMenu, FiMoreVertical, FiTrash2, FiSettings, FiEdit2, FiRefreshCw, FiWatch, FiPaperclip, FiTrendingUp,
 } from 'react-icons/fi';
 import { calculateColumnWidth, COLUMN_TYPE_MIN_WIDTHS } from '../../utils/columnWidths';
 import { useColumnVisibilityTier, canSeeColumn } from '../../hooks/useColumnVisibility';
@@ -80,6 +80,7 @@ export const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
   ),
   [ColumnType.SIMPLE_FORMULA]: <FiZap size={13} aria-hidden="true" />,
   [ColumnType.HOURS_LOG]:      <FiWatch size={13} aria-hidden="true" />,
+  [ColumnType.NUMBER_LOG]:     <FiTrendingUp size={13} aria-hidden="true" />,
   [ColumnType.FILES]:          <FiPaperclip size={13} aria-hidden="true" />,
 };
 
@@ -100,6 +101,7 @@ const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   [ColumnType.TIME_RANGE]:     'Time Range',
   [ColumnType.SIMPLE_FORMULA]: 'Formula',
   [ColumnType.HOURS_LOG]:      'Hours Log',
+  [ColumnType.NUMBER_LOG]:     'Number Log',
   [ColumnType.FILES]:          'Files',
 };
 
@@ -155,7 +157,7 @@ const ColumnHeaderCell: React.FC<ColumnHeaderCellProps> = ({
   // control, plus type-specific settings (unit, options, etc.) where applicable.
   const isConfigurable = true;
   // Number columns with a configured unit show it next to the name, e.g. "Income %".
-  const numberUnit = column.type === ColumnType.NUMBER
+  const numberUnit = column.type === ColumnType.NUMBER || column.type === ColumnType.NUMBER_LOG
     ? (column.settings as NumberColumnSettings)?.unit
     : undefined;
   const displayName = numberUnit ? `${column.name} ${numberUnit}` : column.name;

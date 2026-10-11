@@ -7,7 +7,8 @@ import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, DBOrganizationSe
 import { sanitizeText } from '../utils/sanitizer.js';
 import { signalTemplateItemTotalsChanged } from '../services/templateTotalsSignal.service.js';
 
-const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
+// Number log is a board-only column type — not offered in the Personal Hub.
+const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType).filter((t) => t !== ColumnType.NUMBER_LOG));
 const ADMIN_ROLES = new Set<string>([UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN]);
 
 function personalValueDocId(userId: string, itemId: string): string {

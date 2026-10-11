@@ -22,7 +22,7 @@ import { usePersonalItemValues } from '../../hooks/queries/usePersonalHubQueries
 import PersonalColumnCell from '../personalHub/PersonalColumnCell';
 import type { PersonalColumn } from '../../types';
 
-const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.SIMPLE_FORMULA];
+const CONFIGURABLE_TYPES = [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.NUMBER_LOG, ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.SIMPLE_FORMULA];
 
 const DEFAULT_STATUS_OPTIONS = [
   { id: 'todo', label: 'To Do', color: '#94a3b8' },

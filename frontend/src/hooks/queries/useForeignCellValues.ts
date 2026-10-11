@@ -13,6 +13,7 @@ import { hubDisplayRows, hubGridColumns, makePersonalFormulaEvaluator } from '@/
 import { hubScopes, SELF_OWNER } from '@/utils/hubScope';
 import { formulaLog, formulaRefLog, sameColumnTrace } from '@/utils/formulaDebug';
 import { filterHoursLogByPeriod, foldSubitemHoursIntoParents, subitemsOnlyHoursLogColumnIds, sumHoursLogMinutes } from '@/utils/hoursLog';
+import { numberLogValueAt } from '@/utils/numberLog';
 import { ColumnType } from '@/types';
 import type { Column, Group, Item, PaginatedResponse, PersonalColumn } from '@/types';
 
@@ -1305,6 +1306,13 @@ export function useForeignCellValues(refs: CellRef[], orgId: string | undefined,
           if (raw == null || raw === '') {
             formulaRefLog(serializeRef(r), 'empty', 'that cell is empty', { board: r.boardId, itemId, columnId: r.columnId });
             return null;
+          }
+          if (col?.type === ColumnType.NUMBER_LOG) {
+            // Another board's Number log reads its current value — its history isn't combined
+            // with this formula's hours (time-aware splitting needs both on the formula's board).
+            const v = numberLogValueAt(raw);
+            formulaRefLog(serializeRef(r), v === null ? 'empty' : 'ok', 'current Number log value', { board: r.boardId, itemId });
+            return v;
           }
           const n = Number(raw);
           formulaRefLog(serializeRef(r), isNaN(n) ? 'empty' : 'ok', isNaN(n) ? 'cell value is not a number' : 'read from the board',

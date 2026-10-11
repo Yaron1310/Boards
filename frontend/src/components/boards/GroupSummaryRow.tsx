@@ -11,6 +11,7 @@ import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
 import { useAuth } from '../../hooks/useAuth';
 import { useFlippedPosition } from '../../hooks/useFlippedPosition';
 import { useBoardRender } from '../../contexts/BoardRenderContext';
+import { numberLogValueAt } from '../../utils/numberLog';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { ITEM_COL_ID } from './ColumnHeader';
 import { useColumnVisibilityTier, canSeeColumn } from '../../hooks/useColumnVisibility';
@@ -77,6 +78,7 @@ const AGGREGATABLE_TYPES = new Set([
   ColumnType.CHECKBOX,
   ColumnType.SIMPLE_FORMULA,
   ColumnType.HOURS_LOG,
+  ColumnType.NUMBER_LOG,
 ]);
 
 // Column types that only support count (non-empty values)
@@ -367,7 +369,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
   const { mutate: updateColumn } = useUpdateColumn(col.boardId ?? '');
-  const { columnWidths, visibleItems, columns: boardColumns, groupsComplete, isBoardReadOnly } = useBoardRender();
+  const { columnWidths, visibleItems, columns: boardColumns, groupsComplete, isBoardReadOnly, asOf } = useBoardRender();
   const { isRecording, insertRef } = useFormulaRecording();
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
@@ -433,6 +435,12 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
   };
 
   function computeNumberVals(): number[] {
+    if (col.type === ColumnType.NUMBER_LOG) {
+      // Each row's value in effect now, or at the board date filter's "as of" moment.
+      return effectiveItems
+        .map((i) => numberLogValueAt(getVal(i, col.id), asOf))
+        .filter((v): v is number => v !== null);
+    }
     if (col.type === ColumnType.NUMBER || col.type === ColumnType.SIMPLE_FORMULA) {
       if (col.type === ColumnType.SIMPLE_FORMULA) {
         // Personal formula columns evaluate via {Letter}{Row} grid addressing; the
@@ -468,6 +476,7 @@ export const SummaryCell: React.FC<SummaryCellProps> = ({
               // Personal Hub's assignee-filtered view), a same-board summary ref inside the
               // formula can't be aggregated from them and must go through resolveForeign.
               groupsComplete,
+              asOf,
               resolveRef: (ref, forItemId) => resolveForeign(ref, forItemId ?? i.id),
             });
           })

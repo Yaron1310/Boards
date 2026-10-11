@@ -16,6 +16,7 @@ import { ColumnType } from '../types';
 import type { HoursLogEntry } from '../types';
 import { formulaRefLog, sameColumnTrace } from './formulaDebug';
 import { decodeHoursPeriod, encodeHoursPeriod, filterHoursLogByPeriod, sumHoursLogMinutes, type HoursPeriod } from './hoursLog';
+import { numberLogChangeTimes, numberLogValueAt } from './numberLog';
 
 export type ColumnValues = Record<string, number | null | undefined>;
 
@@ -128,7 +129,14 @@ export function computeSummaryNumeric(
   /** HOURS_LOG only: aggregate just the entries logged within this period. A row with none in
    *  it counts as empty, exactly like a row with no entries at all. */
   period?: HoursPeriod,
+  /** NUMBER_LOG only: aggregate each row's value in effect at this moment (undefined = now). */
+  asOf?: number,
 ): number | null {
+  if (type === ColumnType.NUMBER_LOG) {
+    const read = getVal;
+    getVal = (r, c) => numberLogValueAt(read(r, c), asOf);
+    type = ColumnType.NUMBER;
+  }
   if (period && type === ColumnType.HOURS_LOG) {
     const read = getVal;
     getVal = (r, c) => filterHoursLogByPeriod(read(r, c), period);
@@ -248,6 +256,25 @@ export interface FormulaContext {
    *  of `summaryCache` instead of being reused in a context that wouldn't have truncated.
    *  Managed by the engine; callers leave it unset. */
   cycleFlag?: { hit: boolean };
+  /** The board date filter's "as of" moment (epoch ms). Number log refs read the value in effect
+   *  then, and a time-aware formula only counts hours logged up to it. Undefined means now. */
+  asOf?: number;
+  /** One period of a time-aware evaluation (see evaluateTimeAware). Managed by the engine;
+   *  callers leave it unset. */
+  timeSlice?: TimeSlice;
+}
+
+/**
+ * One period of a time-aware formula: hours refs count only entries logged in [from, to), and
+ * Number log refs read the value in effect at `numberAt` (falling back to the first value for
+ * work logged before any value was entered). `hoursZero` evaluates the same period with every
+ * hours ref at 0 — the part of the result that doesn't depend on hours.
+ */
+interface TimeSlice {
+  from: number;
+  to: number;
+  numberAt: number;
+  hoursZero: boolean;
 }
 
 /** Sentinel `groupId` for a board-total (footer) summary ref — aggregates every item on the
@@ -506,7 +533,7 @@ class FormulaParser {
     sameColumnTrace('2. found the column', { columnId: col.id, type: col.type });
     // A reference to another formula cell resolves to its live computed value.
     if (col.type === ColumnType.SIMPLE_FORMULA) return this.resolveLocalFormula(ref, col);
-    if (col.type !== ColumnType.NUMBER && col.type !== ColumnType.HOURS_LOG) {
+    if (col.type !== ColumnType.NUMBER && col.type !== ColumnType.HOURS_LOG && col.type !== ColumnType.NUMBER_LOG) {
       sameColumnTrace('3. HANDS TO LOADER — column is neither a number nor a formula', { type: col.type });
       return undefined;
     }
@@ -524,9 +551,27 @@ class FormulaParser {
     // An HOURS_LOG cell's numeric value is its running total, in decimal hours (e.g. 16:15 -> 16.25)
     // — the natural unit for a formula like {ref} * hourlyRate.
     if (col.type === ColumnType.HOURS_LOG) {
-      return sumHoursLogMinutes(filterHoursLogByPeriod(val, ref.period)) / 60;
+      const slice = ctx.timeSlice;
+      if (slice?.hoursZero) return 0;
+      let entries = filterHoursLogByPeriod(val, ref.period);
+      if (slice) {
+        entries = entries.filter((e) => {
+          const t = Date.parse(e.loggedAt);
+          return t >= slice.from && t < slice.to;
+        });
+      }
+      return sumHoursLogMinutes(entries) / 60;
     }
+    if (col.type === ColumnType.NUMBER_LOG) return this.numberLogValue(val);
     return val != null && !isNaN(Number(val)) ? Number(val) : 0;
+  }
+
+  /** A Number log cell's value for this evaluation: the value in effect during the current
+   *  time-aware period, or at the "as of" moment (now when unset). Empty before any value. */
+  private numberLogValue(val: unknown): number {
+    const ctx = this.context;
+    const slice = ctx?.timeSlice;
+    return (slice ? numberLogValueAt(val, slice.numberAt, true) : numberLogValueAt(val, ctx?.asOf)) ?? 0;
   }
 
   /** Resolve a reference to another SIMPLE_FORMULA cell to its live value by evaluating that
@@ -590,7 +635,9 @@ class FormulaParser {
     const nextEvaluating = new Set(evaluating);
     nextEvaluating.add(key);
 
-    const r = evaluateFormula(formula, {}, { ...ctx, currentRowIndex: idx, evaluating: nextEvaluating });
+    // A referenced formula contributes its own final value — never re-split by this formula's
+    // time periods — so the slice is dropped and it runs its own time-aware evaluation if any.
+    const r = evaluateFormula(formula, {}, { ...ctx, currentRowIndex: idx, evaluating: nextEvaluating, timeSlice: undefined });
     sameColumnTrace('4. evaluated that cell', { itemId: item.id, result: r, returning: r ?? 0 });
     return r ?? 0;
   }
@@ -617,7 +664,7 @@ class FormulaParser {
         : ctx.allItems.filter((it) => it.groupId === ref.groupId);
 
     if (col.type !== ColumnType.SIMPLE_FORMULA) {
-      const plain = computeSummaryNumeric(rows, col.type, col.id, ref.agg, undefined, undefined, ref.period) ?? 0;
+      const plain = computeSummaryNumeric(rows, col.type, col.id, ref.agg, undefined, undefined, ref.period, ctx.asOf) ?? 0;
       ctx.summaryCache?.set(cacheKey, plain);
       return plain;
     }
@@ -680,6 +727,7 @@ class FormulaParser {
       ...ctx,
       currentRowIndex: idx >= 0 ? idx : undefined,
       evaluating: nextEvaluating,
+      timeSlice: undefined,
     });
   }
 
@@ -710,6 +758,7 @@ class FormulaParser {
 
     // Column B is columns[0], Column C is columns[1], etc.
     const col = this.context.columns[colIndex - 1];
+    if (col?.type === ColumnType.NUMBER_LOG) return this.numberLogValue(item.values[col.id]);
     if (!col || col.type !== ColumnType.NUMBER) return 0;
 
     const val = item.values[col.id];
@@ -740,13 +789,60 @@ export function evaluateFormula(
       summaryCache: context.summaryCache ?? new Map<string, number>(),
       cycleFlag: context.cycleFlag ?? { hit: false },
     };
-    const parser = new FormulaParser(formula, columnValues, ctx);
-    const result = parser.parse();
+    const result = ctx && !ctx.timeSlice
+      ? evaluateTimeAware(formula, columnValues, ctx)
+      : new FormulaParser(formula, columnValues, ctx).parse();
     if (result === null || !isFinite(result) || isNaN(result)) return null;
     return result;
   } catch {
     return null;
   }
+}
+
+/**
+ * A formula that uses both a Number log and an Hours Log (same board) is time-aware: work done
+ * while a value was in effect is priced at that value. Time is cut at every moment a referenced
+ * Number log changed (up to `asOf`); in each period the hours count only entries logged then.
+ * Only the hours-dependent part accumulates across periods — anything that doesn't depend on hours
+ * (a fixed fee, a plain number, another formula's value) counts once, at the "as of" value:
+ *
+ *   result = f(as-of values, no hours) + Σ over periods [ f(period) − f(period, no hours) ]
+ *
+ * so `rate × hours` gives Σ rateₖ·hoursₖ and `rate × hours + fee` adds the fee once. Any other
+ * formula evaluates normally, with Number log refs reading their value as of `asOf`.
+ */
+function evaluateTimeAware(formula: string, columnValues: ColumnValues, ctx: FormulaContext): number | null {
+  const run = (timeSlice?: TimeSlice) => new FormulaParser(formula, columnValues, { ...ctx, timeSlice }).parse();
+
+  const typeOf = new Map(ctx.columns.map((c) => [c.id, c.type]));
+  const local = extractRefs(formula).filter((r) => r.kind === 'b' && !r.agg && !!ctx.homeBoardId && r.boardId === ctx.homeBoardId);
+  const numberLogRefs = local.filter((r) => typeOf.get(r.columnId) === ColumnType.NUMBER_LOG);
+  const usesHours = local.some((r) => typeOf.get(r.columnId) === ColumnType.HOURS_LOG);
+  if (numberLogRefs.length === 0 || !usesHours) return run();
+
+  const rowOf = (itemId: string | null) => (itemId === null
+    ? (ctx.currentRowIndex !== undefined ? ctx.allItems[ctx.currentRowIndex] : undefined)
+    : ctx.allItems.find((it) => it.id === itemId));
+  const changes = new Set<number>();
+  for (const r of numberLogRefs) {
+    numberLogChangeTimes(rowOf(r.itemId)?.values[r.columnId], ctx.asOf).forEach((t) => changes.add(t));
+  }
+  const end = ctx.asOf ?? Infinity;
+  const edges = [-Infinity, ...[...changes].sort((a, b) => a - b), end];
+
+  const base = run({ from: -Infinity, to: Infinity, numberAt: end, hoursZero: true });
+  if (base === null) return null;
+  let total = base;
+  for (let i = 0; i < edges.length - 1; i++) {
+    const from = edges[i];
+    const to = edges[i + 1];
+    if (from >= to) continue;
+    const withHours = run({ from, to, numberAt: from, hoursZero: false });
+    const withoutHours = run({ from, to, numberAt: from, hoursZero: true });
+    if (withHours === null || withoutHours === null) return null;
+    total += withHours - withoutHours;
+  }
+  return total;
 }
 
 /** All stable-ID references in a formula (legacy positional refs are not returned — they carry
