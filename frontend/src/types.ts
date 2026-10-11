@@ -169,6 +169,7 @@ export enum ColumnType {
   SIMPLE_FORMULA = 'simple_formula',
   HOURS_LOG = 'hours_log',
   FILES = 'files',
+  NUMBER_LOG = 'number_log',
 }
 
 // --- Column settings per type ---
@@ -307,6 +308,15 @@ export interface LocationValue {
 
 /** One logged entry on an HOURS_LOG cell — a duration the out-source employee worked, plus
  *  when it was logged (shown in the entry list, never editable after the fact). */
+/** One entry on a NUMBER_LOG cell — a value, plus the moment it was typed. The newest entry at
+ *  or before a moment is the value in effect then (see utils/numberLog). */
+export interface NumberLogEntry {
+  id: string;
+  value: number;
+  /** ISO timestamp of when this value was entered. */
+  loggedAt: string;
+}
+
 export interface HoursLogEntry {
   id: string;
   /** Duration in minutes, always a multiple of 15 (the picker only offers :00/:15/:30/:45). */

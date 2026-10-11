@@ -2,9 +2,10 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, storage, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
-import { itemsCollection, columnsCollection, boardMembersCollection, notificationsCollection, usersCollection } from '../db/collections.js';
-import { JwtUserPayload, DBItem, DBColumn, DBUser, DBBoardMember, ColumnType, NotificationType } from '../types/index.js';
+import { itemsCollection, columnsCollection, groupsCollection, boardMembersCollection, notificationsCollection, usersCollection } from '../db/collections.js';
+import { JwtUserPayload, DBItem, DBColumn, DBGroup, DBUser, DBBoardMember, ColumnType, NotificationType } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
+import { buildItemCopy } from '../utils/itemCopy.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
 import {
   assertItemAccess,
@@ -303,6 +304,159 @@ export const createItem = async (req: Request, res: Response) => {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error('Error creating item:', err);
     res.status(500).json({ message: 'Failed to create item.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /items/:id/duplicate
+// body: { mode: 'with_data' | 'name_only', includeSubitems?: boolean }
+//   with_data  — copy the name and every column value
+//   name_only  — copy the row with empty column values
+//   includeSubitems — also copy the item's subitem group, its columns and its subitems
+// The copy lands directly below the original in the same group. Chat, form state and
+// dependency links are never copied (see buildItemCopy). No notifications are sent.
+// ---------------------------------------------------------------------------
+export const duplicateItem = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { id } = req.params;
+  const emptyValues = req.body?.mode === 'name_only';
+  const includeSubitems = req.body?.includeSubitems === true;
+
+  try {
+    const sourceDoc = await itemsCollection(user.orgId).doc(id).get();
+    if (!sourceDoc.exists) return res.status(404).json({ message: 'Item not found.' });
+    const source = snapshotToData<DBItem>(sourceDoc)!;
+    if (source.isArchived) return res.status(400).json({ message: 'Archived items cannot be duplicated.' });
+
+    // Same ownership chain + create permission as POST /items
+    const chain = await validateItemOwnershipChain(user.orgId, source.workspaceId, source.boardId, source.groupId);
+    if (!chain.valid) return res.status(400).json({ message: chain.error });
+
+    const memberDoc = await boardMembersCollection(user.orgId, source.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertItemAccess(user, { ...source, createdBy: user.id }, 'create', memberData);
+
+    // Place the copy between the original and the next item, without renumbering others.
+    const siblingsSnap = await itemsCollection(user.orgId)
+      .where('boardId', '==', source.boardId)
+      .where('groupId', '==', source.groupId)
+      .get();
+    const sourceOrder = typeof source.order === 'number' ? source.order : 0;
+    let nextOrder: number | null = null;
+    for (const doc of siblingsSnap.docs) {
+      const o = (doc.data() as DBItem).order;
+      if (doc.id !== id && typeof o === 'number' && o > sourceOrder && (nextOrder === null || o < nextOrder)) nextOrder = o;
+    }
+    const copyOrder = nextOrder === null ? sourceOrder + 1 : (sourceOrder + nextOrder) / 2;
+
+    const timestamp = admin.firestore.FieldValue.serverTimestamp();
+    const batchWriter = { batch: db.batch(), count: 0 };
+    const queueSet = async (ref: admin.firestore.DocumentReference, data: Record<string, unknown>) => {
+      batchWriter.batch.set(ref, data);
+      batchWriter.count++;
+      if (batchWriter.count % 400 === 0) {
+        await batchWriter.batch.commit();
+        batchWriter.batch = db.batch();
+      }
+    };
+
+    const newItemRef = itemsCollection(user.orgId).doc();
+    await queueSet(newItemRef, buildItemCopy(source, {
+      id: newItemRef.id,
+      groupId: source.groupId,
+      order: copyOrder,
+      createdBy: user.id,
+      timestamp,
+      name: sanitizeText(`${source.name} (copy)`),
+    }, emptyValues));
+
+    let copiedSubitems = 0;
+    let newSubitemGroupId: string | null = null;
+    if (includeSubitems) {
+      const subGroupsSnap = await groupsCollection(user.orgId, source.boardId)
+        .where('parentItemId', '==', id)
+        .get();
+      const subGroups = querySnapshotToArray<DBGroup>(subGroupsSnap).filter((g) => !g.isArchived);
+
+      for (const subGroup of subGroups) {
+        const newGroupRef = groupsCollection(user.orgId, source.boardId).doc();
+        newSubitemGroupId = newGroupRef.id;
+        await queueSet(newGroupRef, {
+          ...subGroup,
+          id: newGroupRef.id,
+          parentItemId: newItemRef.id,
+          isArchived: false,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+
+        // The subitem group's own columns — new ids, so subitem values are remapped below.
+        const colsSnap = await columnsCollection(user.orgId, source.boardId)
+          .where('parentGroupId', '==', subGroup.id)
+          .get();
+        const columnIdMap = new Map<string, string>();
+        for (const colDoc of colsSnap.docs) {
+          const { clientRequestId: _clientRequestId, ...col } = snapshotToData<DBColumn>(colDoc)!;
+          const newColRef = columnsCollection(user.orgId, source.boardId).doc();
+          columnIdMap.set(colDoc.id, newColRef.id);
+          await queueSet(newColRef, {
+            ...col,
+            id: newColRef.id,
+            parentGroupId: newGroupRef.id,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+        }
+
+        const subitemsSnap = await itemsCollection(user.orgId)
+          .where('boardId', '==', source.boardId)
+          .where('groupId', '==', subGroup.id)
+          .where('isArchived', '==', false)
+          .get();
+        for (const subDoc of subitemsSnap.docs) {
+          const subitem = snapshotToData<DBItem>(subDoc)!;
+          const remapped: DBItem['values'] = {};
+          for (const [colId, val] of Object.entries(subitem.values ?? {})) {
+            remapped[columnIdMap.get(colId) ?? colId] = val;
+          }
+          const newSubRef = itemsCollection(user.orgId).doc();
+          await queueSet(newSubRef, buildItemCopy(subitem, {
+            id: newSubRef.id,
+            groupId: newGroupRef.id,
+            order: subitem.order,
+            createdBy: user.id,
+            timestamp,
+            values: remapped,
+          }, emptyValues));
+          copiedSubitems++;
+        }
+      }
+    }
+
+    if (batchWriter.count % 400 !== 0) await batchWriter.batch.commit();
+    touchBoardVersion(user.orgId, source.boardId);
+    if (copiedSubitems > 0 && newSubitemGroupId) {
+      void signalIfSubitemAffectsHoursTotals(user.orgId, { boardId: source.boardId, groupId: newSubitemGroupId });
+    }
+
+    void logAudit({
+      actorUserId: user.id,
+      actorRole: user.role,
+      action: 'CREATE',
+      resourceType: 'item',
+      resourceId: newItemRef.id,
+      workspaceId: user.orgId,
+      orgId: user.orgId,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    const created = snapshotToData<DBItem>(await newItemRef.get());
+    res.status(201).json(created);
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error duplicating item ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to duplicate item.' });
   }
 };
 

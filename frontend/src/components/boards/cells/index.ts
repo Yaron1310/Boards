@@ -16,4 +16,5 @@ export { default as TimeRangeCell } from './TimeRangeCell';
 export { default as SimpleFormulaCell } from './SimpleFormulaCell';
 export { default as LinkCell } from './LinkCell';
 export { default as HoursLogCell } from './HoursLogCell';
+export { default as NumberLogCell } from './NumberLogCell';
 export { default as FilesCell } from './FilesCell';

@@ -9,7 +9,8 @@ import { db, snapshotToData, storage } from '../services/firestore.service.js';
 import { JwtUserPayload, DBOrganizationSettings, DBPersonalHubTemplateTotal, ColumnType, PersonalHubTemplateColumn } from '../types/index.js';
 import { sanitizeText, sanitizeImageUrl, sanitizeColor, sanitizeUrl } from '../utils/sanitizer.js';
 
-const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType));
+// Number log is a board-only column type — not offered in the Personal Hub.
+const VALID_COLUMN_TYPES = new Set<string>(Object.values(ColumnType).filter((t) => t !== ColumnType.NUMBER_LOG));
 
 /**
  * Upload an image file to Firebase Storage and return the public URL.

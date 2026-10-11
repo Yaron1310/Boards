@@ -158,6 +158,8 @@ const FormFieldInput: React.FC<FormFieldInputProps> = ({ field, value, onChange,
         <input
           {...commonProps}
           type="number"
+          // Blur on wheel so scrolling the page never silently changes the number.
+          onWheel={(e) => e.currentTarget.blur()}
           value={typeof value === 'number' ? value : ''}
           placeholder={field.placeholder}
           onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}

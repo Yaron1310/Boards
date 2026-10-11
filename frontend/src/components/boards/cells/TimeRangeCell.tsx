@@ -6,6 +6,7 @@ import { useDependency } from '../../../contexts/DependencyContext';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import CellWrapper from './CellWrapper';
+import { DEP_DOT_Z_INDEX } from '../dependencyLayers';
 
 interface Props { item: Item; column: Column; groupColor?: string }
 
@@ -836,7 +837,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
               {isBoardReadOnly && hasDepsIn && (
                 <span
                   className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow"
-                  style={{ zIndex: 10000 }}
+                  style={{ zIndex: DEP_DOT_Z_INDEX }}
                   role="img"
                   aria-label="Has an incoming dependency"
                   title="Incoming dependency"
@@ -845,7 +846,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
               {isBoardReadOnly && hasDepsOut && (
                 <span
                   className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow"
-                  style={{ zIndex: 10000 }}
+                  style={{ zIndex: DEP_DOT_Z_INDEX }}
                   role="img"
                   aria-label="Has an outgoing dependency"
                   title="Outgoing dependency"
@@ -857,7 +858,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
                 <button
                   type="button"
                   className="absolute left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-400 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
-                  style={{ zIndex: 10000 }}
+                  style={{ zIndex: DEP_DOT_Z_INDEX }}
                   aria-label="Incoming dependency — click to remove"
                   title="Click to remove incoming dependency"
                   onClick={(e) => { e.stopPropagation(); openDepMenu('in', e.currentTarget); }}
@@ -874,7 +875,7 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
                 <button
                   type="button"
                   className="absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-blue-500 border border-white shadow hover:scale-125 transition-transform flex items-center justify-center"
-                  style={{ zIndex: 10000 }}
+                  style={{ zIndex: DEP_DOT_Z_INDEX }}
                   aria-label="Outgoing dependency — click to remove all"
                   title="Click to remove all outgoing dependencies"
                   onClick={(e) => { e.stopPropagation(); openDepMenu('out', e.currentTarget); }}

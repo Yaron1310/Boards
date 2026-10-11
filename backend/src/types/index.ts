@@ -264,6 +264,7 @@ export enum ColumnType {
   SIMPLE_FORMULA = 'simple_formula',
   HOURS_LOG = 'hours_log',
   FILES = 'files',
+  NUMBER_LOG = 'number_log',
 }
 
 // --- Column settings per type ---

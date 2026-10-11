@@ -5,7 +5,7 @@ import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import CellWrapper from '../../boards/cells/CellWrapper';
 import type { NumberColumnSettings, Column } from '../../../types';
 import type { PersonalCellProps, PersonalGridContext } from './types';
-import { formatGroupedNumber } from '../../../utils/numberFormat';
+import { formatGroupedNumber, sanitizeNumberDraft } from '../../../utils/numberFormat';
 import { formulaRefDomKey } from '../../../utils/formulaEngine';
 
 interface Props extends PersonalCellProps {
@@ -76,12 +76,12 @@ const PersonalNumberCell: React.FC<Props> = ({ column, itemId, itemName, value, 
         if (isEditing) {
           return (
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={draft}
               autoFocus
-              step={settings?.precision != null ? Math.pow(10, -settings.precision) : 'any'}
               className="w-full px-3 py-2 text-sm text-gray-800 bg-white outline-none text-center"
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => setDraft(sanitizeNumberDraft(e.target.value))}
               onFocus={() => { committedRef.current = false; }}
               onBlur={() => commit(stopEdit)}
               onKeyDown={(e) => {

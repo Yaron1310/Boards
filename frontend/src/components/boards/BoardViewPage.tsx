@@ -52,10 +52,20 @@ import EditBoardModal from './EditBoardModal';
 import DuplicateOptionsModal from './DuplicateOptionsModal';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
+import { endOfLocalDay, numberLogValueAt } from '../../utils/numberLog';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import { DependencyProvider, useDependency } from '../../contexts/DependencyContext';
 import DependencyOverlay from './DependencyOverlay';
 import DependencyApplyModal from './DependencyApplyModal';
+
+/** The date filter's day (or a time-range filter's last day) doubles as an "as of" moment:
+ *  Number log cells, summaries and time-aware formulas show values as they stood then. */
+function asOfFromFilters(filters: ActiveFilter[]): number | undefined {
+  const date = filters.find((f) => f.type === 'date');
+  if (date?.type === 'date') return endOfLocalDay(date.value);
+  const range = filters.find((f) => f.type === 'timerange');
+  return range?.type === 'timerange' ? endOfLocalDay(range.end) : undefined;
+}
 
 type DragData =
   | { type: 'group'; group: Group }
@@ -171,6 +181,15 @@ function compareItemValues(a: unknown, b: unknown, colType: ColumnType, directio
     case ColumnType.NUMBER:
     case ColumnType.SIMPLE_FORMULA:
       return (Number(a) - Number(b)) * mult;
+    case ColumnType.NUMBER_LOG: {
+      // By the value currently in effect; a log with no values sorts last, like an empty cell.
+      const av = numberLogValueAt(a);
+      const bv = numberLogValueAt(b);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return (av - bv) * mult;
+    }
     case ColumnType.CHECKBOX:
       return ((a ? 1 : 0) - (b ? 1 : 0)) * mult;
     case ColumnType.TAGS:
@@ -231,6 +250,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
 }) => {
   const { data: columns = [] } = useColumns(boardId);
   const { data: allUsers = [] } = useUsersQuery({ limit: 200 }, !isBoardReadOnly);
+  const asOf = useMemo(() => asOfFromFilters(activeFilters), [activeFilters]);
   const [sort, setSort] = React.useState<SortState | null>(null);
 
   const sortedItemsByGroup = React.useMemo<Record<string, Item[]>>(() => {
@@ -383,7 +403,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
                   <p>No groups yet. Add a group to start organising items.</p>
                 </div>
               ) : (
-                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat} openForms={openForms}>
+                <BoardRenderProvider visibleItems={visibleItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat} openForms={openForms} asOf={asOf}>
                   <SortableContext items={groupIds} strategy={verticalListSortingStrategy}>
                     {localGroups.map((group, groupIdx) => (
                       <GroupSection
@@ -463,7 +483,7 @@ const BoardContent: React.FC<BoardContentProps> = ({
               automatically), using each column's own summary calc. */}
           {!groupsLoading && localGroups.length > 0 && hasSummarizableColumns(columns) && (
             <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pt-1">
-              <BoardRenderProvider visibleItems={allItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat} openForms={openForms}>
+              <BoardRenderProvider visibleItems={allItems} columns={columns} boardView={boardView} columnWidths={columnWidths} isBoardReadOnly={isBoardReadOnly} openChat={openChat} openForms={openForms} asOf={asOf}>
                 <div className="rounded-lg border border-gray-300 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.08)] w-max">
                   <BoardSummaryRow items={allItems} columns={columns} />
                 </div>
@@ -547,6 +567,7 @@ const BoardViewPage: React.FC = () => {
   const [formsItem, setFormsItem] = useState<Item | null>(null);
   const [searchText, setSearchText] = useState('');
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const filtersAsOf = useMemo(() => asOfFromFilters(activeFilters), [activeFilters]);
   const [boardView, setBoardView] = useState<BoardView>(() => {
     const key = `boardView:${user?.id ?? 'anon'}:${boardId ?? ''}`;
     const saved = localStorage.getItem(key);
@@ -1226,7 +1247,7 @@ const BoardViewPage: React.FC = () => {
 
       {detailItem && (
         <DependencyProvider items={allItems}>
-          <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem} openForms={setFormsItem}>
+          <BoardRenderProvider visibleItems={allItems} columns={columns} isBoardReadOnly={isBoardReadOnly} openChat={setChatItem} openForms={setFormsItem} asOf={filtersAsOf}>
             <ItemDetailPanel item={detailItem} onClose={() => setDetailItem(null)} />
           </BoardRenderProvider>
         </DependencyProvider>

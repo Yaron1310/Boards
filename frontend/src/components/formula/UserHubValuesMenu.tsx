@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { FiChevronDown, FiChevronRight, FiLoader, FiSearch, FiUsers } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { useItems } from '../../hooks/queries/useItemQueries';
+import { useBoards } from '../../hooks/queries/useBoardQueries';
 import { usePersonalColumns } from '../../hooks/queries/usePersonalHubQueries';
 import { useForeignCellValues } from '../../hooks/queries/useForeignCellValues';
 import { queryKeys } from '../../hooks/queries/queryKeys';
@@ -60,11 +61,12 @@ interface BoardSection {
  */
 const UserHubValuesPanel: React.FC<{
   user: User;
-  itemName: string;
+  /** The name a hub group (= source board) must match — the recorded item's or its group's. */
+  matchName: string;
   currentItemId: string;
   orgId: string | undefined;
   onPick: (ref: CellRef) => void;
-}> = ({ user, itemName, currentItemId, orgId, onPick }) => {
+}> = ({ user, matchName, currentItemId, orgId, onPick }) => {
   const { user: authUser } = useAuth();
   const viewerId = (authUser as { id?: string } | null | undefined)?.id;
   // Cells in your own hub record no owner (see PersonalNumberCell), so neither does this.
@@ -92,37 +94,50 @@ const UserHubValuesPanel: React.FC<{
   const matchedBoards = useMemo(
     () => boardQueries
       .map((q) => q.data as Board | undefined)
-      .filter((b): b is Board => !!b && namesMatchByWords(b.name, itemName)),
+      .filter((b): b is Board => !!b && namesMatchByWords(b.name, matchName)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [boardQueries.map((q) => q.data?.id ?? '').join(','), itemName],
+    [boardQueries.map((q) => q.data?.id ?? '').join(','), matchName],
   );
 
-  // A hub row is not always the assigned item itself: an assigned subitem is shown as the item
-  // hosting it. Which group belongs to a parent item tells the two apart — same as the Hub.
+  const matchedIds = useMemo(() => new Set(matchedBoards.map((b) => b.id)), [matchedBoards]);
+  const assignedOnMatched = useMemo(() => assigned.filter((i) => matchedIds.has(i.boardId)), [assigned, matchedIds]);
+
+  // Each assigned item's own group, fetched one by one exactly as the Hub does: it tells an
+  // assigned subitem (its group belongs to a parent item, and the hub shows that item instead)
+  // from a top-level item, and its `order` is what the Hub sorts rows by. A board's plain group
+  // list can't stand in — it leaves subitem groups out.
+  const groupRefs = useMemo(() => {
+    const seen = new Set<string>();
+    const refs: Array<{ boardId: string; groupId: string }> = [];
+    for (const it of assignedOnMatched) {
+      const key = `${it.boardId}:${it.groupId}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      refs.push({ boardId: it.boardId, groupId: it.groupId });
+    }
+    return refs;
+  }, [assignedOnMatched]);
   const groupQueries = useQueries({
-    queries: matchedBoards.map((b) => ({
-      queryKey: queryKeys.groups.all(b.id),
-      queryFn: () => wm.listGroups(b.id, false),
+    queries: groupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
       staleTime: 2 * 60 * 1000,
     })),
   });
   const groupsLoading = groupQueries.some((q) => q.isLoading);
-  const parentByGroup = useMemo(() => {
-    const m = new Map<string, string>();
-    matchedBoards.forEach((b, i) => {
-      ((groupQueries[i]?.data as Group[] | undefined) ?? []).forEach((g) => {
-        if (g.parentItemId) m.set(`${b.id}:${g.id}`, g.parentItemId);
-      });
+  const groupByKey = useMemo(() => {
+    const m = new Map<string, Group>();
+    groupRefs.forEach(({ boardId, groupId }, i) => {
+      const g = groupQueries[i]?.data as Group | undefined;
+      if (g) m.set(`${boardId}:${groupId}`, g);
     });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchedBoards, groupQueries.map((q) => q.dataUpdatedAt).join(',')]);
+  }, [groupRefs, groupQueries.map((q) => q.dataUpdatedAt).join(',')]);
 
-  const matchedIds = useMemo(() => new Set(matchedBoards.map((b) => b.id)), [matchedBoards]);
-  const assignedOnMatched = useMemo(() => assigned.filter((i) => matchedIds.has(i.boardId)), [assigned, matchedIds]);
   const parentIdOf = useMemo(
-    () => (it: Item) => parentByGroup.get(`${it.boardId}:${it.groupId}`),
-    [parentByGroup],
+    () => (it: Item) => groupByKey.get(`${it.boardId}:${it.groupId}`)?.parentItemId ?? undefined,
+    [groupByKey],
   );
   const hostIds = useMemo(() => {
     const assignedIds = new Set(assignedOnMatched.map((i) => i.id));
@@ -143,11 +158,44 @@ const UserHubValuesPanel: React.FC<{
   });
   const hostsLoading = hostQueries.some((q) => q.isLoading);
 
+  // A host's own group — where the Hub places that row once the board's rows span several groups.
+  const hostGroupRefs = useMemo(() => {
+    const refs: Array<{ boardId: string; groupId: string }> = [];
+    const seen = new Set(groupByKey.keys());
+    hostQueries.forEach((q) => {
+      const host = q.data as Item | undefined;
+      if (!host) return;
+      const key = `${host.boardId}:${host.groupId}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      refs.push({ boardId: host.boardId, groupId: host.groupId });
+    });
+    return refs;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupByKey, hostQueries.map((q) => q.dataUpdatedAt).join(',')]);
+  const hostGroupQueries = useQueries({
+    queries: hostGroupRefs.map(({ boardId, groupId }) => ({
+      queryKey: queryKeys.groups.one(boardId, groupId),
+      queryFn: () => wm.getGroup(boardId, groupId),
+      staleTime: 2 * 60 * 1000,
+    })),
+  });
+  const hostGroupsLoading = hostGroupQueries.some((q) => q.isLoading);
+  const groupOf = useMemo(() => {
+    const m = new Map(groupByKey);
+    hostGroupRefs.forEach(({ boardId, groupId }, i) => {
+      const g = hostGroupQueries[i]?.data as Group | undefined;
+      if (g) m.set(`${boardId}:${groupId}`, g);
+    });
+    return (it: Item) => m.get(`${it.boardId}:${it.groupId}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupByKey, hostGroupRefs, hostGroupQueries.map((q) => q.dataUpdatedAt).join(',')]);
+
   const sections = useMemo<BoardSection[]>(() => {
     const parentsById = new Map<string, Item>();
     hostQueries.forEach((q) => { if (q.data) parentsById.set((q.data as Item).id, q.data as Item); });
     assignedOnMatched.forEach((it) => parentsById.set(it.id, it));
-    const rows = hubDisplayRows(assignedOnMatched, parentIdOf, parentsById);
+    const rows = hubDisplayRows(assignedOnMatched, parentIdOf, parentsById, groupOf);
 
     const templateColumns = personalColumns
       .filter((c) => c.fromTemplate && INSERTABLE_TYPES.has(c.type))
@@ -185,7 +233,7 @@ const UserHubValuesPanel: React.FC<{
       return { board, columns };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchedBoards, assignedOnMatched, parentIdOf, personalColumns, ownerId, periodChoices, hostQueries.map((q) => q.data?.id ?? '').join(',')]);
+  }, [matchedBoards, assignedOnMatched, parentIdOf, groupOf, personalColumns, ownerId, periodChoices, hostQueries.map((q) => q.data?.id ?? '').join(',')]);
 
   // Only the row cells are resolved here. A group total is worked out from those same row
   // values (below), so the menu never waits on the much heavier load a total reference needs on
@@ -211,7 +259,7 @@ const UserHubValuesPanel: React.FC<{
     return aggregateSummary(vals, calc);
   };
 
-  const loading = itemsLoading || columnsLoading || boardsLoading || groupsLoading || hostsLoading;
+  const loading = itemsLoading || columnsLoading || boardsLoading || groupsLoading || hostsLoading || hostGroupsLoading;
 
   if (loading) {
     return (
@@ -224,7 +272,7 @@ const UserHubValuesPanel: React.FC<{
   if (matchedBoards.length === 0) {
     return (
       <p className="px-3 py-4 text-xs text-gray-500">
-        {user.name}’s Personal Hub has no group named “{itemName}”.
+        {user.name}’s Personal Hub has no group named “{matchName}”.
       </p>
     );
   }
@@ -298,6 +346,57 @@ const UserHubValuesPanel: React.FC<{
 
 const PANEL_MARGIN = 8;
 
+/** What the menu matches hub groups (= source boards) against: the recorded item's name, or
+ *  the name of the group it sits in. */
+type MatchSource = 'item' | 'group';
+const MATCH_SOURCES: { value: MatchSource; label: string }[] = [
+  { value: 'item', label: 'Item name' },
+  { value: 'group', label: 'Group name' },
+];
+const MATCH_SOURCE_KEY = 'formula.userHub.matchSource';
+const readMatchSource = (): MatchSource => {
+  try { return localStorage.getItem(MATCH_SOURCE_KEY) === 'group' ? 'group' : 'item'; } catch { return 'item'; }
+};
+
+/**
+ * The name of the group the recorded item sits in. A subitem's own group is just its parent's
+ * subitem table, so for a subitem this is the parent item's group — the one shown on the board.
+ * Items and groups usually come straight from the cache of the board being recorded on.
+ */
+const useRecordedGroupName = (itemId: string | undefined, enabled: boolean) => {
+  const itemQ = useQuery({
+    queryKey: queryKeys.items.one(itemId ?? ''),
+    queryFn: () => wm.getItem(itemId!),
+    enabled: enabled && !!itemId,
+    staleTime: 60 * 1000,
+  });
+  const item = itemQ.data;
+  // The item's own board — a Personal Hub recording's origin isn't necessarily it.
+  const boardId = item?.boardId;
+  const groupQ = useQuery({
+    queryKey: queryKeys.groups.one(boardId ?? '', item?.groupId ?? ''),
+    queryFn: () => wm.getGroup(boardId!, item!.groupId),
+    enabled: enabled && !!boardId && !!item?.groupId,
+    staleTime: 2 * 60 * 1000,
+  });
+  const parentId = groupQ.data?.parentItemId ?? undefined;
+  const parentQ = useQuery({
+    queryKey: queryKeys.items.one(parentId ?? ''),
+    queryFn: () => wm.getItem(parentId!),
+    enabled: enabled && !!parentId,
+    staleTime: 60 * 1000,
+  });
+  const parentGroupQ = useQuery({
+    queryKey: queryKeys.groups.one(boardId ?? '', parentQ.data?.groupId ?? ''),
+    queryFn: () => wm.getGroup(boardId!, parentQ.data!.groupId),
+    enabled: enabled && !!boardId && !!parentQ.data?.groupId,
+    staleTime: 2 * 60 * 1000,
+  });
+  const name = parentId ? parentGroupQ.data?.name : groupQ.data?.name;
+  const isLoading = itemQ.isLoading || groupQ.isLoading || (!!parentId && (parentQ.isLoading || parentGroupQ.isLoading));
+  return { name, isLoading };
+};
+
 /**
  * Admin shortcut in the formula recording bar: pick a user, then pick a value from their Personal
  * Hub — no need to navigate to Users Management and into that user's hub to click the cell.
@@ -318,11 +417,47 @@ const UserHubValuesMenu: React.FC = () => {
 
   // Same query (and order) the Users Management / Personal Hub pages list users with.
   const { data: users = [], isLoading: usersLoading } = useUsersQuery({ limit: 200 }, isOrgAdmin && open);
+
+  // Only users assigned to this project: the board(s) whose name matches the recorded item's
+  // name — the same match the values panel uses for a hub's group. Anyone else's hub has no such
+  // group, so listing them would only lead to an empty panel.
+  const [matchSource, setMatchSource] = useState<MatchSource>(readMatchSource);
+  const chooseMatchSource = (next: MatchSource) => {
+    setMatchSource(next);
+    try { localStorage.setItem(MATCH_SOURCE_KEY, next); } catch { /* storage unavailable — just not remembered */ }
+  };
+  const { name: groupName, isLoading: groupNameLoading } = useRecordedGroupName(
+    session?.origin.itemId, isOrgAdmin && open && matchSource === 'group',
+  );
+  const matchName = (matchSource === 'group' ? groupName : session?.origin.itemName) ?? '';
+  const { data: allBoards = [], isLoading: boardsLoading } = useBoards(undefined, false, isOrgAdmin && open);
+  const projectBoards = useMemo(
+    () => (matchName ? allBoards.filter((b) => namesMatchByWords(b.name, matchName)) : []),
+    [allBoards, matchName],
+  );
+  const assigneeQueries = useQueries({
+    queries: projectBoards.map((b) => ({
+      queryKey: queryKeys.items.boardAssignees(b.id),
+      queryFn: () => wm.getBoardAssignees(b.id),
+      staleTime: 60 * 1000,
+      enabled: isOrgAdmin && open,
+    })),
+  });
+  const assigneesLoading = assigneeQueries.some((q) => q.isLoading);
+  const projectUserIds = useMemo(() => {
+    const ids = new Set<string>();
+    assigneeQueries.forEach((q) => q.data?.userIds.forEach((id) => ids.add(id)));
+    return ids;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assigneeQueries.map((q) => q.dataUpdatedAt).join(',')]);
+  const listLoading = usersLoading || boardsLoading || assigneesLoading || (matchSource === 'group' && groupNameLoading);
+
   const filteredUsers = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
-  }, [users, search]);
+    const inProject = users.filter((u) => projectUserIds.has(u.id));
+    if (!q) return inProject;
+    return inProject.filter((u) => u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q));
+  }, [users, projectUserIds, search]);
   const selectedUser = users.find((u) => u.id === selectedUserId) ?? null;
 
   const close = useCallback(() => { setOpen(false); setSelectedUserId(null); setSearch(''); }, []);
@@ -390,6 +525,27 @@ const UserHubValuesMenu: React.FC = () => {
         >
           <div className="w-60 bg-white rounded-lg shadow-xl ring-1 ring-black/10 overflow-hidden">
             <div className="p-2 border-b border-gray-100">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span id="user-hub-match-by" className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Match by</span>
+                <div role="radiogroup" aria-labelledby="user-hub-match-by" className="flex flex-1 rounded border border-gray-300 overflow-hidden">
+                  {MATCH_SOURCES.map(({ value, label }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      role="radio"
+                      aria-checked={matchSource === value}
+                      aria-label={`Match by ${label.toLowerCase()}`}
+                      onClick={() => { chooseMatchSource(value); setSelectedUserId(null); }}
+                      className={`flex-1 px-1.5 py-0.5 text-[11px] transition-colors ${value !== MATCH_SOURCES[0].value ? 'border-l border-gray-300' : ''} ${matchSource === value ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <p className="mb-1.5 text-[10px] text-gray-500 truncate" title={matchName} aria-live="polite">
+                {matchName ? <>Matching “<span className="font-medium text-gray-700">{matchName}</span>”</> : groupNameLoading ? 'Finding the group…' : 'Couldn’t find this item’s group.'}
+              </p>
               <div className="relative">
                 <FiSearch size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" aria-hidden="true" />
                 <input
@@ -404,12 +560,14 @@ const UserHubValuesMenu: React.FC = () => {
               </div>
             </div>
             <div role="menu" aria-label="Users" className="max-h-80 overflow-y-auto py-1">
-              {usersLoading ? (
+              {listLoading ? (
                 <div className="flex justify-center py-4" role="status" aria-label="Loading users">
                   <FiLoader className="animate-spin text-indigo-500" size={16} aria-hidden="true" />
                 </div>
               ) : filteredUsers.length === 0 ? (
-                <p className="px-3 py-3 text-xs text-gray-500">No users found.</p>
+                <p className="px-3 py-3 text-xs text-gray-500">
+                  {search.trim() ? 'No users found.' : matchName ? `No users are assigned to “${matchName}”.` : 'Couldn’t find this item’s group.'}
+                </p>
               ) : filteredUsers.map((u) => (
                 <button
                   key={u.id}
@@ -446,7 +604,7 @@ const UserHubValuesMenu: React.FC = () => {
               <UserHubValuesPanel
                 key={selectedUser.id}
                 user={selectedUser}
-                itemName={session.origin.itemName}
+                matchName={matchName}
                 currentItemId={session.origin.itemId}
                 orgId={orgId}
                 onPick={handlePick}

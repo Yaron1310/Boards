@@ -34,6 +34,10 @@ export const listBoards = (workspaceId?: string, includeArchived = false): Promi
 export const getBoard = (id: string): Promise<Board> =>
   fetchWithAuth(`/api/boards/${id}`);
 
+/** Distinct ids of the users assigned to any non-archived item (or subitem) on the board. */
+export const getBoardAssignees = (id: string): Promise<{ userIds: string[] }> =>
+  fetchWithAuth(`/api/boards/${id}/assignees`);
+
 export const updateBoard = (id: string, patch: UpdateBoardData): Promise<Board> =>
   fetchWithAuth(`/api/boards/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
 
@@ -247,6 +251,15 @@ export const uploadItemFile = (itemId: string, columnId: string, file: File): Pr
     },
     body: file,
   }) as Promise<FileAttachment>;
+
+export type DuplicateItemMode = 'with_data' | 'name_only';
+
+// Copies an item directly below itself in the same group (optionally with its subitems).
+export const duplicateItem = (id: string, mode: DuplicateItemMode, includeSubitems: boolean): Promise<Item> =>
+  fetchWithAuth(`/api/items/${id}/duplicate`, {
+    method: 'POST',
+    body: JSON.stringify({ mode, includeSubitems }),
+  });
 
 export const archiveItem = (id: string): Promise<void> =>
   fetchWithAuth(`/api/items/${id}/archive`, { method: 'PATCH' });

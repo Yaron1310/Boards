@@ -1,4 +1,5 @@
 import { ColumnType } from '../types';
+import { numberLogValueAt } from './numberLog';
 
 /** Converts one cell's raw value from `from`'s storage format to `to`'s. Returns `undefined`
  *  when this particular value can't be converted (e.g. non-numeric text going to NUMBER) —
@@ -29,10 +30,27 @@ const formulaToNumber: Converter = (v) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
+// NUMBER -> NUMBER_LOG: the value becomes the log's first entry, stamped with the conversion time.
+const numberToNumberLog: Converter = (v) => (typeof v === 'number' && Number.isFinite(v)
+  ? [{ id: crypto.randomUUID(), value: v, loggedAt: new Date().toISOString() }]
+  : undefined);
+
+// NUMBER_LOG -> NUMBER / TEXT: the value currently in effect.
+const numberLogToNumber: Converter = (v) => numberLogValueAt(v) ?? undefined;
+const numberLogToText: Converter = (v) => {
+  const n = numberLogValueAt(v);
+  return n === null ? undefined : String(n);
+};
+
 const CONVERTERS: Partial<Record<ColumnType, Partial<Record<ColumnType, Converter>>>> = {
   [ColumnType.NUMBER]: {
     [ColumnType.TEXT]: numberToText,
     [ColumnType.SIMPLE_FORMULA]: numberToFormula,
+    [ColumnType.NUMBER_LOG]: numberToNumberLog,
+  },
+  [ColumnType.NUMBER_LOG]: {
+    [ColumnType.NUMBER]: numberLogToNumber,
+    [ColumnType.TEXT]: numberLogToText,
   },
   [ColumnType.TEXT]: {
     [ColumnType.NUMBER]: textToNumber,

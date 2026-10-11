@@ -256,6 +256,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
       case ColumnType.TEXT:
         return { ...(maxLength ? { maxLength: parseInt(maxLength, 10) } : {}), richText };
       case ColumnType.NUMBER:
+      case ColumnType.NUMBER_LOG:
         return { ...(unit ? { unit } : {}), ...(precision ? { precision: parseInt(precision, 10) } : {}) };
       case ColumnType.SIMPLE_FORMULA:
         return {
@@ -361,6 +362,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
     [ColumnType.DROPDOWN]: 'Dropdown Settings',
     [ColumnType.SIMPLE_FORMULA]: 'Formula Settings',
     [ColumnType.HOURS_LOG]: 'Hours Log Settings',
+    [ColumnType.NUMBER_LOG]: 'Number Log Settings',
   };
 
   const modalRoot = document.getElementById('modal-root');
@@ -458,7 +460,7 @@ const EditColumnConfigModal: React.FC<EditColumnConfigModalProps> = ({ boardId, 
             )}
 
             {/* NUMBER */}
-            {column.type === ColumnType.NUMBER && (
+            {(column.type === ColumnType.NUMBER || column.type === ColumnType.NUMBER_LOG) && (
               <div className="space-y-3">
                 <div className="flex gap-3">
                   <div className="flex-1">

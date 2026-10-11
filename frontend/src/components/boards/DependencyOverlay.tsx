@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { TimeRangeDependency } from '../../types';
 import { useDependency } from '../../contexts/DependencyContext';
+import { DEP_OVERLAY_Z_INDEX } from './dependencyLayers';
 
 // ---------------------------------------------------------------------------
 // The SVG uses position:fixed so it sits at the viewport level, completely
@@ -204,7 +205,7 @@ const LiveLine: React.FC<{ containerEl: HTMLDivElement }> = ({ containerEl }) =>
 };
 
 // ---------------------------------------------------------------------------
-// Main overlay — fixed to viewport, no clipping issues
+// Main overlay — fixed to viewport, no clipping issues (see DEP_OVERLAY_Z_INDEX for stacking)
 // ---------------------------------------------------------------------------
 
 const DependencyOverlay: React.FC = () => {
@@ -222,7 +223,7 @@ const DependencyOverlay: React.FC = () => {
         width: '100vw',
         height: '100vh',
         pointerEvents: 'none',
-        zIndex: 9999,
+        zIndex: DEP_OVERLAY_Z_INDEX,
       }}
       aria-hidden="true"
     >

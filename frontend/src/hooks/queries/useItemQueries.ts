@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import * as wm from '@/services/workManagementService';
-import type { CreateItemData, UpdateItemData, ListItemsParams, ReorderItemUpdate } from '@/services/workManagementService';
+import type { CreateItemData, UpdateItemData, ListItemsParams, ReorderItemUpdate, DuplicateItemMode } from '@/services/workManagementService';
 import type { Item, PaginatedResponse } from '@/types';
 
 function mergeItemPatch(item: Item, patch: UpdateItemData): Item {
@@ -123,6 +123,23 @@ export const useReorderItems = () => {
     mutationFn: (updates: ReorderItemUpdate[]) => wm.reorderItems(updates),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['items'] });
+    },
+  });
+};
+
+export const useDuplicateItem = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, mode, includeSubitems }: { id: string; mode: DuplicateItemMode; includeSubitems: boolean }) =>
+      wm.duplicateItem(id, mode, includeSubitems),
+    onSuccess: (created, { includeSubitems }) => {
+      qc.setQueryData(queryKeys.items.one(created.id), created);
+      void qc.invalidateQueries({ queryKey: ['items'] });
+      if (includeSubitems) {
+        // A copied subitem table brings its own group + columns.
+        void qc.invalidateQueries({ queryKey: ['groups', created.boardId, 'subitem'] });
+        void qc.invalidateQueries({ queryKey: ['columns'] });
+      }
     },
   });
 };

@@ -195,6 +195,24 @@ export function validateColumnValue(column: DBColumn, value: unknown): Validatio
       return { valid: true };
     }
 
+    case ColumnType.NUMBER_LOG: {
+      if (!Array.isArray(value)) {
+        return { valid: false, error: `Column "${column.name}": value must be an array of logged-value entries.` };
+      }
+      for (const entry of value) {
+        const e = entry as Record<string, unknown>;
+        if (
+          typeof e !== 'object' || e === null ||
+          typeof e.id !== 'string' ||
+          typeof e.value !== 'number' || !isFinite(e.value) ||
+          typeof e.loggedAt !== 'string' || isNaN(Date.parse(e.loggedAt))
+        ) {
+          return { valid: false, error: `Column "${column.name}": each entry must have id (string), value (number), and loggedAt (ISO date string).` };
+        }
+      }
+      return { valid: true };
+    }
+
     case ColumnType.HOURS_LOG: {
       if (!Array.isArray(value)) {
         return { valid: false, error: `Column "${column.name}": value must be an array of logged-hours entries.` };

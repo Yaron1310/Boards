@@ -18,6 +18,9 @@ interface BoardRenderContextValue {
    *  assignee-scoped rows) — tells formula cells that a same-board group-summary reference
    *  cannot be aggregated from `visibleItems` and must be resolved against the full source board. */
   groupsComplete: boolean;
+  /** The board date filter's "as of" moment (epoch ms) — Number log cells, summaries and
+   *  time-aware formulas show values as they were then. Undefined means now. */
+  asOf?: number;
 }
 
 const BoardRenderContext = createContext<BoardRenderContextValue | null>(null);
@@ -31,6 +34,7 @@ export const BoardRenderProvider: React.FC<{
   openChat?: (item: Item) => void;
   openForms?: (item: Item) => void;
   groupsComplete?: boolean;
+  asOf?: number;
   children: React.ReactNode;
 }> = ({
   visibleItems,
@@ -41,10 +45,11 @@ export const BoardRenderProvider: React.FC<{
   openChat = () => {},
   openForms = () => {},
   groupsComplete = true,
+  asOf,
   children,
 }) => {
   return (
-    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView, columnWidths, isBoardReadOnly, openChat, openForms, groupsComplete }}>
+    <BoardRenderContext.Provider value={{ visibleItems, columns, boardView, columnWidths, isBoardReadOnly, openChat, openForms, groupsComplete, asOf }}>
       {children}
     </BoardRenderContext.Provider>
   );

@@ -4,7 +4,7 @@ import {
   FiX, FiColumns, FiPlus, FiTrash2,
   FiType, FiHash, FiCalendar, FiClock,
   FiFlag, FiUser, FiChevronDown, FiCheckSquare, FiTag,
-  FiMail, FiPhone, FiMapPin, FiZap, FiLink, FiShield, FiWatch, FiPaperclip,
+  FiMail, FiPhone, FiMapPin, FiZap, FiLink, FiShield, FiWatch, FiPaperclip, FiTrendingUp,
 } from 'react-icons/fi';
 import { useCreateColumn, useColumns, useSubitemColumns, useReorderColumns, useDeleteColumn } from '../../hooks/queries/useColumnQueries';
 import { useCreatePersonalColumn, usePersonalColumns, useReorderPersonalColumns, useDeletePersonalColumn, useUpdatePersonalItemValue } from '../../hooks/queries/usePersonalHubQueries';
@@ -75,6 +75,8 @@ interface AddColumnModalProps {
    *  values to whatever new type the user picks, when that conversion is meaningful (e.g. NUMBER
    *  -> TEXT), instead of always warning that the data will be deleted. */
   replaceColumnType?: ColumnType;
+  /** The replaced column's current name — pre-fills the name field so a type change keeps it. */
+  replaceColumnName?: string;
   /**
    * 'board' (default) creates a real column on the source board. 'personal' creates
    * a user-owned Personal Hub column instead — same type picker and settings UI,
@@ -108,6 +110,7 @@ export const COLUMN_TYPE_LABELS: Record<ColumnType, string> = {
   [ColumnType.TIME_RANGE]: 'Time Range',
   [ColumnType.SIMPLE_FORMULA]: 'Formula',
   [ColumnType.HOURS_LOG]: 'Hours Log',
+  [ColumnType.NUMBER_LOG]: 'Number Log',
   [ColumnType.FILES]: 'Files',
 };
 
@@ -140,6 +143,7 @@ const COLUMN_TYPE_ICONS: Record<ColumnType, React.ReactNode> = {
   [ColumnType.LINK]: <FiLink size={16} aria-hidden="true" />,
   [ColumnType.SIMPLE_FORMULA]: <FiZap size={16} aria-hidden="true" />,
   [ColumnType.HOURS_LOG]: <FiWatch size={16} aria-hidden="true" />,
+  [ColumnType.NUMBER_LOG]: <FiTrendingUp size={16} aria-hidden="true" />,
   [ColumnType.FILES]: <FiPaperclip size={16} aria-hidden="true" />,
 };
 
@@ -232,7 +236,7 @@ const GROUP_STYLES: Record<string, GroupStyle> = {
 };
 
 const COLUMN_TYPE_GROUPS: { label: string; types: ColumnType[] }[] = [
-  { label: 'Inputs', types: [ColumnType.TEXT, ColumnType.NUMBER] },
+  { label: 'Inputs', types: [ColumnType.TEXT, ColumnType.NUMBER, ColumnType.NUMBER_LOG] },
   { label: 'Time', types: [ColumnType.DATE, ColumnType.TIME, ColumnType.TIME_RANGE, ColumnType.HOURS_LOG] },
   { label: 'Selection', types: [ColumnType.STATUS, ColumnType.DROPDOWN, ColumnType.CHECKBOX, ColumnType.TAGS] },
   { label: 'Information', types: [ColumnType.EMAIL, ColumnType.PHONE, ColumnType.PERSON, ColumnType.LOCATION, ColumnType.LINK, ColumnType.FILES] },
@@ -247,8 +251,8 @@ COLUMN_TYPE_GROUPS.forEach(({ label, types }) => {
 });
 
 // FILES has no Personal Hub cell implementation yet — hide it outside real board columns
-// rather than let it fall back to a plain text cell there.
-const BOARD_ONLY_TYPES = new Set<ColumnType>([ColumnType.FILES]);
+// rather than let it fall back to a plain text cell there. NUMBER_LOG is board-only by design.
+const BOARD_ONLY_TYPES = new Set<ColumnType>([ColumnType.FILES, ColumnType.NUMBER_LOG]);
 
 const DEFAULT_COLUMN_TYPE = ColumnType.TEXT;
 
@@ -257,7 +261,7 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope, personalOwnerId, onSave }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, replaceColumnName, mode = 'board', personalScope, personalOwnerId, onSave }) => {
   const isPersonal = mode === 'personal';
   const isTemplate = mode === 'template';
   const qc = useQueryClient();
@@ -294,14 +298,16 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
-  const [name, setName] = useState(COLUMN_TYPE_LABELS[DEFAULT_COLUMN_TYPE]);
+  const initialName = replaceColumnName?.trim() ? replaceColumnName : '';
+  const [name, setName] = useState(initialName || COLUMN_TYPE_LABELS[DEFAULT_COLUMN_TYPE]);
   const [type, setType] = useState<ColumnType>(DEFAULT_COLUMN_TYPE);
   const [error, setError] = useState('');
 
   // The name field is pre-filled with the selected type's label ("Status", "Number", …) and
   // keeps following the type picker until the user types a name of their own. Emptying the
   // field counts as "not customised", so the suggestion comes back on the next type change.
-  const hasCustomNameRef = useRef(false);
+  // When changing a column's type, the old name is kept and treated as a custom name.
+  const hasCustomNameRef = useRef(initialName !== '');
 
   const handleNameChange = (value: string) => {
     hasCustomNameRef.current = value.trim() !== '';
@@ -395,6 +401,7 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
       case ColumnType.TEXT:
         return { ...(maxLength ? { maxLength: parseInt(maxLength, 10) } : {}), richText };
       case ColumnType.NUMBER:
+      case ColumnType.NUMBER_LOG:
         return { ...(unit ? { unit } : {}), ...(precision ? { precision: parseInt(precision, 10) } : {}) };
       case ColumnType.DATE:
         return { includeTime };
@@ -784,9 +791,15 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
             )}
 
             {/* NUMBER settings */}
-            {type === ColumnType.NUMBER && (
+            {(type === ColumnType.NUMBER || type === ColumnType.NUMBER_LOG) && (
               <div className="space-y-3 pt-1 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Number Settings</p>
+                {type === ColumnType.NUMBER_LOG && (
+                  <p className="text-xs text-gray-500">
+                    Keeps every value with the time it was entered. Formulas that combine it with an Hours Log
+                    price each period's hours at the value in effect then.
+                  </p>
+                )}
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <label htmlFor="num-unit" className="block text-xs text-gray-600 mb-1">
