@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiFileText, FiEdit2, FiChevronRight } from 'react-icons/fi';
+import { FiMenu, FiArchive, FiRotateCcw, FiTrash2, FiMessageSquare, FiFileText, FiEdit2, FiChevronRight, FiCopy } from 'react-icons/fi';
 import SubitemGroup from './SubitemGroup';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useColumns } from '../../hooks/queries/useColumnQueries';
-import { useArchiveItem, useRestoreItem, useUpdateItem } from '../../hooks/queries/useItemQueries';
+import { useArchiveItem, useRestoreItem, useUpdateItem, useDuplicateItem } from '../../hooks/queries/useItemQueries';
+import type { DuplicateItemMode } from '../../services/workManagementService';
+import FlippedMenu from '../common/FlippedMenu';
 import { useSubitemGroup } from '../../hooks/queries/useGroupQueries';
 import { usePersonalColumns } from '../../hooks/queries/usePersonalHubQueries';
 import { useAuthSession } from '../../hooks/useAuthSession';
@@ -57,6 +59,9 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
   const { data: boardMembers = [] } = useBoardMembers(item.boardId);
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const { mutateAsync: duplicateItem, isPending: isDuplicating } = useDuplicateItem();
+  const [duplicateAnchor, setDuplicateAnchor] = useState<HTMLElement | null>(null);
+  const [duplicateIncludeSubitems, setDuplicateIncludeSubitems] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(item.name);
   const [subitemsOpen, setSubitemsOpen] = useState(false);
@@ -144,6 +149,10 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
     item.createdBy === user?.id ||
     (item.assignees ?? []).includes(user?.id ?? '');
 
+  // Duplicating creates a new item on the board, so it needs board-wide create rights — not
+  // just ownership/assignment of this one item. Not offered in the Personal Hub.
+  const canDuplicate = isBoardManager && !item.isArchived && !subitemAssigneeFilterId;
+
   const handleArchive = async (e: React.MouseEvent) => {
     e.stopPropagation();
     await archiveItem(item.id);
@@ -168,6 +177,20 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
       label: `Deleted item "${itemName}"`,
       undo: () => { void restoreItem(itemId); },
       persist: { type: 'restoreItem', itemId },
+    });
+  };
+
+  const closeDuplicateMenu = useCallback(() => setDuplicateAnchor(null), []);
+
+  const handleDuplicate = async (mode: DuplicateItemMode) => {
+    setDuplicateAnchor(null);
+    const sourceName = item.name;
+    const includeSubitems = !!subitemGroup && duplicateIncludeSubitems;
+    const created = await duplicateItem({ id: item.id, mode, includeSubitems }).catch(() => null);
+    if (!created) return;
+    pushUndo({
+      label: `Duplicated item "${sourceName}"`,
+      undo: () => { void archiveItem(created.id); },
     });
   };
 
@@ -317,6 +340,25 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
                       <FiArchive size={13} aria-hidden="true" />
                     </button>
                   )}
+                  {canDuplicate && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const el = e.currentTarget;
+                        setDuplicateIncludeSubitems(false);
+                        setDuplicateAnchor((prev) => (prev ? null : el));
+                      }}
+                      disabled={isDuplicating}
+                      className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-60"
+                      aria-label={`Duplicate item ${item.name}`}
+                      aria-haspopup="menu"
+                      aria-expanded={!!duplicateAnchor}
+                      title="Duplicate"
+                    >
+                      <FiCopy size={13} aria-hidden="true" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={handleDeleteClick}
@@ -330,6 +372,51 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
             </>
           )}
         </div>
+
+        {canDuplicate && duplicateAnchor && (
+          <FlippedMenu
+            anchorEl={duplicateAnchor}
+            width={220}
+            onClose={closeDuplicateMenu}
+            className="bg-white border border-gray-200 rounded-lg shadow-lg w-[220px] py-1"
+            aria-label={`Duplicate ${item.name}`}
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(e) => { e.stopPropagation(); void handleDuplicate('with_data'); }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              aria-label="Duplicate with data"
+            >
+              Duplicate with data
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(e) => { e.stopPropagation(); void handleDuplicate('name_only'); }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+              aria-label="Duplicate name only, with empty cells"
+            >
+              Duplicate name only
+            </button>
+            {subitemGroup && (
+              <label
+                className="flex items-center gap-2 px-3 py-2 mt-1 border-t border-gray-100 text-xs text-gray-600 cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <input
+                  type="checkbox"
+                  role="menuitemcheckbox"
+                  checked={duplicateIncludeSubitems}
+                  onChange={(e) => setDuplicateIncludeSubitems(e.target.checked)}
+                  aria-checked={duplicateIncludeSubitems}
+                  aria-label="Include subitems"
+                />
+                Include subitems
+              </label>
+            )}
+          </FlippedMenu>
+        )}
 
         {/* Forms + chat — hidden in the public view, where neither is available */}
         {!isPublicView && (

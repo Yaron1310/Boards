@@ -14,6 +14,7 @@ itemRouter.patch('/reorder', itemController.reorderItems);
 // Single item — specific action routes before generic /:id
 itemRouter.patch('/:id/archive', itemController.archiveItem);
 itemRouter.patch('/:id/restore', itemController.restoreItem);
+itemRouter.post('/:id/duplicate', itemController.duplicateItem);
 // Raw binary upload for a FILES column — express.raw() reads the buffer; global express.json()
 // skips non-JSON content types so the stream is still available here (same convention as the
 // item chat's file upload route).

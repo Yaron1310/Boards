@@ -6,6 +6,7 @@ import { boardsCollection, groupsCollection, boardMembersCollection, itemsCollec
 import { cascadeArchive, cascadeRestore } from '../services/archiveCascade.service.js';
 import { JwtUserPayload, DBBoard, DBGroup, DBBoardMember, DBItem, DBColumn, DBUser, ColumnType } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
+import { buildItemCopy } from '../utils/itemCopy.js';
 import { logAudit, getClientIp } from '../services/audit.service.js';
 import {
   assertBoardAccess,
@@ -482,18 +483,13 @@ export const duplicateGroup = async (req: Request, res: Response) => {
         for (const itemDoc of itemsSnap.docs) {
           const itemData = snapshotToData<DBItem>(itemDoc)!;
           const newItemRef = itemsCollection(user.orgId).doc();
-          batch.set(newItemRef, {
-            ...itemData,
+          batch.set(newItemRef, buildItemCopy(itemData, {
             id: newItemRef.id,
             groupId: newGroupRef.id,
+            order: itemData.order,
             createdBy: user.id,
-            chatMessageCount: 0,
-            chatLastMessageAt: null,
-            chatSeenBy: {},
-            createdAt: timestamp,
-            updatedAt: timestamp,
-            ...(mode === 'without_data' ? { values: {}, status: null, assignees: [], dueDate: null } : {}),
-          });
+            timestamp,
+          }, mode === 'without_data'));
           count++;
           if (count % BATCH_SIZE === 0) {
             await batch.commit();

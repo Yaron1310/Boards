@@ -248,6 +248,15 @@ export const uploadItemFile = (itemId: string, columnId: string, file: File): Pr
     body: file,
   }) as Promise<FileAttachment>;
 
+export type DuplicateItemMode = 'with_data' | 'name_only';
+
+// Copies an item directly below itself in the same group (optionally with its subitems).
+export const duplicateItem = (id: string, mode: DuplicateItemMode, includeSubitems: boolean): Promise<Item> =>
+  fetchWithAuth(`/api/items/${id}/duplicate`, {
+    method: 'POST',
+    body: JSON.stringify({ mode, includeSubitems }),
+  });
+
 export const archiveItem = (id: string): Promise<void> =>
   fetchWithAuth(`/api/items/${id}/archive`, { method: 'PATCH' });
 
