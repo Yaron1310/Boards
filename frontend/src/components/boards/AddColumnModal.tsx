@@ -75,6 +75,8 @@ interface AddColumnModalProps {
    *  values to whatever new type the user picks, when that conversion is meaningful (e.g. NUMBER
    *  -> TEXT), instead of always warning that the data will be deleted. */
   replaceColumnType?: ColumnType;
+  /** The replaced column's current name — pre-fills the name field so a type change keeps it. */
+  replaceColumnName?: string;
   /**
    * 'board' (default) creates a real column on the source board. 'personal' creates
    * a user-owned Personal Hub column instead — same type picker and settings UI,
@@ -257,7 +259,7 @@ const STATUS_PALETTE = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#14B8A6',
 ];
 
-const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, mode = 'board', personalScope, personalOwnerId, onSave }) => {
+const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, insertAfterColumnId, insertBeforeColumnId, parentGroupId, replaceColumnId, replaceColumnType, replaceColumnName, mode = 'board', personalScope, personalOwnerId, onSave }) => {
   const isPersonal = mode === 'personal';
   const isTemplate = mode === 'template';
   const qc = useQueryClient();
@@ -294,14 +296,16 @@ const AddColumnModal: React.FC<AddColumnModalProps> = ({ boardId, onClose, inser
   const dialogRef = useRef<HTMLDivElement>(null);
   useFocusTrap(dialogRef);
 
-  const [name, setName] = useState(COLUMN_TYPE_LABELS[DEFAULT_COLUMN_TYPE]);
+  const initialName = replaceColumnName?.trim() ? replaceColumnName : '';
+  const [name, setName] = useState(initialName || COLUMN_TYPE_LABELS[DEFAULT_COLUMN_TYPE]);
   const [type, setType] = useState<ColumnType>(DEFAULT_COLUMN_TYPE);
   const [error, setError] = useState('');
 
   // The name field is pre-filled with the selected type's label ("Status", "Number", …) and
   // keeps following the type picker until the user types a name of their own. Emptying the
   // field counts as "not customised", so the suggestion comes back on the next type change.
-  const hasCustomNameRef = useRef(false);
+  // When changing a column's type, the old name is kept and treated as a custom name.
+  const hasCustomNameRef = useRef(initialName !== '');
 
   const handleNameChange = (value: string) => {
     hasCustomNameRef.current = value.trim() !== '';

@@ -7,6 +7,7 @@ import { useSubitemColumns } from '../../../hooks/queries/useColumnQueries';
 import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import { formulaRefDomKey } from '../../../utils/formulaEngine';
+import { sanitizeNumberDraft } from '../../../utils/numberFormat';
 import { HOURS_LOG_MAX_HOURS, HOURS_LOG_MINUTE_STEPS, formatHoursLogDuration, formatHoursLogTimestamp, sumHoursLogMinutes } from '../../../utils/hoursLog';
 import { ColumnType } from '../../../types';
 import type { Item, Column, HoursLogEntry, HoursLogColumnSettings } from '../../../types';
@@ -81,18 +82,15 @@ const DurationPicker: React.FC<DurationPickerProps> = ({ anchorEl, onCommit, onC
     >
       <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-2">Log hours</p>
       <div className="flex items-center justify-center gap-1.5">
-        {/* A number box rather than a list: with 0–199 hours, typing (or the arrows) is quicker
-            than scrolling, and a box makes it obvious that typing works. */}
+        {/* A typing box rather than a list: with 0–199 hours, typing is quicker than scrolling.
+            Plain text (not type="number") so the mouse wheel can't change the value. */}
         <input
-          type="number"
+          type="text"
           inputMode="numeric"
-          min={0}
-          max={HOURS_LOG_MAX_HOURS}
-          step={1}
           value={hoursText}
           autoFocus
           onFocus={(e) => e.target.select()}
-          onChange={(e) => setHoursText(e.target.value)}
+          onChange={(e) => setHoursText(sanitizeNumberDraft(e.target.value, { allowDecimal: false, allowNegative: false }))}
           onBlur={() => setHoursText(String(hours))}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && total > 0) { e.preventDefault(); onCommit(total); }

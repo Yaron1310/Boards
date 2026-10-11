@@ -245,6 +245,7 @@ const PersonalColumnHeaderCell: React.FC<Props> = ({ column, userId }) => {
           insertBeforeColumnId={!swapMode && insertPosition === 'left' ? column.id : undefined}
           replaceColumnId={swapMode ? column.id : undefined}
           replaceColumnType={swapMode ? column.type : undefined}
+          replaceColumnName={swapMode ? column.name : undefined}
         />
       )}
 

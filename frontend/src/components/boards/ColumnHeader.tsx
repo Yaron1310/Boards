@@ -516,7 +516,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
   const [localColumns, setLocalColumns] = useState<Column[]>([]);
   const [activeColumn, setActiveColumn] = useState<Column | null>(null);
   const serverColumnsRef = useRef<Column[]>([]);
-  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string; replaceColumnType: ColumnType } | null>(null);
+  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string; replaceColumnType: ColumnType; replaceColumnName: string } | null>(null);
 
   // Item column resize state
   const [itemResizingWidth, setItemResizingWidth] = useState<number | null>(null);
@@ -696,7 +696,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
                 boardView={boardView}
                 currentWidth={colWidth}
                 onWidthCommit={(w) => onWidthChange(col.id, w)}
-                onSwapCommitted={(replaceColumnId) => setSwapAddModal({ replaceColumnId, replaceColumnType: col.type })}
+                onSwapCommitted={(replaceColumnId) => setSwapAddModal({ replaceColumnId, replaceColumnType: col.type, replaceColumnName: col.name })}
               />
             );
           })}
@@ -744,6 +744,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
           onClose={() => setSwapAddModal(null)}
           replaceColumnId={swapAddModal.replaceColumnId}
           replaceColumnType={swapAddModal.replaceColumnType}
+          replaceColumnName={swapAddModal.replaceColumnName}
         />
       )}
     </DndContext>

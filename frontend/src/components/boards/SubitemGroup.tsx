@@ -72,7 +72,7 @@ const SubitemColumnHeader: React.FC<{
   subitemGroupId: string;
   colWidth: number;
   canManage: boolean;
-  onSwapCommitted: (replaceColumnId: string, replaceColumnType: ColumnType) => void;
+  onSwapCommitted: (replaceColumnId: string, replaceColumnType: ColumnType, replaceColumnName: string) => void;
 }> = ({ col, boardId, subitemGroupId, colWidth, canManage, onSwapCommitted }) => {
   const qc = useQueryClient();
   const { mutateAsync: deleteColumn, isPending: isDeleting } = useDeleteColumn(boardId);
@@ -136,7 +136,7 @@ const SubitemColumnHeader: React.FC<{
   // data-loss / convert-or-discard decision is asked inside that modal, not here.
   const handleSwapType = () => {
     setMenuOpen(false);
-    onSwapCommitted(col.id, col.type);
+    onSwapCommitted(col.id, col.type, col.name);
   };
 
   return (
@@ -452,7 +452,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   const addItemInputRef = useRef<HTMLInputElement>(null);
   const shouldFocusOnMount = useRef(false);
   const [showAddColModal, setShowAddColModal] = useState(false);
-  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string; replaceColumnType: ColumnType } | null>(null);
+  const [swapAddModal, setSwapAddModal] = useState<{ replaceColumnId: string; replaceColumnType: ColumnType; replaceColumnName: string } | null>(null);
   const [showQuickAddCol, setShowQuickAddCol] = useState(false);
   const [quickColName, setQuickColName] = useState('');
   const [quickColType, setQuickColType] = useState<ColumnType>(ColumnType.TEXT);
@@ -711,7 +711,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
                   subitemGroupId={subitemGroup.id}
                   colWidth={colWidth}
                   canManage={canManageColumns && !isPersonalHub}
-                  onSwapCommitted={(replaceColumnId, replaceColumnType) => setSwapAddModal({ replaceColumnId, replaceColumnType })}
+                  onSwapCommitted={(replaceColumnId, replaceColumnType, replaceColumnName) => setSwapAddModal({ replaceColumnId, replaceColumnType, replaceColumnName })}
                 />
               );
             })
@@ -816,6 +816,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
           onClose={() => setSwapAddModal(null)}
           replaceColumnId={swapAddModal.replaceColumnId}
           replaceColumnType={swapAddModal.replaceColumnType}
+          replaceColumnName={swapAddModal.replaceColumnName}
         />
       )}
 
