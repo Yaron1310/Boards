@@ -209,6 +209,12 @@ export function validateColumnValue(column: DBColumn, value: unknown): Validatio
         ) {
           return { valid: false, error: `Column "${column.name}": each entry must have id (string), value (number), and loggedAt (ISO date string).` };
         }
+        // Optional start / end days ('YYYY-MM-DD') bounding when the cell has a value.
+        for (const key of ['startsOn', 'endsOn'] as const) {
+          if (e[key] !== undefined && (typeof e[key] !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(e[key] as string))) {
+            return { valid: false, error: `Column "${column.name}": ${key} must be a date (YYYY-MM-DD).` };
+          }
+        }
       }
       return { valid: true };
     }

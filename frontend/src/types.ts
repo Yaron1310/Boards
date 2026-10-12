@@ -315,6 +315,11 @@ export interface NumberLogEntry {
   value: number;
   /** ISO timestamp of when this value was entered. */
   loggedAt: string;
+  /** First entry only: the local day ('YYYY-MM-DD') the cell's values start from — no value
+   *  (counts as 0) before it. */
+  startsOn?: string;
+  /** Last entry only: the local day the cell's values end — no value (counts as 0) after it. */
+  endsOn?: string;
 }
 
 export interface HoursLogEntry {
