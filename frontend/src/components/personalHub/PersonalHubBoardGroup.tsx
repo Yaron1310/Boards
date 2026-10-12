@@ -372,7 +372,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
           style={groupMinWidth ? { minWidth: `${groupMinWidth}px` } : undefined}
         >
           <div
-            className="flex-shrink-0 border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1] rounded-tl-lg"
+            className="flex-shrink-0 border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[3] rounded-tl-lg"
             style={{ width: `${itemSectionWidth}px`, borderLeft: '4px solid #6366f1' }}
           />
           {crossGroupColumns.map((col) => (

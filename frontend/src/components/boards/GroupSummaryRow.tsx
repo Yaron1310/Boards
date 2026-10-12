@@ -811,7 +811,7 @@ const GroupSummaryRow: React.FC<Props> = ({ items, columns, groupId, hubRows, hu
       style={minWidth ? { minWidth: `${minWidth}px` } : undefined}
     >
       <div
-        className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4] flex items-center pl-7 pr-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
+        className="flex-shrink-0 sticky left-4 z-[3] bg-white border-r border-[#d2d2d4] flex items-center pl-7 pr-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
         style={{ width: `${itemSectionWidth}px`, borderBottomLeftRadius: '6px' }}
       >
         Group total
@@ -901,7 +901,7 @@ export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
       style={minWidth ? { minWidth: `${minWidth}px` } : undefined}
     >
       <div
-        className="flex-shrink-0 sticky left-4 z-[1] bg-white border-r border-[#d2d2d4] flex items-center pl-7 pr-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
+        className="flex-shrink-0 sticky left-4 z-[3] bg-white border-r border-[#d2d2d4] flex items-center pl-7 pr-3 text-xs font-semibold uppercase tracking-wide text-gray-500"
         style={{ width: `${itemSectionWidth}px` }}
       >
         {label}

@@ -211,7 +211,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
     >
       {/* Left section — drag handle, item name, and row actions */}
       <div
-        className={`flex flex-shrink-0 items-stretch ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} sticky left-4 z-[1] bg-white group-hover:bg-indigo-50`}
+        className={`flex flex-shrink-0 items-stretch ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} sticky left-4 z-[3] bg-white group-hover:bg-indigo-50`}
         style={{ width: `${itemSectionWidth}px`, ...(groupColor ? { borderLeft: `4px solid ${groupColor}` } : {}) }}
       >
         {/* Drag handle — reordering isn't possible in the public read-only view, so it's
