@@ -6,6 +6,7 @@ import { itemsCollection, columnsCollection, groupsCollection, boardMembersColle
 import { JwtUserPayload, DBItem, DBColumn, DBGroup, DBUser, DBBoardMember, ColumnType, NotificationType } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { buildItemCopy } from '../utils/itemCopy.js';
+import { groupAutoAssignments, mergeAutoAssignments } from '../services/groupAutoAssign.service.js';
 import { logAudit, logAuditAndCheckAnomaly, getClientIp } from '../services/audit.service.js';
 import {
   assertItemAccess,
@@ -221,6 +222,14 @@ export const createItem = async (req: Request, res: Response) => {
       if (valError) return res.status(400).json({ message: valError });
     }
 
+    // Users assigned to the whole group (its "Assign users" action) are assigned to new items too.
+    const autoAssign = mergeAutoAssignments(
+      normalizedValues,
+      Array.isArray(assignees) ? assignees : [],
+      await groupAutoAssignments(user.orgId, boardId, groupId),
+    );
+    Object.assign(normalizedValues, autoAssign.changedValues);
+
     // Compute mirrored fields from column values
     const mirrored = await computeMirroredFields(user.orgId, boardId, normalizedValues);
 
@@ -269,7 +278,8 @@ export const createItem = async (req: Request, res: Response) => {
       values: normalizedValues,
       // Explicit top-level fields take precedence over mirrored ones
       status: status ?? mirrored.status ?? null,
-      assignees: assignees ?? mirrored.assignees ?? [],
+      // Group auto-assigned users always join the top-level list the Personal Hub reads.
+      assignees: [...new Set([...(assignees ?? mirrored.assignees ?? []), ...autoAssign.assignees])],
       dueDate: dueDate ?? mirrored.dueDate ?? null,
       lastAssignedAt: timestamp,
       createdAt: timestamp,
@@ -659,6 +669,19 @@ export const reorderItems = async (req: Request, res: Response) => {
 
       const updateData: Record<string, unknown> = { order: u.order, updatedAt: timestamp };
       if (typeof u.groupId === 'string') updateData.groupId = u.groupId;
+      // Dragged into another group: pick up the users assigned to that whole group.
+      if (typeof u.groupId === 'string' && u.groupId !== item.groupId) {
+        const auto = mergeAutoAssignments(
+          item.values ?? {},
+          item.assignees ?? [],
+          await groupAutoAssignments(user.orgId, item.boardId, u.groupId),
+        );
+        if (auto.changed) {
+          for (const [key, val] of Object.entries(auto.changedValues)) updateData[`values.${key}`] = val;
+          updateData.assignees = auto.assignees;
+          if (auto.hasNewAssignee) updateData.lastAssignedAt = timestamp;
+        }
+      }
       batch.update(itemsCollection(user.orgId).doc(u.id), updateData);
     }
 
@@ -739,6 +762,19 @@ export const updateItem = async (req: Request, res: Response) => {
     else if (mirrored.dueDate !== undefined) updateData.dueDate = mirrored.dueDate;
 
     if (Array.isArray(dependencies)) updateData.dependencies = dependencies;
+
+    // Moved into another group: pick up the users assigned to that whole group.
+    if (groupId !== undefined && groupId !== item.groupId) {
+      const auto = mergeAutoAssignments(
+        { ...(item.values ?? {}), ...normalizedValues },
+        (updateData.assignees as string[] | undefined) ?? item.assignees ?? [],
+        await groupAutoAssignments(user.orgId, item.boardId, groupId),
+      );
+      if (auto.changed) {
+        for (const [key, val] of Object.entries(auto.changedValues)) updateData[`values.${key}`] = val;
+        updateData.assignees = auto.assignees;
+      }
+    }
 
     const previousAssignees = item.assignees ?? [];
     const nextAssignees = (updateData.assignees as string[] | undefined) ?? previousAssignees;
