@@ -830,7 +830,9 @@ function evaluateTimeAware(formula: string, columnValues: ColumnValues, ctx: For
   const end = ctx.asOf ?? Infinity;
   const edges = [-Infinity, ...[...changes].sort((a, b) => a - b), end];
 
-  const base = run({ from: -Infinity, to: Infinity, numberAt: end, hoursZero: true });
+  // The non-hours part reads each value as of the "as of" moment — now when unset (an end date
+  // later than today hasn't passed yet).
+  const base = run({ from: -Infinity, to: Infinity, numberAt: ctx.asOf ?? Date.now(), hoursZero: true });
   if (base === null) return null;
   let total = base;
   for (let i = 0; i < edges.length - 1; i++) {

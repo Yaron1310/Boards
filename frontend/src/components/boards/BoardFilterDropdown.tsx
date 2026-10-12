@@ -4,7 +4,7 @@ import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { ColumnType } from '../../types';
 import { filterHoursLogByPeriod } from '../../utils/hoursLog';
-import { endOfLocalDay, numberLogEntries } from '../../utils/numberLog';
+import { endOfLocalDay, numberLogHasValueDuring, startOfLocalDay } from '../../utils/numberLog';
 import type { Item, Column, StatusColumnSettings, StatusOption, User, SimpleFormulaColumnSettings } from '../../types';
 import { evaluateFormula } from '../../utils/formulaEngine';
 import DateRangePicker from '../shared/DateRangePicker';
@@ -461,17 +461,19 @@ export function itemMatchesSearch(
  * Date / Time Range filters also match through log columns (days are 'YYYY-MM-DD', inclusive,
  * judged in local time):
  * - Hours Log: some hours were logged within [from, to] — the row was worked on then.
- * - Number log: a value was already in effect by the end of `to` — so viewing values "as of" a
- *   date keeps every row that had a value then (see BoardViewPage's asOfFromFilters).
+ * - Number log: the cell had a value in effect at some point in the period — a value entered by
+ *   the end of `to` and not ended (by an end date) before `from`. Viewing values "as of" a date
+ *   keeps every row that had a value then (see BoardViewPage's asOfFromFilters).
  */
 function matchesLogColumns(item: Item, columns: Column[], from: string, to: string): boolean {
   const period = { from, to };
+  const start = startOfLocalDay(from);
   const end = endOfLocalDay(to);
   return columns.some((col) => {
     const val = item.values[col.id];
     if (col.type === ColumnType.HOURS_LOG) return filterHoursLogByPeriod(val, period).length > 0;
     if (col.type === ColumnType.NUMBER_LOG) {
-      return end !== undefined && numberLogEntries(val).some((e) => Date.parse(e.loggedAt) <= end);
+      return start !== undefined && end !== undefined && numberLogHasValueDuring(val, start, end);
     }
     return false;
   });

@@ -891,7 +891,8 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
               {(hovered || isHoveredCell || isSource) && !isDrawing && !isBoardReadOnly && (
                 <button
                   type="button"
-                  className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125"
+                  className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all bg-white border-indigo-400 hover:bg-indigo-100 hover:scale-125"
+                  style={{ zIndex: DEP_DOT_Z_INDEX }}
                   onClick={handleConnectorClick}
                   aria-label="Start dependency from this cell"
                   title="Draw dependency"
@@ -902,7 +903,8 @@ const TimeRangeCellInner: React.FC<Props> = ({ item, column, groupColor }) => {
               {isSource && (
                 <button
                   type="button"
-                  className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all z-20 bg-blue-500 border-blue-600 scale-125"
+                  className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full border-2 shadow transition-all bg-blue-500 border-blue-600 scale-125"
+                  style={{ zIndex: DEP_DOT_Z_INDEX }}
                   onClick={handleConnectorClick}
                   aria-label="Cancel dependency drawing"
                   title="Click to cancel"

@@ -3,5 +3,7 @@
 // headers (z 21), group menus, popovers and every modal (z 30 and up). They used to be at
 // 9999/10000, which painted them on top of menus and modals opened over the board.
 // The dots sit one level above the arrows so the arrows' hover hit-area never covers them.
+// The sticky item-name column (and its header/summary/add-item cells) is z 3, above both, so
+// dots and arrows of cells scrolled under it are hidden rather than painted over it.
 export const DEP_OVERLAY_Z_INDEX = 1;
 export const DEP_DOT_Z_INDEX = 2;

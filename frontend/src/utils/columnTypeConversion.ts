@@ -1,5 +1,5 @@
 import { ColumnType } from '../types';
-import { numberLogValueAt } from './numberLog';
+import { numberLogLatestValue } from './numberLog';
 
 /** Converts one cell's raw value from `from`'s storage format to `to`'s. Returns `undefined`
  *  when this particular value can't be converted (e.g. non-numeric text going to NUMBER) —
@@ -35,10 +35,10 @@ const numberToNumberLog: Converter = (v) => (typeof v === 'number' && Number.isF
   ? [{ id: crypto.randomUUID(), value: v, loggedAt: new Date().toISOString() }]
   : undefined);
 
-// NUMBER_LOG -> NUMBER / TEXT: the value currently in effect.
-const numberLogToNumber: Converter = (v) => numberLogValueAt(v) ?? undefined;
+// NUMBER_LOG -> NUMBER / TEXT: the newest value (whatever its start/end dates).
+const numberLogToNumber: Converter = (v) => numberLogLatestValue(v) ?? undefined;
 const numberLogToText: Converter = (v) => {
-  const n = numberLogValueAt(v);
+  const n = numberLogLatestValue(v);
   return n === null ? undefined : String(n);
 };
 

@@ -734,7 +734,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
         >
           {/* Left alignment placeholder — matches ItemRow left section */}
           <div
-            className="flex-shrink-0 border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[1] rounded-tl-lg"
+            className="flex-shrink-0 border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[3] rounded-tl-lg"
             style={{ width: `${groupSectionWidth}px`, borderLeft: `4px solid ${groupColor}` }}
           />
 
@@ -776,7 +776,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
             {/* Add item row */}
             {canManageItems && (
               <div>
-                <div className="sticky left-4 w-max bg-white z-[1]">
+                <div className="sticky left-4 w-max bg-white z-[3]">
                   {addingItem ? (
                     <div className="flex items-center gap-2 px-4 py-2">
                       <input
