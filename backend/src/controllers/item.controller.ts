@@ -114,6 +114,9 @@ function triggerItemNotifications(
   item: DBItem,
   boardName: string,
   previousAssignees: string[],
+  /** Users assigned automatically by their group's "Assign users" record: they got one summary
+   *  email when the group was assigned, so per-item emails for them are skipped. */
+  noEmailFor: ReadonlySet<string> = new Set(),
 ): void {
   const timestamp = admin.firestore.FieldValue.serverTimestamp();
 
@@ -139,6 +142,7 @@ function triggerItemNotifications(
     }).catch((err) => logger.warn('Failed to create assignment notification:', err));
 
     // Email the newly assigned user (fire-and-forget; does not block the response)
+    if (noEmailFor.has(recipientId)) continue;
     void (async () => {
       try {
         const userDoc = await usersCollection.doc(recipientId).get();
@@ -229,6 +233,7 @@ export const createItem = async (req: Request, res: Response) => {
       await groupAutoAssignments(user.orgId, boardId, groupId),
     );
     Object.assign(normalizedValues, autoAssign.changedValues);
+    const groupAssignedUsers = new Set(autoAssign.assignees.filter((uid) => !(Array.isArray(assignees) && assignees.includes(uid))));
 
     // Compute mirrored fields from column values
     const mirrored = await computeMirroredFields(user.orgId, boardId, normalizedValues);
@@ -306,7 +311,7 @@ export const createItem = async (req: Request, res: Response) => {
     void (async () => {
       const boardName = (chain.board as { name?: string })?.name ?? boardId;
       const actorName = await getActorName(user.id);
-      triggerItemNotifications(user.orgId, user.id, actorName, created, boardName, []);
+      triggerItemNotifications(user.orgId, user.id, actorName, created, boardName, [], groupAssignedUsers);
     })();
 
     res.status(201).json(created);
@@ -764,11 +769,14 @@ export const updateItem = async (req: Request, res: Response) => {
     if (Array.isArray(dependencies)) updateData.dependencies = dependencies;
 
     // Moved into another group: pick up the users assigned to that whole group.
+    const groupAssignedUsers = new Set<string>();
     if (groupId !== undefined && groupId !== item.groupId) {
+      const assignments = await groupAutoAssignments(user.orgId, item.boardId, groupId);
+      [...assignments.values()].flat().forEach((uid) => groupAssignedUsers.add(uid));
       const auto = mergeAutoAssignments(
         { ...(item.values ?? {}), ...normalizedValues },
         (updateData.assignees as string[] | undefined) ?? item.assignees ?? [],
-        await groupAutoAssignments(user.orgId, item.boardId, groupId),
+        assignments,
       );
       if (auto.changed) {
         for (const [key, val] of Object.entries(auto.changedValues)) updateData[`values.${key}`] = val;
@@ -806,7 +814,7 @@ export const updateItem = async (req: Request, res: Response) => {
         getActorName(user.id),
         getBoardName(user.orgId, item.boardId),
       ]);
-      triggerItemNotifications(user.orgId, user.id, actorName, updated, boardName, previousAssignees);
+      triggerItemNotifications(user.orgId, user.id, actorName, updated, boardName, previousAssignees, groupAssignedUsers);
     })();
 
     res.json(updated);
