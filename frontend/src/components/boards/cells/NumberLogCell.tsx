@@ -23,12 +23,18 @@ const formatValue = (v: number, settings: NumberColumnSettings | undefined) => {
 // Popover: a box to enter a new value, then the full history (newest first).
 // ---------------------------------------------------------------------------
 
+/** A new value entered this soon after the previous one is probably a correction — ask whether
+ *  it should replace that entry instead of adding a second one. */
+const RECENT_LOG_WINDOW_MS = 2 * 60 * 1000;
+
+type AddMode = 'add' | 'replace';
+
 interface LogPopoverProps {
   anchorEl: HTMLElement | null;
   entries: NumberLogEntry[];
   settings: NumberColumnSettings | undefined;
   columnName: string;
-  onAdd: (value: number) => void;
+  onAdd: (value: number, mode: AddMode) => void;
   onRemove: (id: string) => void;
   onClose: () => void;
 }
@@ -36,6 +42,8 @@ interface LogPopoverProps {
 const LogPopover: React.FC<LogPopoverProps> = ({ anchorEl, entries, settings, columnName, onAdd, onRemove, onClose }) => {
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const [draft, setDraft] = useState('');
+  // Value waiting on the "added less than 2 minutes ago" question.
+  const [pendingValue, setPendingValue] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -59,14 +67,30 @@ const LogPopover: React.FC<LogPopoverProps> = ({ anchorEl, entries, settings, co
   }, [onClose]);
 
   useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const h = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Esc first dismisses the question, then the popover.
+      if (pendingValue !== null) setPendingValue(null);
+      else onClose();
+    };
     window.addEventListener('keydown', h);
     return () => window.removeEventListener('keydown', h);
-  }, [onClose]);
+  }, [onClose, pendingValue]);
 
   const parsed = draft === '' || draft === '-' || draft === '.' ? null : parseFloat(draft);
   const canAdd = parsed !== null && !isNaN(parsed);
-  const submit = () => { if (canAdd) onAdd(parsed); };
+  const submit = () => {
+    if (!canAdd) return;
+    const last = entries[entries.length - 1];
+    if (last && Date.now() - Date.parse(last.loggedAt) < RECENT_LOG_WINDOW_MS) setPendingValue(parsed);
+    else onAdd(parsed, 'add');
+  };
+  const answer = (mode: AddMode) => {
+    if (pendingValue === null) return;
+    const value = pendingValue;
+    setPendingValue(null);
+    onAdd(value, mode);
+  };
   const newestFirst = [...entries].reverse();
 
   return (
@@ -123,6 +147,54 @@ const LogPopover: React.FC<LogPopoverProps> = ({ anchorEl, entries, settings, co
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Rendered inside the popover's element (fixed, full-screen) so clicking it doesn't
+          count as an outside click that would close the popover underneath. */}
+      {pendingValue !== null && (
+        <div className="fixed inset-0 z-[10003] flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => e.stopPropagation()}>
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="number-log-recent-title"
+            className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5"
+          >
+            <p id="number-log-recent-title" className="text-sm font-semibold text-gray-800">
+              A log was added less than 2 minutes ago.
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              Add {formatValue(pendingValue, settings)} as a new log, or replace the previous log
+              ({formatValue(entries[entries.length - 1].value, settings)}) with it?
+            </p>
+            <div className="mt-4 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingValue(null)}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-800"
+                aria-label="Cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => answer('add')}
+                className="px-3 py-1.5 text-xs font-medium text-indigo-700 border border-indigo-300 rounded-lg hover:bg-indigo-50"
+                aria-label="Add new log"
+              >
+                Add New Log
+              </button>
+              <button
+                type="button"
+                autoFocus
+                onClick={() => answer('replace')}
+                className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+                aria-label="Replace previous log"
+              >
+                Replace Previous Log
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -187,9 +259,12 @@ const NumberLogCellInner: React.FC<Props> = ({ item, column }) => {
   return (
     <CellWrapper column={column}>
       {(isEditing, stopEdit) => {
-        const handleAdd = (value: number) => {
+        const handleAdd = (value: number, mode: AddMode) => {
           const entry: NumberLogEntry = { id: crypto.randomUUID(), value, loggedAt: new Date().toISOString() };
-          commitEntries([...rawValue, entry], `Changed "${column.name}" on "${item.name}"`);
+          // 'replace' drops the newest entry (a quick correction) instead of keeping both.
+          const previousId = mode === 'replace' ? entries[entries.length - 1]?.id : undefined;
+          const kept = previousId ? rawValue.filter((e) => e.id !== previousId) : rawValue;
+          commitEntries([...kept, entry], `Changed "${column.name}" on "${item.name}"`);
           stopEdit();
         };
         const handleRemove = (id: string) => {
