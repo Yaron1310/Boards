@@ -307,6 +307,17 @@ export const deleteGroup = async (req: Request, res: Response) => {
     const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
     assertGroupAccess(user, group, 'delete', board.createdBy, memberData, board.workspaceId);
 
+    // Safety net: a subitem table is only ever deleted by the subitem panel's auto-teardown when
+    // it believes the table is empty. Never trust that — if any subitem (archived or not) still
+    // points at this table, refuse, so a wrong client-side view can never orphan subitems.
+    if (group.parentItemId) {
+      const rows = await itemsCollection(user.orgId).where('groupId', '==', groupId).limit(1).get();
+      if (!rows.empty) {
+        logger.warn(`Refused to delete subitem group ${groupId} (parent ${group.parentItemId}): it still has subitems`);
+        return res.status(409).json({ message: 'This subitem table still has subitems and was not deleted.' });
+      }
+    }
+
     await groupsCollection(user.orgId, boardId).doc(groupId).delete();
     touchBoardVersion(user.orgId, boardId);
     void revokeWebhookForGroup(user.orgId, groupId);
