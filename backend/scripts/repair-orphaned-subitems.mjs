@@ -34,6 +34,9 @@
  *     → read-only: one parent item's subitem tables and rows (archived included); --with-logs
  *       adds its subitem-table load history and the table deletions on its board.
  *
+ *   node scripts/repair-orphaned-subitems.mjs list [--board "<name or id>"] [--out subitems.json]
+ *     → read-only: every item that has a subitem table and its subitems' names, per board.
+ *
  *   node scripts/repair-orphaned-subitems.mjs apply --in subitem-repair.json
  *     → recreates the subitem tables from the (edited) plan. Safe to re-run: tables that already
  *       exist are skipped. When the parent already has a subitem table (e.g. someone created new
@@ -70,8 +73,8 @@ for (let i = 0; i < rest.length; i++) {
 const PROJECT = opts.project ?? 'boards-f313e';
 const DATABASE = opts.database ?? PROJECT;
 const SINCE = opts.since ?? '2026-10-04T00:00:00Z';
-if (command !== 'report' && command !== 'apply' && command !== 'inspect') {
-  console.error('Usage: node scripts/repair-orphaned-subitems.mjs report --out plan.json | apply --in plan.json | inspect "<item name or id>"');
+if (!['report', 'apply', 'inspect', 'list'].includes(command)) {
+  console.error('Usage: node scripts/repair-orphaned-subitems.mjs report --out plan.json | apply --in plan.json | inspect "<item name or id>" | list [--board "<name or id>"]');
   process.exit(1);
 }
 
@@ -371,6 +374,58 @@ async function inspectItem(needle) {
   }
 }
 
+/**
+ * list [--board "<board name or id>"] [--out file.json]: every item that has a subitem table, with
+ * its subitems' names, board by board. Empty tables are shown too (the item shows a subitems
+ * arrow but holds nothing). Read-only.
+ */
+async function listSubitems() {
+  const orgIds = opts.org ? [opts.org] : (await db.collection('organizations').select().get()).docs.map((d) => d.id);
+  const result = [];
+  let parentsTotal = 0;
+  let subitemsTotal = 0;
+  let emptyTotal = 0;
+  for (const orgId of orgIds) {
+    const boards = (await orgDoc(orgId).collection('boards').get()).docs
+      .filter((b) => !opts.board || b.id === opts.board || b.data().name === opts.board);
+    for (const b of boards) {
+      const tables = (await b.ref.collection('groups').get()).docs.filter((g) => g.data().parentItemId);
+      if (tables.length === 0) continue;
+      const boardEntry = { orgId, boardId: b.id, boardName: b.data().name ?? b.id, parents: [] };
+      for (const t of tables) {
+        const parentId = t.data().parentItemId;
+        const parentDoc = await orgDoc(orgId).collection('items').doc(parentId).get();
+        const rows = (await orgDoc(orgId).collection('items').where('groupId', '==', t.id).get()).docs
+          .map((d) => ({ id: d.id, name: d.data().name, isArchived: !!d.data().isArchived, order: d.data().order ?? 0 }))
+          .sort((x, y) => x.order - y.order);
+        boardEntry.parents.push({
+          parentItemId: parentId,
+          parentItemName: parentDoc.exists ? parentDoc.data().name : '(parent item no longer exists)',
+          parentArchived: parentDoc.exists ? !!parentDoc.data().isArchived : null,
+          tableId: t.id,
+          subitems: rows.map(({ order: _o, ...r }) => r),
+        });
+        parentsTotal++;
+        subitemsTotal += rows.length;
+        if (rows.length === 0) emptyTotal++;
+      }
+      boardEntry.parents.sort((x, y) => String(x.parentItemName).localeCompare(String(y.parentItemName)));
+      result.push(boardEntry);
+    }
+  }
+  result.sort((x, y) => String(x.boardName).localeCompare(String(y.boardName)));
+  for (const board of result) {
+    console.log(`\n=== ${board.boardName} (${board.boardId}) ===`);
+    for (const p of board.parents) {
+      const flags = [p.parentArchived ? 'archived' : null, p.subitems.length === 0 ? 'EMPTY TABLE' : null].filter(Boolean).join(', ');
+      console.log(`  ${p.parentItemName} (${p.parentItemId})${flags ? `  [${flags}]` : ''}`);
+      for (const si of p.subitems) console.log(`      - ${si.name}${si.isArchived ? '  (archived)' : ''}`);
+    }
+  }
+  console.log(`\n${parentsTotal} items with a subitem table, ${subitemsTotal} subitems in total, ${emptyTotal} empty tables.`);
+  if (opts.out) { fs.writeFileSync(opts.out, JSON.stringify(result, null, 2)); console.log(`Written to ${opts.out}`); }
+}
+
 async function report() {
   if (opts['inspect-item']) { await inspectItem(opts['inspect-item']); return; }
   const out = opts.out ?? 'subitem-repair.json';
@@ -526,7 +581,9 @@ async function apply() {
   console.log(`\nDone: ${restored} tables restored.`);
 }
 
-if (command === 'inspect') {
+if (command === 'list') {
+  await listSubitems();
+} else if (command === 'inspect') {
   if (!inspectTarget) { console.error('Usage: node scripts/repair-orphaned-subitems.mjs inspect "<item name or id>" [--with-logs]'); process.exit(1); }
   await inspectItem(inspectTarget);
 } else {
