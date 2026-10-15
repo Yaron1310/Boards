@@ -99,6 +99,15 @@ async function loadRequestLogs() {
   return entries;
 }
 
+/** Timeline match first; the reload-right-after-delete match confirms or fills in. */
+function combineMatches(timeline, reload) {
+  if (!timeline) return reload.parentItemId ? { ...reload, confidence: reload.confidence === 'high' ? 'medium' : 'low' } : reload;
+  if (reload.parentItemId === timeline.parentItemId) {
+    return { ...timeline, confidence: 'high', evidence: [...timeline.evidence, 'confirmed: the same browser reloaded exactly this parent right after the delete'] };
+  }
+  return timeline;
+}
+
 /** One parsed request: what it touched, when, from which browser (IP + user agent). */
 function parseEntry(e) {
   const r = e.httpRequest;
@@ -148,6 +157,85 @@ function matchParentFromLogs(tableId, boardId, parsed) {
       ...(distinctSoon.length > 1 ? [`other parents reloaded in the same 2 s: ${distinctSoon.filter((x) => x !== first.parentItemId).join(', ')}`] : []),
     ],
   };
+}
+
+/**
+ * Main signal: every board load asks for each row's subitem table, and the response is larger
+ * while the table exists than when it doesn't ("[]"). A deleted table belongs to the parent whose
+ * responses go from larger to empty across the moment of that table's DELETE — no other response
+ * from that parent in between. Works whether or not the panel reloaded the parent right after.
+ * Returns tableId → { parentItemId, confidence, evidence } for the tables it could place.
+ */
+function matchByTimeline(tables, parsed) {
+  const results = new Map();
+  const deletesById = new Map();
+  for (const p of parsed) if (p.kind === 'delete' && !deletesById.has(p.groupId)) deletesById.set(p.groupId, p);
+
+  for (const boardId of new Set(tables.map((t) => t.boardId))) {
+    const series = new Map();
+    for (const p of parsed) {
+      if (p.kind !== 'parent' || p.boardId !== boardId || !Number.isFinite(p.size)) continue;
+      series.set(p.parentItemId, [...(series.get(p.parentItemId) ?? []), p]);
+    }
+    const sizes = [...series.values()].flat().map((r) => r.size);
+    if (sizes.length === 0) continue;
+    const emptySize = Math.min(...sizes);
+    for (const list of series.values()) list.sort((a, b) => a.t - b.t);
+
+    // Every parent whose "had a table" → "no table" switch brackets the table's DELETE.
+    const candidatesFor = (tableId) => {
+      const del = deletesById.get(tableId);
+      if (!del || del.boardId !== boardId) return [];
+      const out = [];
+      for (const [parentItemId, list] of series) {
+        const before = list.filter((r) => r.t <= del.t);
+        const lastBig = [...before].reverse().find((r) => r.size > emptySize);
+        if (!lastBig || before[before.length - 1] !== lastBig) continue; // already empty before the delete
+        const next = list.find((r) => r.t > del.t);
+        if (!next || next.size !== emptySize) continue; // still had a table afterwards
+        out.push({ parentItemId, key: `${parentItemId}@${lastBig.t}`, lastBig, next, del, span: next.t - lastBig.t });
+      }
+      return out.sort((a, b) => a.span - b.span);
+    };
+
+    const pending = tables.filter((t) => t.boardId === boardId).map((t) => ({ t, cands: candidatesFor(t.tableId) }));
+    const taken = new Set();
+    // Place the unambiguous tables first; each parent's switch can explain only one table.
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const entry of pending) {
+        if (results.has(entry.t.tableId)) continue;
+        const free = entry.cands.filter((c) => !taken.has(c.key));
+        if (free.length !== 1) continue;
+        const c = free[0];
+        taken.add(c.key);
+        changed = true;
+        results.set(entry.t.tableId, {
+          parentItemId: c.parentItemId,
+          confidence: 'high',
+          evidence: [
+            `DELETE …/groups/${entry.t.tableId} at ${new Date(c.del.t).toISOString()}`,
+            `parent ${c.parentItemId} had a table at ${new Date(c.lastBig.t).toISOString()} (${c.lastBig.size} bytes) and none from ${new Date(c.next.t).toISOString()} (${c.next.size} bytes)`,
+            'no other parent on this board lost its table across that delete',
+          ],
+        });
+      }
+    }
+    for (const entry of pending) {
+      if (results.has(entry.t.tableId)) continue;
+      const free = entry.cands.filter((c) => !taken.has(c.key));
+      if (free.length === 0) continue;
+      results.set(entry.t.tableId, {
+        parentItemId: free[0].parentItemId,
+        confidence: 'low',
+        evidence: [
+          `DELETE …/groups/${entry.t.tableId} at ${new Date(free[0].del.t).toISOString()}`,
+          `${free.length} parents lost their table across that delete: ${free.map((c) => c.parentItemId).join(', ')} — closest-in-time proposed`,
+        ],
+      });
+    }
+  }
+  return results;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -240,12 +328,13 @@ async function report() {
   console.log('Reading request logs…');
   const parsed = (await loadRequestLogs()).map(parseEntry).filter(Boolean);
 
+  const timeline = matchByTimeline(tables, parsed);
   const plan = [];
   for (const t of tables) {
     const viaArchive = [...new Set(t.subitems.map((s) => (typeof s.archivedVia === 'string' && s.archivedVia.startsWith('item:') ? s.archivedVia.slice(5) : null)).filter(Boolean))];
     const match = viaArchive.length === 1
       ? { parentItemId: viaArchive[0], confidence: 'exact', evidence: [`subitems archived together with item ${viaArchive[0]}`] }
-      : matchParentFromLogs(t.tableId, t.boardId, parsed);
+      : combineMatches(timeline.get(t.tableId), matchParentFromLogs(t.tableId, t.boardId, parsed));
 
     let parent = null;
     let parentProblem = null;
@@ -260,7 +349,7 @@ async function report() {
       : undefined;
 
     plan.push({
-      apply: !!parent && !parentProblem && match.confidence !== 'low',
+      apply: !!parent && !parentProblem && ['exact', 'high', 'medium'].includes(match.confidence),
       orgId: t.orgId,
       boardId: t.boardId,
       boardName: t.boardName,
