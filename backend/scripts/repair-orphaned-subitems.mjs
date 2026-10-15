@@ -30,6 +30,10 @@
  *     → read-only: prints a summary and writes the full plan. Review it. For a table without a
  *       proposed parent, fill in "parentItemId" yourself; set "apply": false to skip a table.
  *
+ *   node scripts/repair-orphaned-subitems.mjs inspect "<item name or id>" [--with-logs]
+ *     → read-only: one parent item's subitem tables and rows (archived included); --with-logs
+ *       adds its subitem-table load history and the table deletions on its board.
+ *
  *   node scripts/repair-orphaned-subitems.mjs apply --in subitem-repair.json
  *     → recreates the subitem tables from the (edited) plan. Safe to re-run: tables that already
  *       exist are skipped. When the parent already has a subitem table (e.g. someone created new
@@ -54,13 +58,20 @@ import { GoogleAuth } from 'google-auth-library';
 // Arguments
 // ---------------------------------------------------------------------------------------------
 const [command, ...rest] = process.argv.slice(2);
+// `inspect` takes the item as its first argument: inspect "<item name or id>" [--with-logs]
+const inspectTarget = command === 'inspect' && rest[0] && !rest[0].startsWith('--') ? rest.shift() : undefined;
 const opts = {};
-for (let i = 0; i < rest.length; i += 2) opts[rest[i].replace(/^--/, '')] = rest[i + 1];
+for (let i = 0; i < rest.length; i++) {
+  const key = rest[i].replace(/^--/, '');
+  const next = rest[i + 1];
+  if (next === undefined || next.startsWith('--')) opts[key] = true; // flag without a value
+  else { opts[key] = next; i++; }
+}
 const PROJECT = opts.project ?? 'boards-f313e';
 const DATABASE = opts.database ?? PROJECT;
 const SINCE = opts.since ?? '2026-10-04T00:00:00Z';
-if (command !== 'report' && command !== 'apply') {
-  console.error('Usage: node scripts/repair-orphaned-subitems.mjs report --out plan.json | apply --in plan.json');
+if (command !== 'report' && command !== 'apply' && command !== 'inspect') {
+  console.error('Usage: node scripts/repair-orphaned-subitems.mjs report --out plan.json | apply --in plan.json | inspect "<item name or id>"');
   process.exit(1);
 }
 
@@ -332,7 +343,7 @@ async function inspectItem(needle) {
     }
   }
   if (found.length === 0) { console.log(`No item named or with id "${needle}".`); return; }
-  const parsed = (await loadRequestLogs()).map(parseEntry).filter(Boolean);
+  const parsed = opts['with-logs'] ? (await loadRequestLogs()).map(parseEntry).filter(Boolean) : null;
   for (const { orgId, doc } of found) {
     const item = doc.data();
     const board = await orgDoc(orgId).collection('boards').doc(item.boardId).get();
@@ -345,6 +356,7 @@ async function inspectItem(needle) {
     }
     const archivedWith = (await orgDoc(orgId).collection('items').where('archivedVia', '==', `item:${doc.id}`).get()).docs;
     if (archivedWith.length) console.log(`  rows archived together with this item: ${archivedWith.length} — ${archivedWith.slice(0, 8).map((d) => `"${d.data().name}" (group ${d.data().groupId})`).join(', ')}`);
+    if (!parsed) continue; // database only — add --with-logs for the request-log history
     const loads = parsed.filter((p) => p.kind === 'parent' && p.parentItemId === doc.id).sort((a, b) => a.t - b.t);
     console.log(`  subitem-table loads in the logs: ${loads.length}`);
     let lastSize;
@@ -514,5 +526,10 @@ async function apply() {
   console.log(`\nDone: ${restored} tables restored.`);
 }
 
-await (command === 'report' ? report() : apply());
+if (command === 'inspect') {
+  if (!inspectTarget) { console.error('Usage: node scripts/repair-orphaned-subitems.mjs inspect "<item name or id>" [--with-logs]'); process.exit(1); }
+  await inspectItem(inspectTarget);
+} else {
+  await (command === 'report' ? report() : apply());
+}
 process.exit(0);
