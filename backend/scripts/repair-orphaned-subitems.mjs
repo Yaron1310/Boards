@@ -34,7 +34,7 @@
  *     → read-only: one parent item's subitem tables and rows (archived included); --with-logs
  *       adds its subitem-table load history and the table deletions on its board.
  *
- *   node scripts/repair-orphaned-subitems.mjs list [--board "<name or id>"] [--out subitems.json]
+ *   node scripts/repair-orphaned-subitems.mjs list [--board "<name or id>"] [--out subitems.json] [--csv subitems.csv]
  *     → read-only: every item that has a subitem table and its subitems' names, per board.
  *
  *   node scripts/repair-orphaned-subitems.mjs apply --in subitem-repair.json
@@ -424,6 +424,28 @@ async function listSubitems() {
   }
   console.log(`\n${parentsTotal} items with a subitem table, ${subitemsTotal} subitems in total, ${emptyTotal} empty tables.`);
   if (opts.out) { fs.writeFileSync(opts.out, JSON.stringify(result, null, 2)); console.log(`Written to ${opts.out}`); }
+  if (opts.csv) {
+    // One row per subitem (an empty table gets one row of its own), board and parent repeated on
+    // every row so the sheet can be filtered and sorted. BOM so Excel reads UTF-8 (Hebrew, emoji).
+    const cell = (v) => {
+      const text = v === null || v === undefined ? '' : String(v);
+      return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const lines = [['Board', 'Parent item', 'Parent archived', 'Subitem', 'Subitem archived', 'Subitems in table', 'Board ID', 'Parent item ID', 'Subitem table ID', 'Subitem ID']];
+    for (const board of result) {
+      for (const p of board.parents) {
+        const base = [board.boardName, p.parentItemName, p.parentArchived ? 'yes' : 'no'];
+        const ids = [board.boardId, p.parentItemId, p.tableId];
+        if (p.subitems.length === 0) {
+          lines.push([...base, '(empty table)', '', 0, ...ids, '']);
+          continue;
+        }
+        for (const si of p.subitems) lines.push([...base, si.name, si.isArchived ? 'yes' : 'no', p.subitems.length, ...ids, si.id]);
+      }
+    }
+    fs.writeFileSync(opts.csv, '\uFEFF' + lines.map((l) => l.map(cell).join(',')).join('\r\n') + '\r\n', 'utf8');
+    console.log(`CSV written to ${opts.csv} (${lines.length - 1} rows)`);
+  }
 }
 
 async function report() {
