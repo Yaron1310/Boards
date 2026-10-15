@@ -37,6 +37,8 @@
  *
  * Options: --project <id> (default boards-f313e), --database <id> (default = project id),
  *          --since <ISO date> (default 2026-10-04), --org <orgId> (limit to one organization),
+ *          --inspect-item "<name or id>" (with report: show one parent item's subitem tables, rows
+ *          and log history instead of writing a plan),
  *          --debug-table <tableId> (with report: print the log lines around that table's
  *          deletion instead of writing a plan),
  *          --logs-file <file> (use exported log entries — JSON array, e.g. from
@@ -314,7 +316,51 @@ function planColumns(subitems, userIds, mirroredHours) {
 // ---------------------------------------------------------------------------------------------
 // report
 // ---------------------------------------------------------------------------------------------
+/**
+ * --inspect-item "<item name or id>": what the database and the request logs hold for one parent
+ * item — its subitem table(s) and their rows (archived included), every load of its subitem table
+ * (status, size: larger = it had a table), and every table DELETE on its board near those loads.
+ */
+async function inspectItem(needle) {
+  const orgIds = opts.org ? [opts.org] : (await db.collection('organizations').select().get()).docs.map((d) => d.id);
+  const found = [];
+  for (const orgId of orgIds) {
+    const byId = await orgDoc(orgId).collection('items').doc(needle).get();
+    if (byId.exists) found.push({ orgId, doc: byId });
+    for (const d of (await orgDoc(orgId).collection('items').where('name', '==', needle).get()).docs) {
+      if (d.id !== needle) found.push({ orgId, doc: d });
+    }
+  }
+  if (found.length === 0) { console.log(`No item named or with id "${needle}".`); return; }
+  const parsed = (await loadRequestLogs()).map(parseEntry).filter(Boolean);
+  for (const { orgId, doc } of found) {
+    const item = doc.data();
+    const board = await orgDoc(orgId).collection('boards').doc(item.boardId).get();
+    console.log(`\nItem "${item.name}" (${doc.id}) — board "${board.data()?.name ?? item.boardId}" (${item.boardId}), org ${orgId}, archived: ${!!item.isArchived}`);
+    const tables = (await board.ref.collection('groups').where('parentItemId', '==', doc.id).get()).docs;
+    if (tables.length === 0) console.log('  subitem tables now: none');
+    for (const t of tables) {
+      const rows = (await orgDoc(orgId).collection('items').where('groupId', '==', t.id).get()).docs.map((d) => d.data());
+      console.log(`  subitem table ${t.id}${t.data().isArchived ? ' (archived)' : ''}: ${rows.length} rows (${rows.filter((r) => r.isArchived).length} archived)${rows.length ? ` — ${rows.slice(0, 8).map((r) => `"${r.name}"`).join(', ')}` : ''}`);
+    }
+    const archivedWith = (await orgDoc(orgId).collection('items').where('archivedVia', '==', `item:${doc.id}`).get()).docs;
+    if (archivedWith.length) console.log(`  rows archived together with this item: ${archivedWith.length} — ${archivedWith.slice(0, 8).map((d) => `"${d.data().name}" (group ${d.data().groupId})`).join(', ')}`);
+    const loads = parsed.filter((p) => p.kind === 'parent' && p.parentItemId === doc.id).sort((a, b) => a.t - b.t);
+    console.log(`  subitem-table loads in the logs: ${loads.length}`);
+    let lastSize;
+    for (const l of loads) {
+      if (l.status === 200 && l.size === lastSize) continue; // only print changes
+      console.log(`    ${new Date(l.t).toISOString()}  status ${l.status}  ${l.size} bytes`);
+      if (l.status === 200) lastSize = l.size;
+    }
+    const deletes = parsed.filter((p) => p.kind === 'delete' && p.boardId === item.boardId).sort((a, b) => a.t - b.t);
+    console.log(`  table DELETEs on this board in the logs: ${deletes.length}`);
+    for (const d of deletes) console.log(`    ${new Date(d.t).toISOString()}  DELETE group ${d.groupId}`);
+  }
+}
+
 async function report() {
+  if (opts['inspect-item']) { await inspectItem(opts['inspect-item']); return; }
   const out = opts.out ?? 'subitem-repair.json';
   console.log(`Reading Firestore (project ${PROJECT}, database ${DATABASE})…`);
   const userIds = new Set((await db.collection('users').select().get()).docs.map((d) => d.id));
