@@ -2,6 +2,14 @@
   "indexes": [
     {
       "collectionGroup": "items",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "groupId", "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "items",
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         { "fieldPath": "boardId", "order": "ASCENDING" },
