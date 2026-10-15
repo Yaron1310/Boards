@@ -648,10 +648,20 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     isClosingRef.current = true;
     void (async () => {
       try {
-        await Promise.all(columns.map((c) => deleteColumn(c.id)));
+        // Group first: the server refuses to delete a subitem table that still has subitems, and
+        // then the columns (which hold those subitems' values) must survive too.
         await deleteGroup({ boardId, groupId: subitemGroup.id });
+        await Promise.all(columns.map((c) => deleteColumn(c.id)));
         await qc.invalidateQueries({ queryKey: queryKeys.groups.subitem(boardId, parentItemId) });
         onEmpty?.();
+      } catch (err) {
+        // Refused (the table still has subitems the panel didn't see) or failed: keep the panel,
+        // reload its rows from the server, and leave a trace for diagnosis.
+        console.warn('[SubitemGroup] teardown refused/failed — reloading subitems', {
+          groupId: subitemGroup.id, parentItemId, rowsThePanelSaw: allItems.length, err,
+        });
+        isClosingRef.current = false;
+        void qc.invalidateQueries({ queryKey: ['items', 'group', subitemGroup.id] });
       } finally {
         isTearingDownRef.current = false;
       }
