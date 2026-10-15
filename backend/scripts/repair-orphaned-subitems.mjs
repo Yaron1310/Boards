@@ -37,6 +37,8 @@
  *
  * Options: --project <id> (default boards-f313e), --database <id> (default = project id),
  *          --since <ISO date> (default 2026-10-04), --org <orgId> (limit to one organization),
+ *          --debug-table <tableId> (with report: print the log lines around that table's
+ *          deletion instead of writing a plan),
  *          --logs-file <file> (use exported log entries — JSON array, e.g. from
  *          `gcloud logging read … --format=json` — instead of querying Cloud Logging).
  * Needs: Firestore read/write and Logs Viewer (roles/logging.viewer) on the project.
@@ -99,6 +101,25 @@ async function loadRequestLogs() {
   return entries;
 }
 
+/** Prints every logged request that matters for one table: its DELETE, and every subitem-table
+ *  load on its board within 10 minutes either side — to see what the matcher sees. */
+function debugTable(tableId, tables, parsed) {
+  const table = tables.find((t) => t.tableId === tableId);
+  if (!table) { console.log(`Table ${tableId} is not among the orphaned tables.`); return; }
+  const del = parsed.find((p) => p.kind === 'delete' && p.groupId === tableId);
+  if (!del) { console.log(`No DELETE of ${tableId} in the logs.`); return; }
+  const clients = new Map();
+  const tag = (c) => { if (!clients.has(c)) clients.set(c, `browser${clients.size + 1}`); return clients.get(c); };
+  console.log(`Board ${table.boardName} (${table.boardId}); DELETE at ${new Date(del.t).toISOString()} from ${tag(del.client)}`);
+  const near = parsed.filter((p) => p.boardId === table.boardId && Math.abs(p.t - del.t) <= 10 * 60_000).sort((a, b) => a.t - b.t);
+  for (const p of near) {
+    const dt = ((p.t - del.t) / 1000).toFixed(3).padStart(9);
+    if (p.kind === 'delete') console.log(`${dt}s  ${tag(p.client)}  DELETE group ${p.groupId}${p.groupId === tableId ? '   <== this table' : ''}`);
+    else console.log(`${dt}s  ${tag(p.client)}  GET parent ${p.parentItemId}  status ${p.status}  ${p.size} bytes`);
+  }
+  for (const [c, name] of clients) console.log(`${name} = ${c}`);
+}
+
 /** Timeline match first; the reload-right-after-delete match confirms or fills in. */
 function combineMatches(timeline, reload) {
   if (!timeline) return reload.parentItemId ? { ...reload, confidence: reload.confidence === 'high' ? 'medium' : 'low' } : reload;
@@ -121,7 +142,7 @@ function parseEntry(e) {
   const get = url.pathname.match(/\/boards\/([^/]+)\/groups$/);
   const parentItemId = url.searchParams.get('parentItemId');
   if (r.requestMethod === 'GET' && get && parentItemId) {
-    return { kind: 'parent', boardId: get[1], parentItemId, t, client, size: Number(r.responseSize ?? NaN) };
+    return { kind: 'parent', boardId: get[1], parentItemId, t, client, status: Number(r.status ?? 0), size: Number(r.responseSize ?? NaN) };
   }
   return null;
 }
@@ -142,7 +163,7 @@ function matchParentFromLogs(tableId, boardId, parsed) {
   const first = after[0];
   const distinctSoon = [...new Set(after.filter((p) => p.t <= first.t + 2000).map((p) => p.parentItemId))];
   const earlierSizes = parsed
-    .filter((p) => p.kind === 'parent' && p.parentItemId === first.parentItemId && p.t < del.t && Number.isFinite(p.size))
+    .filter((p) => p.kind === 'parent' && p.parentItemId === first.parentItemId && p.t < del.t && p.status === 200 && Number.isFinite(p.size))
     .map((p) => p.size);
   const shrank = Number.isFinite(first.size) && earlierSizes.length > 0 && Math.max(...earlierSizes) > first.size;
   const confidence = distinctSoon.length === 1 ? (shrank ? 'high' : 'medium') : 'low';
@@ -174,12 +195,16 @@ function matchByTimeline(tables, parsed) {
   for (const boardId of new Set(tables.map((t) => t.boardId))) {
     const series = new Map();
     for (const p of parsed) {
-      if (p.kind !== 'parent' || p.boardId !== boardId || !Number.isFinite(p.size)) continue;
+      // Only full responses tell whether a table existed — a 304 "not modified" carries no body.
+      if (p.kind !== 'parent' || p.boardId !== boardId || p.status !== 200 || !Number.isFinite(p.size)) continue;
       series.set(p.parentItemId, [...(series.get(p.parentItemId) ?? []), p]);
     }
     const sizes = [...series.values()].flat().map((r) => r.size);
     if (sizes.length === 0) continue;
-    const emptySize = Math.min(...sizes);
+    // Most rows have no subitems, so the commonest full-response size is the empty "[]" answer.
+    const counts = new Map();
+    for (const z of sizes) counts.set(z, (counts.get(z) ?? 0) + 1);
+    const emptySize = [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
     for (const list of series.values()) list.sort((a, b) => a.t - b.t);
 
     // Every parent whose "had a table" → "no table" switch brackets the table's DELETE.
@@ -327,6 +352,7 @@ async function report() {
 
   console.log('Reading request logs…');
   const parsed = (await loadRequestLogs()).map(parseEntry).filter(Boolean);
+  if (opts['debug-table']) { debugTable(opts['debug-table'], tables, parsed); return; }
 
   const timeline = matchByTimeline(tables, parsed);
   const plan = [];
