@@ -35,6 +35,7 @@
  *       adds its subitem-table load history and the table deletions on its board.
  *
  *   node scripts/repair-orphaned-subitems.mjs list [--board "<name or id>"] [--out subitems.json] [--csv subitems.csv]
+ *                                                  [--at "2026-10-14T15:00:00Z"]  (as it was then — needs PITR)
  *     → read-only: every item that has a subitem table and its subitems' names, per board.
  *
  *   node scripts/repair-orphaned-subitems.mjs apply --in subitem-repair.json
@@ -54,7 +55,7 @@
  */
 import fs from 'node:fs';
 import admin from 'firebase-admin';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
 import { GoogleAuth } from 'google-auth-library';
 
 // ---------------------------------------------------------------------------------------------
@@ -380,22 +381,35 @@ async function inspectItem(needle) {
  * arrow but holds nothing). Read-only.
  */
 async function listSubitems() {
-  const orgIds = opts.org ? [opts.org] : (await db.collection('organizations').select().get()).docs.map((d) => d.id);
+  // --at "<ISO time>": read everything as it was then (Firestore point-in-time recovery — needs
+  // PITR enabled and a time after the database's earliestVersionTime; rounded down to the minute,
+  // as PITR reads require). Read-only either way.
+  let readTime;
+  if (opts.at) {
+    const ms = Date.parse(opts.at);
+    if (isNaN(ms)) { console.error(`--at: not a date/time: ${opts.at}`); process.exit(1); }
+    readTime = Timestamp.fromMillis(Math.floor(ms / 60_000) * 60_000);
+    console.log(`Reading the database as of ${readTime.toDate().toISOString()} (point-in-time read, nothing is restored).`);
+  }
+  const read = (refOrQuery) => (readTime
+    ? db.runTransaction((tx) => tx.get(refOrQuery), { readOnly: true, readTime })
+    : refOrQuery.get());
+  const orgIds = opts.org ? [opts.org] : (await read(db.collection('organizations').select())).docs.map((d) => d.id);
   const result = [];
   let parentsTotal = 0;
   let subitemsTotal = 0;
   let emptyTotal = 0;
   for (const orgId of orgIds) {
-    const boards = (await orgDoc(orgId).collection('boards').get()).docs
+    const boards = (await read(orgDoc(orgId).collection('boards'))).docs
       .filter((b) => !opts.board || b.id === opts.board || b.data().name === opts.board);
     for (const b of boards) {
-      const tables = (await b.ref.collection('groups').get()).docs.filter((g) => g.data().parentItemId);
+      const tables = (await read(b.ref.collection('groups'))).docs.filter((g) => g.data().parentItemId);
       if (tables.length === 0) continue;
       const boardEntry = { orgId, boardId: b.id, boardName: b.data().name ?? b.id, parents: [] };
       for (const t of tables) {
         const parentId = t.data().parentItemId;
-        const parentDoc = await orgDoc(orgId).collection('items').doc(parentId).get();
-        const rows = (await orgDoc(orgId).collection('items').where('groupId', '==', t.id).get()).docs
+        const parentDoc = await read(orgDoc(orgId).collection('items').doc(parentId));
+        const rows = (await read(orgDoc(orgId).collection('items').where('groupId', '==', t.id))).docs
           .map((d) => ({ id: d.id, name: d.data().name, isArchived: !!d.data().isArchived, order: d.data().order ?? 0 }))
           .sort((x, y) => x.order - y.order);
         boardEntry.parents.push({
