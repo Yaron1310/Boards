@@ -479,7 +479,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
     !!subitemGroup,
   );
 
-  const { data: itemsPage, isFetching: itemsFetching } = useGroupItems(
+  const { data: itemsPage, isFetching: itemsFetching, isSuccess: itemsLoaded } = useGroupItems(
     subitemGroup?.id ?? '',
     undefined,
     200,
@@ -636,7 +636,9 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
   // over from a session before this behavior existed.
   const isTearingDownRef = useRef(false);
   useEffect(() => {
-    if (isPersonalHub || !subitemGroup || itemsFetching || columnsLoading) return;
+    // Only a successful load can say the group is empty: a failed one (e.g. a missing Firestore
+    // index) has no rows either, and tearing down then deleted groups that still had subitems.
+    if (isPersonalHub || !subitemGroup || itemsFetching || !itemsLoaded || columnsLoading) return;
     if (isInitializing || pendingAutoFocus || addingItem) return;
     if (isTearingDownRef.current) return;
     const total = allItems.length + pendingItems.length;
@@ -655,7 +657,7 @@ const SubitemGroup: React.FC<SubitemGroupProps> = ({ boardId, workspaceId, paren
       }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allItems.length, pendingItems.length, subitemGroup, itemsFetching, columnsLoading, isInitializing, pendingAutoFocus, addingItem]);
+  }, [allItems.length, pendingItems.length, subitemGroup, itemsFetching, itemsLoaded, columnsLoading, isInitializing, pendingAutoFocus, addingItem]);
 
   const pendingColumnPlaceholders: Column[] = pendingColumns.map((c) => ({
     id: c.tempId, boardId, name: c.name, type: c.type, settings: {},
