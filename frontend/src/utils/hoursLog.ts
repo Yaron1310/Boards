@@ -9,6 +9,14 @@ export const HOURS_LOG_MINUTE_STEPS = [0, 15, 30, 45] as const;
  *  so one entry can hold a long stretch of work, e.g. 125:30. */
 export const HOURS_LOG_MAX_HOURS = 199;
 
+/** Largest single entry in minutes (199:59) — the stop-clock's exact-minute entries share the
+ *  manual picker's 199-hour ceiling. */
+export const HOURS_LOG_MAX_MINUTES = HOURS_LOG_MAX_HOURS * 60 + 59;
+
+/** A timer that ran longer than this (minutes) gets a "forgot to stop it?" note in the stop
+ *  popover. Only a reminder — it never blocks saving. */
+export const HOURS_TIMER_LONG_RUN_MINUTES = 10 * 60;
+
 export function sumHoursLogMinutes(entries: HoursLogEntry[] | null | undefined): number {
   if (!Array.isArray(entries)) return 0;
   return entries.reduce((sum, e) => sum + (typeof e.minutes === 'number' && !isNaN(e.minutes) ? e.minutes : 0), 0);
@@ -145,4 +153,44 @@ export function choiceToPeriod(choice: HoursPeriodChoice): HoursPeriod | undefin
       if (!choice.from || !choice.to) return null;
       return choice.from <= choice.to ? { from: choice.from, to: choice.to } : { from: choice.to, to: choice.from };
   }
+}
+
+/** Formats a running timer's elapsed seconds as "H:MM:SS" — hours keep counting past 24
+ *  (e.g. "26:14:05"), matching the column's H:MM totals rather than switching to days. */
+export function formatTimerClock(totalSeconds: number): string {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return `${h}:${pad2(m)}:${pad2(s % 60)}`;
+}
+
+const localTime = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
+/** Calendar days (local time) from `start` to `end` — 23:50 → 00:20 is 1 day, though only 30 min. */
+function calendarDaysBetween(start: Date, end: Date): number {
+  const a = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const b = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** A timer run as "09:02 → 10:34", with "(+1 day)" / "(+3 days)" when it stopped on a later
+ *  calendar day. Empty when either timestamp is unreadable. */
+export function formatTimerRange(startIso: string, end: Date | string): string {
+  const start = new Date(startIso);
+  const stop = typeof end === 'string' ? new Date(end) : end;
+  if (isNaN(start.getTime()) || isNaN(stop.getTime())) return '';
+  const days = calendarDaysBetween(start, stop);
+  const suffix = days > 0 ? ` (+${days} ${days === 1 ? 'day' : 'days'})` : '';
+  return `${localTime(start)} → ${localTime(stop)}${suffix}`;
+}
+
+/** How an entry's time is shown in the log list: a timer entry shows the date it started and its
+ *  run ("15.10.2026 09:02 → 10:34 (+1 day)"); a manual entry shows when it was logged. */
+export function formatHoursLogEntryWhen(entry: HoursLogEntry): string {
+  if (entry.source === 'timer' && entry.startedAt && entry.endedAt) {
+    const date = formatHoursLogTimestamp(entry.startedAt).split(' ')[0];
+    const range = formatTimerRange(entry.startedAt, entry.endedAt);
+    if (date && range) return `${date} ${range}`;
+  }
+  return formatHoursLogTimestamp(entry.loggedAt);
 }

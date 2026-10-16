@@ -12,6 +12,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useBoards, useDuplicateBoard, useSaveAsBoardTemplate, useUpdateBoard, useArchiveBoard, useDeleteBoard, useReorderBoards } from '../../hooks/queries/useBoardQueries';
 import { useWorkspacesQuery } from '../../hooks/queries/useOrganizationQueries';
 import FormulaRecordingBar from '../formula/FormulaRecordingBar';
+import ActiveTimerIndicator from './ActiveTimerIndicator';
 import BoardContextMenu from '../boards/BoardContextMenu';
 import EditBoardModal from '../boards/EditBoardModal';
 import DuplicateOptionsModal from '../boards/DuplicateOptionsModal';
@@ -1231,6 +1232,7 @@ const MainLayout: React.FC = () => {
         </header>
         <FormulaRecordingBar />
         <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><RouteChunkBoundary><Outlet /></RouteChunkBoundary></Suspense></main>
+        <ActiveTimerIndicator />
       </div>
     </div>
   );

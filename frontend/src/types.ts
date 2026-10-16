@@ -324,10 +324,30 @@ export interface NumberLogEntry {
 
 export interface HoursLogEntry {
   id: string;
-  /** Duration in minutes, always a multiple of 15 (the picker only offers :00/:15/:30/:45). */
+  /** Duration in minutes. Manual entries are multiples of 15 (the picker only offers
+   *  :00/:15/:30/:45); entries logged by the stop-clock (source 'timer') hold exact minutes. */
   minutes: number;
-  /** ISO timestamp of when this entry was added. */
+  /** ISO timestamp of when this entry was added (for a timer entry: when it was stopped). */
   loggedAt: string;
+  /** Absent on entries logged before the stop-clock existed — those are manual. */
+  source?: 'manual' | 'timer';
+  /** Timer entries only: when the timer was started and stopped. Kept as-is even when the user
+   *  corrected `minutes` in the stop popover, so the list shows the real run. */
+  startedAt?: string;
+  endedAt?: string;
+}
+
+/** The Hours Log stop-clock a user has running (at most one). `kind` says where it will log:
+ *  a board item's HOURS_LOG cell, or a Personal Hub HOURS_LOG column. */
+export interface ActiveTimer {
+  id: string;
+  kind: 'board' | 'personal';
+  itemId: string;
+  columnId: string;
+  boardId: string;
+  itemName: string;
+  /** Server time (ISO) the timer was started. Elapsed = server-now − startedAt. */
+  startedAt: string;
 }
 
 /** One uploaded file on a FILES cell. */

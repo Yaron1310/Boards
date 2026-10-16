@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiClock, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useUpdateItem, useGroupItems } from '../../../hooks/queries/useItemQueries';
 import { useSubitemGroup } from '../../../hooks/queries/useGroupQueries';
 import { useSubitemColumns } from '../../../hooks/queries/useColumnQueries';
@@ -8,7 +8,10 @@ import { useUndo } from '../../../contexts/UndoContext';
 import { useFormulaRecording } from '../../../contexts/FormulaRecordingContext';
 import { formulaRefDomKey } from '../../../utils/formulaEngine';
 import { sanitizeNumberDraft } from '../../../utils/numberFormat';
-import { HOURS_LOG_MAX_HOURS, HOURS_LOG_MINUTE_STEPS, formatHoursLogDuration, formatHoursLogTimestamp, sumHoursLogMinutes } from '../../../utils/hoursLog';
+import { HOURS_LOG_MAX_HOURS, HOURS_LOG_MINUTE_STEPS, formatHoursLogDuration, formatHoursLogEntryWhen, sumHoursLogMinutes } from '../../../utils/hoursLog';
+import { useBoardRender } from '../../../contexts/BoardRenderContext';
+import type { StopTimerResult } from '../../../services/timerService';
+import HoursTimerControl from './hoursTimer/HoursTimerControl';
 import { ColumnType } from '../../../types';
 import type { Item, Column, HoursLogEntry, HoursLogColumnSettings } from '../../../types';
 import CellWrapper from './CellWrapper';
@@ -152,7 +155,7 @@ const LogList: React.FC<LogListProps> = ({ anchorEl, entries, onAddClick, onRemo
     const r = anchorEl.getBoundingClientRect();
     let top = r.bottom + 6;
     let left = r.left;
-    const w = 260;
+    const w = 300;
     const h = Math.min(320, 90 + entries.length * 34);
     if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
     if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - w - 8);
@@ -179,7 +182,7 @@ const LogList: React.FC<LogListProps> = ({ anchorEl, entries, onAddClick, onRemo
   return (
     <div
       ref={ref}
-      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10002, width: 260, maxHeight: 320 }}
+      style={{ position: 'fixed', top: pos.top, left: pos.left, zIndex: 10002, width: 300, maxHeight: 320 }}
       className="bg-white border border-gray-200 rounded-xl shadow-2xl flex flex-col select-none"
       onClick={(e) => e.stopPropagation()}
       role="dialog"
@@ -202,9 +205,12 @@ const LogList: React.FC<LogListProps> = ({ anchorEl, entries, onAddClick, onRemo
             key={entry.id}
             className="group flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
           >
+            {entry.source === 'timer'
+              ? <FiClock size={11} className="text-indigo-500 flex-shrink-0" aria-label="Logged by timer" role="img" />
+              : null}
             <span className="font-medium flex-shrink-0">{formatHoursLogDuration(entry.minutes)}</span>
-            <span className="text-gray-400 flex-shrink-0">|</span>
-            <span className="text-gray-500 truncate flex-1">{formatHoursLogTimestamp(entry.loggedAt)}</span>
+            <span className="text-gray-400 flex-shrink-0" aria-hidden="true">|</span>
+            <span className="text-gray-500 truncate flex-1" title={formatHoursLogEntryWhen(entry)}>{formatHoursLogEntryWhen(entry)}</span>
             <button
               type="button"
               onClick={() => onRemove(entry.id)}
@@ -262,6 +268,15 @@ const HoursLogCellInner: React.FC<Props> = ({ item, column }) => {
   const commitEntries = (next: HoursLogEntry[], label: string) => {
     pushUndo({ label, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: rawValue } } }) });
     mutate({ id: item.id, patch: { values: { [column.id]: next } } });
+  };
+
+  // The stop-clock appends its entry on the server; Undo takes just that entry back out.
+  const { isBoardReadOnly } = useBoardRender();
+  const handleTimerLogged = ({ entry, value }: StopTimerResult) => {
+    pushUndo({
+      label: `Logged ${formatHoursLogDuration(entry.minutes)} (timer) on "${item.name}"`,
+      undo: () => mutate({ id: item.id, patch: { values: { [column.id]: value.filter((e) => e.id !== entry.id) } } }),
+    });
   };
 
   // While any formula is recording, clicking this cell inserts a reference to its running total
@@ -330,11 +345,21 @@ const HoursLogCellInner: React.FC<Props> = ({ item, column }) => {
 
         return (
           <div ref={cellRef} className="w-full h-full flex items-center justify-center">
-            <div className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center">
-              {totalMinutes > 0
-                ? formatHoursLogDuration(totalMinutes)
-                : <span className="text-gray-300 text-xs italic">Log hours</span>}
-            </div>
+            <HoursTimerControl
+              kind="board"
+              itemId={item.id}
+              columnId={column.id}
+              itemName={item.name}
+              canStart={!isBoardReadOnly}
+              onLogged={handleTimerLogged}
+              idleContent={
+                <div className="px-3 py-2 text-sm text-gray-700 truncate w-full text-center">
+                  {totalMinutes > 0
+                    ? formatHoursLogDuration(totalMinutes)
+                    : <span className="text-gray-300 text-xs italic">Log hours</span>}
+                </div>
+              }
+            />
 
             {view === 'picker' && createPortal(
               <DurationPicker anchorEl={cellRef.current} onCommit={handleAdd} onCancel={close} />,

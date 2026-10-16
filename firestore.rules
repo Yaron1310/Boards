@@ -55,6 +55,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Hours Log stop-clock — each user's running timer (doc id = userId). Clients subscribe via
+      // onSnapshot so every open tab/device shows the same timer. Written only by the backend.
+      match /activeTimers/{userId} {
+        allow read: if isOrgMember(orgId) && request.auth.uid == userId;
+        allow write: if false;
+      }
+
       // Notifications
       match /notifications/{notificationId} {
         allow read: if isOrgMember(orgId) && request.auth.uid == resource.data.userId;
