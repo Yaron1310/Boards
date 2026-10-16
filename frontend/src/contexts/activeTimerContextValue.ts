@@ -1,0 +1,28 @@
+import { createContext } from 'react';
+import type { ActiveTimer } from '../types';
+import type { StartTimerTarget, StopTimerResult } from '../services/timerService';
+
+/** Asks the stop popover to open for the running timer. */
+export interface StopRequest {
+  /** Element the popover is placed next to (the cell or the floating indicator). */
+  anchorEl: HTMLElement | null;
+  /** Called once the entry is saved — the board/Personal Hub cell uses it to offer Undo. */
+  onLogged?: (result: StopTimerResult) => void;
+  /** The "switch" flow: start this timer once the running one is saved or discarded. */
+  then?: StartTimerTarget;
+}
+
+export interface ActiveTimerContextValue {
+  /** The signed-in user's running timer, or null. */
+  timer: ActiveTimer | null;
+  /** Server clock minus client clock (ms) — added to Date.now() so a skewed client clock can't
+   *  distort elapsed time. */
+  serverOffsetMs: number;
+  /** Starts a timer on the given cell. If another timer is already running, opens the stop
+   *  popover for it first and starts this one after it is saved or discarded. */
+  start: (target: StartTimerTarget, anchorEl: HTMLElement | null) => Promise<void>;
+  requestStop: (request: StopRequest) => void;
+  isStarting: boolean;
+}
+
+export const ActiveTimerContext = createContext<ActiveTimerContextValue | null>(null);

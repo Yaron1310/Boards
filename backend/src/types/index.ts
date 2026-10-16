@@ -416,6 +416,34 @@ export interface DBPersonalItemValue {
 
 // --- Column value types (stored inside Item.values) ---
 
+/** One logged entry on an HOURS_LOG cell. Manual entries are multiples of 15 minutes; entries
+ *  logged by the stop-clock (source 'timer') hold exact minutes plus the run's start/end. */
+export interface HoursLogEntry {
+  id: string;
+  minutes: number;
+  /** ISO timestamp of when this entry was added. */
+  loggedAt: string;
+  source?: 'manual' | 'timer';
+  /** Timer entries only: ISO timestamps of when the timer was started and stopped. */
+  startedAt?: string;
+  endedAt?: string;
+}
+
+/** Where a running Hours Log timer will log to: a board item's HOURS_LOG cell, or a Personal Hub
+ *  HOURS_LOG column (stored in personalItemValues). */
+export type ActiveTimerKind = 'board' | 'personal';
+
+export interface DBActiveTimer {
+  userId: string;
+  kind: ActiveTimerKind;
+  itemId: string;
+  columnId: string;
+  boardId: string;
+  /** Snapshot of the item name when started, for the global timer indicator. */
+  itemName: string;
+  startedAt: admin.firestore.Timestamp | Date | any;
+}
+
 export interface LocationValue {
   address: string;
 }

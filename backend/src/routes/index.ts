@@ -33,6 +33,8 @@ import { personalHubRouter } from './personalHub.routes.js';
 // Forms
 import { formRouter } from './form.routes.js';
 import { itemFormRouter } from './itemForm.routes.js';
+// Hours Log stop-clock
+import { timerRouter } from './timer.routes.js';
 
 export const mainRouter = Router();
 
@@ -72,3 +74,5 @@ mainRouter.use('/personal-hub', personalHubRouter);
 // Forms
 mainRouter.use('/forms', formRouter);
 mainRouter.use('/items/:itemId/forms', itemFormRouter);
+// Hours Log stop-clock
+mainRouter.use('/timers', timerRouter);

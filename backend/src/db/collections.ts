@@ -86,3 +86,10 @@ export const personalItemValuesCollection = (orgId: string) =>
 // /organizations/{orgId}/personalHubTemplateTotals/{templateColumnId}
 export const personalHubTemplateTotalsCollection = (orgId: string) =>
   db.collection('organizations').doc(orgId).collection('personalHubTemplateTotals');
+
+// Hours Log stop-clock — the one timer a user has running, keyed by userId (so a user can never
+// have two at once). Holds only where it was started and when; elapsed time is always derived
+// from startedAt, so nothing is lost when the tab sleeps or closes:
+// /organizations/{orgId}/activeTimers/{userId}
+export const activeTimersCollection = (orgId: string) =>
+  db.collection('organizations').doc(orgId).collection('activeTimers');

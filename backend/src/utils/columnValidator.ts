@@ -233,6 +233,15 @@ export function validateColumnValue(column: DBColumn, value: unknown): Validatio
         ) {
           return { valid: false, error: `Column "${column.name}": each entry must have id (string), minutes (positive number), and loggedAt (ISO date string).` };
         }
+        // Optional stop-clock fields — present only on entries the timer logged.
+        if (e.source !== undefined && e.source !== 'manual' && e.source !== 'timer') {
+          return { valid: false, error: `Column "${column.name}": entry source must be "manual" or "timer".` };
+        }
+        for (const key of ['startedAt', 'endedAt'] as const) {
+          if (e[key] !== undefined && (typeof e[key] !== 'string' || isNaN(Date.parse(e[key] as string)))) {
+            return { valid: false, error: `Column "${column.name}": entry ${key} must be an ISO date string.` };
+          }
+        }
       }
       return { valid: true };
     }

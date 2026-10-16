@@ -7,6 +7,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 import { AuthProvider } from './contexts/AuthContext'; // Assuming contexts are in src/contexts/
 import { DataProvider } from './contexts/DataContext';
 import { FormulaRecordingProvider } from './contexts/FormulaRecordingContext';
+import { ActiveTimerProvider } from './contexts/ActiveTimerContext';
 // Inter, self-hosted. These are the five weights the UI uses: 400 body, 500/600/700 for
 // Tailwind's font-medium/semibold/bold, and 900 for the landing hero. Latin subset only.
 // Serving these ourselves keeps visitor IPs from reaching Google's CDN and takes a
@@ -46,9 +47,11 @@ root.render(
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <DataProvider>
-            <FormulaRecordingProvider>
-              <App />
-            </FormulaRecordingProvider>
+            <ActiveTimerProvider>
+              <FormulaRecordingProvider>
+                <App />
+              </FormulaRecordingProvider>
+            </ActiveTimerProvider>
           </DataProvider>
         </AuthProvider>
       </QueryClientProvider>
