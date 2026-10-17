@@ -11,3 +11,8 @@ personalHubRouter.delete('/columns/:id', personalHubController.deletePersonalCol
 
 personalHubRouter.get('/item-values', personalHubController.getPersonalItemValues);
 personalHubRouter.patch('/item-values/:itemId', personalHubController.updatePersonalItemValue);
+
+// "Today" list — items the user marked to work on today.
+personalHubRouter.get('/today', personalHubController.getPersonalToday);
+personalHubRouter.post('/today/:itemId', personalHubController.addPersonalToday);
+personalHubRouter.delete('/today/:itemId', personalHubController.removePersonalToday);

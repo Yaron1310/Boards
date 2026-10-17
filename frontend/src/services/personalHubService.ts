@@ -55,3 +55,22 @@ export const getPersonalItemValues = (itemIds: string[], userId?: string): Promi
 
 export const updatePersonalItemValue = (itemId: string, columnId: string, value: unknown, userId?: string): Promise<{ values: Record<string, unknown> }> =>
   fetchWithAuth(`/api/personal-hub/item-values/${itemId}`, { method: 'PATCH', body: JSON.stringify({ columnId, value, userId }) });
+
+// ─── "Today" list ─────────────────────────────────────────────────────────────
+
+/** One item on a user's Personal Hub "Today" list. */
+export interface PersonalTodayEntry {
+  itemId: string;
+  boardId: string;
+  /** ISO timestamp of when it was added. */
+  addedAt: string;
+}
+
+export const getPersonalToday = (userId?: string): Promise<{ items: PersonalTodayEntry[] }> =>
+  fetchWithAuth(`/api/personal-hub/today${userId ? `?userId=${encodeURIComponent(userId)}` : ''}`);
+
+export const addPersonalToday = (itemId: string, userId?: string): Promise<{ items: PersonalTodayEntry[] }> =>
+  fetchWithAuth(`/api/personal-hub/today/${encodeURIComponent(itemId)}`, { method: 'POST', body: JSON.stringify({ userId }) });
+
+export const removePersonalToday = (itemId: string, userId?: string): Promise<{ items: PersonalTodayEntry[] }> =>
+  fetchWithAuth(`/api/personal-hub/today/${encodeURIComponent(itemId)}`, { method: 'DELETE', body: JSON.stringify({ userId }) });

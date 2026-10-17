@@ -75,3 +75,41 @@ export const useUpdatePersonalItemValue = (userId?: string) => {
     },
   });
 };
+
+// ─── "Today" list ─────────────────────────────────────────────────────────────
+
+export const usePersonalToday = (userId?: string, enabled = true) =>
+  useQuery({
+    queryKey: queryKeys.personalHub.today(userId),
+    queryFn: () => ph.getPersonalToday(userId),
+    enabled,
+    staleTime: 60 * 1000,
+    select: (res) => res.items,
+  });
+
+/**
+ * Adds/removes an item on the hub owner's Today list. Optimistic — the ☀ and the Done checkbox
+ * respond instantly; on failure the list is rolled back to what it was.
+ */
+export const useToggleToday = (userId?: string) => {
+  const qc = useQueryClient();
+  const key = queryKeys.personalHub.today(userId);
+  return useMutation({
+    mutationFn: ({ itemId, add }: { itemId: string; boardId: string; add: boolean }) =>
+      add ? ph.addPersonalToday(itemId, userId) : ph.removePersonalToday(itemId, userId),
+    onMutate: async ({ itemId, boardId, add }) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<{ items: ph.PersonalTodayEntry[] }>(key);
+      const items = previous?.items ?? [];
+      const next = add
+        ? (items.some((e) => e.itemId === itemId) ? items : [...items, { itemId, boardId, addedAt: new Date().toISOString() }])
+        : items.filter((e) => e.itemId !== itemId);
+      qc.setQueryData(key, { items: next });
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) qc.setQueryData(key, context.previous);
+    },
+    onSuccess: (res) => qc.setQueryData(key, res),
+  });
+};

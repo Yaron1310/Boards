@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useReducer, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiLoader, FiUser, FiUsers, FiPlus, FiPlusCircle, FiSearch, FiX, FiUpload, FiList, FiArchive } from 'react-icons/fi';
+import { FiLoader, FiUser, FiUsers, FiPlus, FiPlusCircle, FiSearch, FiX, FiUpload, FiList, FiArchive, FiSun, FiChevronDown } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { useItems } from '../../hooks/queries/useItemQueries';
@@ -10,7 +10,7 @@ import { useColumns } from '../../hooks/queries/useColumnQueries';
 import { BoardRenderProvider } from '../../contexts/BoardRenderContext';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import { DependencyProvider } from '../../contexts/DependencyContext';
-import { UndoProvider } from '../../contexts/UndoContext';
+import { UndoProvider, useUndo } from '../../contexts/UndoContext';
 import { UserRole, ColumnType } from '../../types';
 import type { Item, Group } from '../../types';
 import PersonalHubBoardGroup from './PersonalHubBoardGroup';
@@ -29,12 +29,18 @@ import UndoButton from '../boards/UndoButton';
 import AddColumnModal from '../boards/AddColumnModal';
 import PersonalColumnHeaderCell from './PersonalColumnHeaderCell';
 import { COLUMN_TYPE_ICONS } from '../boards/ColumnHeader';
-import { usePersonalColumns, useUpdatePersonalColumn } from '../../hooks/queries/usePersonalHubQueries';
+import { usePersonalColumns, useUpdatePersonalColumn, usePersonalToday, useToggleToday } from '../../hooks/queries/usePersonalHubQueries';
+import type { TodayWiring } from './TodayControls';
 import { PERSONAL_COL_WIDTH } from './constants';
 import { exportPersonalHubToXlsx } from '../../utils/exportPersonalHubToXlsx';
 import type { PersonalGridContext } from './cells/types';
 
 type ViewMode = 'table' | 'rows' | 'gantt' | 'dashboard';
+
+const TODAY_COLLAPSED_KEY = 'personalHub.todayCollapsed';
+const readTodayCollapsed = (): boolean => {
+  try { return localStorage.getItem(TODAY_COLLAPSED_KEY) === '1'; } catch { return false; }
+};
 
 /** Renders the Gantt swimlane for a single board's assigned items, using the board name as the group label. */
 const PersonalHubGanttBoard: React.FC<{ boardId: string; items: Item[] }> = ({ boardId, items }) => {
@@ -257,6 +263,47 @@ const PersonalHubPageInner: React.FC = () => {
     [pageCrossGroupGridContext.rowOrder, itemById],
   );
   const { mutate: updatePersonalColumn } = useUpdatePersonalColumn(hubOwnerId);
+
+  // ── "Today" list ────────────────────────────────────────────────────────────
+  // Items the hub owner marked (☀) to work on today, shown again — the same live rows — in a
+  // section above the hub, each with a Done box that takes it back off the list.
+  const { push: pushUndo } = useUndo();
+  const { data: todayEntries = [] } = usePersonalToday(hubOwnerId, !!targetUserId && (isOwn || isOrgAdmin));
+  const { mutate: toggleToday } = useToggleToday(hubOwnerId);
+  const todayIds = useMemo(() => new Set(todayEntries.map((e) => e.itemId)), [todayEntries]);
+  const todayWiring = useMemo<TodayWiring>(() => ({
+    ids: todayIds,
+    canEdit,
+    setInToday: (itemId, boardId, itemName, inToday, done) => {
+      toggleToday({ itemId, boardId, add: inToday });
+      if (!inToday) {
+        pushUndo({
+          label: done ? `Done for today: "${itemName}"` : `Removed "${itemName}" from Today`,
+          undo: () => toggleToday({ itemId, boardId, add: true }),
+        });
+      }
+    },
+  }), [todayIds, canEdit, toggleToday, pushUndo]);
+  // Boards (after search/filters) that hold at least one Today item, in the hub's own order.
+  const todayBoardIds = useMemo(() => {
+    const boards = new Set(todayEntries.map((e) => e.boardId));
+    return boardIds.filter((id) => boards.has(id));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayEntries, boardIdsKey]);
+  const [todayCountByBoard, setTodayCountByBoard] = useState<Record<string, number | null>>({});
+  const handleTodayShownCount = React.useCallback((boardId: string, count: number | null) => {
+    setTodayCountByBoard((prev) => (prev[boardId] === count ? prev : { ...prev, [boardId]: count }));
+  }, []);
+  const todayCounts = todayBoardIds.map((id) => todayCountByBoard[id]);
+  const todayResolving = todayCounts.some((c) => c === null || c === undefined);
+  const todayTotal = todayCounts.reduce<number>((sum, c) => sum + (c ?? 0), 0);
+  const [todayCollapsed, setTodayCollapsed] = useState(readTodayCollapsed);
+  const toggleTodayCollapsed = () => {
+    setTodayCollapsed((v) => {
+      try { localStorage.setItem(TODAY_COLLAPSED_KEY, v ? '0' : '1'); } catch { /* per-browser convenience only */ }
+      return !v;
+    });
+  };
 
 
   const handleExport = async () => {
@@ -526,6 +573,54 @@ const PersonalHubPageInner: React.FC = () => {
             )}
           </div>
 
+          {/* Today — the items the owner marked ☀, shown as the same live rows as below. */}
+          <section className="px-4 pt-6 pb-2 border-b-2 border-amber-200" aria-labelledby="phub-today-title">
+            <div className="sticky left-4 w-fit flex items-center gap-2">
+              <button
+                type="button"
+                onClick={toggleTodayCollapsed}
+                className="flex items-center gap-2 rounded px-1 -mx-1 hover:bg-amber-50 transition-colors"
+                aria-expanded={!todayCollapsed}
+                aria-controls="phub-today-content"
+              >
+                <FiChevronDown size={16} className={`text-gray-400 transition-transform ${todayCollapsed ? '-rotate-90' : ''}`} aria-hidden="true" />
+                <FiSun size={18} className="text-amber-500" fill="currentColor" aria-hidden="true" />
+                <h2 id="phub-today-title" className="text-xl font-bold text-amber-600">Today</h2>
+              </button>
+              <span className="text-sm text-gray-400" aria-label={`${todayTotal} items planned for today`}>
+                {todayResolving && todayBoardIds.length > 0 ? '…' : todayTotal}
+              </span>
+            </div>
+            <div id="phub-today-content" hidden={todayCollapsed}>
+              {todayBoardIds.map((boardId) => (
+                <PersonalHubBoardGroup
+                  key={boardId}
+                  boardId={boardId}
+                  items={itemsByBoard[boardId]}
+                  isOwn={canEdit}
+                  ownerUserId={hubOwnerId}
+                  boardView={viewMode as BoardView}
+                  onOpenDetail={setDetailItem}
+                  onOpenChat={setChatItem}
+                  onOpenForms={setFormsItem}
+                  crossGroupGridContext={pageCrossGroupGridContext}
+                  subitemAssigneeFilterId={targetUserId}
+                  groupMinWidth={uniformBoardWidth}
+                  today={todayWiring}
+                  todayMode
+                  onTodayShownCount={handleTodayShownCount}
+                />
+              ))}
+              {!todayResolving && todayTotal === 0 && (
+                <p className="sticky left-4 w-fit py-3 text-sm text-gray-400">
+                  {canEdit
+                    ? <>Nothing planned for today. Click <FiSun size={12} className="inline -mt-0.5 text-amber-500" aria-label="the sun icon" role="img" /> on an item to add it.</>
+                    : 'Nothing planned for today.'}
+                </p>
+              )}
+            </div>
+          </section>
+
           <div ref={boardGroupsRef} className="px-4 pb-4 space-y-4">
             {boardIds.map((boardId) => (
               <PersonalHubBoardGroup
@@ -543,6 +638,7 @@ const PersonalHubPageInner: React.FC = () => {
                 onRowsResolved={handleRowsResolved}
                 subitemAssigneeFilterId={targetUserId}
                 groupMinWidth={uniformBoardWidth}
+                today={todayWiring}
               />
             ))}
           </div>
