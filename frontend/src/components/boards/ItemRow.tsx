@@ -48,9 +48,11 @@ interface ItemRowProps {
   nameLeading?: React.ReactNode;
   /** Personal Hub only: rendered right after the item name (the "Add to Today" ☀ toggle). */
   nameTrailing?: React.ReactNode;
+  /** Hides the drag handle (the Personal Hub's Today section, where rows can't be reordered). */
+  hideDragHandle?: boolean;
 }
 
-const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, personalEditable, groupMinWidth, nameLeading, nameTrailing }) => {
+const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, personalEditable, groupMinWidth, nameLeading, nameTrailing, hideDragHandle }) => {
   const { user, isPublicView, selectedWorkspace } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const viewerTier = useColumnVisibilityTier(item.boardId);
@@ -223,7 +225,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
 
         {/* Drag handle — reordering isn't possible in the public read-only view, so it's
             never shown there at all rather than just being visually inert on hover. */}
-        {!isPublicView && (
+        {!isPublicView && !hideDragHandle && (
           <div
             className={`flex items-center justify-center ${DRAG_HANDLE_WIDTH} opacity-0 group-hover:opacity-40 cursor-grab active:cursor-grabbing text-gray-400 flex-shrink-0 touch-none`}
             aria-label="Drag to reorder item"
@@ -258,7 +260,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         {/* Item name */}
         <div
           role="gridcell"
-          className="flex items-center flex-1 min-w-0 pl-3 py-2 group-hover:pr-3"
+          className="flex items-center flex-1 min-w-0 pl-1 py-2 group-hover:pr-3"
         >
           {editingName && canManage ? (
             <input
