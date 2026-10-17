@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
+import { assigneesFromValues, personColumnIds } from '../services/subitemAssign.service.js';
 import { db, querySnapshotToArray, snapshotToData } from '../services/firestore.service.js';
 import { boardsCollection, groupsCollection, boardMembersCollection, itemsCollection, columnsCollection, usersCollection } from '../db/collections.js';
 import { cascadeArchive, cascadeRestore } from '../services/archiveCascade.service.js';
@@ -646,6 +647,7 @@ export const assignGroupUsers = async (req: Request, res: Response) => {
 
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     if (allTargets.length > 0) {
+      const boardPersonIds = await personColumnIds(user.orgId, boardId);
       const BATCH_SIZE = 400;
       let batch = db.batch();
       let count = 0;
@@ -656,9 +658,14 @@ export const assignGroupUsers = async (req: Request, res: Response) => {
         // which lives under `values`, so writing only values.<columnId> here (as this endpoint
         // originally did) assigned the column but left it invisible in the assignee's hub.
         const previousAssignees = data.assignees ?? [];
-        const hasNewAssignee = userIds.some((uid: string) => !previousAssignees.includes(uid));
+        const nextValues: Record<string, unknown> = { ...(data.values ?? {}) };
+        for (const cid of columnIds) nextValues[cid] = userIds;
+        // All PERSON cells combined — not just this column, or anyone in another PERSON column
+        // would drop out of the top-level list (and the Personal Hub).
+        const nextAssignees = assigneesFromValues(nextValues, boardPersonIds);
+        const hasNewAssignee = nextAssignees.some((uid: string) => !previousAssignees.includes(uid));
         const patch: Record<string, unknown> = {
-          assignees: userIds,
+          assignees: nextAssignees,
           updatedAt: timestamp,
           ...(hasNewAssignee ? { lastAssignedAt: timestamp } : {}),
         };
@@ -802,25 +809,25 @@ export const unassignGroupUser = async (req: Request, res: Response) => {
 
     const timestamp = admin.firestore.FieldValue.serverTimestamp();
     if (allTargets.length > 0) {
+      const boardPersonIds = await personColumnIds(user.orgId, boardId);
       const BATCH_SIZE = 400;
       let batch = db.batch();
       let count = 0;
       for (const { ref, data, columnIds: targetColumnIds } of allTargets) {
         const patch: Record<string, unknown> = { updatedAt: timestamp };
+        const nextValues: Record<string, unknown> = { ...(data.values ?? {}) };
         let touchedAssignees = false;
         for (const cid of targetColumnIds) {
           const current = Array.isArray(data.values?.[cid]) ? (data.values[cid] as string[]) : [];
           if (!current.includes(userId)) continue;
-          patch[`values.${cid}`] = current.filter((id) => id !== userId);
+          nextValues[cid] = current.filter((id) => id !== userId);
+          patch[`values.${cid}`] = nextValues[cid];
           touchedAssignees = true;
         }
         if (!touchedAssignees) continue;
-        // The top-level `assignees` mirror only ever reflects one column at a time (whichever
-        // was written most recently — see computeMirroredFields), so only clear this user out of
-        // it when they're the one currently mirrored there; leave it alone otherwise.
-        if ((data.assignees ?? []).includes(userId)) {
-          patch.assignees = (data.assignees ?? []).filter((id) => id !== userId);
-        }
+        // The top-level `assignees` mirrors all PERSON cells combined: the user stays in it while
+        // they're still in another PERSON column of this item.
+        patch.assignees = assigneesFromValues(nextValues, boardPersonIds);
         batch.update(ref, patch);
         count++;
         if (count % BATCH_SIZE === 0) {
