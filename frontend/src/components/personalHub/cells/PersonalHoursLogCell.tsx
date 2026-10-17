@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FiClock, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { FiPlus, FiTrash2 } from 'react-icons/fi';
 import { useUpdatePersonalItemValue, usePersonalItemValues } from '../../../hooks/queries/usePersonalHubQueries';
 import { useSubitemGroup } from '../../../hooks/queries/useGroupQueries';
 import { useGroupItems } from '../../../hooks/queries/useItemQueries';
@@ -201,9 +201,6 @@ const LogList: React.FC<LogListProps> = ({ anchorEl, entries, onAddClick, onRemo
             key={entry.id}
             className="group flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50"
           >
-            {entry.source === 'timer'
-              ? <FiClock size={11} className="text-indigo-500 flex-shrink-0" aria-label="Logged by timer" role="img" />
-              : null}
             <span className="font-medium flex-shrink-0">{formatHoursLogDuration(entry.minutes)}</span>
             <span className="text-gray-400 flex-shrink-0" aria-hidden="true">|</span>
             <span className="text-gray-500 truncate flex-1" title={formatHoursLogEntryWhen(entry)}>{formatHoursLogEntryWhen(entry)}</span>
