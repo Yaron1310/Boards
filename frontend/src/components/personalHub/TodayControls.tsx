@@ -41,7 +41,7 @@ export const TodaySunToggle: React.FC<{ itemId: string; boardId: string; itemNam
 /** The Today section's "Done" checkbox — ticking it takes the item off the Today list. */
 export const TodayDoneCheckbox: React.FC<{ itemId: string; boardId: string; itemName: string; today: TodayWiring }> = ({ itemId, boardId, itemName, today }) => (
   <label
-    className="flex items-center justify-center w-8 flex-shrink-0 border-r border-[#d2d2d4] cursor-pointer"
+    className="flex items-center justify-center w-[34px] flex-shrink-0 border-r border-[#d2d2d4] cursor-pointer"
     onClick={(e) => e.stopPropagation()}
     title="Done — remove from Today"
   >

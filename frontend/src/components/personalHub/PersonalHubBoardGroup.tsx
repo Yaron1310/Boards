@@ -341,8 +341,10 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   }, [todayMode, onTodayShownCount, boardId, stillResolving, shownItems.length]);
   React.useEffect(() => () => { if (todayMode) onTodayShownCount?.(boardId, 0); }, [todayMode, onTodayShownCount, boardId]);
 
+  // In the Today section the ☀ is left out (Done takes an item off Today there) so long item
+  // names get the full width.
   const rowTodayProps = (item: Item) => (today ? {
-    nameTrailing: <TodaySunToggle itemId={item.id} boardId={boardId} itemName={item.name} today={today} />,
+    nameTrailing: todayMode ? undefined : <TodaySunToggle itemId={item.id} boardId={boardId} itemName={item.name} today={today} />,
     nameLeading: todayMode ? <TodayDoneCheckbox itemId={item.id} boardId={boardId} itemName={item.name} today={today} /> : undefined,
   } : {});
 
@@ -416,7 +418,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
             style={{ width: `${itemSectionWidth}px`, borderLeft: '4px solid #6366f1' }}
           >
             {todayMode && (
-              <div role="columnheader" className="w-8 h-full flex items-center justify-center border-r border-[#d2d2d4] text-[10px] font-semibold text-gray-500 uppercase">
+              <div role="columnheader" className="w-[34px] h-full flex items-center justify-center border-r border-[#d2d2d4] text-[9px] font-semibold text-gray-500 uppercase">
                 Done
               </div>
             )}
