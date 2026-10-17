@@ -346,6 +346,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   const rowTodayProps = (item: Item) => (today ? {
     nameTrailing: todayMode ? undefined : <TodaySunToggle itemId={item.id} boardId={boardId} itemName={item.name} today={today} />,
     nameLeading: todayMode ? <TodayDoneCheckbox itemId={item.id} boardId={boardId} itemName={item.name} today={today} /> : undefined,
+    hideDragHandle: todayMode,
   } : {});
 
   // Assigned subitems whose parent is archived are hidden along with that parent, so they
