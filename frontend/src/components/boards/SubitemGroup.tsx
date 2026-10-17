@@ -319,7 +319,7 @@ const SubitemRow: React.FC<{
     >
       {/* Name cell — fixed 220px to match header */}
       <div
-        className="flex items-center px-3 py-1.5 min-w-0 flex-shrink-0 gap-1 border-r border-[#e5e7eb]"
+        className="flex items-center pl-1 pr-3 py-1.5 min-w-0 flex-shrink-0 gap-1 border-r border-[#e5e7eb]"
         style={{ width: '220px', minWidth: '220px' }}
         role="gridcell"
       >
