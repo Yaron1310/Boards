@@ -573,8 +573,20 @@ const PersonalHubPageInner: React.FC = () => {
             )}
           </div>
 
-          {/* Today — the items the owner marked ☀, shown as the same live rows as below. */}
-          <section className="px-4 pt-6 pb-2 border-b-2 border-amber-200" aria-labelledby="phub-today-title">
+          {/* Today — the items the owner marked ☀, shown as the same live rows as below. White
+              while expanded so it stands apart from the grey hub below. A one-cell grid so the
+              white strip (first child) is exactly as tall as the content beside it; spans the full
+              scroll width (w-max min-w-full) so the strip and background reach all the way across. */}
+          <section
+            className={`grid w-max min-w-full px-4 border-b-2 border-amber-200 ${todayCollapsed ? '' : 'bg-white [&_.flex-1.bg-gray-100]:bg-white'}`}
+            aria-labelledby="phub-today-title"
+          >
+            {/* Covers the page's grey left-edge fade (z-20, outside this scroller) over this
+                section only — pinned to the scroller's left edge, hidden while collapsed. */}
+            {!todayCollapsed && (
+              <div className="col-start-1 row-start-1 sticky left-0 -ml-4 w-4 bg-white z-[21] pointer-events-none" aria-hidden="true" />
+            )}
+            <div className="col-start-1 row-start-1 min-w-0 pt-6 pb-2">
             <div className="sticky left-4 w-fit flex items-center gap-2">
               <button
                 type="button"
@@ -618,6 +630,7 @@ const PersonalHubPageInner: React.FC = () => {
                     : 'Nothing planned for today.'}
                 </p>
               )}
+            </div>
             </div>
           </section>
 
