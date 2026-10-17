@@ -74,6 +74,8 @@ export const queryKeys = {
     columns: (userId?: string) => ['personalHub', 'columns', userId ?? 'self'] as const,
     itemValues: (itemIds: string[], userId?: string) =>
       ['personalHub', 'itemValues', userId ?? 'self', [...itemIds].sort()] as const,
+    /** The hub owner's "Today" list. */
+    today: (userId?: string) => ['personalHub', 'today', userId ?? 'self'] as const,
   },
   personalHubTemplateTotals: {
     one: (templateColumnId: string) => ['personalHub', 'templateTotal', templateColumnId] as const,

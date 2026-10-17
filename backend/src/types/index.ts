@@ -405,6 +405,23 @@ export interface DBPersonalColumn {
 }
 
 // One doc per (userId, itemId) holding that user's personal-column values for that item.
+/** One entry on a user's Personal Hub "Today" list. */
+export interface PersonalTodayEntry {
+  itemId: string;
+  /** The item's board — lets the hub know which board groups the Today section needs. */
+  boardId: string;
+  /** ISO timestamp of when it was added to Today. */
+  addedAt: string;
+}
+
+export interface DBPersonalTodayList {
+  userId: string;
+  orgId: string;
+  /** Kept until each item is ticked Done (or un-marked) — unfinished items carry over. */
+  items: PersonalTodayEntry[];
+  updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
 export interface DBPersonalItemValue {
   id: string; // `${userId}_${itemId}`
   orgId: string;

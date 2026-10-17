@@ -23,6 +23,7 @@ import { PERSONAL_COL_WIDTH } from './constants';
 import { ColumnType } from '../../types';
 import type { BoardView } from '../../contexts/BoardRenderContext';
 import type { PersonalGridContext } from './cells/types';
+import { TodayDoneCheckbox, TodaySunToggle, type TodayWiring } from './TodayControls';
 import type { Group, Item, PersonalColumn } from '../../types';
 
 interface Props {
@@ -63,6 +64,17 @@ interface Props {
    * board's own cells is filled grey. Undefined until measured (first paint).
    */
   groupMinWidth?: number;
+  /** "Today" list wiring — adds the ☀ toggle to every row. */
+  today?: TodayWiring;
+  /**
+   * Renders this group as part of the page's "Today" section: only rows on the Today list are
+   * shown (same board name, sub-group headers and columns as the main hub), each with a Done
+   * checkbox; no summary row, and its rows are never reported to the page grid, so formula
+   * addresses and page totals only ever count the main hub's rows.
+   */
+  todayMode?: boolean;
+  /** Today mode only: reports how many rows this group shows (null while still resolving). */
+  onTodayShownCount?: (boardId: string, count: number | null) => void;
 }
 
 /** Always plain — the interactive rename/settings/delete menu lives only in the page-level header. */
@@ -127,7 +139,7 @@ const renderPersonalCells = (
  * board, and the user expands its chevron to reach the assigned subitem via
  * the real SubitemGroup panel (same one the source board uses).
  */
-const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onOpenForms, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId, groupMinWidth }) => {
+const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onOpenForms, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId, groupMinWidth, today, todayMode = false, onTodayShownCount }) => {
   const navigate = useNavigate();
   const { mutate: updatePersonalColumn } = useUpdatePersonalColumn(ownerUserId);
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
@@ -304,9 +316,35 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   const stillResolving = !groupsSettled || !parentItemsSettled || !parentGroupsSettled;
 
   React.useEffect(() => {
-    if (!stillResolving) onRowsResolved?.(boardId, displayItemIds, effectiveValuesByItem);
+    if (!stillResolving && !todayMode) onRowsResolved?.(boardId, displayItemIds, effectiveValuesByItem);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardId, displayItemIds.join(','), effectiveValuesByItem, stillResolving, onRowsResolved]);
+  }, [boardId, displayItemIds.join(','), effectiveValuesByItem, stillResolving, onRowsResolved, todayMode]);
+
+  // Today mode: the rows actually shown. Everything above (grid contexts, values) is still
+  // computed over the board's full row set, so a formula cell evaluates exactly as it does in
+  // the main hub — only what's rendered is narrowed.
+  const todayIds = today?.ids;
+  const { shownItems, shownClusters } = useMemo(() => {
+    if (!todayMode) return { shownItems: displayItems, shownClusters: groupedClusters };
+    const isToday = (item: Item) => !!todayIds?.has(item.id);
+    return {
+      shownItems: displayItems.filter(isToday),
+      shownClusters: groupedClusters
+        ?.map((c) => ({ ...c, items: c.items.filter(isToday) }))
+        .filter((c) => c.items.length > 0) ?? null,
+    };
+  }, [todayMode, displayItems, groupedClusters, todayIds]);
+
+  React.useEffect(() => {
+    if (!todayMode || !onTodayShownCount) return;
+    onTodayShownCount(boardId, stillResolving ? null : shownItems.length);
+  }, [todayMode, onTodayShownCount, boardId, stillResolving, shownItems.length]);
+  React.useEffect(() => () => { if (todayMode) onTodayShownCount?.(boardId, 0); }, [todayMode, onTodayShownCount, boardId]);
+
+  const rowTodayProps = (item: Item) => (today ? {
+    nameTrailing: <TodaySunToggle itemId={item.id} boardId={boardId} itemName={item.name} today={today} />,
+    nameLeading: todayMode ? <TodayDoneCheckbox itemId={item.id} boardId={boardId} itemName={item.name} today={today} /> : undefined,
+  } : {});
 
   // Assigned subitems whose parent is archived are hidden along with that parent, so they
   // shouldn't count toward this board's total either.
@@ -326,6 +364,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
 
   // Everything assigned on this board sits under archived parents — nothing to show.
   if (!stillResolving && displayItems.length === 0) return null;
+  // Today mode: none of this board's rows are on the Today list.
+  if (todayMode && !stillResolving && shownItems.length === 0) return null;
 
   if (boardLoading || !board) {
     return (
@@ -346,8 +386,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
     >
       <div className="sticky left-4 w-fit flex items-center gap-2 pb-2 z-[2]">
         <h2 className="text-xl font-bold truncate max-w-[280px] text-indigo-700">{board.name}</h2>
-        <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${visibleItemCount} items`}>
-          {visibleItemCount}
+        <span className="text-sm text-gray-400 flex-shrink-0" aria-label={`${todayMode ? shownItems.length : visibleItemCount} items`}>
+          {todayMode ? shownItems.length : visibleItemCount}
         </span>
         <button
           type="button"
@@ -362,7 +402,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
 
       <section
         className="rounded-lg border border-gray-200 bg-white w-max shadow-md"
-        aria-label={`Items assigned to you on board ${board.name}`}
+        aria-label={todayMode ? `Today's items on board ${board.name}` : `Items assigned to you on board ${board.name}`}
       >
         <div
           data-phub-row=""
@@ -374,7 +414,13 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
           <div
             className="flex-shrink-0 border-r border-[#d2d2d4] sticky left-4 bg-gray-50 z-[3] rounded-tl-lg"
             style={{ width: `${itemSectionWidth}px`, borderLeft: '4px solid #6366f1' }}
-          />
+          >
+            {todayMode && (
+              <div role="columnheader" className="w-8 h-full flex items-center justify-center border-r border-[#d2d2d4] text-[10px] font-semibold text-gray-500 uppercase">
+                Done
+              </div>
+            )}
+          </div>
           {crossGroupColumns.map((col) => (
             <PersonalColumnHeaderLabel key={col.id} col={col} />
           ))}
@@ -405,11 +451,11 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                 <div className="flex items-center justify-center py-4" role="status" aria-label="Resolving items">
                   <FiLoader className="animate-spin text-indigo-400" size={16} aria-hidden="true" />
                 </div>
-              ) : displayItems.length === 0 ? (
+              ) : shownItems.length === 0 ? (
                 <div className="px-4 py-4 text-xs text-gray-400 italic">No assigned items on this board.</div>
               ) : (
                 <SortableContext items={displayItemIds} strategy={verticalListSortingStrategy}>
-                  {groupedClusters ? groupedClusters.map(({ group, items: clusterItems }, clusterIdx) => (
+                  {shownClusters ? shownClusters.map(({ group, items: clusterItems }, clusterIdx) => (
                     <div key={group?.id ?? '__other__'}>
                       {/* Sub-division within this board group — the source-board group each
                           item actually belongs to. Only rendered once there's more than one
@@ -449,10 +495,11 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                           subitemAssigneeFilterId={subitemAssigneeFilterId}
                           personalEditable={isOwn}
                           groupMinWidth={groupMinWidth}
+                          {...rowTodayProps(item)}
                         />
                       ))}
                     </div>
-                  )) : displayItems.map((item) => (
+                  )) : shownItems.map((item) => (
                     <ItemRow
                       key={item.id}
                       item={item}
@@ -463,6 +510,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       subitemAssigneeFilterId={subitemAssigneeFilterId}
                       personalEditable={isOwn}
                       groupMinWidth={groupMinWidth}
+                      {...rowTodayProps(item)}
                     />
                   ))}
                 </SortableContext>
@@ -476,7 +524,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
               the personal cross-group / board-only column summaries are woven in
               around them with the same SummaryCell, computed client-side over the
               personal values and persisted to the personal column. */}
-          {!stillResolving && (
+          {!stillResolving && !todayMode && (
             <GroupSummaryRow
               items={displayItems}
               columns={columns}

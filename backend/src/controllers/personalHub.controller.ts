@@ -2,8 +2,8 @@ import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
 import { db, snapshotToData, querySnapshotToArray } from '../services/firestore.service.js';
-import { personalColumnsCollection, personalItemValuesCollection, organizationSettingsCollection, personalHubTemplateTotalsCollection } from '../db/collections.js';
-import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, DBOrganizationSettings, ColumnType, UserRole } from '../types/index.js';
+import { personalColumnsCollection, personalItemValuesCollection, organizationSettingsCollection, personalHubTemplateTotalsCollection, personalTodayListsCollection, itemsCollection } from '../db/collections.js';
+import { JwtUserPayload, DBPersonalColumn, DBPersonalItemValue, DBOrganizationSettings, DBPersonalTodayList, PersonalTodayEntry, DBItem, ColumnType, UserRole } from '../types/index.js';
 import { sanitizeText } from '../utils/sanitizer.js';
 import { signalTemplateItemTotalsChanged } from '../services/templateTotalsSignal.service.js';
 
@@ -487,5 +487,94 @@ export const updatePersonalItemValue = async (req: Request, res: Response) => {
   } catch (err: unknown) {
     logger.error(`Error updating personal item value for item ${req.params.itemId}:`, err);
     res.status(500).json({ message: 'Failed to update personal item value.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Personal Hub "Today" list
+// ---------------------------------------------------------------------------
+// One doc per user (personalTodayLists/{userId}) holding the items they marked to work on
+// today. Entries stay until ticked Done or un-marked — unfinished items carry over to the next
+// day. Same owner/admin rules as the rest of the hub (resolveTargetUserId / resolveWriteTargetUserId).
+
+const readTodayEntries = (data: DBPersonalTodayList | undefined): PersonalTodayEntry[] =>
+  Array.isArray(data?.items) ? data!.items.filter((e) => e && typeof e.itemId === 'string') : [];
+
+// GET /personal-hub/today[?userId=]
+// Entries whose item was deleted or archived are dropped from the stored list on read.
+export const getPersonalToday = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const target = resolveTargetUserId(req);
+  if ('status' in target) return res.status(target.status).json({ message: target.message });
+
+  try {
+    const ref = personalTodayListsCollection(user.orgId).doc(target.userId);
+    const doc = await ref.get();
+    const entries = readTodayEntries(doc.exists ? (doc.data() as DBPersonalTodayList) : undefined);
+    if (entries.length === 0) return res.json({ items: [] });
+
+    const itemDocs = await db.getAll(...entries.map((e) => itemsCollection(user.orgId).doc(e.itemId)));
+    const live = entries.filter((_e, i) => itemDocs[i].exists && !(itemDocs[i].data() as DBItem).isArchived);
+    if (live.length !== entries.length) {
+      await ref.set({ items: live, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+    }
+    res.json({ items: live });
+  } catch (err: unknown) {
+    logger.error('Error fetching Today list:', err);
+    res.status(500).json({ message: 'Failed to fetch the Today list.' });
+  }
+};
+
+// POST /personal-hub/today/:itemId   body: { userId? }
+export const addPersonalToday = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { itemId } = req.params;
+  const target = resolveWriteTargetUserId(req);
+  if ('status' in target) return res.status(target.status).json({ message: target.message });
+
+  try {
+    const itemDoc = await itemsCollection(user.orgId).doc(itemId).get();
+    if (!itemDoc.exists) return res.status(404).json({ message: 'Item not found.' });
+    const item = itemDoc.data() as DBItem;
+
+    const ref = personalTodayListsCollection(user.orgId).doc(target.userId);
+    const items = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const entries = readTodayEntries(snap.exists ? (snap.data() as DBPersonalTodayList) : undefined);
+      if (entries.some((e) => e.itemId === itemId)) return entries;
+      const next = [...entries, { itemId, boardId: item.boardId, addedAt: new Date().toISOString() }];
+      tx.set(ref, { userId: target.userId, orgId: user.orgId, items: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      return next;
+    });
+    res.json({ items });
+  } catch (err: unknown) {
+    logger.error(`Error adding item ${req.params.itemId} to Today:`, err);
+    res.status(500).json({ message: 'Failed to add the item to Today.' });
+  }
+};
+
+// DELETE /personal-hub/today/:itemId   body: { userId? }
+// Used both for ticking Done and for un-marking an item — either way it just leaves the list.
+export const removePersonalToday = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { itemId } = req.params;
+  const target = resolveWriteTargetUserId(req);
+  if ('status' in target) return res.status(target.status).json({ message: target.message });
+
+  try {
+    const ref = personalTodayListsCollection(user.orgId).doc(target.userId);
+    const items = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(ref);
+      const entries = readTodayEntries(snap.exists ? (snap.data() as DBPersonalTodayList) : undefined);
+      const next = entries.filter((e) => e.itemId !== itemId);
+      if (next.length !== entries.length) {
+        tx.set(ref, { items: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      }
+      return next;
+    });
+    res.json({ items });
+  } catch (err: unknown) {
+    logger.error(`Error removing item ${req.params.itemId} from Today:`, err);
+    res.status(500).json({ message: 'Failed to remove the item from Today.' });
   }
 };

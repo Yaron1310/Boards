@@ -43,9 +43,14 @@ interface ItemRowProps {
    * shares the same columns and the rows are already uniform width.
    */
   groupMinWidth?: number;
+  /** Personal Hub only: rendered at the very start of the sticky item cell (the Today
+   *  section's "Done" checkbox). */
+  nameLeading?: React.ReactNode;
+  /** Personal Hub only: rendered right after the item name (the "Add to Today" ☀ toggle). */
+  nameTrailing?: React.ReactNode;
 }
 
-const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, personalEditable, groupMinWidth }) => {
+const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, personalEditable, groupMinWidth, nameLeading, nameTrailing }) => {
   const { user, isPublicView, selectedWorkspace } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const viewerTier = useColumnVisibilityTier(item.boardId);
@@ -214,6 +219,8 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
         className={`flex flex-shrink-0 items-stretch ${boardView !== 'rows' ? 'border-r border-[#d2d2d4]' : ''} sticky left-4 z-[3] bg-white group-hover:bg-indigo-50`}
         style={{ width: `${itemSectionWidth}px`, ...(groupColor ? { borderLeft: `4px solid ${groupColor}` } : {}) }}
       >
+        {nameLeading}
+
         {/* Drag handle — reordering isn't possible in the public read-only view, so it's
             never shown there at all rather than just being visually inert on hover. */}
         {!isPublicView && (
@@ -287,6 +294,7 @@ const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, 
               )}
             </div>
           )}
+          {nameTrailing}
         </div>
 
         {/* Row actions — hidden until hover */}

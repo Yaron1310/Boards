@@ -93,3 +93,8 @@ export const personalHubTemplateTotalsCollection = (orgId: string) =>
 // /organizations/{orgId}/activeTimers/{userId}
 export const activeTimersCollection = (orgId: string) =>
   db.collection('organizations').doc(orgId).collection('activeTimers');
+
+// Personal Hub "Today" list — the items a user marked to work on today, one doc per user:
+// /organizations/{orgId}/personalTodayLists/{userId}
+export const personalTodayListsCollection = (orgId: string) =>
+  db.collection('organizations').doc(orgId).collection('personalTodayLists');
