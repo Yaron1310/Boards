@@ -10,6 +10,8 @@ import { useBoardRender } from '../../../contexts/BoardRenderContext';
 import { UserRole } from '../../../types';
 import type { Item, Column, PersonColumnSettings, User } from '../../../types';
 import CellWrapper from './CellWrapper';
+import SubitemAssignPrompt from './SubitemAssignPrompt';
+import { useSubitemAssignPrompt } from '../../../hooks/useSubitemAssignPrompt';
 import { FiUser } from 'react-icons/fi';
 import { useFlippedPosition } from '../../../hooks/useFlippedPosition';
 import { Avatar, avatarColor } from '../Avatar';
@@ -249,8 +251,25 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
     : allUsers;
   const filtered = candidates.filter((u) => typeof u.name === 'string' && u.name.toLowerCase().includes(search.toLowerCase()));
 
+  // "Include subitems?" — only on a parent item's own Person cells (a subitem-table column has
+  // parentGroupId; subitems have no subitems). The cell's people when the picker session began
+  // are remembered at the first change, and compared with the result once the picker closes.
+  const isSubitemCell = !!column.parentGroupId;
+  const subitemPrompt = useSubitemAssignPrompt();
+  const sessionStartRef = useRef<string[] | null>(null);
+  const finishSession = (after: string[]) => {
+    const before = sessionStartRef.current;
+    sessionStartRef.current = null;
+    if (before && !isSubitemCell) void subitemPrompt.ask(item.id, item.name, column.id, before, after);
+  };
+  const closePicker = (stopEdit: () => void) => {
+    stopEdit();
+    finishSession(selected);
+  };
+
   const toggle = (userId: string, stopEdit: () => void) => {
     const prev = selected;
+    if (sessionStartRef.current === null) sessionStartRef.current = prev;
     let next: string[];
     if (selected.includes(userId)) {
       next = selected.filter((id) => id !== userId);
@@ -259,7 +278,7 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
     }
     pushUndo({ label: `Changed "${column.name}" on "${item.name}"`, undo: () => mutate({ id: item.id, patch: { values: { [column.id]: prev } } }) });
     mutate({ id: item.id, patch: { values: { [column.id]: next } } });
-    if (!multiple) stopEdit();
+    if (!multiple) { stopEdit(); finishSession(next); }
   };
 
   const openTooltip = (user: User, e: React.MouseEvent<HTMLElement>) => {
@@ -333,7 +352,7 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
                 selected={selected}
                 multiple={multiple}
                 toggle={(userId) => toggle(userId, stopEdit)}
-                onClose={stopEdit}
+                onClose={() => closePicker(stopEdit)}
                 boardMembersOnly={boardMembersOnly}
                 setBoardMembersOnly={setBoardMembersOnly}
                 canFilterByBoardAccess={participantsLoaded}
@@ -342,6 +361,15 @@ const PersonCellInner: React.FC<Props> = ({ item, column }) => {
           </>
         )}
       </CellWrapper>
+      {subitemPrompt.prompt && (
+        <SubitemAssignPrompt
+          prompt={subitemPrompt.prompt}
+          nameOf={(uid) => allUsers.find((u) => u.id === uid)?.name ?? 'this user'}
+          busy={subitemPrompt.busy}
+          error={subitemPrompt.error}
+          onAnswer={(yes) => { void subitemPrompt.answer(yes); }}
+        />
+      )}
     </>
   );
 };

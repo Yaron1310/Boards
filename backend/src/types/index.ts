@@ -574,6 +574,12 @@ export interface DBItem {
   formSubmitted?: boolean;
   // Dynamic column values
   values: ColumnValueMap;
+  /** Parent items only: people put on every subitem created under this item from now on
+   *  (answering "Yes" to "Include (future) subitems?" when assigning someone here). */
+  subitemAutoAssignees?: string[];
+  /** Name of the parent's PERSON column that assignment came from — the subitem table's PERSON
+   *  column with the same name receives them (else its first PERSON column). */
+  subitemAutoAssignColumnName?: string;
   createdAt: admin.firestore.Timestamp | Date | any;
   updatedAt: admin.firestore.Timestamp | Date | any;
 }

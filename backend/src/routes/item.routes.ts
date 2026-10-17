@@ -15,6 +15,9 @@ itemRouter.patch('/reorder', itemController.reorderItems);
 itemRouter.patch('/:id/archive', itemController.archiveItem);
 itemRouter.patch('/:id/restore', itemController.restoreItem);
 itemRouter.post('/:id/duplicate', itemController.duplicateItem);
+// "Include subitems?" — assign/unassign people on an item's subitems (and future ones).
+itemRouter.get('/:id/subitem-summary', itemController.getSubitemSummary);
+itemRouter.post('/:id/subitem-assignees', itemController.assignItemSubitems);
 // Raw binary upload for a FILES column — express.raw() reads the buffer; global express.json()
 // skips non-JSON content types so the stream is still available here (same convention as the
 // item chat's file upload route).

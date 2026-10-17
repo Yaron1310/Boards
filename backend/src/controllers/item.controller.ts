@@ -19,6 +19,7 @@ import { parsePaginationParams, applyPagination, buildPaginatedResult } from '..
 import { touchBoardVersion } from '../services/boardVersion.service.js';
 import { cascadeArchive, cascadeRestore, clearArchivedVia } from '../services/archiveCascade.service.js';
 import { signalIfSubitemAffectsHoursTotals } from '../services/templateTotalsSignal.service.js';
+import { assigneesFromValues, assignSubitems, findSubitemGroup, futureSubitemAssignments, personColumnIds } from '../services/subitemAssign.service.js';
 import { sendItemAssignmentEmail } from '../services/email.service.js';
 import { getActorName, getBoardName, getOrganizationName } from '../utils/notificationHelpers.js';
 
@@ -235,6 +236,16 @@ export const createItem = async (req: Request, res: Response) => {
     Object.assign(normalizedValues, autoAssign.changedValues);
     const groupAssignedUsers = new Set(autoAssign.assignees.filter((uid) => !(Array.isArray(assignees) && assignees.includes(uid))));
 
+    // A subitem created under a parent whose assignee asked to "include future subitems" gets
+    // those people too (no per-subitem email for them, same as group auto-assignment).
+    const groupDoc = await groupsCollection(user.orgId, boardId).doc(groupId).get();
+    if (groupDoc.exists) {
+      const future = await futureSubitemAssignments(user.orgId, boardId, { ...(groupDoc.data() as DBGroup), id: groupId }, normalizedValues);
+      Object.assign(normalizedValues, future.changedValues);
+      future.userIds.forEach((uid) => groupAssignedUsers.add(uid));
+    }
+    const boardPersonIds = await personColumnIds(user.orgId, boardId);
+
     // Compute mirrored fields from column values
     const mirrored = await computeMirroredFields(user.orgId, boardId, normalizedValues);
 
@@ -283,8 +294,13 @@ export const createItem = async (req: Request, res: Response) => {
       values: normalizedValues,
       // Explicit top-level fields take precedence over mirrored ones
       status: status ?? mirrored.status ?? null,
-      // Group auto-assigned users always join the top-level list the Personal Hub reads.
-      assignees: [...new Set([...(assignees ?? mirrored.assignees ?? []), ...autoAssign.assignees])],
+      // Everyone in any PERSON cell (plus group auto-assigned users) joins the top-level list
+      // the Personal Hub reads.
+      assignees: [...new Set([
+        ...(Array.isArray(assignees) ? assignees : []),
+        ...assigneesFromValues(normalizedValues, boardPersonIds),
+        ...autoAssign.assignees,
+      ])],
       dueDate: dueDate ?? mirrored.dueDate ?? null,
       lastAssignedAt: timestamp,
       createdAt: timestamp,
@@ -741,6 +757,12 @@ export const updateItem = async (req: Request, res: Response) => {
 
     // Compute mirrored fields for any new column values
     const mirrored = await computeMirroredFields(user.orgId, item.boardId, normalizedValues);
+    // `assignees` mirrors ALL of the item's PERSON cells combined — not just the one edited, or
+    // editing a second PERSON column (e.g. "Reviewer") would drop the people in the first.
+    if (mirrored.assignees !== undefined) {
+      const boardPersonIds = await personColumnIds(user.orgId, item.boardId);
+      mirrored.assignees = assigneesFromValues({ ...(item.values ?? {}), ...normalizedValues }, boardPersonIds);
+    }
 
     const updateData: Record<string, unknown> = {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1037,5 +1059,152 @@ export const uploadItemFile = async (req: Request, res: Response) => {
     if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
     logger.error(`Error uploading file for item ${id}:`, err);
     res.status(500).json({ message: 'Failed to upload file.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /items/:id/subitem-summary?userIds=a,b
+// What the "Include subitems?" question needs before it is asked: how many live subitems the
+// item has, and — for the given users — how many subitems each is on and whether they're on the
+// item's "future subitems" list.
+// ---------------------------------------------------------------------------
+export const getSubitemSummary = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { id } = req.params;
+  const userIds = typeof req.query.userIds === 'string'
+    ? req.query.userIds.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+
+  try {
+    const doc = await itemsCollection(user.orgId).doc(id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
+    const item = snapshotToData<DBItem>(doc)!;
+    assertItemAccess(user, item, 'read');
+
+    const group = await findSubitemGroup(user.orgId, item.boardId, item.id);
+    let subitems: DBItem[] = [];
+    if (group) {
+      const snap = await itemsCollection(user.orgId).where('groupId', '==', group.id).where('isArchived', '==', false).get();
+      subitems = snap.docs.map((d) => d.data() as DBItem);
+    }
+    const onSubitems: Record<string, number> = {};
+    for (const uid of userIds) onSubitems[uid] = subitems.filter((si) => (si.assignees ?? []).includes(uid)).length;
+
+    res.json({
+      subitemCount: subitems.length,
+      onSubitems,
+      futureAssignees: Array.isArray(item.subitemAutoAssignees) ? item.subitemAutoAssignees : [],
+    });
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error fetching subitem summary for item ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to fetch subitems.' });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /items/:id/subitem-assignees
+// body: { add?: string[], remove?: string[], parentColumnId?: string,
+//         exact?: { perItem: Record<subitemId, { add, remove }>, autoAssignees: string[] } }
+// "Include subitems?" → Yes: puts/removes people on every live subitem of the item and on its
+// list of people added to future subitems. `exact` replays a precise change set (used by Undo).
+// ---------------------------------------------------------------------------
+const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === 'string');
+
+export const assignItemSubitems = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  const { id } = req.params;
+  const { parentColumnId, exact } = req.body ?? {};
+  const add = req.body?.add ?? [];
+  const remove = req.body?.remove ?? [];
+
+  if (!isStringArray(add) || !isStringArray(remove)) {
+    return res.status(400).json({ message: 'add and remove must be arrays of user ids.' });
+  }
+  if (exact !== undefined) {
+    const perItemOk = exact && typeof exact.perItem === 'object' && exact.perItem !== null
+      && Object.values(exact.perItem as Record<string, unknown>).every((c) => {
+        const ch = c as { add?: unknown; remove?: unknown };
+        return isStringArray(ch?.add) && isStringArray(ch?.remove);
+      });
+    if (!perItemOk || !isStringArray(exact.autoAssignees)) {
+      return res.status(400).json({ message: 'exact must be { perItem: { [id]: { add, remove } }, autoAssignees: string[] }.' });
+    }
+  }
+
+  try {
+    const doc = await itemsCollection(user.orgId).doc(id).get();
+    if (!doc.exists) return res.status(404).json({ message: 'Item not found.' });
+    const parent = snapshotToData<DBItem>(doc)!;
+
+    const memberDoc = await boardMembersCollection(user.orgId, parent.boardId).doc(user.id).get();
+    const memberData = memberDoc.exists ? memberDoc.data() as DBBoardMember : null;
+    assertItemAccess(user, parent, 'update', memberData);
+
+    // Subitems are edited too — the caller needs edit rights on them as well.
+    const subGroup = await findSubitemGroup(user.orgId, parent.boardId, parent.id);
+    if (subGroup) {
+      const snap = await itemsCollection(user.orgId).where('groupId', '==', subGroup.id).where('isArchived', '==', false).get();
+      for (const d of snap.docs) assertItemAccess(user, { ...(d.data() as DBItem), id: d.id }, 'update', memberData);
+    }
+
+    let parentColumnName: string | undefined;
+    if (typeof parentColumnId === 'string' && parentColumnId) {
+      const colDoc = await columnsCollection(user.orgId, parent.boardId).doc(parentColumnId).get();
+      if (colDoc.exists) parentColumnName = (colDoc.data() as DBColumn).name;
+    }
+
+    const result = await assignSubitems(user.orgId, parent, {
+      add,
+      remove,
+      parentColumnName,
+      exact: exact as { perItem: Record<string, { add: string[]; remove: string[] }>; autoAssignees: string[] } | undefined,
+    });
+    if (Object.keys(result.perItem).length > 0) touchBoardVersion(user.orgId, parent.boardId);
+
+    void logAudit({
+      actorUserId: user.id,
+      actorRole: user.role,
+      action: 'UPDATE',
+      resourceType: 'item',
+      resourceId: id,
+      workspaceId: user.orgId,
+      orgId: user.orgId,
+      ipAddress: getClientIp(req),
+      userAgent: req.headers['user-agent'] as string | undefined,
+    });
+
+    // One notification per newly assigned person for the whole set (not one per subitem).
+    const recipients = result.newlyAssigned.filter((uid) => uid !== user.id);
+    if (!exact && recipients.length > 0) {
+      void (async () => {
+        const [actorName, boardName] = await Promise.all([getActorName(user.id), getBoardName(user.orgId, parent.boardId)]);
+        const count = Object.values(result.perItem).filter((c) => c.add.length > 0).length;
+        const timestamp = admin.firestore.FieldValue.serverTimestamp();
+        for (const recipientId of recipients) {
+          const subitemsOfTheirs = Object.values(result.perItem).filter((c) => c.add.includes(recipientId)).length || count;
+          void notificationsCollection(user.orgId).add({
+            recipientId,
+            actorId: user.id,
+            actorName,
+            type: 'assignment' as NotificationType,
+            resourceType: 'item',
+            resourceId: parent.id,
+            resourceName: `${parent.name} — ${subitemsOfTheirs} subitem${subitemsOfTheirs === 1 ? '' : 's'}`,
+            boardId: parent.boardId,
+            boardName,
+            read: false,
+            workspaceId: user.orgId,
+            createdAt: timestamp,
+          }).catch((err) => logger.warn('Failed to create subitem assignment notification:', err));
+        }
+      })();
+    }
+
+    res.json(result);
+  } catch (err: unknown) {
+    if (isAuthError(err)) return res.status(err.status).json({ message: err.message });
+    logger.error(`Error assigning subitems of item ${req.params.id}:`, err);
+    res.status(500).json({ message: 'Failed to update subitems.' });
   }
 };

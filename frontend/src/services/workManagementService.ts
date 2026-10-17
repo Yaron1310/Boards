@@ -255,6 +255,36 @@ export const uploadItemFile = (itemId: string, columnId: string, file: File): Pr
 export type DuplicateItemMode = 'with_data' | 'name_only';
 
 // Copies an item directly below itself in the same group (optionally with its subitems).
+// ─── "Include subitems?" (assigning people to an item's subitems) ───────────
+
+export interface SubitemSummary {
+  subitemCount: number;
+  /** For each asked-about user: how many of the item's subitems they're on. */
+  onSubitems: Record<string, number>;
+  /** People put on subitems created later. */
+  futureAssignees: string[];
+}
+
+export interface SubitemAssignChange { add: string[]; remove: string[] }
+
+export interface SubitemAssignResult {
+  perItem: Record<string, SubitemAssignChange>;
+  autoAssigneesBefore: string[];
+  subitemCount: number;
+  newlyAssigned: string[];
+}
+
+export const getSubitemSummary = (itemId: string, userIds: string[]): Promise<SubitemSummary> =>
+  fetchWithAuth(`/api/items/${itemId}/subitem-summary?userIds=${userIds.map(encodeURIComponent).join(',')}`);
+
+/** Puts/removes people on every subitem of the item and on its "future subitems" list. With
+ *  `exact`, replays a precise change set instead (Undo). */
+export const assignItemSubitems = (
+  itemId: string,
+  body: { add?: string[]; remove?: string[]; parentColumnId?: string; exact?: { perItem: Record<string, SubitemAssignChange>; autoAssignees: string[] } },
+): Promise<SubitemAssignResult> =>
+  fetchWithAuth(`/api/items/${itemId}/subitem-assignees`, { method: 'POST', body: JSON.stringify(body) });
+
 export const duplicateItem = (id: string, mode: DuplicateItemMode, includeSubitems: boolean): Promise<Item> =>
   fetchWithAuth(`/api/items/${id}/duplicate`, {
     method: 'POST',

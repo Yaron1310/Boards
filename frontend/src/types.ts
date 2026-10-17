@@ -501,6 +501,9 @@ export interface Item {
   formSubmitted?: boolean;
   // Dynamic column values
   values: ColumnValueMap;
+  /** Parent items only: people put on every subitem created under this item from now on
+   *  (set by answering "Yes" to "Include (future) subitems?"). Written by the server only. */
+  subitemAutoAssignees?: string[];
   createdAt: Date | string;
   updatedAt: Date | string;
 }
