@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import type { Column } from '../../../types';
 import { calculateColumnWidth } from '../../../utils/columnWidths';
 import { useBoardRender } from '../../../contexts/BoardRenderContext';
+import { CellFillParentContext } from '../../../contexts/cellFillParentContext';
 
 interface CellWrapperProps {
   column: Column;
@@ -13,6 +14,7 @@ const CellWrapper: React.FC<CellWrapperProps> = ({ column, isReadOnly: propReadO
   const [isEditing, setIsEditing] = useState(false);
   const { boardView, columnWidths, isBoardReadOnly } = useBoardRender();
   const isReadOnly = propReadOnly || isBoardReadOnly;
+  const fillParent = useContext(CellFillParentContext);
   const colWidth = columnWidths[column.id] ?? column.width ?? calculateColumnWidth(column.name, column.type);
 
   const startEdit = (e: React.MouseEvent | React.KeyboardEvent) => {
@@ -28,7 +30,7 @@ const CellWrapper: React.FC<CellWrapperProps> = ({ column, isReadOnly: propReadO
     <div
       role="gridcell"
       aria-label={column.name}
-      style={{ width: `${colWidth}px` }}
+      style={{ width: fillParent ? '100%' : `${colWidth}px` }}
       className={`relative flex flex-shrink-0 items-center justify-center ${boardView !== 'rows' ? 'border-r border-[#d2d2d4] last:border-r-0' : ''} ${
         isEditing ? 'z-20 ring-1 ring-inset ring-indigo-400' : !isReadOnly ? 'hover:bg-indigo-50/30 cursor-pointer' : ''
       }`}

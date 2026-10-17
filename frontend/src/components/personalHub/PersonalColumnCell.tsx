@@ -18,6 +18,7 @@ import PersonalLinkCell from './cells/PersonalLinkCell';
 import PersonalTimeRangeCell from './cells/PersonalTimeRangeCell';
 import PersonalFormulaCell from './cells/PersonalFormulaCell';
 import PersonalHoursLogCell from './cells/PersonalHoursLogCell';
+import { CellFillParentContext } from '../../contexts/cellFillParentContext';
 
 interface Props {
   column: PersonalColumn;
@@ -48,7 +49,7 @@ interface Props {
  * group's list of cross-group or board-only personal columns) — any cell,
  * any row, not just the same row as the formula.
  */
-const PersonalColumnCell: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext, userId, itemBoardId }) => {
+const PersonalColumnCellInner: React.FC<Props> = ({ column, itemId, itemName, value, editable, gridContext, userId, itemBoardId }) => {
   const props = { column, itemId, itemName: itemName ?? '', value, editable, userId, itemBoardId };
 
   switch (column.type) {
@@ -73,5 +74,13 @@ const PersonalColumnCell: React.FC<Props> = ({ column, itemId, itemName, value, 
       return <PersonalTextCell {...props} />;
   }
 };
+
+// Personal cells sit in a parent box that already has the column's width — make the cell (and
+// its edit frame) fill exactly that box rather than size itself from the column.
+const PersonalColumnCell: React.FC<Props> = (props) => (
+  <CellFillParentContext.Provider value>
+    <PersonalColumnCellInner {...props} />
+  </CellFillParentContext.Provider>
+);
 
 export default PersonalColumnCell;
