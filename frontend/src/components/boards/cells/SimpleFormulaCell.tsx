@@ -28,8 +28,8 @@ const SimpleFormulaCellInner: React.FC<Props> = ({ item, column }) => {
   const { user, selectedWorkspace } = useAuth();
   const orgId = selectedWorkspace?.orgId ?? (user as { orgId?: string } | null | undefined)?.orgId;
   const { begin, endSession, isRecording, insertRef, session } = useFormulaRecording();
-  const { visibleItems, columns: boardColumns, groupsComplete, isBoardReadOnly, asOf } = useBoardRender();
-  const colWidth = calculateColumnWidth(column.name, column.type);
+  const { visibleItems, columns: boardColumns, groupsComplete, isBoardReadOnly, asOf, columnWidths } = useBoardRender();
+  const colWidth = columnWidths[column.id] ?? column.width ?? calculateColumnWidth(column.name, column.type);
 
   const settings = column.settings as SimpleFormulaColumnSettings;
   const defaultFormula: string = settings?.defaultFormula ?? '';
