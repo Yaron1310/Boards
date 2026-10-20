@@ -393,7 +393,7 @@ const GroupSection: React.FC<GroupSectionProps> = ({
     >
       {/* Group title — sticky, floats above the table grid */}
       <div
-        className={`sticky left-4 w-fit flex items-center gap-2 pb-2 ${menuOpen ? 'z-[30]' : 'z-[2]'}`}
+        className={`sticky left-4 w-fit flex items-center gap-2 pb-2 ${menuOpen || colorPickerOpen ? 'z-[30]' : 'z-[2]'}`}
       >
         {/* Group drag handle */}
         {canManage && (
