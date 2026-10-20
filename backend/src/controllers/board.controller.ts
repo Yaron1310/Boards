@@ -1,3 +1,4 @@
+import { remapRefsDeep, RefRemapMaps } from '../utils/refRemap.js';
 import type { Request, Response } from 'express';
 import * as logger from 'firebase-functions/logger';
 import admin from 'firebase-admin';
@@ -622,59 +623,65 @@ export const duplicateBoard = async (req: Request, res: Response) => {
       updatedAt: timestamp,
     });
 
+    // Pre-allocate new group/item IDs so formula refs in the copied columns/items can be remapped.
+    const copyGroups = mode !== 'columns_only';
+    const copyItems = mode === 'columns_groups_items' || mode === 'full';
+    const groupsSnap = copyGroups ? await groupsCollection(user.orgId, id).get() : null;
+    const itemsSnap = copyItems ? await itemsCollection(user.orgId).where('boardId', '==', id).get() : null;
+    const groupIdMap = new Map<string, string>();
+    groupsSnap?.docs.forEach((g) => groupIdMap.set(g.id, groupsCollection(user.orgId, newBoardId).doc().id));
+    const itemIdMap = new Map<string, string>();
+    itemsSnap?.docs.forEach((i) => itemIdMap.set(i.id, itemsCollection(user.orgId).doc().id));
+    const remap: RefRemapMaps = { oldBoardId: id, newBoardId, groupIdMap, itemIdMap };
+
     // Always copy columns
     const colsSnap = await columnsCollection(user.orgId, id).get();
     if (!colsSnap.empty) {
       const colBatch = db.batch();
       colsSnap.docs.forEach((colDoc) => {
         const newColRef = columnsCollection(user.orgId, newBoardId).doc(colDoc.id);
-        colBatch.set(newColRef, { ...colDoc.data(), boardId: newBoardId });
+        colBatch.set(newColRef, remapRefsDeep({ ...colDoc.data(), boardId: newBoardId }, remap));
       });
       await colBatch.commit();
     }
 
-    if (mode === 'columns_groups' || mode === 'columns_groups_items' || mode === 'full') {
-      const groupsSnap = await groupsCollection(user.orgId, id).get();
-      const groupIdMap = new Map<string, string>();
-
+    if (groupsSnap) {
       if (!groupsSnap.empty) {
         const groupBatch = db.batch();
         groupsSnap.docs.forEach((groupDoc) => {
-          const newGroupRef = groupsCollection(user.orgId, newBoardId).doc();
-          groupIdMap.set(groupDoc.id, newGroupRef.id);
-          groupBatch.set(newGroupRef, { ...groupDoc.data(), id: newGroupRef.id, boardId: newBoardId });
+          const newGroupId = groupIdMap.get(groupDoc.id)!;
+          const newGroupRef = groupsCollection(user.orgId, newBoardId).doc(newGroupId);
+          groupBatch.set(newGroupRef, { ...groupDoc.data(), id: newGroupId, boardId: newBoardId });
         });
         await groupBatch.commit();
       }
 
-      if (mode === 'columns_groups_items' || mode === 'full') {
-        const itemsSnap = await itemsCollection(user.orgId).where('boardId', '==', id).get();
-        if (!itemsSnap.empty) {
-          const BATCH_SIZE = 400;
-          let itemBatch = db.batch();
-          let count = 0;
+      if (itemsSnap && !itemsSnap.empty) {
+        const BATCH_SIZE = 400;
+        let itemBatch = db.batch();
+        let count = 0;
 
-          for (const itemDoc of itemsSnap.docs) {
-            const itemData = itemDoc.data();
-            const newItemRef = itemsCollection(user.orgId).doc();
-            const newGroupId = groupIdMap.get(itemData.groupId) ?? itemData.groupId;
-            itemBatch.set(newItemRef, {
-              ...itemData,
-              id: newItemRef.id,
-              boardId: newBoardId,
-              groupId: newGroupId,
-              ...(mode === 'columns_groups_items' ? { values: {} } : {}),
-              createdAt: timestamp,
-              updatedAt: timestamp,
-            });
-            count++;
-            if (count % BATCH_SIZE === 0) {
-              await itemBatch.commit();
-              itemBatch = db.batch();
-            }
+        for (const itemDoc of itemsSnap.docs) {
+          const itemData = itemDoc.data();
+          const newItemId = itemIdMap.get(itemDoc.id)!;
+          const newItemRef = itemsCollection(user.orgId).doc(newItemId);
+          const newGroupId = groupIdMap.get(itemData.groupId) ?? itemData.groupId;
+          itemBatch.set(newItemRef, {
+            ...itemData,
+            id: newItemId,
+            boardId: newBoardId,
+            groupId: newGroupId,
+            values: mode === 'columns_groups_items' ? {} : remapRefsDeep(itemData.values ?? {}, remap),
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+          count++;
+          if (count % BATCH_SIZE === 0) {
+            await itemBatch.commit();
+            itemBatch = db.batch();
           }
-          if (count % BATCH_SIZE !== 0) await itemBatch.commit();
         }
+        if (count % BATCH_SIZE !== 0) await itemBatch.commit();
       }
     }
 
