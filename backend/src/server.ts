@@ -59,7 +59,8 @@ export const createApp = async (): Promise<Application> => {
     // 4. Configure Passport Strategies
     configurePassport(passport);
 
-    // 5. Seed Default Data (idempotent — already ran in onInit, this is a fallback)
+    // 5. Seed Default Data — idempotent, runs once per instance since createApp()
+    //    itself is only ever invoked lazily on the first real request (see index.ts).
     try {
         await seedDefaultData();
         logger.info("Database seeding check completed.");

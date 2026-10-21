@@ -89,7 +89,8 @@ export const useItemForms = (itemId: string) =>
 export const useAttachFormToItem = (itemId: string) => {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (formId: string) => wm.attachFormToItem(itemId, formId),
+    mutationFn: ({ formId, columnSelections }: { formId: string; columnSelections?: Record<string, string> }) =>
+      wm.attachFormToItem(itemId, formId, columnSelections),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: queryKeys.forms.forItem(itemId) });
       void qc.invalidateQueries({ queryKey: ['items'] });

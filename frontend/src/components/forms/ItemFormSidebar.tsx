@@ -4,13 +4,22 @@ import {
   FiX, FiTrash2, FiSave, FiCheck, FiLoader, FiFileText, FiEdit2, FiAlertCircle, FiLock,
 } from 'react-icons/fi';
 import { UserRole } from '../../types';
-import type { Item, FormAnswerValue, ItemFormEntry } from '../../types';
+import type { Item, FormAnswerValue, ItemFormEntry, ColumnType } from '../../types';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import {
   useForms, useItemForms, useAttachFormToItem, useSaveItemFormResponse, useDetachFormFromItem,
 } from '../../hooks/queries/useFormQueries';
 import FormFieldInput from './FormFieldInput';
 import { emptyAnswer, isAnswered } from './formFieldTypes';
+import { COLUMN_TYPE_LABELS } from '../boards/AddColumnModal';
+
+/** One connected field this board has more than one matching column for — see attachFormToItem. */
+interface ColumnSelectionField {
+  fieldId: string;
+  fieldLabel: string;
+  columnType: ColumnType;
+  columns: { id: string; name: string }[];
+}
 
 interface ItemFormSidebarProps {
   item: Item;
@@ -94,6 +103,10 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftSaved, setDraftSaved] = useState(false);
+  // Set when attaching a form whose connected fields are ambiguous on this board
+  // (more than one column of the same type) — the picker below resolves them.
+  const [columnSelectionRequest, setColumnSelectionRequest] = useState<{ formId: string; fields: ColumnSelectionField[] } | null>(null);
+  const [columnPicks, setColumnPicks] = useState<Record<string, string>>({});
 
   // Seed answers once per attached form. Keyed by formId rather than by the entry
   // object so a refetch after saving doesn't wipe in-progress edits. A local draft
@@ -125,16 +138,30 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
     setDraftSaved(false);
   };
 
-  const handleAttach = async (formId: string) => {
+  const handleAttach = async (formId: string, columnSelections?: Record<string, string>) => {
     setError(null);
     try {
-      const attached = await attachForm(formId);
+      const attached = await attachForm({ formId, columnSelections });
       const draft = user ? loadDraft(user.id, item.id, formId) : null;
       setAnswers(draft ?? initialAnswers(attached));
       seededFormId.current = formId;
+      setColumnSelectionRequest(null);
+      setColumnPicks({});
     } catch (err) {
+      const fields = (err as { needsColumnSelection?: ColumnSelectionField[] } | undefined)?.needsColumnSelection;
+      if (fields?.length) {
+        setColumnSelectionRequest({ formId, fields });
+        // Default each field to its first candidate so the picker starts pre-filled.
+        setColumnPicks(Object.fromEntries(fields.map((f) => [f.fieldId, f.columns[0]?.id ?? ''])));
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Failed to add the form.');
     }
+  };
+
+  const confirmColumnSelection = async () => {
+    if (!columnSelectionRequest) return;
+    await handleAttach(columnSelectionRequest.formId, columnPicks);
   };
 
   const handleSave = async (submit: boolean) => {
@@ -197,6 +224,7 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
   };
 
   return ReactDOM.createPortal(
+    <>
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[10200]">
       <div
         className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
@@ -408,7 +436,64 @@ const ItemFormSidebar: React.FC<ItemFormSidebarProps> = ({ item, onClose }) => {
         </div>
       )}
       </div>
-    </div>,
+    </div>
+
+    {columnSelectionRequest && (
+      <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center p-4 z-[10300]">
+        <div
+          className="bg-white rounded-lg shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Choose columns for connected fields"
+        >
+          <div className="px-4 py-3 border-b border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-800">Choose columns</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              This board has more than one column matching a field this form connects to. Pick which column each should fill in when submitted.
+            </p>
+          </div>
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            {columnSelectionRequest.fields.map((f) => (
+              <div key={f.fieldId}>
+                <label htmlFor={`column-pick-${f.fieldId}`} className="block text-xs font-medium text-gray-600 mb-1">
+                  "{f.fieldLabel}" → {COLUMN_TYPE_LABELS[f.columnType]} column
+                </label>
+                <select
+                  id={`column-pick-${f.fieldId}`}
+                  value={columnPicks[f.fieldId] ?? ''}
+                  onChange={(e) => setColumnPicks((prev) => ({ ...prev, [f.fieldId]: e.target.value }))}
+                  className="w-full p-1.5 text-sm border border-gray-300 rounded-md bg-white focus:ring-2 focus:ring-indigo-400 focus:outline-none"
+                >
+                  {f.columns.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-gray-200 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => { setColumnSelectionRequest(null); setColumnPicks({}); }}
+              disabled={isAttaching}
+              className="px-3 py-2 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void confirmColumnSelection()}
+              disabled={isAttaching}
+              className="px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 flex items-center"
+            >
+              {isAttaching && <FiLoader className="animate-spin mr-1.5" size={13} aria-hidden="true" />}
+              Add form
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>,
     document.getElementById('modal-root')!,
   );
 };

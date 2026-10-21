@@ -328,7 +328,7 @@ const FormBuilderModal: React.FC<FormBuilderModalProps> = ({ form, onClose, onSa
                               </select>
                               <p className="mt-1 text-[11px] text-gray-400">
                                 {field.linkedColumnType
-                                  ? `On submit, this answer also fills the item's ${COLUMN_TYPE_LABELS[field.linkedColumnType]} column, if its board has one.`
+                                  ? `On submit, this answer also fills the item's ${COLUMN_TYPE_LABELS[field.linkedColumnType]} column. If the board has more than one, whoever attaches this form to an item picks which.`
                                   : "Fill a matching column on the item's board automatically when this form is submitted."}
                               </p>
                             </div>
