@@ -578,7 +578,7 @@ const PersonalHubPageInner: React.FC = () => {
               white strip (first child) is exactly as tall as the content beside it; spans the full
               scroll width (w-max min-w-full) so the strip and background reach all the way across. */}
           <section
-            className={`grid w-max min-w-full px-4 border-b-2 border-amber-200 ${todayCollapsed ? '' : 'bg-white [&_.flex-1.bg-gray-100]:bg-white'}`}
+            className={`grid w-max min-w-full px-4 border-b-[3px] border-amber-200 ${todayCollapsed ? '' : 'bg-white [&_.flex-1.bg-gray-100]:bg-white'}`}
             aria-labelledby="phub-today-title"
           >
             {/* Covers the page's grey left-edge fade (z-20, outside this scroller) over this
@@ -586,7 +586,7 @@ const PersonalHubPageInner: React.FC = () => {
             {!todayCollapsed && (
               <div className="col-start-1 row-start-1 sticky left-0 -ml-4 w-4 bg-white z-[21] pointer-events-none" aria-hidden="true" />
             )}
-            <div className="col-start-1 row-start-1 min-w-0 pt-6 pb-2">
+            <div className="col-start-1 row-start-1 min-w-0 pt-6 pb-12">
             <div className="sticky left-4 w-fit flex items-center gap-2">
               <button
                 type="button"
@@ -597,7 +597,7 @@ const PersonalHubPageInner: React.FC = () => {
               >
                 <FiChevronDown size={16} className={`text-gray-400 transition-transform ${todayCollapsed ? '-rotate-90' : ''}`} aria-hidden="true" />
                 <FiSun size={18} className="text-amber-500" fill="currentColor" aria-hidden="true" />
-                <h2 id="phub-today-title" className="text-xl font-bold text-amber-600">Today</h2>
+                <h2 id="phub-today-title" className="text-xl font-bold text-amber-600">Today's Tasks</h2>
               </button>
               <span className="text-sm text-gray-400" aria-label={`${todayTotal} items planned for today`}>
                 {todayResolving && todayBoardIds.length > 0 ? '…' : todayTotal}
@@ -634,7 +634,12 @@ const PersonalHubPageInner: React.FC = () => {
             </div>
           </section>
 
-          <div ref={boardGroupsRef} className="px-4 pb-4 space-y-4">
+          {/* 3rem grey gap below the Today section, holding the (non-collapsible) hub title. */}
+          <div className="h-12 flex-shrink-0 px-4 flex items-center">
+            <h2 id="phub-items-title" className="sticky left-4 w-fit text-xl font-bold text-black">My Items</h2>
+          </div>
+
+          <div ref={boardGroupsRef} className="px-4 pb-4 space-y-4" role="region" aria-labelledby="phub-items-title">
             {boardIds.map((boardId) => (
               <PersonalHubBoardGroup
                 key={boardId}
