@@ -43,6 +43,8 @@ interface ItemRowProps {
    * shares the same columns and the rows are already uniform width.
    */
   groupMinWidth?: number;
+  /** Personal Hub "Today" section: leave out the source board's own columns (personal columns still show). */
+  hideBoardColumns?: boolean;
   /** Personal Hub only: rendered at the very start of the sticky item cell (the Today
    *  section's "Done" checkbox). */
   nameLeading?: React.ReactNode;
@@ -52,11 +54,11 @@ interface ItemRowProps {
   hideDragHandle?: boolean;
 }
 
-const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, personalEditable, groupMinWidth, nameLeading, nameTrailing, hideDragHandle }) => {
+const ItemRowInner: React.FC<ItemRowProps> = ({ item, onOpenDetail, groupColor, leadingExtraCells, extraCells, subitemAssigneeFilterId, personalEditable, groupMinWidth, hideBoardColumns, nameLeading, nameTrailing, hideDragHandle }) => {
   const { user, isPublicView, selectedWorkspace } = useAuthSession();
   const { data: columns = [] } = useColumns(item.boardId);
   const viewerTier = useColumnVisibilityTier(item.boardId);
-  const visibleColumns = columns.filter((col) => canSeeColumn(col, viewerTier));
+  const visibleColumns = hideBoardColumns ? [] : columns.filter((col) => canSeeColumn(col, viewerTier));
   const { boardView, columnWidths, openChat, openForms } = useBoardRender();
   const itemSectionWidth = (columnWidths[ITEM_COL_ID] ?? 298) - 16;
 

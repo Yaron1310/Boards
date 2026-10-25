@@ -1,4 +1,6 @@
 import React, { useMemo } from 'react';
+import { usePersonalHubTemplateShowIn } from '../../hooks/queries/usePersonalHubTemplateShowIn';
+import { columnShowsIn } from '../../utils/personalHubColumns';
 import { useNavigate } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import { DndContext } from '@dnd-kit/core';
@@ -73,6 +75,8 @@ interface Props {
    * addresses and page totals only ever count the main hub's rows.
    */
   todayMode?: boolean;
+  /** Today section only: show the source board's own columns (and board-only personal ones). Off by default there. */
+  showBoardColumns?: boolean;
   /** Today mode only: reports how many rows this group shows (null while still resolving). */
   onTodayShownCount?: (boardId: string, count: number | null) => void;
 }
@@ -139,7 +143,7 @@ const renderPersonalCells = (
  * board, and the user expands its chevron to reach the assigned subitem via
  * the real SubitemGroup panel (same one the source board uses).
  */
-const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onOpenForms, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId, groupMinWidth, today, todayMode = false, onTodayShownCount }) => {
+const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUserId, boardView, onOpenDetail, onOpenChat, onOpenForms, onBoardResolved, crossGroupGridContext: pageCrossGroupGridContext, onRowsResolved, subitemAssigneeFilterId, groupMinWidth, today, todayMode = false, showBoardColumns = false, onTodayShownCount }) => {
   const navigate = useNavigate();
   const { mutate: updatePersonalColumn } = useUpdatePersonalColumn(ownerUserId);
   const { data: board, isLoading: boardLoading, isError: boardError } = useBoard(boardId);
@@ -155,9 +159,16 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   const { data: columns = [] } = useColumns(boardId, !!board);
   const { data: allPersonalColumns = [] } = usePersonalColumns(ownerUserId);
 
-  const crossGroupColumns = useMemo(
+  // Every "all groups" column — what formulas see, so their letters never shift.
+  const allCrossGroupColumns = useMemo(
     () => allPersonalColumns.filter((c) => c.scope === 'all'),
     [allPersonalColumns],
+  );
+  // The ones displayed here: template columns the admin limited to the other section are left out.
+  const showInByTemplateId = usePersonalHubTemplateShowIn();
+  const crossGroupColumns = useMemo(
+    () => allCrossGroupColumns.filter((c) => columnShowsIn(c, showInByTemplateId, todayMode ? 'today' : 'hub')),
+    [allCrossGroupColumns, showInByTemplateId, todayMode],
   );
   const boardOnlyColumns = useMemo(
     () => allPersonalColumns.filter((c) => c.scope === 'board' && c.boardId === boardId),
@@ -293,8 +304,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   // behavior. The page assembles this across all groups; fall back to this group's own
   // rows only if the page hasn't wired it up.
   const localCrossGroupGridContext = useMemo<PersonalGridContext>(
-    () => ({ rowOrder: displayItemIds, columns: crossGroupColumns, valuesByItem: effectiveValuesByItem, boardId, ownerId: ownerUserId }),
-    [displayItemIds, crossGroupColumns, effectiveValuesByItem, boardId, ownerUserId],
+    () => ({ rowOrder: displayItemIds, columns: allCrossGroupColumns, valuesByItem: effectiveValuesByItem, boardId, ownerId: ownerUserId }),
+    [displayItemIds, allCrossGroupColumns, effectiveValuesByItem, boardId, ownerUserId],
   );
   const crossGroupGridContext = pageCrossGroupGridContext ?? localCrossGroupGridContext;
   const boardOnlyGridContext = useMemo<PersonalGridContext>(
@@ -360,6 +371,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
   }).length;
 
   const itemSectionWidth = 298 - 16;
+  const hideBoardCols = todayMode && !showBoardColumns;
 
   // The source board no longer exists (or is no longer accessible) — its items are
   // orphaned, so there's nothing meaningful to render for this group.
@@ -427,7 +439,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
           {crossGroupColumns.map((col) => (
             <PersonalColumnHeaderLabel key={col.id} col={col} />
           ))}
-          {columns.map((col) => (
+          {!hideBoardCols && columns.map((col) => (
             <div
               key={col.id}
               role="columnheader"
@@ -439,7 +451,7 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
               <span className="truncate">{col.name}</span>
             </div>
           ))}
-          {boardOnlyColumns.map((col) => (
+          {!hideBoardCols && boardOnlyColumns.map((col) => (
             <PersonalColumnHeaderLabel key={col.id} col={col} />
           ))}
           {/* Grey filler to the page's uniform board width — see ItemRow's groupMinWidth. */}
@@ -494,7 +506,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                           onOpenDetail={onOpenDetail}
                           groupColor={group?.color || '#6366f1'}
                           leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext, ownerUserId)}
-                          extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext, ownerUserId)}
+                          extraCells={hideBoardCols ? undefined : renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext, ownerUserId)}
+                          hideBoardColumns={hideBoardCols}
                           subitemAssigneeFilterId={subitemAssigneeFilterId}
                           personalEditable={isOwn}
                           groupMinWidth={groupMinWidth}
@@ -509,7 +522,8 @@ const PersonalHubBoardGroup: React.FC<Props> = ({ boardId, items, isOwn, ownerUs
                       onOpenDetail={onOpenDetail}
                       groupColor="#6366f1"
                       leadingExtraCells={renderPersonalCells(crossGroupColumns, item, personalValuesByItem, isOwn, crossGroupGridContext, ownerUserId)}
-                      extraCells={renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext, ownerUserId)}
+                      extraCells={hideBoardCols ? undefined : renderPersonalCells(boardOnlyColumns, item, personalValuesByItem, isOwn, boardOnlyGridContext, ownerUserId)}
+                          hideBoardColumns={hideBoardCols}
                       subitemAssigneeFilterId={subitemAssigneeFilterId}
                       personalEditable={isOwn}
                       groupMinWidth={groupMinWidth}

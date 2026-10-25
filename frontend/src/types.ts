@@ -746,12 +746,16 @@ export interface PersonalColumn {
 /** One column definition in the org admin's Personal Hub default template — "all groups"
  *  columns only, no groups/items/data. Materialized into a user's own personalColumns
  *  (scope 'all', fromTemplate: true) the first time they have none. */
+export type TemplateColumnShowIn = 'both' | 'today' | 'hub';
+
 export interface PersonalHubTemplateColumn {
   id: string;
   name: string;
   type: ColumnType;
   settings: ColumnSettings;
   order: number;
+  /** Where users see this column: 'today' = Today's Tasks only, 'hub' = My Items only. Absent = both. */
+  showIn?: TemplateColumnShowIn;
 }
 
 export type NotificationType = 'assignment' | 'mention';

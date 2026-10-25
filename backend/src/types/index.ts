@@ -64,6 +64,8 @@ export interface PersonalHubTemplateColumn {
   type: ColumnType;
   settings: ColumnSettings;
   order: number;
+  /** 'today' = Today's Tasks only, 'hub' = My Items only. Absent = both. */
+  showIn?: 'both' | 'today' | 'hub';
 }
 
 export interface PersonalHubTemplate {
