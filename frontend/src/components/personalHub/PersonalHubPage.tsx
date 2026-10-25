@@ -751,18 +751,20 @@ const PersonalHubPageInner: React.FC = () => {
               only (not row count) so it shows for any hub — including another user's when
               viewed by an admin — the same way the normal board's total always shows. */}
           {hubCrossColumns.length > 0 && (
-            <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pt-1">
+            <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pt-1 bg-gray-100">
               <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem} openForms={setFormsItem}>
                 {/* No outer "card" wrapper here (unlike the real board's footer) — this
                     row's minWidth stretches it to the full scroll width so its sticky
                     label stays pinned past the fetched columns, and a width:max-content
                     wrapper would stretch right along with it, turning any bg/border/shadow
                     on it into an oversized box spanning that same transparent stretch.
-                    Each cell (label, totals) paints its own white background instead. */}
+                    Each cell (label, totals) paints its own white background, and `fillRow` paints the
+                    stretch past them white too so scrolled content can't show under the row. */}
                 <BoardSummaryRow
                   items={[]}
                   columns={[]}
                   minWidth={footerRowMinWidth}
+                  fillRow
                   leadingExtraCells={hubCrossColumns.map((col) => (
                     <SummaryCell
                       key={col.id}
