@@ -30,6 +30,10 @@ export interface ActiveTimerContextValue {
   /** Whether starting a timer opens the floating window (on by default). */
   pipEnabled: boolean;
   setPipEnabled: (enabled: boolean) => void;
+  /** True while the floating timer window is open. */
+  pipOpen: boolean;
+  /** Opens the floating window on demand (needs a user click), regardless of the auto-open setting. */
+  openPip: () => void;
 }
 
 export const ActiveTimerContext = createContext<ActiveTimerContextValue | null>(null);

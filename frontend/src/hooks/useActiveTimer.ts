@@ -11,6 +11,8 @@ const NO_TIMER: ActiveTimerContextValue = {
   pipSupported: false,
   pipEnabled: false,
   setPipEnabled: () => {},
+  pipOpen: false,
+  openPip: () => {},
 };
 
 /** The Hours Log stop-clock state. Outside an ActiveTimerProvider (e.g. a public view link)

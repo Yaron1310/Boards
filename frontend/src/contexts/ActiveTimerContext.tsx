@@ -101,8 +101,8 @@ export const ActiveTimerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, []);
 
   // Must run synchronously inside the click that starts the timer (the browser needs the gesture).
-  const openPip = useCallback(() => {
-    if (!pipSupported || !pipEnabled || pipWindow || pipOpening.current) return;
+  const openPip = useCallback((force = false) => {
+    if (!pipSupported || (!force && !pipEnabled) || pipWindow || pipOpening.current) return;
     pipOpening.current = true;
     void openTimerPipWindow().then((win) => {
       pipOpening.current = false;
@@ -197,7 +197,9 @@ export const ActiveTimerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     pipSupported,
     pipEnabled,
     setPipEnabled,
-  }), [timer, serverOffsetMs, start, requestStop, startMutation.isPending, pipSupported, pipEnabled, setPipEnabled]);
+    pipOpen: !!pipWindow,
+    openPip: () => openPip(true),
+  }), [timer, serverOffsetMs, start, requestStop, startMutation.isPending, pipSupported, pipEnabled, setPipEnabled, pipWindow, openPip]);
 
   // The window is taller while the stop popover is open inside it.
   const stoppingInPip = !!pipWindow && stopRequest?.window === pipWindow;
