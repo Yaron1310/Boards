@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useReducer, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
-import { FiLoader, FiUser, FiUsers, FiPlus, FiPlusCircle, FiSearch, FiX, FiUpload, FiList, FiArchive, FiSun, FiChevronDown } from 'react-icons/fi';
+import { FiLoader, FiUser, FiUsers, FiPlus, FiPlusCircle, FiSearch, FiX, FiUpload, FiList, FiArchive, FiSun, FiChevronDown, FiMoreVertical } from 'react-icons/fi';
 import { useAuthSession } from '../../hooks/useAuthSession';
 import { useUsersQuery } from '../../hooks/queries/useUserQueries';
 import { useItems } from '../../hooks/queries/useItemQueries';
@@ -38,6 +38,10 @@ import type { PersonalGridContext } from './cells/types';
 type ViewMode = 'table' | 'rows' | 'gantt' | 'dashboard';
 
 const TODAY_COLLAPSED_KEY = 'personalHub.todayCollapsed';
+const TODAY_BOARD_COLS_KEY = 'personalHub.todayShowBoardColumns';
+const readTodayShowBoardCols = (): boolean => {
+  try { return localStorage.getItem(TODAY_BOARD_COLS_KEY) === '1'; } catch { return false; }
+};
 const readTodayCollapsed = (): boolean => {
   try { return localStorage.getItem(TODAY_COLLAPSED_KEY) === '1'; } catch { return false; }
 };
@@ -298,6 +302,27 @@ const PersonalHubPageInner: React.FC = () => {
   const todayResolving = todayCounts.some((c) => c === null || c === undefined);
   const todayTotal = todayCounts.reduce<number>((sum, c) => sum + (c ?? 0), 0);
   const [todayCollapsed, setTodayCollapsed] = useState(readTodayCollapsed);
+  const [todayShowBoardCols, setTodayShowBoardCols] = useState(readTodayShowBoardCols);
+  const toggleTodayShowBoardCols = () => {
+    setTodayShowBoardCols((v) => {
+      try { localStorage.setItem(TODAY_BOARD_COLS_KEY, v ? '0' : '1'); } catch { /* per-browser convenience only */ }
+      return !v;
+    });
+  };
+  const [todayMenu, setTodayMenu] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    if (!todayMenu) return;
+    const close = () => setTodayMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('mousedown', close);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      window.removeEventListener('mousedown', close);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [todayMenu]);
   const toggleTodayCollapsed = () => {
     setTodayCollapsed((v) => {
       try { localStorage.setItem(TODAY_COLLAPSED_KEY, v ? '0' : '1'); } catch { /* per-browser convenience only */ }
@@ -587,7 +612,10 @@ const PersonalHubPageInner: React.FC = () => {
               <div className="col-start-1 row-start-1 sticky left-0 -ml-4 w-4 bg-white z-[21] pointer-events-none" aria-hidden="true" />
             )}
             <div className="col-start-1 row-start-1 min-w-0 pt-6 pb-12">
-            <div className="sticky left-4 w-fit flex items-center gap-2">
+            <div
+              className="sticky left-4 w-fit flex items-center gap-2"
+              onContextMenu={(e) => { e.preventDefault(); setTodayMenu({ x: e.clientX, y: e.clientY }); }}
+            >
               <button
                 type="button"
                 onClick={toggleTodayCollapsed}
@@ -602,6 +630,16 @@ const PersonalHubPageInner: React.FC = () => {
               <span className="text-sm text-gray-400" aria-label={`${todayTotal} items planned for today`}>
                 {todayResolving && todayBoardIds.length > 0 ? '…' : todayTotal}
               </span>
+              <button
+                type="button"
+                onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setTodayMenu({ x: r.left, y: r.bottom + 4 }); }}
+                className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                aria-label="Today's Tasks options"
+                aria-haspopup="menu"
+                title="Options"
+              >
+                <FiMoreVertical size={14} aria-hidden="true" />
+              </button>
             </div>
             <div id="phub-today-content" hidden={todayCollapsed}>
               {todayBoardIds.map((boardId) => (
@@ -620,6 +658,7 @@ const PersonalHubPageInner: React.FC = () => {
                   groupMinWidth={uniformBoardWidth}
                   today={todayWiring}
                   todayMode
+                  showBoardColumns={todayShowBoardCols}
                   onTodayShownCount={handleTodayShownCount}
                 />
               ))}
@@ -633,6 +672,29 @@ const PersonalHubPageInner: React.FC = () => {
             </div>
             </div>
           </section>
+
+          {todayMenu && createPortal(
+            <div
+              role="menu"
+              aria-label="Today's Tasks options"
+              style={{ position: 'fixed', top: todayMenu.y, left: todayMenu.x, zIndex: 10003 }}
+              className="bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-[190px]"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <label role="menuitemcheckbox" aria-checked={todayShowBoardCols} className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={todayShowBoardCols}
+                  onChange={() => { toggleTodayShowBoardCols(); setTodayMenu(null); }}
+                  className="rounded border-gray-300"
+                  autoFocus
+                  aria-label="Show board's columns"
+                />
+                Show board&apos;s columns
+              </label>
+            </div>,
+            document.body,
+          )}
 
           {/* Grey gap below the Today section (3rem above the title), holding the non-collapsible hub title. */}
           <div className="flex-shrink-0 px-4 pt-12 pb-3">
