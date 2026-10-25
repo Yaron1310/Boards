@@ -7,7 +7,7 @@ import { useFormulaRecording } from '../../contexts/FormulaRecordingContext';
 import TemplateTotalScopeModal from '../formula/TemplateTotalScopeModal';
 import { formulaRefDomKey } from '../../utils/formulaEngine';
 import { ColumnType } from '../../types';
-import type { HoursLogColumnSettings, PersonalHubTemplateColumn } from '../../types';
+import type { HoursLogColumnSettings, PersonalHubTemplateColumn, TemplateColumnShowIn } from '../../types';
 
 /** Org-admin editor for the Personal Hub default template: an "all groups" column-schema
  *  list only — no groups, items, or data. Materialized into a user's own Personal Hub
@@ -79,6 +79,10 @@ const PersonalHubTemplatePage: React.FC = () => {
     void commit(next.map((c, i) => ({ ...c, order: i })));
   };
 
+  const setShowIn = (col: PersonalHubTemplateColumn, showIn: TemplateColumnShowIn) => {
+    void commit(columns.map((c) => (c.id === col.id ? { ...c, showIn } : c)));
+  };
+
   const toggleSubitemsOnly = (col: PersonalHubTemplateColumn, value: boolean) => {
     const settings: HoursLogColumnSettings = { ...(col.settings as HoursLogColumnSettings), subitemsOnly: value };
     void commit(columns.map((c) => (c.id === col.id ? { ...c, settings } : c)));
@@ -112,7 +116,7 @@ const PersonalHubTemplatePage: React.FC = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-800">Personal Hub Template</h1>
             <p className="text-sm text-gray-500 mt-1">
-              Columns every user's Personal Hub starts with. No groups or data here — only "all groups" columns.
+              Columns every user's Personal Hub starts with. No groups or data here — only "all groups" columns. Choose where each one shows: Today's Tasks, My Items, or both.
               Changes save automatically.
             </p>
           </div>
@@ -199,6 +203,19 @@ const PersonalHubTemplatePage: React.FC = () => {
                       <p className="text-sm font-medium text-gray-800 truncate">{col.name}</p>
                       <p className="text-xs text-gray-500">{COLUMN_TYPE_LABELS[col.type]}</p>
                     </div>
+                    <select
+                      value={col.showIn ?? 'both'}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setShowIn(col, e.target.value as TemplateColumnShowIn)}
+                      disabled={isPersisting}
+                      className="text-xs text-gray-600 border border-gray-300 rounded-md px-2 py-1 bg-white disabled:opacity-40"
+                      aria-label={`Where to show ${col.name}`}
+                      title="Where users see this column"
+                    >
+                      <option value="both">Everywhere</option>
+                      <option value="today">Today&apos;s Tasks only</option>
+                      <option value="hub">My Items only</option>
+                    </select>
                     {canInsert && (
                       <button
                         type="button"

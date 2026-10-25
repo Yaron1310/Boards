@@ -173,7 +173,7 @@ export const updatePersonalHubTemplate = async (req: Request, res: Response) => 
     for (let i = 0; i < columns.length; i++) {
         const c = columns[i];
         if (!c || typeof c !== 'object') return res.status(400).json({ message: `Invalid column at index ${i}.` });
-        const { id, name, type, settings } = c as { id?: unknown; name?: unknown; type?: unknown; settings?: unknown };
+        const { id, name, type, settings, showIn } = c as { id?: unknown; name?: unknown; type?: unknown; settings?: unknown; showIn?: unknown };
         if (!name || typeof name !== 'string') return res.status(400).json({ message: `Column at index ${i} is missing a name.` });
         if (!type || !VALID_COLUMN_TYPES.has(type as string)) {
             return res.status(400).json({ message: `Column "${name}" has an invalid type.` });
@@ -184,6 +184,8 @@ export const updatePersonalHubTemplate = async (req: Request, res: Response) => 
             type: type as ColumnType,
             settings: (settings && typeof settings === 'object' ? settings : {}) as PersonalHubTemplateColumn['settings'],
             order: i,
+            // Only the non-default choices are stored; absent means "both".
+            ...(showIn === 'today' || showIn === 'hub' ? { showIn } : {}),
         });
     }
 

@@ -1,4 +1,6 @@
 import React, { useMemo, useState, useReducer, useRef, useEffect } from 'react';
+import { usePersonalHubTemplateShowIn } from '../../hooks/queries/usePersonalHubTemplateShowIn';
+import { columnShowsIn } from '../../utils/personalHubColumns';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FiLoader, FiUser, FiUsers, FiPlus, FiPlusCircle, FiSearch, FiX, FiUpload, FiList, FiArchive, FiSun, FiChevronDown, FiMoreVertical } from 'react-icons/fi';
@@ -125,6 +127,10 @@ const PersonalHubPageInner: React.FC = () => {
 
   const { data: allPersonalColumns = [] } = usePersonalColumns(hubOwnerId);
   const crossGroupColumns = useMemo(() => allPersonalColumns.filter((c) => c.scope === 'all'), [allPersonalColumns]);
+  // Template columns the admin limited to one section: Today's Tasks and My Items each show their own set.
+  const showInByTemplateId = usePersonalHubTemplateShowIn();
+  const todayCrossColumns = useMemo(() => crossGroupColumns.filter((c) => columnShowsIn(c, showInByTemplateId, 'today')), [crossGroupColumns, showInByTemplateId]);
+  const hubCrossColumns = useMemo(() => crossGroupColumns.filter((c) => columnShowsIn(c, showInByTemplateId, 'hub')), [crossGroupColumns, showInByTemplateId]);
 
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [detailItem, setDetailItem] = useState<Item | null>(null);
@@ -330,6 +336,54 @@ const PersonalHubPageInner: React.FC = () => {
     });
   };
 
+
+  // Page-level column header — the ONLY place cross-group personal columns are managed
+  // (rename/settings/reorder/delete); each group below shows their names too for alignment, but
+  // read-only. Rendered once per section (Today's Tasks, My Items) since each can show a
+  // different set of template columns.
+  const renderColumnHeader = (cols: typeof crossGroupColumns, key: string) => (
+          <div
+            key={key}
+            className="sticky top-0 z-[21] flex items-center bg-gray-50/95 backdrop-blur-sm border-b border-[#d2d2d4]"
+            role="row"
+            aria-label="Personal Hub column controls"
+            // Stretch to the full scroll width so the sticky "Item" cell stays pinned all
+            // the way across, instead of scrolling off once this header's own (narrower)
+            // content has scrolled past — same reason the board rows carry a uniform width.
+            style={footerRowMinWidth ? { minWidth: `${footerRowMinWidth}px` } : undefined}
+          >
+            <div className="w-[298px] flex-shrink-0 px-4 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 sticky left-0 z-[1] bg-gray-50">
+              Item
+            </div>
+            {cols.map((col) => (
+              canEdit
+                ? <PersonalColumnHeaderCell key={col.id} column={col} userId={hubOwnerId} />
+                : (
+                  <div
+                    key={col.id}
+                    role="columnheader"
+                    style={{ width: `${PERSONAL_COL_WIDTH}px` }}
+                    className={`flex flex-shrink-0 items-center justify-center gap-1.5 px-2 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 ${col.fromTemplate ? 'bg-[#fff0de80]' : 'bg-indigo-50/50'}`}
+                    title={`${col.name} (personal column${col.fromTemplate ? ', from the org template' : ''})`}
+                  >
+                    <span className="text-indigo-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
+                    <span className="truncate">{col.name}</span>
+                  </div>
+                )
+            ))}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setShowAddCrossGroupColumn(true)}
+                className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors flex-shrink-0"
+                aria-label="Add a personal column to every group"
+                title="Add column to all groups"
+              >
+                <FiPlus size={14} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+  );
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -553,50 +607,8 @@ const PersonalHubPageInner: React.FC = () => {
         </div>
       ) : viewMode === 'table' || viewMode === 'rows' ? (
         <div className="h-full overflow-x-auto overflow-y-auto flex flex-col" role="region" aria-label="Assigned items by board">
-          {/* Page-level header — this is the ONLY place cross-group personal columns are
-              managed (rename/settings/reorder/delete); each group below shows their
-              names too for alignment, but read-only — their own source-board columns
-              are never editable here. */}
-          <div
-            className="sticky top-0 z-[21] flex items-center bg-gray-50/95 backdrop-blur-sm border-b border-[#d2d2d4]"
-            role="row"
-            aria-label="Personal Hub column controls"
-            // Stretch to the full scroll width so the sticky "Item" cell stays pinned all
-            // the way across, instead of scrolling off once this header's own (narrower)
-            // content has scrolled past — same reason the board rows carry a uniform width.
-            style={footerRowMinWidth ? { minWidth: `${footerRowMinWidth}px` } : undefined}
-          >
-            <div className="w-[298px] flex-shrink-0 px-4 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-gray-600 sticky left-0 z-[1] bg-gray-50">
-              Item
-            </div>
-            {crossGroupColumns.map((col) => (
-              canEdit
-                ? <PersonalColumnHeaderCell key={col.id} column={col} userId={hubOwnerId} />
-                : (
-                  <div
-                    key={col.id}
-                    role="columnheader"
-                    style={{ width: `${PERSONAL_COL_WIDTH}px` }}
-                    className={`flex flex-shrink-0 items-center justify-center gap-1.5 px-2 py-2 border-r border-[#d2d2d4] text-sm font-semibold text-indigo-600 ${col.fromTemplate ? 'bg-[#fff0de80]' : 'bg-indigo-50/50'}`}
-                    title={`${col.name} (personal column${col.fromTemplate ? ', from the org template' : ''})`}
-                  >
-                    <span className="text-indigo-400 flex-shrink-0">{COLUMN_TYPE_ICONS[col.type]}</span>
-                    <span className="truncate">{col.name}</span>
-                  </div>
-                )
-            ))}
-            {canEdit && (
-              <button
-                type="button"
-                onClick={() => setShowAddCrossGroupColumn(true)}
-                className="flex items-center justify-center w-6 h-6 text-gray-400 hover:text-indigo-600 hover:bg-indigo-100 rounded transition-colors flex-shrink-0"
-                aria-label="Add a personal column to every group"
-                title="Add column to all groups"
-              >
-                <FiPlus size={14} aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          <div>
+          {renderColumnHeader(todayCrossColumns, 'today')}
 
           {/* Today — the items the owner marked ☀, shown as the same live rows as below. White
               while expanded so it stands apart from the grey hub below. A one-cell grid so the
@@ -672,6 +684,7 @@ const PersonalHubPageInner: React.FC = () => {
             </div>
             </div>
           </section>
+          </div>
 
           {todayMenu && createPortal(
             <div
@@ -696,10 +709,13 @@ const PersonalHubPageInner: React.FC = () => {
             document.body,
           )}
 
+          <div>
           {/* Grey gap below the Today section (3rem above the title), holding the non-collapsible hub title. */}
           <div className="flex-shrink-0 px-4 pt-12 pb-3">
             <h2 id="phub-items-title" className="sticky left-4 w-fit text-xl font-bold text-black">My Items</h2>
           </div>
+
+          {renderColumnHeader(hubCrossColumns, 'hub')}
 
           <div ref={boardGroupsRef} className="px-4 pb-4 space-y-4" role="region" aria-labelledby="phub-items-title">
             {boardIds.map((boardId) => (
@@ -722,6 +738,7 @@ const PersonalHubPageInner: React.FC = () => {
               />
             ))}
           </div>
+          </div>
 
           {/* Growing spacer so the total row sits at the very bottom of the screen even
               when the content is shorter than the viewport (collapses when it overflows). */}
@@ -733,7 +750,7 @@ const PersonalHubPageInner: React.FC = () => {
               so tasks in future boards are included automatically. Gated on the columns
               only (not row count) so it shows for any hub — including another user's when
               viewed by an admin — the same way the normal board's total always shows. */}
-          {crossGroupColumns.length > 0 && (
+          {hubCrossColumns.length > 0 && (
             <div className="sticky bottom-0 z-[4] w-max pl-4 pr-4 pt-1">
               <BoardRenderProvider visibleItems={[]} columns={[]} openChat={setChatItem} openForms={setFormsItem}>
                 {/* No outer "card" wrapper here (unlike the real board's footer) — this
@@ -746,7 +763,7 @@ const PersonalHubPageInner: React.FC = () => {
                   items={[]}
                   columns={[]}
                   minWidth={footerRowMinWidth}
-                  leadingExtraCells={crossGroupColumns.map((col) => (
+                  leadingExtraCells={hubCrossColumns.map((col) => (
                     <SummaryCell
                       key={col.id}
                       col={col as unknown as SummaryColumn}
