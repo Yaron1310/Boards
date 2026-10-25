@@ -578,7 +578,7 @@ const PersonalHubPageInner: React.FC = () => {
               white strip (first child) is exactly as tall as the content beside it; spans the full
               scroll width (w-max min-w-full) so the strip and background reach all the way across. */}
           <section
-            className={`grid w-max min-w-full px-4 border-b-[3px] border-amber-200 ${todayCollapsed ? '' : 'bg-white [&_.flex-1.bg-gray-100]:bg-white'}`}
+            className={`grid w-max min-w-full px-4 border-b-[3px] border-orange-500 ${todayCollapsed ? '' : 'bg-white [&_.flex-1.bg-gray-100]:bg-white'}`}
             aria-labelledby="phub-today-title"
           >
             {/* Covers the page's grey left-edge fade (z-20, outside this scroller) over this
@@ -634,8 +634,8 @@ const PersonalHubPageInner: React.FC = () => {
             </div>
           </section>
 
-          {/* 3rem grey gap below the Today section, holding the (non-collapsible) hub title. */}
-          <div className="h-12 flex-shrink-0 px-4 flex items-center">
+          {/* Grey gap below the Today section (3rem above the title), holding the non-collapsible hub title. */}
+          <div className="flex-shrink-0 px-4 pt-12 pb-3">
             <h2 id="phub-items-title" className="sticky left-4 w-fit text-xl font-bold text-black">My Items</h2>
           </div>
 
