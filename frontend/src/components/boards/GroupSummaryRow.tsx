@@ -861,10 +861,13 @@ interface BoardSummaryRowProps {
    * has room to stay pinned across the full horizontal scroll range, even when
    * the row's own cells (e.g. Personal Hub's cross-group columns) don't span
    * nearly as wide as the content next to it (fetched board columns). The row
-   * itself has no background, so the extra space is transparent, not a white
-   * strip — only the label and summary cells paint their own white background.
+   * itself has no background, so by default the extra space is transparent and
+   * only the label and summary cells paint their own white background.
    */
   minWidth?: number;
+  /** Paints the extra `minWidth` space white too, so the whole row is solid and nothing
+   *  scrolled underneath it shows through past the last summary cell. */
+  fillRow?: boolean;
 }
 
 /**
@@ -877,7 +880,7 @@ interface BoardSummaryRowProps {
  * spans everything).
  */
 export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
-  items, columns, leadingExtraCells, trailingExtraCells, label = 'Board total', minWidth,
+  items, columns, leadingExtraCells, trailingExtraCells, label = 'Board total', minWidth, fillRow,
 }) => {
   const { columnWidths } = useBoardRender();
   const boardId = columns[0]?.boardId ?? items[0]?.boardId;
@@ -918,6 +921,7 @@ export const BoardSummaryRow: React.FC<BoardSummaryRowProps> = ({
         />
       ))}
       {trailingExtraCells}
+      {fillRow && <div className="flex-1 bg-white" aria-hidden="true" />}
     </div>
   );
 };
