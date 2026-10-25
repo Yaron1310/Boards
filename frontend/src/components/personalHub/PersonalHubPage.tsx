@@ -578,7 +578,7 @@ const PersonalHubPageInner: React.FC = () => {
               white strip (first child) is exactly as tall as the content beside it; spans the full
               scroll width (w-max min-w-full) so the strip and background reach all the way across. */}
           <section
-            className={`grid w-max min-w-full px-4 border-b-[3px] border-orange-500 ${todayCollapsed ? '' : 'bg-white [&_.flex-1.bg-gray-100]:bg-white'}`}
+            className={`grid w-max min-w-full px-4 border-b-[3px] border-[#ffaf39] ${todayCollapsed ? '' : 'bg-white [&_.flex-1.bg-gray-100]:bg-white'}`}
             aria-labelledby="phub-today-title"
           >
             {/* Covers the page's grey left-edge fade (z-20, outside this scroller) over this
