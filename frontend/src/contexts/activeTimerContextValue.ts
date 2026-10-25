@@ -10,6 +10,8 @@ export interface StopRequest {
   onLogged?: (result: StopTimerResult) => void;
   /** The "switch" flow: start this timer once the running one is saved or discarded. */
   then?: StartTimerTarget;
+  /** Window the popover is shown in — the floating timer window, when Stop was clicked there. */
+  window?: Window;
 }
 
 export interface ActiveTimerContextValue {
@@ -23,6 +25,15 @@ export interface ActiveTimerContextValue {
   start: (target: StartTimerTarget, anchorEl: HTMLElement | null) => Promise<void>;
   requestStop: (request: StopRequest) => void;
   isStarting: boolean;
+  /** Whether this browser supports the floating (Picture-in-Picture) timer window. */
+  pipSupported: boolean;
+  /** Whether starting a timer opens the floating window (on by default). */
+  pipEnabled: boolean;
+  setPipEnabled: (enabled: boolean) => void;
+  /** True while the floating timer window is open. */
+  pipOpen: boolean;
+  /** Opens the floating window on demand (needs a user click), regardless of the auto-open setting. */
+  openPip: () => void;
 }
 
 export const ActiveTimerContext = createContext<ActiveTimerContextValue | null>(null);

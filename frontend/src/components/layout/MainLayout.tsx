@@ -670,6 +670,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             style={{ backgroundColor: sidebarColor }}
         >
           <style>{hoverEffectStyle}</style>
+          <ActiveTimerIndicator compact={isCollapsed} />
 
           {/* Collapsed icon-only view */}
           {isCollapsed && (
@@ -1232,7 +1233,6 @@ const MainLayout: React.FC = () => {
         </header>
         <FormulaRecordingBar />
         <main className="flex-1 overflow-auto mt-14 md:mt-0"><Suspense fallback={<ContentLoader />}><RouteChunkBoundary><Outlet /></RouteChunkBoundary></Suspense></main>
-        <ActiveTimerIndicator />
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { FiPlay, FiSquare } from 'react-icons/fi';
+import { FiExternalLink, FiPlay, FiSquare } from 'react-icons/fi';
 import { useActiveTimer, useTimerElapsedSeconds } from '../../../../hooks/useActiveTimer';
 import { formatTimerClock } from '../../../../utils/hoursLog';
 import type { ActiveTimer } from '../../../../types';
@@ -28,7 +28,7 @@ const isThisCell = (timer: ActiveTimer | null, kind: Props['kind'], itemId: stri
  * The ▶/■ clicks never open the cell's manual-entry picker.
  */
 const HoursTimerControl: React.FC<Props> = ({ kind, itemId, columnId, itemName, idleContent, canStart, onLogged }) => {
-  const { timer, serverOffsetMs, start, requestStop, isStarting } = useActiveTimer();
+  const { timer, serverOffsetMs, start, requestStop, isStarting, pipSupported, pipEnabled, setPipEnabled } = useActiveTimer();
   const running = isThisCell(timer, kind, itemId, columnId);
   const elapsed = useTimerElapsedSeconds(running ? timer : null, serverOffsetMs);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -80,6 +80,18 @@ const HoursTimerControl: React.FC<Props> = ({ kind, itemId, columnId, itemName, 
   return (
     <div ref={rootRef} className="group/timer relative w-full h-full flex items-center justify-center">
       {idleContent}
+      {canStart && pipSupported && !pipEnabled && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setPipEnabled(true); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') e.stopPropagation(); }}
+          className="absolute right-7 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-500 bg-white/90 shadow-sm opacity-0 group-hover/timer:opacity-100 focus:opacity-100 hover:bg-gray-100 transition-opacity"
+          title="Open the floating timer window when starting a timer"
+          aria-label="Turn the floating timer window back on"
+        >
+          <FiExternalLink size={11} aria-hidden="true" />
+        </button>
+      )}
       {canStart && (
         <button
           type="button"
