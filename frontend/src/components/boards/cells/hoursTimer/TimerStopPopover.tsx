@@ -14,6 +14,8 @@ interface Props {
   timer: ActiveTimer;
   serverOffsetMs: number;
   anchorEl: HTMLElement | null;
+  /** Window to show the popover in (the floating timer window); defaults to the app window. */
+  targetWindow?: Window;
   /** True when a new timer will start once this one is saved/discarded (the "switch" flow). */
   switching: boolean;
   busy: boolean;
@@ -39,7 +41,7 @@ const clamp = (text: string, max: number): number => {
  * corrected before saving; Save logs whatever the boxes show.
  */
 const TimerStopPopover: React.FC<Props> = ({
-  timer, serverOffsetMs, anchorEl, switching, busy, error, onSave, onDiscard, onKeepRunning,
+  timer, serverOffsetMs, anchorEl, targetWindow, switching, busy, error, onSave, onDiscard, onKeepRunning,
 }) => {
   // Frozen at opening — the boxes are prefilled with, and the range ends at, the moment Stop was
   // clicked, not a moving "now".
@@ -55,34 +57,35 @@ const TimerStopPopover: React.FC<Props> = ({
 
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const win = targetWindow ?? window;
 
   useEffect(() => {
     const h = isLongRun ? 240 : 190;
     if (!anchorEl) {
-      setPos({ top: Math.max(8, window.innerHeight / 2 - h / 2), left: Math.max(8, window.innerWidth / 2 - WIDTH / 2) });
+      setPos({ top: Math.max(8, win.innerHeight / 2 - h / 2), left: Math.max(8, win.innerWidth / 2 - WIDTH / 2) });
       return;
     }
     const r = anchorEl.getBoundingClientRect();
     let top = r.bottom + 6;
     let left = r.left;
-    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 6);
-    if (left + WIDTH > window.innerWidth - 8) left = Math.max(8, window.innerWidth - WIDTH - 8);
+    if (top + h > win.innerHeight - 8) top = Math.max(8, r.top - h - 6);
+    if (left + WIDTH > win.innerWidth - 8) left = Math.max(8, win.innerWidth - WIDTH - 8);
     setPos({ top, left });
-  }, [anchorEl, isLongRun]);
+  }, [anchorEl, isLongRun, win]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) onKeepRunning();
     };
-    const t = setTimeout(() => document.addEventListener('mousedown', handler), 0);
-    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler); };
-  }, [onKeepRunning]);
+    const t = setTimeout(() => win.document.addEventListener('mousedown', handler), 0);
+    return () => { clearTimeout(t); win.document.removeEventListener('mousedown', handler); };
+  }, [onKeepRunning, win]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onKeepRunning(); };
-    window.addEventListener('keydown', h);
-    return () => window.removeEventListener('keydown', h);
-  }, [onKeepRunning]);
+    win.addEventListener('keydown', h);
+    return () => win.removeEventListener('keydown', h);
+  }, [onKeepRunning, win]);
 
   const save = () => { if (total > 0 && !busy) onSave(total); };
   const onEnter = (e: React.KeyboardEvent) => {
@@ -179,7 +182,7 @@ const TimerStopPopover: React.FC<Props> = ({
         </div>
       </div>
     </div>,
-    document.body,
+    win.document.body,
   );
 };
 

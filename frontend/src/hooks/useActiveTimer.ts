@@ -8,6 +8,9 @@ const NO_TIMER: ActiveTimerContextValue = {
   start: async () => {},
   requestStop: () => {},
   isStarting: false,
+  pipSupported: false,
+  pipEnabled: false,
+  setPipEnabled: () => {},
 };
 
 /** The Hours Log stop-clock state. Outside an ActiveTimerProvider (e.g. a public view link)

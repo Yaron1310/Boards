@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { doc, onSnapshot, type FirestoreError } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -9,6 +10,16 @@ import * as timerApi from '../services/timerService';
 import type { StartTimerTarget, StopTimerResult } from '../services/timerService';
 import { ActiveTimerContext, type ActiveTimerContextValue, type StopRequest } from './activeTimerContextValue';
 import TimerStopPopover from '../components/boards/cells/hoursTimer/TimerStopPopover';
+import TimerPipView from '../components/layout/TimerPipView';
+import {
+  PIP_HEIGHT,
+  PIP_HEIGHT_STOPPING,
+  PIP_WIDTH,
+  isTimerPipSupported,
+  openTimerPipWindow,
+  readTimerPipEnabled,
+  writeTimerPipEnabled,
+} from '../utils/timerPip';
 
 const ACTIVE_TIMER_KEY = ['timers', 'active'] as const;
 
@@ -78,14 +89,54 @@ export const ActiveTimerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setStopRequest(request);
   }, []);
 
+  // --- Floating (Picture-in-Picture) timer window ---------------------------------------------
+  const pipSupported = useMemo(isTimerPipSupported, []);
+  const [pipEnabled, setPipEnabledState] = useState(readTimerPipEnabled);
+  const [pipWindow, setPipWindow] = useState<Window | null>(null);
+  const pipOpening = useRef(false);
+
+  const setPipEnabled = useCallback((enabled: boolean) => {
+    writeTimerPipEnabled(enabled);
+    setPipEnabledState(enabled);
+  }, []);
+
+  // Must run synchronously inside the click that starts the timer (the browser needs the gesture).
+  const openPip = useCallback(() => {
+    if (!pipSupported || !pipEnabled || pipWindow || pipOpening.current) return;
+    pipOpening.current = true;
+    void openTimerPipWindow().then((win) => {
+      pipOpening.current = false;
+      if (!win) return;
+      win.addEventListener('pagehide', () => setPipWindow((cur) => (cur === win ? null : cur)));
+      setPipWindow(win);
+    });
+  }, [pipSupported, pipEnabled, pipWindow]);
+
+  // Close the window once the timer is gone (stopped here or elsewhere). Delayed so the gap between
+  // settling one timer and starting the next (the switch flow) doesn't flash it shut.
+  useEffect(() => {
+    if (!pipWindow || timer || startMutation.isPending) return;
+    const t = window.setTimeout(() => pipWindow.close(), 1500);
+    return () => window.clearTimeout(t);
+  }, [pipWindow, timer, startMutation.isPending]);
+
+  // Close with the app tab itself, so no orphan window outlives the session.
+  useEffect(() => {
+    if (!pipWindow) return;
+    const close = () => pipWindow.close();
+    window.addEventListener('pagehide', close);
+    return () => window.removeEventListener('pagehide', close);
+  }, [pipWindow]);
+
   const start = useCallback(async (target: StartTimerTarget, anchorEl: HTMLElement | null) => {
+    openPip();
     if (timer) {
       // One timer at a time: settle the running one first, then start this one.
       requestStop({ anchorEl, then: target });
       return;
     }
     await startMutation.mutateAsync(target);
-  }, [timer, requestStop, startMutation]);
+  }, [timer, requestStop, startMutation, openPip]);
 
   const closePopover = useCallback(() => {
     if (busy) return;
@@ -143,7 +194,17 @@ export const ActiveTimerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     start,
     requestStop,
     isStarting: startMutation.isPending,
-  }), [timer, serverOffsetMs, start, requestStop, startMutation.isPending]);
+    pipSupported,
+    pipEnabled,
+    setPipEnabled,
+  }), [timer, serverOffsetMs, start, requestStop, startMutation.isPending, pipSupported, pipEnabled, setPipEnabled]);
+
+  // The window is taller while the stop popover is open inside it.
+  const stoppingInPip = !!pipWindow && stopRequest?.window === pipWindow;
+  useEffect(() => {
+    if (!pipWindow) return;
+    try { pipWindow.resizeTo(PIP_WIDTH, stoppingInPip ? PIP_HEIGHT_STOPPING : PIP_HEIGHT); } catch { /* needs a gesture; the popover still fits scrolled */ }
+  }, [pipWindow, stoppingInPip]);
 
   return (
     <ActiveTimerContext.Provider value={value}>
@@ -153,7 +214,8 @@ export const ActiveTimerProvider: React.FC<{ children: React.ReactNode }> = ({ c
           key={timer.id}
           timer={timer}
           serverOffsetMs={serverOffsetMs}
-          anchorEl={stopRequest.anchorEl}
+          anchorEl={stopRequest.window ? null : stopRequest.anchorEl}
+          targetWindow={stopRequest.window}
           switching={!!stopRequest.then}
           busy={busy}
           error={stopError}
@@ -161,6 +223,17 @@ export const ActiveTimerProvider: React.FC<{ children: React.ReactNode }> = ({ c
           onDiscard={() => { void handleDiscard(); }}
           onKeepRunning={closePopover}
         />
+      )}
+      {pipWindow && timer && createPortal(
+        <TimerPipView
+          timer={timer}
+          serverOffsetMs={serverOffsetMs}
+          win={pipWindow}
+          autoOpenDisabled={!pipEnabled}
+          onAutoOpenDisabledChange={(disabled) => setPipEnabled(!disabled)}
+          onStop={(anchorEl) => requestStop({ anchorEl, window: pipWindow })}
+        />,
+        pipWindow.document.body,
       )}
     </ActiveTimerContext.Provider>
   );
