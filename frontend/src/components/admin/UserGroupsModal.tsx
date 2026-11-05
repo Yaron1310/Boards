@@ -85,6 +85,14 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ group, groups, onClose 
 
   const isSaving = createGroup.isPending || updateGroup.isPending;
 
+  // Save is only available once something differs from the saved group
+  // (or, for a new group, once anything has been entered).
+  const hasChanges = useMemo(() => {
+    if (!group) return name.trim() !== '' || members.length > 0;
+    const sameMembers = members.length === group.memberIds.length && members.every(id => group.memberIds.includes(id));
+    return name.trim() !== group.name || Number(order) !== group.order || !sameMembers;
+  }, [group, name, order, members]);
+
   const handleSave = async () => {
     setError(null);
     const orderNum = Number(order);
@@ -187,15 +195,6 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ group, groups, onClose 
                   aria-label="Search users to add"
                 />
               </div>
-              <button
-                type="button"
-                onClick={addToGroup}
-                disabled={checked.size === 0}
-                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-sm font-semibold py-2 px-4 rounded-md flex items-center justify-center"
-                aria-label={`Add ${checked.size} selected users to group`}
-              >
-                <FiUserPlus className="mr-2" aria-hidden="true" /> Add to group{checked.size > 0 ? ` (${checked.size})` : ''}
-              </button>
             </div>
 
             <div className="border border-gray-200 rounded-md max-h-64 overflow-y-auto">
@@ -234,8 +233,17 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ group, groups, onClose 
           </button>
           <button
             type="button"
+            onClick={addToGroup}
+            disabled={checked.size === 0 || isSaving}
+            className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md disabled:opacity-50 flex items-center gap-2"
+            aria-label={`Add ${checked.size} selected users to group`}
+          >
+            <FiUserPlus aria-hidden="true" /> Add to group{checked.size > 0 ? ` (${checked.size})` : ''}
+          </button>
+          <button
+            type="button"
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || !hasChanges}
             className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 flex items-center gap-2"
             aria-label={group ? 'Save group' : 'Create group'}
           >
