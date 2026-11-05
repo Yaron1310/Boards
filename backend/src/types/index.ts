@@ -228,6 +228,19 @@ export interface DBRefreshToken {
   revokedAt: admin.firestore.Timestamp | Date | any | null;
 }
 
+// --- USER GROUPS ---
+
+// An admin-defined set of users, used to section the user management table.
+// A user can belong to at most one group per organization.
+export interface DBUserGroup {
+  id: string;
+  name: string;
+  order: number;
+  memberIds: string[];
+  createdAt: admin.firestore.Timestamp | Date | any;
+  updatedAt: admin.firestore.Timestamp | Date | any;
+}
+
 // --- PAGINATION ---
 
 export interface PaginatedResponse<T> {

@@ -163,6 +163,13 @@ export const getUsers = async (params?: { limit?: number; cursor?: string; searc
     const qs = query.toString();
     return fetchWithAuth(`/api/users${qs ? `?${qs}` : ''}`);
 };
+// --- User groups (sections in the user management table) ---
+export const getUserGroups = async (): Promise<import('../types').UserGroup[]> => fetchWithAuth('/api/user-groups');
+export const createUserGroup = async (input: import('../types').UserGroupInput): Promise<import('../types').UserGroup> =>
+    fetchWithAuth('/api/user-groups', { method: 'POST', body: JSON.stringify(input) });
+export const updateUserGroup = async (groupId: string, input: import('../types').UserGroupInput): Promise<import('../types').UserGroup> =>
+    fetchWithAuth(`/api/user-groups/${groupId}`, { method: 'PUT', body: JSON.stringify(input) });
+export const deleteUserGroup = async (groupId: string): Promise<null> => fetchWithAuth(`/api/user-groups/${groupId}`, { method: 'DELETE' });
 export const getUserByIdFromBackend = async (userId: string): Promise<User> => fetchWithAuth(`/api/users/${userId}`);
 export const deleteUserAccount = async (userId: string, deletionType: 'soft' | 'hard'): Promise<null> => fetchWithAuth(`/api/users/${userId}`, { method: 'DELETE', body: JSON.stringify({ deletionType }) });
 export interface PreApproveRow {

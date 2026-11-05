@@ -14,6 +14,11 @@ export const auditLogsCollection = db.collection('auditLogs');
 export const refreshTokensCollection = db.collection('refreshTokens');
 export const boardViewInvitesCollection = db.collection('boardViewInvites');
 
+// User groups (admin-defined ordering/grouping of users for the user management table):
+// /organizations/{orgId}/userGroups/{groupId}
+export const userGroupsCollection = (orgId: string) =>
+  db.collection('organizations').doc(orgId).collection('userGroups');
+
 // --- PHASE 4: Work Management Collections ---
 // Boards: /organizations/{orgId}/boards/{boardId}
 export const boardsCollection = (orgId: string) =>

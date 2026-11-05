@@ -6,10 +6,12 @@ import { useAuthSession } from '../../hooks/useAuthSession';
 import { useData } from '../../hooks/useData';
 import type { User, PreApprovedUser } from '../../types';
 import { UserRole } from '../../types';
-import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiEdit, FiTrash2 } from 'react-icons/fi';
+import { FiSearch, FiFilter, FiChevronDown, FiUsers, FiLoader, FiUserPlus, FiShare, FiAlertTriangle, FiCheckCircle, FiAlertCircle, FiShield, FiEdit, FiTrash2, FiLayers } from 'react-icons/fi';
 import InviteUsersOrgModal from './InviteUsersOrgModal';
 import OrganizationAdminsModal from './AcademyAdminsModal';
 import UserPermissionsModal from './UserPermissionsModal';
+import UserGroupsModal from './UserGroupsModal';
+import { useUserGroupsQuery } from '../../hooks/queries/useUserGroupQueries';
 import { useUsersInfiniteQuery } from '../../hooks/queries/useUserQueries';
 import { useQueryClient } from '@tanstack/react-query';
 import { removeUserFromOrg } from '../../services/geminiService';
@@ -47,6 +49,7 @@ const UserManagementPage: React.FC = () => {
 
   const [showOrganizationAdminsModal, setShowOrganizationAdminsModal] = useState(false);
   const [showInviteUsersModal, setShowInviteUsersModal] = useState(false);
+  const [showGroupsModal, setShowGroupsModal] = useState(false);
   const [permissionsUser, setPermissionsUser] = useState<{ id: string; name: string; isOrgAdmin: boolean; isOrgEditor: boolean } | null>(null);
   const [removeTarget, setRemoveTarget] = useState<{ id: string; name: string } | null>(null);
   const [isRemoving, setIsRemoving] = useState(false);
@@ -78,6 +81,23 @@ const UserManagementPage: React.FC = () => {
   const allUsers = useMemo(() => {
     return infiniteData?.pages.flatMap((page: any) => page?.data ?? []) ?? [];
   }, [infiniteData]);
+
+  const { data: userGroups = [] } = useUserGroupsQuery(!!authUser);
+
+  // Split the loaded users into the admin-defined groups (already sorted by order),
+  // followed by everyone who isn't in a group. A user is in at most one group.
+  const hasActiveFilter = !!(debouncedSearch || filterOrg || filterRole);
+  const userSections = useMemo(() => {
+    const usersById = new Map<string, User>(allUsers.map((u: User) => [u.id, u]));
+    const grouped = new Set<string>();
+    const sections = userGroups.map(g => {
+      const members = g.memberIds.map(id => usersById.get(id)).filter((u): u is User => !!u);
+      members.forEach(u => grouped.add(u.id));
+      return { id: g.id, name: g.name, memberCount: g.memberIds.length, users: members };
+    });
+    const ungrouped = allUsers.filter((u: User) => !grouped.has(u.id));
+    return { sections, ungrouped };
+  }, [allUsers, userGroups]);
 
   // Filter preApprovedUsers by search term and workspaceId, then exclude emails already in allUsers
   const filteredPendingUsers = useMemo(() => {
@@ -179,6 +199,18 @@ const UserManagementPage: React.FC = () => {
       </tr>
     );
   };
+
+  const GroupHeaderRow = ({ title }: { title: string }) => (
+    <tr className="bg-blue-50 border-b border-gray-200" aria-label={`Group ${title}`}>
+      <th
+        colSpan={authUser.role === UserRole.ORGANIZATION_ADMIN ? 6 : 4}
+        scope="colgroup"
+        className="px-6 py-2 text-left text-sm font-semibold text-blue-900"
+      >
+        {title}
+      </th>
+    </tr>
+  );
 
   const UserRow = ({ user: u }: { user: User }) => {
     const roleLabel = (() => {
@@ -289,6 +321,16 @@ const UserManagementPage: React.FC = () => {
                         title="Manage admins for your workspace"
                         >
                         <FiShield className="mr-2" /> {t('admin.manageOrganizationAdmins')}
+                        </button>
+                    )}
+                    {(authUser.role === UserRole.ORGANIZATION_ADMIN || authUser.role === UserRole.SYSTEM_ADMIN) && (
+                        <button
+                        onClick={() => setShowGroupsModal(true)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-md shadow-sm flex items-center justify-center transition-colors w-full sm:w-auto"
+                        aria-label="Manage user groups"
+                        title="Manage user groups"
+                        >
+                        <FiLayers className="mr-2" aria-hidden="true" /> Groups
                         </button>
                     )}
                     <button
@@ -423,9 +465,27 @@ const UserManagementPage: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {filterRole !== 'pending' && allUsers.map((u: any) => (
-                                <UserRow key={u.id} user={u} />
+                            {filterRole !== 'pending' && userSections.sections.map(section => (
+                                // While searching/filtering, hide groups with no matching users.
+                                (section.users.length > 0 || !hasActiveFilter) && (
+                                    <React.Fragment key={section.id}>
+                                        <GroupHeaderRow title={`${section.name} (${section.memberCount})`} />
+                                        {section.users.map((u: User) => (
+                                            <UserRow key={u.id} user={u} />
+                                        ))}
+                                    </React.Fragment>
+                                )
                             ))}
+                            {filterRole !== 'pending' && userSections.ungrouped.length > 0 && (
+                                <>
+                                    {userSections.sections.length > 0 && (
+                                        <GroupHeaderRow title={`Ungrouped (${userSections.ungrouped.length})`} />
+                                    )}
+                                    {userSections.ungrouped.map((u: User) => (
+                                        <UserRow key={u.id} user={u} />
+                                    ))}
+                                </>
+                            )}
                             {filteredPendingUsers.map((p: PreApprovedUser) => (
                                 <PendingUserRow key={p.id} pending={p} />
                             ))}
@@ -463,6 +523,8 @@ const UserManagementPage: React.FC = () => {
         onClose={() => setShowInviteUsersModal(false)}
         workspaces={workspaces.filter(w => !w.isPersonal)}
       />
+
+      {showGroupsModal && <UserGroupsModal onClose={() => setShowGroupsModal(false)} />}
 
       {permissionsUser && (
         <UserPermissionsModal

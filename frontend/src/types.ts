@@ -49,6 +49,19 @@ export interface OrganizationSettings {
   workingDays?: number[];
 }
 
+export interface UserGroup {
+    id: string;
+    name: string;
+    order: number;
+    memberIds: string[];
+}
+
+export interface UserGroupInput {
+    name: string;
+    order: number;
+    memberIds: string[];
+}
+
 export interface EmailTemplate {
   id: string;
   name: string;

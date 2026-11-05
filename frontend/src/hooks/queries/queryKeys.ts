@@ -11,6 +11,9 @@ export const queryKeys = {
     all: ['users'] as const,
     preApproved: ['users', 'preApproved'] as const,
   },
+  userGroups: {
+    all: ['userGroups'] as const,
+  },
   settings: {
     workspace: ['settings', 'workspace'] as const,
     system: ['settings', 'system'] as const,

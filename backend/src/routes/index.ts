@@ -13,6 +13,7 @@ import { provisionRouter } from './provision.routes.js';
 import { systemRouter } from './system.routes.js';
 import { publicRouter } from './public.routes.js';
 import { emailTemplatesRouter } from './emailTemplates.routes.js';
+import { userGroupRouter } from './userGroup.routes.js';
 import { webhookRouter } from './webhook.routes.js';
 
 // Phase 6 — Work Management routes
@@ -52,6 +53,7 @@ mainRouter.use('/app-config', appConfigRouter);
 mainRouter.use('/organizations', academyRouter);
 mainRouter.use('/workspaces', organizationRouter);
 mainRouter.use('/workspaces', workspaceRouter);
+mainRouter.use('/user-groups', userGroupRouter);
 mainRouter.use('/users', userRouter);
 mainRouter.use('/system-settings', systemRouter);
 mainRouter.use('/email-templates', emailTemplatesRouter);
