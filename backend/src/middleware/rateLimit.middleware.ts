@@ -28,6 +28,16 @@ export const authModerateLimiter = rateLimit({
     message: { message: 'Too many requests, please try again later.' },
 });
 
+// Token refresh happens automatically in the background (several tabs, retries),
+// so it gets a more generous budget than interactive auth endpoints.
+export const refreshLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 120,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { message: 'Too many requests, please try again later.' },
+});
+
 // ─── Tier 3 — Payment ───────────────────────────────────────────────────────
 // Payment initiation, webhooks, callbacks
 export const paymentLimiter = rateLimit({

@@ -150,6 +150,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const maxRetries = 3;
       const delay = 1000;
       let success = false;
+      let authRejected = false;
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
@@ -174,7 +175,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           break;
         } catch (error: any) {
           console.warn(`[AUTH_INIT] Attempt ${attempt} failed:`, error);
-          if (error?.status === 401 || error?.status === 403) break;
+          if (error?.status === 401 || error?.status === 403) { authRejected = true; break; }
           if (attempt < maxRetries) {
             console.log(`[AUTH_INIT] Retrying in ${delay}ms...`);
             await new Promise(res => setTimeout(res, delay));
@@ -182,12 +183,22 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       }
 
-      if (!success) {
-        console.log('[AUTH_INIT] Session validation failed. User is logged out.');
+      if (!success && authRejected) {
+        console.log('[AUTH_INIT] Session rejected by backend. User is logged out.');
         removeAuthData();
         setUser(null);
         setToken(null);
         setSelectedWorkspace(null);
+      } else if (!success) {
+        // Transient failure (network/5xx): keep stored credentials so the next
+        // request can refresh normally instead of forcing a fresh login.
+        console.warn('[AUTH_INIT] Session validation failed transiently. Keeping stored session.');
+        if (storedUser && storedOrg) {
+          setToken('cookie');
+        } else {
+          setUser(null);
+          setToken(null);
+        }
       }
       setLoading(false);
     };

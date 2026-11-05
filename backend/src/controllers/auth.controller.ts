@@ -28,14 +28,14 @@ import { issueRefreshToken, rotateRefreshToken, revokeRefreshToken, RefreshToken
 
 const isProduction = process.env.NODE_ENV === 'production' || env.FRONTEND_URL.startsWith('https');
 
-const ACCESS_TOKEN_EXPIRES_IN = '15m';
+const ACCESS_TOKEN_EXPIRES_IN = '45m';
 
 const AUTH_COOKIE_OPTIONS = {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' as const : 'lax' as const,
     path: '/',
-    maxAge: 15 * 60 * 1000, // 15 minutes — matches access JWT expiry; refresh token extends the session
+    maxAge: 45 * 60 * 1000, // 45 minutes — matches access JWT expiry; refresh token extends the session
 };
 
 const PARTIAL_COOKIE_OPTIONS = {

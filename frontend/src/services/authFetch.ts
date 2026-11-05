@@ -9,14 +9,15 @@ const handleAuthError = () => {
   }
 };
 
+type RefreshResult = 'ok' | 'invalid' | 'transient';
+
 // Deduplicates concurrent 401s during a burst of parallel requests so only
 // one refresh call hits the backend; every caller awaits the same promise.
-let refreshPromise: Promise<boolean> | null = null;
+let refreshPromise: Promise<RefreshResult> | null = null;
 
-const performRefresh = async (): Promise<boolean> => {
-  const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
-  if (!storedRefreshToken) return false;
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
+const refreshOnce = async (storedRefreshToken: string): Promise<RefreshResult> => {
   try {
     const response = await fetch(`${BACKEND_API_URL}/api/auth/refresh`, {
       method: 'POST',
@@ -24,22 +25,50 @@ const performRefresh = async (): Promise<boolean> => {
       body: JSON.stringify({ refreshToken: storedRefreshToken }),
       credentials: 'include',
     });
-    if (!response.ok) return false;
+    // Only an explicit rejection of the token means the session is truly gone.
+    // 5xx, 429, etc. are transient and must not log the user out.
+    if (response.status === 401 || response.status === 403) return 'invalid';
+    if (!response.ok) return 'transient';
 
     const data = await response.json();
-    if (!data.accessToken || !data.refreshToken) return false;
+    if (!data.accessToken || !data.refreshToken) return 'transient';
 
     localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, data.accessToken);
     localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, data.refreshToken);
-    return true;
+    return 'ok';
   } catch {
-    return false;
+    return 'transient'; // network error / offline
   }
 };
 
-const tryRefresh = (): Promise<boolean> => {
+const performRefresh = async (tokenAtRequest: string | null): Promise<RefreshResult> => {
+  const run = async (): Promise<RefreshResult> => {
+    const storedRefreshToken = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+    if (!storedRefreshToken) return 'invalid';
+    // Another tab already rotated the token while we waited for the lock.
+    if (tokenAtRequest && storedRefreshToken !== tokenAtRequest) return 'ok';
+
+    let result: RefreshResult = 'transient';
+    for (let attempt = 0; attempt < 3; attempt++) {
+      result = await refreshOnce(storedRefreshToken);
+      if (result !== 'transient') break;
+      await sleep(500 * 2 ** attempt);
+    }
+    return result;
+  };
+
+  // Serialize across tabs so two tabs never present the same refresh token.
+  const locks = typeof navigator !== 'undefined' ? (navigator as Navigator & { locks?: LockManager }).locks : undefined;
+  if (locks?.request) {
+    return locks.request('auth-refresh', run) as Promise<RefreshResult>;
+  }
+  return run();
+};
+
+const tryRefresh = (): Promise<RefreshResult> => {
   if (!refreshPromise) {
-    refreshPromise = performRefresh().finally(() => {
+    const tokenAtRequest = localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY);
+    refreshPromise = performRefresh(tokenAtRequest).finally(() => {
       refreshPromise = null;
     });
   }
@@ -73,10 +102,17 @@ export const fetchWithAuth = async (url: string, options: RequestInit = {}, isRe
     const serverMessage = errorData.message || '';
     const isSessionError = !serverMessage || /token|session|expired|unauthorized/i.test(serverMessage);
 
+    let refreshResult: RefreshResult | null = null;
     if (isSessionError && !isRetry) {
-      const refreshed = await tryRefresh();
-      if (refreshed) {
+      refreshResult = await tryRefresh();
+      if (refreshResult === 'ok') {
         return fetchWithAuth(url, options, true);
+      }
+      if (refreshResult === 'transient') {
+        // Couldn't reach/refresh right now — keep the session, let the caller retry.
+        const transientErr = new Error('Temporary connection problem. Please try again.') as Error & { status: number };
+        transientErr.status = 503;
+        throw transientErr;
       }
     }
 

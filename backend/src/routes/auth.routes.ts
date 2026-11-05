@@ -3,7 +3,7 @@ import { Router } from 'express';
 import passport from 'passport';
 import * as authController from '../controllers/auth.controller.js';
 import { authenticatePartialToken, authenticateToken } from '../middleware/auth.middleware.js';
-import { authStrictLimiter, authModerateLimiter } from '../middleware/rateLimit.middleware.js';
+import { authStrictLimiter, authModerateLimiter, refreshLimiter } from '../middleware/rateLimit.middleware.js';
 import { verifyRecaptcha } from '../middleware/recaptcha.middleware.js';
 import { env } from '../config/env.js';
 
@@ -14,7 +14,7 @@ authRouter.post('/register', authStrictLimiter, verifyRecaptcha, authController.
 authRouter.post('/register-workspace-admin', authStrictLimiter, verifyRecaptcha, authController.registerOrganizationAdmin);
 authRouter.post('/login', authStrictLimiter, verifyRecaptcha, authController.login);
 authRouter.post('/logout', authModerateLimiter, authController.logout);
-authRouter.post('/refresh', authModerateLimiter, authController.refresh);
+authRouter.post('/refresh', refreshLimiter, authController.refresh);
 authRouter.post('/select-context', authModerateLimiter, authenticatePartialToken, authController.selectContext);
 authRouter.put('/switch-context', authModerateLimiter, authenticateToken, authController.switchContext);
 authRouter.post('/forgot-password', authStrictLimiter, verifyRecaptcha, authController.forgotPassword);
