@@ -10,5 +10,7 @@ const writeRoles = [UserRole.ORGANIZATION_ADMIN, UserRole.SYSTEM_ADMIN];
 
 userGroupRouter.get('/', requireRole(readRoles), userGroupController.getUserGroups);
 userGroupRouter.post('/', requireRole(writeRoles), userGroupController.createUserGroup);
+// Must be registered before '/:groupId' so "reorder" isn't read as a group id.
+userGroupRouter.put('/reorder', requireRole(writeRoles), userGroupController.reorderUserGroups);
 userGroupRouter.put('/:groupId', requireRole(writeRoles), userGroupController.updateUserGroup);
 userGroupRouter.delete('/:groupId', requireRole(writeRoles), userGroupController.deleteUserGroup);

@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
-import { FiX, FiPlus, FiEdit2, FiTrash2, FiLoader, FiSearch, FiAlertCircle, FiUserPlus } from 'react-icons/fi';
+import { FiX, FiPlus, FiEdit2, FiTrash2, FiLoader, FiSearch, FiAlertCircle, FiUserPlus, FiMenu } from 'react-icons/fi';
+import { DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, arrayMove, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { getUsers } from '../../services/geminiService';
 import { queryKeys } from '../../hooks/queries/queryKeys';
 import {
@@ -9,6 +12,7 @@ import {
   useCreateUserGroup,
   useUpdateUserGroup,
   useDeleteUserGroup,
+  useReorderUserGroups,
 } from '../../hooks/queries/useUserGroupQueries';
 import type { User, UserGroup } from '../../types';
 
@@ -44,7 +48,6 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ group, groups, onClose 
   const updateGroup = useUpdateUserGroup();
 
   const [name, setName] = useState(group?.name ?? '');
-  const [order, setOrder] = useState<string>(String(group?.order ?? Math.max(0, ...groups.map(g => g.order)) + 1));
   const [members, setMembers] = useState<string[]>(group?.memberIds ?? []);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
@@ -90,15 +93,13 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ group, groups, onClose 
   const hasChanges = useMemo(() => {
     if (!group) return name.trim() !== '' || members.length > 0;
     const sameMembers = members.length === group.memberIds.length && members.every(id => group.memberIds.includes(id));
-    return name.trim() !== group.name || Number(order) !== group.order || !sameMembers;
-  }, [group, name, order, members]);
+    return name.trim() !== group.name || !sameMembers;
+  }, [group, name, members]);
 
   const handleSave = async () => {
     setError(null);
-    const orderNum = Number(order);
     if (!name.trim()) return setError('Group name is required.');
-    if (!Number.isInteger(orderNum) || orderNum < 1) return setError('Order must be a whole number of 1 or more.');
-    const input = { name: name.trim(), order: orderNum, memberIds: members };
+    const input = { name: name.trim(), memberIds: members };
     try {
       if (group) await updateGroup.mutateAsync({ groupId: group.id, input });
       else await createGroup.mutateAsync(input);
@@ -127,32 +128,17 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ group, groups, onClose 
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_8rem] gap-4">
-            <div>
-              <label htmlFor="group-name" className="block text-sm font-medium text-gray-700 mb-1">Group name</label>
-              <input
-                id="group-name"
-                type="text"
-                value={name}
-                maxLength={100}
-                onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                aria-label="Group name"
-              />
-            </div>
-            <div>
-              <label htmlFor="group-order" className="block text-sm font-medium text-gray-700 mb-1">Order</label>
-              <input
-                id="group-order"
-                type="number"
-                min={1}
-                step={1}
-                value={order}
-                onChange={e => setOrder(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                aria-label="Group order number"
-              />
-            </div>
+          <div>
+            <label htmlFor="group-name" className="block text-sm font-medium text-gray-700 mb-1">Group name</label>
+            <input
+              id="group-name"
+              type="text"
+              value={name}
+              maxLength={100}
+              onChange={e => setName(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Group name"
+            />
           </div>
 
           <div>
@@ -257,6 +243,50 @@ const GroupFormModal: React.FC<GroupFormModalProps> = ({ group, groups, onClose 
   );
 };
 
+// ─── Sortable row ─────────────────────────────────────────────────────────────
+
+interface SortableGroupRowProps {
+  group: UserGroup;
+  position: number;
+  onEdit: () => void;
+  onDelete: () => void;
+}
+
+const SortableGroupRow: React.FC<SortableGroupRowProps> = ({ group, position, onEdit, onDelete }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: group.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 py-3 px-2 bg-white ${isDragging ? 'shadow-lg rounded-md relative z-10' : ''}`}
+    >
+      <button
+        type="button"
+        className="p-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing touch-none"
+        aria-label={`Drag to reorder group ${group.name}`}
+        title="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        <FiMenu size={16} aria-hidden="true" />
+      </button>
+      <span className="w-10 text-sm font-semibold text-gray-700 text-center shrink-0" aria-label={`Order ${position}`}>{position}</span>
+      <div className="min-w-0 flex-grow">
+        <div className="text-sm font-medium text-gray-900 truncate">{group.name}</div>
+        <div className="text-xs text-gray-500">{group.memberIds.length} {group.memberIds.length === 1 ? 'member' : 'members'}</div>
+      </div>
+      <button type="button" onClick={onEdit} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" aria-label={`Edit group ${group.name}`} title="Edit group">
+        <FiEdit2 size={15} aria-hidden="true" />
+      </button>
+      <button type="button" onClick={onDelete} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" aria-label={`Delete group ${group.name}`} title="Delete group">
+        <FiTrash2 size={15} aria-hidden="true" />
+      </button>
+    </li>
+  );
+};
+
 // ─── Groups manager modal ─────────────────────────────────────────────────────
 
 interface UserGroupsModalProps {
@@ -266,6 +296,11 @@ interface UserGroupsModalProps {
 const UserGroupsModal: React.FC<UserGroupsModalProps> = ({ onClose }) => {
   const { data: groups = [], isLoading, isError } = useUserGroupsQuery();
   const deleteGroup = useDeleteUserGroup();
+  const reorderGroups = useReorderUserGroups();
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
   const [editing, setEditing] = useState<UserGroup | 'new' | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserGroup | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -277,6 +312,20 @@ const UserGroupsModal: React.FC<UserGroupsModalProps> = ({ onClose }) => {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose, editing, deleteTarget]);
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const from = groups.findIndex(g => g.id === active.id);
+    const to = groups.findIndex(g => g.id === over.id);
+    if (from < 0 || to < 0) return;
+    setError(null);
+    try {
+      await reorderGroups.mutateAsync(arrayMove(groups, from, to).map(g => g.id));
+    } catch (err) {
+      setError(errorMessage(err, 'Failed to reorder groups.'));
+    }
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -323,23 +372,29 @@ const UserGroupsModal: React.FC<UserGroupsModalProps> = ({ onClose }) => {
             ) : groups.length === 0 ? (
               <p className="text-sm text-gray-500 text-center py-8">No groups yet. Click &quot;+ Group&quot; to create one.</p>
             ) : (
-              <ul className="divide-y divide-gray-100" aria-label="Groups">
-                {groups.map(g => (
-                  <li key={g.id} className="flex items-center gap-3 py-3">
-                    <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-gray-100 text-xs font-semibold text-gray-700 shrink-0" title="Order">{g.order}</span>
-                    <div className="min-w-0 flex-grow">
-                      <div className="text-sm font-medium text-gray-900 truncate">{g.name}</div>
-                      <div className="text-xs text-gray-500">{g.memberIds.length} {g.memberIds.length === 1 ? 'member' : 'members'}</div>
-                    </div>
-                    <button type="button" onClick={() => setEditing(g)} className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" aria-label={`Edit group ${g.name}`} title="Edit group">
-                      <FiEdit2 size={15} aria-hidden="true" />
-                    </button>
-                    <button type="button" onClick={() => setDeleteTarget(g)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg" aria-label={`Delete group ${g.name}`} title="Delete group">
-                      <FiTrash2 size={15} aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <div className="flex items-center gap-3 px-2 pb-2 border-b border-gray-200 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <span className="w-6 shrink-0" aria-hidden="true" />
+                  <span className="w-10 text-center shrink-0">Order</span>
+                  <span className="flex-grow">Group</span>
+                  <span className="w-[76px] shrink-0 text-center">Actions</span>
+                </div>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={groups.map(g => g.id)} strategy={verticalListSortingStrategy}>
+                    <ul className="divide-y divide-gray-100" aria-label="Groups, drag to reorder">
+                      {groups.map((g, index) => (
+                        <SortableGroupRow
+                          key={g.id}
+                          group={g}
+                          position={index + 1}
+                          onEdit={() => setEditing(g)}
+                          onDelete={() => setDeleteTarget(g)}
+                        />
+                      ))}
+                    </ul>
+                  </SortableContext>
+                </DndContext>
+              </>
             )}
           </div>
         </div>

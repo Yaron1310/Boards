@@ -19,15 +19,11 @@ const sortGroups = (groups: DBUserGroup[]) =>
   [...groups].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 
 // Explicitly picks and validates the writable fields from the request body.
-const parseGroupBody = (body: any): { name: string; order: number; memberIds: string[] } => {
+// Order is not set here: new groups go last and the order changes via the reorder endpoint.
+const parseGroupBody = (body: any): { name: string; memberIds: string[] } => {
   const name = sanitizeText(typeof body?.name === 'string' ? body.name : '').trim();
   if (!name) throw new HttpError(400, 'Group name is required.');
   if (name.length > MAX_NAME_LENGTH) throw new HttpError(400, `Group name must be at most ${MAX_NAME_LENGTH} characters.`);
-
-  const order = Number(body?.order);
-  if (!Number.isInteger(order) || order < 1 || order > 100000) {
-    throw new HttpError(400, 'Order must be a whole number of 1 or more.');
-  }
 
   const rawIds = Array.isArray(body?.memberIds) ? body.memberIds : [];
   if (rawIds.some((id: unknown) => typeof id !== 'string' || !id)) {
@@ -36,7 +32,7 @@ const parseGroupBody = (body: any): { name: string; order: number; memberIds: st
   const memberIds: string[] = Array.from(new Set<string>(rawIds));
   if (memberIds.length > MAX_MEMBERS) throw new HttpError(400, 'Too many members.');
 
-  return { name, order, memberIds };
+  return { name, memberIds };
 };
 
 // Every member must belong to the caller's organization.
@@ -75,17 +71,20 @@ export const getUserGroups = async (req: Request, res: Response) => {
 // Shared create/update logic. A user may be in only one group, so a member that is
 // already in a different group is rejected rather than silently moved.
 const saveGroup = async (orgId: string, groupId: string | null, body: any): Promise<DBUserGroup> => {
-  const { name, order, memberIds } = parseGroupBody(body);
+  const { name, memberIds } = parseGroupBody(body);
   await assertUsersInOrg(orgId, memberIds);
 
   const col = userGroupsCollection(orgId);
   return db.runTransaction(async (tx) => {
     const existingSnap = await tx.get(col);
-    const others = querySnapshotToArray<DBUserGroup>(existingSnap).filter(g => g.id !== groupId);
+    const all = querySnapshotToArray<DBUserGroup>(existingSnap);
+    const others = all.filter(g => g.id !== groupId);
+    const current = groupId ? all.find(g => g.id === groupId) : undefined;
 
-    if (groupId && existingSnap.docs.every(d => d.id !== groupId)) {
+    if (groupId && !current) {
       throw new HttpError(404, 'Group not found.');
     }
+    const order = current ? current.order : Math.max(0, ...all.map(g => g.order)) + 1;
     if (others.some(g => g.name.toLowerCase() === name.toLowerCase())) {
       throw new HttpError(409, 'A group with this name already exists.');
     }
@@ -97,7 +96,7 @@ const saveGroup = async (orgId: string, groupId: string | null, body: any): Prom
     const ref = groupId ? col.doc(groupId) : col.doc();
     const now = admin.firestore.FieldValue.serverTimestamp();
     if (groupId) {
-      tx.update(ref, { name, order, memberIds, updatedAt: now });
+      tx.update(ref, { name, memberIds, updatedAt: now });
     } else {
       tx.set(ref, { name, order, memberIds, createdAt: now, updatedAt: now });
     }
@@ -136,5 +135,33 @@ export const deleteUserGroup = async (req: Request, res: Response) => {
     return res.status(204).send();
   } catch (err) {
     return handleError(res, err, 'Failed to delete group.');
+  }
+};
+
+// PUT /user-groups/reorder  { orderedIds: string[] }
+// Persists the drag-and-drop order: the group at position i gets order i + 1.
+export const reorderUserGroups = async (req: Request, res: Response) => {
+  const user = req.user as JwtUserPayload;
+  try {
+    const orderedIds: unknown = req.body?.orderedIds;
+    if (!Array.isArray(orderedIds) || orderedIds.some(id => typeof id !== 'string')) {
+      throw new HttpError(400, 'orderedIds must be a list of group ids.');
+    }
+    const ids = orderedIds as string[];
+
+    const col = userGroupsCollection(user.orgId);
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(col);
+      const existing = new Set(snap.docs.map(d => d.id));
+      if (ids.length !== existing.size || new Set(ids).size !== ids.length || ids.some(id => !existing.has(id))) {
+        throw new HttpError(409, 'The group list has changed. Please reload and try again.');
+      }
+      const now = admin.firestore.FieldValue.serverTimestamp();
+      ids.forEach((id, index) => tx.update(col.doc(id), { order: index + 1, updatedAt: now }));
+    });
+    const snap = await col.get();
+    return res.json(sortGroups(querySnapshotToArray<DBUserGroup>(snap)));
+  } catch (err) {
+    return handleError(res, err, 'Failed to reorder groups.');
   }
 };

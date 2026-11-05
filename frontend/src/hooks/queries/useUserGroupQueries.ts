@@ -33,3 +33,12 @@ export const useDeleteUserGroup = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.userGroups.all }),
   });
 };
+
+export const useReorderUserGroups = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (orderedIds: string[]) => apiService.reorderUserGroups(orderedIds),
+    onSuccess: (groups) => queryClient.setQueryData(queryKeys.userGroups.all, groups),
+    onError: () => queryClient.invalidateQueries({ queryKey: queryKeys.userGroups.all }),
+  });
+};

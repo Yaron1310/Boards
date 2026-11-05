@@ -58,7 +58,6 @@ export interface UserGroup {
 
 export interface UserGroupInput {
     name: string;
-    order: number;
     memberIds: string[];
 }
 

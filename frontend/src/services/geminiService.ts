@@ -169,6 +169,8 @@ export const createUserGroup = async (input: import('../types').UserGroupInput):
     fetchWithAuth('/api/user-groups', { method: 'POST', body: JSON.stringify(input) });
 export const updateUserGroup = async (groupId: string, input: import('../types').UserGroupInput): Promise<import('../types').UserGroup> =>
     fetchWithAuth(`/api/user-groups/${groupId}`, { method: 'PUT', body: JSON.stringify(input) });
+export const reorderUserGroups = async (orderedIds: string[]): Promise<import('../types').UserGroup[]> =>
+    fetchWithAuth('/api/user-groups/reorder', { method: 'PUT', body: JSON.stringify({ orderedIds }) });
 export const deleteUserGroup = async (groupId: string): Promise<null> => fetchWithAuth(`/api/user-groups/${groupId}`, { method: 'DELETE' });
 export const getUserByIdFromBackend = async (userId: string): Promise<User> => fetchWithAuth(`/api/users/${userId}`);
 export const deleteUserAccount = async (userId: string, deletionType: 'soft' | 'hard'): Promise<null> => fetchWithAuth(`/api/users/${userId}`, { method: 'DELETE', body: JSON.stringify({ deletionType }) });
